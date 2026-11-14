@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    TryState, api_clear_error, api_set_error, cstr_as_string, dict_obj, error_set,
-    find_window_by_handle, integer_obj, try_enter, try_leave,
+    TryState, api_error, cstr_as_string, dict_obj, find_window_by_handle, integer_obj, try_enter,
+    try_leave,
 };
 use crate::api::private::validate::{Dict, Error, ErrorType, KeyValuePair};
 use crate::api::win_config::{
@@ -932,8 +932,6 @@ thread_local! {
     static WIN_STATE: WindowModuleState = const { WindowModuleState::new() };
 }
 
-const ERROR_INIT: Error = Error::new();
-
 #[inline]
 fn nowin() -> Option<crate::globals::WinPtr> {
     None
@@ -979,38 +977,34 @@ pub fn frames_locked() -> bool {
 
 /// When the window layout cannot be changed give an error and return true.
 pub fn window_layout_locked(cmd: Cmdidx) -> bool {
-    let mut err = ERROR_INIT;
-    let locked = window_layout_locked_err(cmd, &mut err);
-    if error_set(&err) {
+    if let Err(err) = window_layout_locked_err(cmd) {
         emsg(gettext((err.msg_cstr()).unwrap_or(c"")));
-        api_clear_error(&mut err);
+        true
+    } else {
+        false
     }
-    locked
 }
 
-/// Like `window_layout_locked`, but set `err` to the (untranslated) error message when locked.
-pub fn window_layout_locked_err(cmd: Cmdidx, err: &mut Error) -> bool {
+/// Like `window_layout_locked`, but return the (untranslated) error message when locked.
+pub fn window_layout_locked_err(cmd: Cmdidx) -> Result<(), Error> {
     if WIN_STATE.with(|s| s.split_disallowed.get()) > 0
         || WIN_STATE.with(|s| s.close_disallowed.get()) > 0
     {
         if WIN_STATE.with(|s| s.close_disallowed.get()) == 0 && cmd == Cmdidx::CmdTabnew {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeException,
                 c"%s",
                 E_CANNOT_SPLIT_WINDOW_WHEN_CLOSING_BUFFER,
-            );
+            ));
         } else {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeException,
                 c"%s",
                 E_NOT_ALLOWED_TO_CHANGE_WINDOW_LAYOUT_IN_THIS_AUTOCMD,
-            );
+            ));
         }
-        return true;
     }
-    false
+    Ok(())
 }
 
 /// Check if the current window is allowed to move to a different buffer.
@@ -1495,10 +1489,8 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                     config.width = curwin().w_width.get();
                     config.height = curwin().w_height.get();
                     config.external = true;
-                    let mut err = ERROR_INIT;
-                    if win_new_float(Some(&curwin()), false, config, &mut err).is_none() {
+                    if let Err(err) = win_new_float(Some(&curwin()), false, config) {
                         emsg(err.msg_cstr().unwrap_or(c""));
-                        api_clear_error(&mut err);
                         beep_flush();
                     }
                 }
@@ -1521,7 +1513,7 @@ fn cmd_with_count(cmd: &std::ffi::CStr, cbuf: &mut [u8], prenum: i64) {
     }
 }
 
-pub fn win_set_buf(win: &WinInfoInfo, buf: &FileBuf, err: &mut Error) {
+pub fn win_set_buf(win: &WinInfoInfo, buf: &FileBuf) -> Result<(), Error> {
     let win_handle = win.handle;
     let tab = win_find_tabpage(win);
 
@@ -1552,15 +1544,14 @@ pub fn win_set_buf(win: &WinInfoInfo, buf: &FileBuf, err: &mut Error) {
             opt_vars().p_acd.set(save_acd);
         }
     }
-    try_leave(&tstate, err);
+    let mut res = try_leave(&tstate);
 
-    if !win_ok && !error_set(err) {
-        api_set_error!(
-            err,
+    if !win_ok && res.is_ok() {
+        res = Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Failed to switch to window %d",
             win_handle,
-        );
+        ));
     }
 
     validate_cursor(&curwin());
@@ -1569,6 +1560,7 @@ pub fn win_set_buf(win: &WinInfoInfo, buf: &FileBuf, err: &mut Error) {
     g_st()
         .redrawing_disabled
         .set(g_st().redrawing_disabled.get() - (1));
+    res
 }
 
 /// Return the number of fold columns to display
@@ -1630,10 +1622,7 @@ pub fn ui_ext_win_position(wp: &WinInfoInfo, validate: bool) {
         let mut row = c.row;
         let mut col = c.col;
         if c.relative == K_FLOAT_RELATIVE_WINDOW {
-            let mut dummy = ERROR_INIT;
-            let win = find_window_by_handle(c.window, &mut dummy);
-            api_clear_error(&mut dummy);
-            if let Some(win) = win {
+            if let Ok(win) = find_window_by_handle(c.window) {
                 let win = win.borrow();
                 if win.w_pos_changed.get()
                     && !win.w_grid_alloc.chars.borrow().is_empty()
@@ -1847,36 +1836,30 @@ pub fn ui_ext_win_viewport(wp: &WinInfoInfo) {
 /// If "split_disallowed" is set, or "wp"'s buffer is closing, give an error and return FAIL.
 /// Otherwise return OK.
 pub fn check_split_disallowed(wp: Option<&WinInfoInfo>) -> bool {
-    let mut err = ERROR_INIT;
-    let ok = check_split_disallowed_err(wp, &mut err);
-    if error_set(&err) {
+    if let Err(err) = check_split_disallowed_err(wp) {
         emsg(gettext((err.msg_cstr()).unwrap_or(c"")));
-        api_clear_error(&mut err);
+        false
+    } else {
+        true
     }
-    ok
 }
 
-/// Like `check_split_disallowed`, but set `err` to the (untranslated) error message on failure and
-/// return false. Otherwise return true.
-pub fn check_split_disallowed_err(wp: Option<&WinInfoInfo>, err: &mut Error) -> bool {
+/// Like `check_split_disallowed`, but return the (untranslated) error message on failure.
+pub fn check_split_disallowed_err(wp: Option<&WinInfoInfo>) -> Result<(), Error> {
     if WIN_STATE.with(|s| s.split_disallowed.get()) > 0 {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"E242: Can't split a window while closing another",
-        );
-        return false;
+        ));
     }
     if wp.is_some_and(|w| w.buf().b_locked_split.get() != 0) {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"%s",
             E_CANNOT_SPLIT_WINDOW_WHEN_CLOSING_BUFFER,
-        );
-        return false;
+        ));
     }
-    true
+    Ok(())
 }
 
 pub fn win_split(size: i32, mut flags: i32) -> bool {
@@ -4936,14 +4919,13 @@ pub fn win_alloc_first() {
 }
 
 pub fn win_alloc_ctx_win(idx: i32) {
-    let mut err = ERROR_INIT;
     let mut fconfig = WIN_CONFIG_INIT;
     fconfig.width = g_st().columns_global.get();
     fconfig.height = 5;
     fconfig.focusable = false;
     fconfig.mouse = false;
     fconfig.hide = true;
-    let cw_ref = win_new_float(None, true, fconfig, &mut err).unwrap();
+    let cw_ref = win_new_float(None, true, fconfig).unwrap();
     g_st().ctx_win_vec.borrow_mut().as_mut_slice()[idx as usize].cw_win = cw_ref.clone();
     cw_ref
         .buf()

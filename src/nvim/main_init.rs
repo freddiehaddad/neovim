@@ -5,9 +5,7 @@
 use crate::api::private::helpers::{
     api_free_object, api_metadata_raw, boolean_obj, cstr_as_obj, cstr_as_string, integer_obj,
 };
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Array, Dict, NvimString, Object, ObjectData, ObjectType};
 use crate::api::ui::remote_ui_wait_for_attach;
 use crate::arglist::{alist_add, alist_name, garg_entry, gargcount, global_alist_rc};
 use crate::autocmd::{
@@ -1158,7 +1156,6 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
         .collect();
     let args = Array::from_slice(&mut args_vec[..count]);
 
-    let mut err = Error::new();
     let mut a_items: [Object; 4] = [
         integer_obj(Integer::from(chan as i32)),
         cstr_as_obj(server_addr),
@@ -1170,12 +1167,15 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
     ];
     let a = Array::from_slice(&mut a_items[..4]);
     let s = NvimString::from_cstr(c"return vim._cs_remote(...)");
-    let o = nlua_exec(s, None, a, K_RET_OBJECT, &mut err);
+    let res = nlua_exec(s, None, a, K_RET_OBJECT);
     drop(args_vec);
-    if err.err_type != ErrorType::ErrorTypeNone {
-        fprintf!(stderr, c"%s\n", err.msg_cstr());
-        os_exit(2);
-    }
+    let o = match res {
+        Ok(o) => o,
+        Err(err) => {
+            fprintf!(stderr, c"%s\n", err.msg_cstr());
+            os_exit(2);
+        }
+    };
 
     if o.obj_type != ObjectType::ObjectTypeDict {
         fprintf!(stderr, c"vim._cs_remote returned unexpected value\n",);

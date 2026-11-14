@@ -4,11 +4,9 @@
 
 use crate::api::private::converter::{object_to_vim, object_to_vim_take_luaref, vim_to_object};
 use crate::api::private::helpers::{
-    DI_FLAGS_LOCK, api_clear_error, api_free_object, api_metadata, cstr_as_string, dict_set_var,
+    DI_FLAGS_LOCK, api_free_object, api_metadata, cstr_as_string, dict_set_var,
 };
-use crate::api::private::validate::{
-    Array, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
 use crate::api::vim::nvim_feedkeys;
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_BUFFILEPOST, EVENT_BUFFILEPRE, apply_autocmds,
@@ -1279,20 +1277,18 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         args.size += 1;
     }
 
-    let mut err = Error::new();
     let fn_ptr = handler.r#fn.unwrap();
-    let mut result = fn_ptr(VIML_INTERNAL_CALL, args, &mut err);
-
-    if err.err_type != ErrorType::ErrorTypeNone {
-        semsg_multiline!(c"emsg", E_API_ERROR, err.msg_cstr());
-    } else {
-        object_to_vim_take_luaref(&mut result, &mut *rettv, true, &mut err);
+    match fn_ptr(VIML_INTERNAL_CALL, args) {
+        Ok(mut result) => {
+            object_to_vim_take_luaref(&mut result, &mut *rettv, true);
+            if handler.ret_alloc {
+                api_free_object(result);
+            }
+        }
+        Err(err) => {
+            semsg_multiline!(c"emsg", E_API_ERROR, err.msg_cstr());
+        }
     }
-
-    if handler.ret_alloc {
-        api_free_object(result);
-    }
-    api_clear_error(&mut err);
 }
 
 /// Invokes a Lua-implemented vimfn/"f_xx" function from Vimscript.
@@ -1322,21 +1318,17 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         lua_name,
     );
 
-    let mut err = Error::new();
-    let mut result = nlua_exec(
+    match nlua_exec(
         cstr_as_string(Some(crate::memory::bytes_as_cstr(&buf))),
         None,
         args,
         K_RET_OBJECT,
-        &mut err,
-    );
-
-    if err.err_type != ErrorType::ErrorTypeNone {
-        semsg_multiline!(c"emsg", E_API_ERROR, err.msg_cstr());
-    } else {
-        object_to_vim_take_luaref(&mut result, &mut *rettv, true, &mut err);
+    ) {
+        Ok(mut result) => object_to_vim_take_luaref(&mut result, &mut *rettv, true),
+        Err(err) => {
+            semsg_multiline!(c"emsg", E_API_ERROR, err.msg_cstr());
+        }
     }
-    api_clear_error(&mut err);
 }
 
 /// "abs(expr)" function
@@ -1370,11 +1362,7 @@ pub fn f_and(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
 /// "api_info()" function
 pub fn f_api_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    object_to_vim(
-        api_metadata(),
-        &mut *rettv,
-        &mut crate::api::private::validate::Error::new(),
-    );
+    object_to_vim(api_metadata(), &mut *rettv);
 }
 
 /// "atan2()" function
@@ -3723,16 +3711,14 @@ fn eval_has_static_feature(name: &[u8]) -> bool {
 
 fn has_wsl() -> bool {
     if FUNCS_STATE.with(|s| s.has_wsl.get()) == K_NONE {
-        let mut err = Error::new();
         let cmd = c"return vim.uv.os_uname()['release']:lower():match('microsoft')";
         let o = nlua_exec(
             NvimString::from_cstr(cmd),
             None,
             Array::new(),
             K_RET_NIL_BOOL,
-            &mut err,
-        );
-        debug_assert!(err.err_type == ErrorType::ErrorTypeNone);
+        )
+        .expect("has_wsl Lua check failed");
         FUNCS_STATE.with(|s| {
             s.has_wsl
                 .set(if luaret_truthy(o) { K_TRUE } else { K_FALSE })
@@ -4528,10 +4514,9 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 break 'term_done;
             }
 
-            let mut err = Error::new();
             buf.b_locked.set(buf.b_locked.get() + (1));
 
-            dict_set_var(
+            let _ = dict_set_var(
                 &buf.b_vars(),
                 cstr_as_string(Some(c"terminal_job_id")),
                 Object {
@@ -4540,11 +4525,9 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 },
                 false,
                 false,
-                &mut err,
             );
 
-            api_clear_error(&mut err);
-            dict_set_var(
+            let _ = dict_set_var(
                 &buf.b_vars(),
                 cstr_as_string(Some(c"terminal_job_pid")),
                 Object {
@@ -4553,9 +4536,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 },
                 false,
                 false,
-                &mut err,
             );
-            api_clear_error(&mut err);
             buf.b_locked.set(buf.b_locked.get() - (1));
 
             if chan_ref.term.is_null() || terminal_buf(chan_ref.term.borrow()) == 0 {

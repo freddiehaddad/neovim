@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::dispatch::{MsgpackRpcRequestHandler, msgpack_rpc_get_handler_for};
-use crate::api::private::helpers::{api_set_error, nil_obj};
+use crate::api::private::helpers::{api_error, nil_obj};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
 };
@@ -254,7 +254,7 @@ fn api_parse_exit(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: u
 fn parse_nop(_parser: &mut MpackParser, _ctx: &mut (), _node_idx: usize) {}
 
 /// Unpack a single MessagePack value into an `Object` (`unpack`).
-pub fn unpack(mut bytes: &[u8], err: &mut Error) -> Object {
+pub fn unpack(mut bytes: &[u8]) -> Result<Object, Error> {
     let mut unpacker = Unpacker::new();
     mpack_parser_init(&mut unpacker.parser, 0);
 
@@ -273,32 +273,28 @@ pub fn unpack(mut bytes: &[u8], err: &mut Error) -> Object {
     };
 
     if result == MPACK_NOMEM {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"object was too deep to unpack",
-        );
+        ));
     } else if result == MPACK_EOF {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"incomplete msgpack string",
-        );
+        ));
     } else if result == MPACK_ERROR {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"invalid msgpack string",
-        );
+        ));
     } else if result == MPACK_OK && !bytes.is_empty() {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"trailing data in msgpack string",
-        );
+        ));
     }
 
-    std::mem::take(&mut unpacker.result)
+    Ok(std::mem::take(&mut unpacker.result))
 }
 
 /// Initialize an `Unpacker` (`unpacker_init`).
@@ -379,11 +375,8 @@ pub fn unpacker_parse_header(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
             } else {
                 MessageType::from_raw(msg_type as i32)
             }) else {
-                api_set_error!(
-                    &mut p.unpack_error,
-                    ErrorType::ErrorTypeValidation,
-                    c"failed to decode msgpack",
-                );
+                p.unpack_error =
+                    api_error!(ErrorType::ErrorTypeValidation, c"failed to decode msgpack",);
                 p.state = -1;
                 return false;
             };
@@ -426,7 +419,18 @@ pub fn unpacker_parse_header(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
                         } else {
                             &[]
                         };
-                        p.handler = msgpack_rpc_get_handler_for(name_bytes, &mut p.unpack_error);
+                        match msgpack_rpc_get_handler_for(name_bytes) {
+                            Ok(h) => p.handler = h,
+                            Err(e) => {
+                                p.unpack_error = e;
+                                p.handler = MsgpackRpcRequestHandler {
+                                    name: c"",
+                                    r#fn: None,
+                                    fast: false,
+                                    ret_alloc: false,
+                                };
+                            }
+                        }
                     }
                 }
             }
@@ -441,11 +445,7 @@ pub fn unpacker_parse_header(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
     if result == MPACK_EOF {
         mpack_tokbuf_init(&mut p.reader);
     } else {
-        api_set_error!(
-            &mut p.unpack_error,
-            ErrorType::ErrorTypeValidation,
-            c"failed to decode msgpack",
-        );
+        p.unpack_error = api_error!(ErrorType::ErrorTypeValidation, c"failed to decode msgpack",);
         p.state = -1;
     }
     false
@@ -463,7 +463,7 @@ pub fn unpacker_advance(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
             && p.handler.r#fn.is_some_and(|f| {
                 std::ptr::fn_addr_eq(
                     f,
-                    handle_ui_client_redraw as fn(u64, Array, &mut Error) -> Object,
+                    handle_ui_client_redraw as fn(u64, Array) -> Result<Object, Error>,
                 )
             })
         {
@@ -482,8 +482,7 @@ pub fn unpacker_advance(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
     if p.state >= 10 && p.state != 13 {
         if !unpacker_parse_redraw(p, read_buf) {
             if p.state < 0 {
-                api_set_error!(
-                    &mut p.unpack_error,
+                p.unpack_error = api_error!(
                     ErrorType::ErrorTypeValidation,
                     c"failed to parse redraw event",
                 );
@@ -518,11 +517,8 @@ pub fn unpacker_advance(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
             if result == MPACK_EOF {
                 return false;
             } else if result != MPACK_OK {
-                api_set_error!(
-                    &mut p.unpack_error,
-                    ErrorType::ErrorTypeValidation,
-                    c"failed to parse msgpack",
-                );
+                p.unpack_error =
+                    api_error!(ErrorType::ErrorTypeValidation, c"failed to parse msgpack",);
                 p.state = -1;
                 return false;
             }

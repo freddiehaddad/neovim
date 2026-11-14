@@ -7,9 +7,9 @@ use crate::api::buffer::{
 use crate::api::deprecated::{KeyDictEmpty, buffer_del_line, buffer_get_line, buffer_set_line};
 use crate::api::private::converter::vim_to_object;
 use crate::api::private::helpers::{
-    ArrayBuilder, HlMessageChunk, TryState, add_c, api_metadata, api_set_error, api_set_sctx,
+    ArrayBuilder, HlMessageChunk, TryState, add_c, api_error, api_metadata, api_set_sctx,
     api_typename, array_obj, boolean_obj, buffer_obj, copy_array, copy_dict, copy_object,
-    copy_string, dict_get_value, dict_obj, dict_set_var, error_set, find_buffer_by_handle,
+    copy_string, dict_get_value, dict_obj, dict_set_var, find_buffer_by_handle,
     find_window_by_handle, get_default_stl_hl, integer_obj, nil_obj, parse_hl_msg, put_c, set_mark,
     static_cstr_as_string, string_obj, string_to_array, tabpage_obj, try_enter, try_leave,
     window_obj,
@@ -264,12 +264,11 @@ std::thread_local! {
 }
 
 #[inline]
-fn validate_int(cond: bool, name: &std::ffi::CStr, val: i64, err: &mut Error) -> bool {
+fn validate_int(cond: bool, name: &std::ffi::CStr, val: i64) -> Result<(), Error> {
     if !cond {
-        api_err_invalid(err, name, None, val, false);
-        false
+        Err(api_err_invalid(name, None, val, false))
     } else {
-        true
+        Ok(())
     }
 }
 
@@ -278,33 +277,29 @@ fn validate_s(
     cond: bool,
     name: &std::ffi::CStr,
     val: Option<&std::ffi::CStr>,
-    err: &mut Error,
-) -> bool {
+) -> Result<(), Error> {
     if !cond {
-        api_err_invalid(err, name, val, 0, true);
-        false
+        Err(api_err_invalid(name, val, 0, true))
     } else {
-        true
+        Ok(())
     }
 }
 
 #[inline]
-fn validate_r(cond: bool, name: &std::ffi::CStr, err: &mut Error) -> bool {
+fn validate_r(cond: bool, name: &std::ffi::CStr) -> Result<(), Error> {
     if !cond {
-        api_err_required(err, name);
-        false
+        Err(api_err_required(name))
     } else {
-        true
+        Ok(())
     }
 }
 
 #[inline]
-fn validate_range(cond: bool, name: &std::ffi::CStr, err: &mut Error) -> bool {
+fn validate_range(cond: bool, name: &std::ffi::CStr) -> Result<(), Error> {
     if !cond {
-        api_err_invalid(err, name, Some(c"out of range"), 0, false);
-        false
+        Err(api_err_invalid(name, Some(c"out of range"), 0, false))
     } else {
-        true
+        Ok(())
     }
 }
 
@@ -313,18 +308,15 @@ fn validate_t(
     name: &std::ffi::CStr,
     expected_t: ObjectType,
     actual_t: ObjectType,
-    err: &mut Error,
-) -> bool {
+) -> Result<(), Error> {
     if expected_t != actual_t {
-        api_err_exp(
-            err,
+        Err(api_err_exp(
             name,
             api_typename(expected_t),
             Some(api_typename(actual_t)),
-        );
-        false
+        ))
     } else {
-        true
+        Ok(())
     }
 }
 
@@ -338,12 +330,12 @@ pub const fn is_internal_call(channel_id: u64) -> bool {
 /// similar to |hlID()|, but allocates a new ID if not present.
 /// @param[out] err Error details, if any
 // DLLEXPORT Integer nvim_get_hl_id_by_name(String name, Error *err) FUNC_API_SINCE(7);
-pub fn nvim_get_hl_id_by_name(name: NvimString, err: &mut Error) -> Integer {
+pub fn nvim_get_hl_id_by_name(name: NvimString) -> Result<Integer, Error> {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     let ret = syn_check_group(name.as_bytes());
-    try_leave(&tstate, err);
-    Integer::from(ret)
+    try_leave(&tstate)?;
+    Ok(Integer::from(ret))
 }
 
 /// Gets all or specific highlight groups in a namespace.
@@ -364,8 +356,8 @@ pub fn nvim_get_hl_id_by_name(name: NvimString, err: &mut Error) -> Integer {
 ///                   or only a single highlight definition map if requested by name or id.
 // DLLEXPORT DictAs(get_hl_info) nvim_get_hl(Integer ns_id, Dict(get_highlight) *opts, Arena *arena,
 //                                           Error *err) FUNC_API_SINCE(11);
-pub fn nvim_get_hl(ns_id: Integer, opts: &mut KeyDictGetHighlight, err: &mut Error) -> Dict {
-    ns_get_hl_defs(ns_id as NS, &mut *opts, err)
+pub fn nvim_get_hl(ns_id: Integer, opts: &mut KeyDictGetHighlight) -> Result<Dict, Error> {
+    ns_get_hl_defs(ns_id as NS, &mut *opts)
 }
 
 /// Sets a highlight group. By default, replaces the entire definition (e.g. `nvim_set_hl(0, 'Visual', {})`
@@ -426,20 +418,21 @@ pub fn nvim_set_hl(
     ns_id: Integer,
     name: NvimString,
     val: &mut KeyDictHighlight,
-    err: &mut Error,
-) {
+) -> Result<(), Error> {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     let hl_id = syn_check_group(name.as_bytes());
-    try_leave(&tstate, err);
-    if error_set(err) || hl_id == 0 {
-        return;
+    try_leave(&tstate)?;
+    if hl_id == 0 {
+        return Ok(());
     }
     let mut link_id: i32 = -1;
 
     if (val.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_URL)) != 0 {
-        api_set_error!(err, ErrorType::ErrorTypeValidation, c"Invalid key: 'url'",);
-        return;
+        return Err(api_error!(
+            ErrorType::ErrorTypeValidation,
+            c"Invalid key: 'url'",
+        ));
     }
 
     let update =
@@ -452,13 +445,11 @@ pub fn nvim_set_hl(
         true,
         Some(&mut link_id),
         has_base.then_some(&base_attrs),
-        err,
-    );
-    if !error_set(err) {
-        let save_current_sctx = api_set_sctx(channel_id);
-        ns_hl_def(ns_id as NS, hl_id, attrs, link_id, Some(val));
-        g_st().current_sctx.set(save_current_sctx);
-    }
+    )?;
+    let save_current_sctx = api_set_sctx(channel_id);
+    ns_hl_def(ns_id as NS, hl_id, attrs, link_id, Some(val));
+    g_st().current_sctx.set(save_current_sctx);
+    Ok(())
 }
 
 /// Gets the active highlight namespace.
@@ -471,14 +462,12 @@ pub fn nvim_set_hl(
 /// @param[out] err Error details, if any
 /// @return Namespace id, or -1
 // DLLEXPORT Integer nvim_get_hl_ns(Dict(get_ns) *opts, Error *err) FUNC_API_SINCE(12);
-pub fn nvim_get_hl_ns(opts: &mut KeyDictGetNs, err: &mut Error) -> Integer {
+pub fn nvim_get_hl_ns(opts: &mut KeyDictGetNs) -> Result<Integer, Error> {
     if (opts.is_set_get_ns & (1u64 << KEYSET_OPTIDX_GET_NS_WINID)) != 0 {
-        let Some(win) = crate::api::private::helpers::find_window_by_handle(opts.winid, err) else {
-            return 0;
-        };
-        Integer::from(win.w_ns_hl.get())
+        let win = crate::api::private::helpers::find_window_by_handle(opts.winid)?;
+        Ok(Integer::from(win.w_ns_hl.get()))
     } else {
-        Integer::from(g_st().ns_hl_global.get())
+        Ok(Integer::from(g_st().ns_hl_global.get()))
     }
 }
 
@@ -488,13 +477,12 @@ pub fn nvim_get_hl_ns(opts: &mut KeyDictGetNs, err: &mut Error) -> Integer {
 /// @param ns_id the namespace to use
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_hl_ns(Integer ns_id, Error *err) FUNC_API_SINCE(10);
-pub fn nvim_set_hl_ns(ns_id: Integer, err: &mut Error) {
-    if !validate_int(ns_id >= 0, c"namespace", ns_id, err) {
-        return;
-    }
+pub fn nvim_set_hl_ns(ns_id: Integer) -> Result<(), Error> {
+    validate_int(ns_id >= 0, c"namespace", ns_id)?;
     g_st().ns_hl_global.set(ns_id as NS);
     hl_check_ns();
     redraw_all_later(UPD_NOT_VALID);
+    Ok(())
 }
 
 /// Set active namespace for highlights defined with |nvim_set_hl()| while redrawing.
@@ -506,9 +494,10 @@ pub fn nvim_set_hl_ns(ns_id: Integer, err: &mut Error) {
 /// @param ns_id the namespace to activate
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_hl_ns_fast(Integer ns_id, Error *err) FUNC_API_SINCE(10) FUNC_API_FAST;
-pub fn nvim_set_hl_ns_fast(ns_id: Integer, _err: &mut Error) {
+pub fn nvim_set_hl_ns_fast(ns_id: Integer) -> Result<(), Error> {
     g_st().ns_hl_fast.set(ns_id as NS);
     hl_check_ns();
+    Ok(())
 }
 
 /// Sends input-keys to Nvim, subject to various quirks controlled by `mode` flags. This is
@@ -653,8 +642,7 @@ pub fn nvim_input_mouse(
     grid: Integer,
     row: Integer,
     col: Integer,
-    err: &mut Error,
-) {
+) -> Result<(), Error> {
     may_trigger_vim_suspend_resume(false);
 
     let valid = 'check: {
@@ -694,12 +682,10 @@ pub fn nvim_input_mouse(
     };
 
     let Some(code) = valid else {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"invalid button or action",
-        );
-        return;
+        ));
     };
 
     let mut modmask: i32 = 0;
@@ -709,18 +695,17 @@ pub fn nvim_input_mouse(
         }
         let m = name_to_mod_mask(i32::from(byte));
         if m == 0 {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"Invalid modifier: %c",
                 i32::from(byte),
-            );
-            return;
+            ));
         }
         modmask |= m;
     }
 
     input_enqueue_mouse(code, modmask as u8, grid as i32, row as i32, col as i32);
+    Ok(())
 }
 
 /// Converts terminal codes and |keycodes| ([<CR>], [<Esc>], …) in a key sequence, to the internal
@@ -796,8 +781,8 @@ pub fn nvim_replace_termcodes(
 /// @return           Value returned by the Lua code (if any), or NIL.
 // DLLEXPORT Object nvim_exec_lua(String code, Array args, Arena *arena,
 //                                Error *err) FUNC_API_SINCE(7) FUNC_API_REMOTE_ONLY;
-pub fn nvim_exec_lua(code: NvimString, args: Array, err: &mut Error) -> Object {
-    nlua_exec(code, None, args, K_RET_OBJECT, err)
+pub fn nvim_exec_lua(code: NvimString, args: Array) -> Result<Object, Error> {
+    nlua_exec(code, None, args, K_RET_OBJECT)
 }
 
 /// Like |nvim_exec_lua()|, but can be called during |api-fast| contexts.
@@ -817,8 +802,8 @@ pub fn nvim_exec_lua(code: NvimString, args: Array, err: &mut Error) -> Object {
 // DLLEXPORT Object nvim__exec_lua_fast(String code, Array args, Arena *arena,
 //                                      Error *err) FUNC_API_SINCE(14) FUNC_API_REMOTE_ONLY
 //   FUNC_API_FAST;
-pub fn nvim_exec_lua_fast(code: NvimString, args: Array, err: &mut Error) -> Object {
-    nvim_exec_lua(code, args, err)
+pub fn nvim_exec_lua_fast(code: NvimString, args: Array) -> Result<Object, Error> {
+    nvim_exec_lua(code, args)
 }
 
 /// Calculates the number of display cells occupied by `text`.
@@ -828,24 +813,21 @@ pub fn nvim_exec_lua_fast(code: NvimString, args: Array, err: &mut Error) -> Obj
 /// @param[out] err   Error details, if any
 /// @return Number of cells
 // DLLEXPORT Integer nvim_strwidth(String text, Error *err) FUNC_API_SINCE(1);
-pub fn nvim_strwidth(text: NvimString, err: &mut Error) -> Integer {
-    if !validate_s(
+pub fn nvim_strwidth(text: NvimString) -> Result<Integer, Error> {
+    validate_s(
         text.size <= (i32::MAX as usize),
         c"text length",
         Some(c"(too long)"),
-        err,
-    ) {
-        return 0;
-    }
-    mb_string2cells(text.as_bytes()) as Integer
+    )?;
+    Ok(mb_string2cells(text.as_bytes()) as Integer)
 }
 
 /// Gets the paths contained in |runtime-search-path|.
 ///
 /// @return List of paths
 // DLLEXPORT ArrayOf(String) nvim_list_runtime_paths(Arena *arena, Error *err) FUNC_API_SINCE(1);
-pub fn nvim_list_runtime_paths(err: &mut Error) -> Array {
-    nvim_get_runtime_file(NvimString::new(), true, err)
+pub fn nvim_list_runtime_paths() -> Result<Array, Error> {
+    nvim_get_runtime_file(NvimString::new(), true)
 }
 
 /// @nodoc
@@ -868,7 +850,7 @@ pub fn nvim_runtime_inspect() -> Array {
 /// @return list of absolute paths to the found files
 // DLLEXPORT ArrayOf(String) nvim_get_runtime_file(String name, Boolean all, Arena *arena,
 //                                                 Error *err) FUNC_API_SINCE(7) FUNC_API_FAST;
-pub fn nvim_get_runtime_file(name: NvimString, all: Boolean, err: &mut Error) -> Array {
+pub fn nvim_get_runtime_file(name: NvimString, all: Boolean) -> Result<Array, Error> {
     let mut files: Vec<std::ffi::CString> = Vec::new();
 
     let flags = DIP_DIRFILE | if all { DIP_ALL } else { 0 };
@@ -879,7 +861,7 @@ pub fn nvim_get_runtime_file(name: NvimString, all: Boolean, err: &mut Error) ->
         flags,
         &mut RuntimeCallback::FindRuntime(&mut files),
     );
-    try_leave(&tstate, err);
+    try_leave(&tstate)?;
 
     let mut rv = ArrayBuilder::new();
     for fname in &files {
@@ -887,7 +869,7 @@ pub fn nvim_get_runtime_file(name: NvimString, all: Boolean, err: &mut Error) ->
             fname.as_c_str(),
         )));
     }
-    crate::api::private::helpers::take_arraybuilder(&mut rv)
+    Ok(crate::api::private::helpers::take_arraybuilder(&mut rv))
 }
 
 /// @nodoc
@@ -911,18 +893,13 @@ pub fn nvim_get_runtime(
     pat: Array,
     all: Boolean,
     opts: &mut KeyDictRuntime,
-    err: &mut Error,
-) -> Array {
+) -> Result<Array, Error> {
     if opts.do_source && !nlua_is_deferred_safe() {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"%s",
             c"'do_source' used in fast callback",
-        );
-    }
-    if error_set(err) {
-        return Array::new();
+        ));
     }
 
     let res = runtime_get_named(opts.is_lua, pat, all);
@@ -932,7 +909,7 @@ pub fn nvim_get_runtime(
             do_source(name.as_cstr(), false, DOSO_NONE, None);
         }
     }
-    res
+    Ok(res)
 }
 
 /// Changes the global working directory.
@@ -940,19 +917,12 @@ pub fn nvim_get_runtime(
 /// @param dir      Directory path
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_dir(String dir, Error *err) FUNC_API_SINCE(1);
-pub fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
-    if !validate_s(
-        dir.size < MAXPATHL,
-        c"directory name",
-        Some(c"(too long)"),
-        err,
-    ) {
-        return;
-    }
+pub fn nvim_set_current_dir(dir: NvimString) -> Result<(), Error> {
+    validate_s(dir.size < MAXPATHL, c"directory name", Some(c"(too long)"))?;
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     do_chdir(dir.as_opt_cstr(), K_CD_SCOPE_GLOBAL);
-    try_leave(&tstate, err);
+    try_leave(&tstate)
 }
 
 /// Gets the current line.
@@ -960,11 +930,10 @@ pub fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
 /// @param[out] err Error details, if any
 /// @return Current line string
 // DLLEXPORT String nvim_get_current_line(Arena *arena, Error *err) FUNC_API_SINCE(1);
-pub fn nvim_get_current_line(err: &mut Error) -> NvimString {
+pub fn nvim_get_current_line() -> Result<NvimString, Error> {
     buffer_get_line(
         curbuf().b_fnum.get(),
         Integer::from(curwin().w_cursor.get().lnum - 1),
-        err,
     )
 }
 
@@ -974,25 +943,23 @@ pub fn nvim_get_current_line(err: &mut Error) -> NvimString {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_line(String line, Arena *arena,
 //                                      Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
-pub fn nvim_set_current_line(line: NvimString, err: &mut Error) {
+pub fn nvim_set_current_line(line: NvimString) -> Result<(), Error> {
     buffer_set_line(
         curbuf().b_fnum.get(),
         Integer::from(curwin().w_cursor.get().lnum - 1),
         line,
-        err,
-    );
+    )
 }
 
 /// Deletes the current line.
 ///
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_del_current_line(Arena *arena, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
-pub fn nvim_del_current_line(err: &mut Error) {
+pub fn nvim_del_current_line() -> Result<(), Error> {
     buffer_del_line(
         curbuf().b_fnum.get(),
         Integer::from(curwin().w_cursor.get().lnum - 1),
-        err,
-    );
+    )
 }
 
 /// Gets a global (g:) variable.
@@ -1001,32 +968,28 @@ pub fn nvim_del_current_line(err: &mut Error) {
 /// @param[out] err Error details, if any
 /// @return Variable value
 // DLLEXPORT Object nvim_get_var(String name, Arena *arena, Error *err) FUNC_API_SINCE(1);
-pub fn nvim_get_var(name: NvimString, err: &mut Error) -> Object {
+pub fn nvim_get_var(name: NvimString) -> Result<Object, Error> {
     let name_cstr = name.as_opt_cstr().unwrap_or(c"");
     let mut di = tv_dict_find(Some(&*get_globvar_dict()), name_cstr, name.size as isize);
     if di.is_none() {
         let found = script_autoload(name.as_bytes(), false) && !aborting();
         if !found {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"Key not found: %s",
                 name,
-            );
-            return nil_obj();
+            ));
         }
         di = tv_dict_find(Some(&*get_globvar_dict()), name_cstr, name.size as isize);
     }
     let Some(di) = di else {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"Key not found: %s",
             name,
-        );
-        return nil_obj();
+        ));
     };
-    vim_to_object(&di.tv())
+    Ok(vim_to_object(&di.tv()))
 }
 
 /// Sets a global (g:) variable.
@@ -1035,8 +998,9 @@ pub fn nvim_get_var(name: NvimString, err: &mut Error) -> Object {
 /// @param value    Variable value
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_var(String name, Object value, Error *err) FUNC_API_SINCE(1);
-pub fn nvim_set_var(name: NvimString, value: Object, err: &mut Error) {
-    dict_set_var(&get_globvar_dict(), name, value, false, false, err);
+pub fn nvim_set_var(name: NvimString, value: Object) -> Result<(), Error> {
+    dict_set_var(&get_globvar_dict(), name, value, false, false)?;
+    Ok(())
 }
 
 /// Removes a global (g:) variable.
@@ -1044,8 +1008,9 @@ pub fn nvim_set_var(name: NvimString, value: Object, err: &mut Error) {
 /// @param name     Variable name
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_del_var(String name, Error *err) FUNC_API_SINCE(1);
-pub fn nvim_del_var(name: NvimString, err: &mut Error) {
-    dict_set_var(&get_globvar_dict(), name, nil_obj(), true, false, err);
+pub fn nvim_del_var(name: NvimString) -> Result<(), Error> {
+    dict_set_var(&get_globvar_dict(), name, nil_obj(), true, false)?;
+    Ok(())
 }
 
 /// Gets a v: variable.
@@ -1054,8 +1019,8 @@ pub fn nvim_del_var(name: NvimString, err: &mut Error) {
 /// @param[out] err Error details, if any
 /// @return         Variable value
 // DLLEXPORT Object nvim_get_vvar(String name, Arena *arena, Error *err) FUNC_API_SINCE(1);
-pub fn nvim_get_vvar(name: NvimString, err: &mut Error) -> Object {
-    dict_get_value(Some(&get_vimvar_dict()), name, err)
+pub fn nvim_get_vvar(name: NvimString) -> Result<Object, Error> {
+    dict_get_value(Some(&get_vimvar_dict()), name)
 }
 
 /// Sets a v: variable, if it is not readonly.
@@ -1064,8 +1029,9 @@ pub fn nvim_get_vvar(name: NvimString, err: &mut Error) -> Object {
 /// @param value    Variable value
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_vvar(String name, Object value, Error *err) FUNC_API_SINCE(6);
-pub fn nvim_set_vvar(name: NvimString, value: Object, err: &mut Error) {
-    dict_set_var(&get_vimvar_dict(), name, value, false, false, err);
+pub fn nvim_set_vvar(name: NvimString, value: Object) -> Result<(), Error> {
+    dict_set_var(&get_vimvar_dict(), name, value, false, false)?;
+    Ok(())
 }
 
 /// Prints a message given by a list of `[text, hl_group]` "chunks". Emits a |Progress| event if
@@ -1111,13 +1077,8 @@ pub fn nvim_echo(
     chunks: Array,
     history: Boolean,
     opts: &mut KeyDictEchoOpts,
-    err: &mut Error,
-) -> Object {
-    let mut id = integer_obj(-1);
-    let mut hl_msg = parse_hl_msg(chunks, opts.err, err);
-    if error_set(err) {
-        return id;
-    }
+) -> Result<Object, Error> {
+    let mut hl_msg = parse_hl_msg(chunks, opts.err)?;
 
     let mut kind = opts.kind.as_opt_cstr();
     if opts.verbose {
@@ -1136,75 +1097,51 @@ pub fn nvim_echo(
     let mut needs_clear = !history;
     let has_percent = (opts.is_set_echo_opts & (1u64 << KEYSET_OPTIDX_ECHO_OPTS_PERCENT)) != 0;
 
-    let valid = 'validate: {
-        if !is_progress
-            && (opts.status.size != 0
-                || opts.title.size != 0
-                || has_percent
-                || opts.data.size != 0
-                || opts.source.size != 0)
-        {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Conflict: title/source/status/percent/data not allowed with kind='%s'",
-                kind,
-            );
-            break 'validate false;
-        }
-
-        if is_progress
-            && !matches!(
-                opts.status.cstr_bytes(),
-                b"success" | b"failed" | b"running" | b"cancel"
-            )
-        {
-            api_err_exp(
-                err,
-                c"status",
-                c"success|failed|running|cancel",
-                opts.status.as_opt_cstr(),
-            );
-            break 'validate false;
-        }
-
-        if !validate_range(
-            !is_progress || !has_percent || (opts.percent >= 0 && opts.percent <= 100),
-            c"percent",
-            err,
-        ) {
-            break 'validate false;
-        }
-
-        if !validate_r(!is_progress || opts.source.size != 0, c"opts.source", err) {
-            break 'validate false;
-        }
-
-        if !validate_s(
-            !is_progress || opts.source.cstr_bytes() != b"nvim",
-            c"source",
-            opts.source.as_opt_cstr(),
-            err,
-        ) {
-            break 'validate false;
-        }
-
-        if !validate_int(
-            opts.id.obj_type != ObjectType::ObjectTypeInteger
-                || msg_id_exists(opts.id.data.integer()),
-            c"id",
-            opts.id.data.integer(),
-            err,
-        ) {
-            break 'validate false;
-        }
-
-        true
-    };
-
-    if !valid {
-        return id;
+    if !is_progress
+        && (opts.status.size != 0
+            || opts.title.size != 0
+            || has_percent
+            || opts.data.size != 0
+            || opts.source.size != 0)
+    {
+        return Err(api_error!(
+            ErrorType::ErrorTypeValidation,
+            c"Conflict: title/source/status/percent/data not allowed with kind='%s'",
+            kind,
+        ));
     }
+
+    if is_progress
+        && !matches!(
+            opts.status.cstr_bytes(),
+            b"success" | b"failed" | b"running" | b"cancel"
+        )
+    {
+        return Err(api_err_exp(
+            c"status",
+            c"success|failed|running|cancel",
+            opts.status.as_opt_cstr(),
+        ));
+    }
+
+    validate_range(
+        !is_progress || !has_percent || (opts.percent >= 0 && opts.percent <= 100),
+        c"percent",
+    )?;
+
+    validate_r(!is_progress || opts.source.size != 0, c"opts.source")?;
+
+    validate_s(
+        !is_progress || opts.source.cstr_bytes() != b"nvim",
+        c"source",
+        opts.source.as_opt_cstr(),
+    )?;
+
+    validate_int(
+        opts.id.obj_type != ObjectType::ObjectTypeInteger || msg_id_exists(opts.id.data.integer()),
+        c"id",
+        opts.id.data.integer(),
+    )?;
 
     let mut msg_data = MessageData {
         source: opts.source.clone(),
@@ -1224,7 +1161,7 @@ pub fn nvim_echo(
         g_st().msg_no_more.set(true);
     }
     msg_ext_no_fast();
-    id = msg_multihl(
+    let id = msg_multihl(
         opts.id.clone(),
         &mut hl_msg,
         kind,
@@ -1247,7 +1184,7 @@ pub fn nvim_echo(
         verbose_stop();
     }
 
-    id
+    Ok(id)
 }
 
 /// Gets the current list of buffers.
@@ -1279,14 +1216,12 @@ pub fn nvim_get_current_buf() -> Buffer {
 /// @param buf   Buffer id
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_buf(Buffer buf, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
-pub fn nvim_set_current_buf(buf: Buffer, err: &mut Error) {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
-        return;
-    };
+pub fn nvim_set_current_buf(buf: Buffer) -> Result<(), Error> {
+    let b = crate::api::private::helpers::find_buffer_by_handle(buf)?;
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     do_buffer(DOBUF_GOTO, DOBUF_FIRST, FORWARD, b.b_fnum.get(), 0);
-    try_leave(&tstate, err);
+    try_leave(&tstate)
 }
 
 /// Gets the current list of all |window-ID|s in all tabpages.
@@ -1323,17 +1258,15 @@ pub fn nvim_get_current_win() -> Window {
 /// @param win |window-ID| to focus
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_win(Window win, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
-pub fn nvim_set_current_win(win: Window, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
-        return;
-    };
+pub fn nvim_set_current_win(win: Window) -> Result<(), Error> {
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     if w.w_buffer.get() != g_st().curbuf.get() {
         reset_visual_and_resel();
     }
     goto_tabpage_win(&win_find_tabpage(&w).unwrap(), &w);
-    try_leave(&tstate, err);
+    try_leave(&tstate)
 }
 
 /// Creates a new, empty, unnamed buffer.
@@ -1344,7 +1277,7 @@ pub fn nvim_set_current_win(win: Window, err: &mut Error) {
 /// @param[out] err Error details, if any
 /// @return Buffer id, or 0 on error
 // DLLEXPORT Buffer nvim_create_buf(Boolean listed, Boolean scratch, Error *err) FUNC_API_SINCE(6);
-pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Buffer {
+pub fn nvim_create_buf(listed: Boolean, scratch: Boolean) -> Result<Buffer, Error> {
     let mut ret: Buffer = 0;
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
@@ -1409,16 +1342,15 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
 
         ret = buf_ptr.b_fnum.get();
     }
-    try_leave(&tstate, err);
+    try_leave(&tstate)?;
 
-    if ret == 0 && !error_set(err) {
-        api_set_error!(
-            err,
+    if ret == 0 {
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Failed to create buffer",
-        );
+        ));
     }
-    ret
+    Ok(ret)
 }
 
 /// Open a terminal instance in a buffer
@@ -1458,22 +1390,17 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
 /// @return Channel id, or 0 on error
 // DLLEXPORT Integer nvim_open_term(Buffer buf, Dict(open_term) *opts,
 //                                  Error *err) FUNC_API_SINCE(7) FUNC_API_TEXTLOCK;
-pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDictOpenTerm, err: &mut Error) -> Integer {
-    let Some(b) = api_buf_ensure_loaded(buf, err) else {
-        return 0;
-    };
+pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDictOpenTerm) -> Result<Integer, Error> {
+    let b = api_buf_ensure_loaded(buf)?;
 
     let mut may_read_buffer = true;
     if !b.terminal.get().is_null() {
         if terminal_running(b.terminal.get().borrow()) {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeException,
                 c"Terminal already connected to buffer %d",
                 b.b_fnum.get(),
-            );
-
-            return 0;
+            ));
         }
 
         buf_close_terminal(&b);
@@ -1529,11 +1456,11 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDictOpenTerm, err: &mut Error) 
         channel_send(chan_id, contents, &mut error);
 
         if let Some(err_str) = error {
-            api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", err_str);
+            return Err(api_error!(ErrorType::ErrorTypeValidation, c"%s", err_str));
         }
     }
 
-    chan_id as Integer
+    Ok(chan_id as Integer)
 }
 
 /// Sends raw data to channel `chan`. |channel-bytes|
@@ -1551,16 +1478,17 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDictOpenTerm, err: &mut Error) 
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_chan_send(Integer chan, String data,
 //                               Error *err) FUNC_API_SINCE(7) FUNC_API_REMOTE_ONLY FUNC_API_LUA_ONLY;
-pub fn nvim_chan_send(chan: Integer, data: NvimString, err: &mut Error) {
+pub fn nvim_chan_send(chan: Integer, data: NvimString) -> Result<(), Error> {
     if data.size == 0 {
-        return;
+        return Ok(());
     }
     let mut error = None;
     let buf = data.as_bytes().to_vec();
     channel_send(chan as u64, buf, &mut error);
     if let Some(err_str) = error {
-        api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", err_str);
+        return Err(api_error!(ErrorType::ErrorTypeValidation, c"%s", err_str));
     }
+    Ok(())
 }
 
 /// Gets the current list of |tab-ID|s.
@@ -1590,15 +1518,13 @@ pub fn nvim_get_current_tabpage() -> Tabpage {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_tabpage(Tabpage tabpage,
 //                                         Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
-pub fn nvim_set_current_tabpage(tabpage: Tabpage, err: &mut Error) {
-    let Some(tp) = crate::api::private::helpers::find_tab_by_handle(tabpage, err) else {
-        return;
-    };
+pub fn nvim_set_current_tabpage(tabpage: Tabpage) -> Result<(), Error> {
+    let tp = crate::api::private::helpers::find_tab_by_handle(tabpage)?;
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     goto_tabpage_tp(Some(&tp), true, true);
-    try_leave(&tstate, err);
+    try_leave(&tstate)
 }
 
 /// Pastes at cursor (in any mode), and sets "redo" so dot (|.|) will repeat the input. UIs call
@@ -1643,11 +1569,8 @@ pub fn nvim_paste(
     data: NvimString,
     crlf: Boolean,
     phase: Integer,
-    err: &mut Error,
-) -> Boolean {
-    if !validate_int((-1..=3).contains(&phase), c"phase", phase, err) {
-        return false;
-    }
+) -> Result<Boolean, Error> {
+    validate_int((-1..=3).contains(&phase), c"phase", phase)?;
     if phase == -1 || phase == 1 {
         PASTE_CANCELLED.set(false);
         if let Some(term) = curbuf().terminal_opt() {
@@ -1658,21 +1581,24 @@ pub fn nvim_paste(
         if phase == 3 {
             PASTE_CANCELLED.set(false);
         }
-        return retval;
+        return Ok(retval);
     }
 
     let lines = string_to_array(data.clone(), crlf);
     let mut args_items = [array_obj(lines), integer_obj(phase)];
     let args = Array::from_slice(&mut args_items[..2]);
-    let rv = nlua_exec(
+    let rv_res = nlua_exec(
         static_cstr_as_string(c"return vim.paste(...)"),
         None,
         args,
         K_RET_NIL_BOOL,
-        err,
     );
-    if error_set(err) || (rv.obj_type == ObjectType::ObjectTypeBoolean && !rv.data.boolean()) {
-        PASTE_CANCELLED.set(true);
+    match &rv_res {
+        Err(_) => PASTE_CANCELLED.set(true),
+        Ok(rv) if rv.obj_type == ObjectType::ObjectTypeBoolean && !rv.data.boolean() => {
+            PASTE_CANCELLED.set(true);
+        }
+        Ok(_) => {}
     }
     if (phase == -1 || phase == 3 || PASTE_CANCELLED.get())
         && let Some(term) = curbuf().terminal_opt()
@@ -1694,7 +1620,7 @@ pub fn nvim_paste(
     if phase == -1 || phase == 3 {
         PASTE_CANCELLED.set(false);
     }
-    retval
+    rv_res.map(|_| retval)
 }
 
 /// Puts text at cursor, in any mode. For dot-repeatable input, use |nvim_paste()|.
@@ -1717,27 +1643,21 @@ pub fn nvim_put(
     reg_type: NvimString,
     after: Boolean,
     follow: Boolean,
-    err: &mut Error,
-) {
+) -> Result<(), Error> {
     let mut reg = crate::register::EMPTY_YANKREG;
-    if !validate_s(
+    validate_s(
         prepare_yankreg_from_object(&mut reg, reg_type.clone(), lines.size),
         c"type",
         reg_type.as_opt_cstr(),
-        err,
-    ) {
-        return;
-    }
+    )?;
     if lines.size == 0 {
-        return;
+        return Ok(());
     }
 
     reg.y_array = Vec::with_capacity(lines.size);
     reg.y_allocated = true;
     for item in lines.as_slice() {
-        if !validate_t(c"line", ObjectType::ObjectTypeString, item.obj_type, err) {
-            return;
-        }
+        validate_t(c"line", ObjectType::ObjectTypeString, item.obj_type)?;
         let line = item.data.string();
         let line_size = line.size;
         let mut copied = copy_string(line);
@@ -1766,7 +1686,7 @@ pub fn nvim_put(
     );
     g_st().msg_silent.set(g_st().msg_silent.get() - (1));
     g_st().visual_global.borrow_mut().active = visual_was_active;
-    try_leave(&tstate, err);
+    try_leave(&tstate)
 }
 
 /// Returns the 24-bit RGB value of a |nvim_get_color_map()| color name or
@@ -1821,7 +1741,7 @@ pub fn nvim_get_color_map() -> Dict {
 ///
 /// @return Editor state as a msgpack-encoded map.
 // DLLEXPORT Dict nvim_get_context(Dict(context) *opts, Arena *arena, Error *err) FUNC_API_SINCE(6);
-pub fn nvim_get_context(opts: &mut KeyDictContext, err: &mut Error) -> Dict {
+pub fn nvim_get_context(opts: &mut KeyDictContext) -> Result<Dict, Error> {
     let types = if (opts.is_set_context & (1u64 << KEYSET_OPTIDX_CONTEXT_TYPES)) != 0 {
         opts.types.clone()
     } else {
@@ -1841,8 +1761,8 @@ pub fn nvim_get_context(opts: &mut KeyDictContext, err: &mut Error) -> Dict {
                     b"sfuncs" => int_types |= K_CTX_SFUNCS,
                     b"funcs" => int_types |= K_CTX_FUNCS,
                     _ => {
-                        let _ = validate_s(false, c"type", s.as_opt_cstr(), err);
-                        return Dict::new();
+                        validate_s(false, c"type", s.as_opt_cstr())?;
+                        return Ok(Dict::new());
                     }
                 }
             }
@@ -1853,26 +1773,27 @@ pub fn nvim_get_context(opts: &mut KeyDictContext, err: &mut Error) -> Dict {
     ctx_save(&mut ctx, int_types);
     let dict = ctx_to_dict(&mut ctx);
     ctx_free(&mut ctx);
-    dict
+    Ok(dict)
 }
 
 /// Sets the current editor state from the given map.
 ///
 /// @param dict  Msgpack-encoded editor state, in the form returned by [nvim_get_context()].
 // DLLEXPORT Object nvim_load_context(Dict dict, Error *err) FUNC_API_SINCE(6);
-pub fn nvim_load_context(dict: Dict, err: &mut Error) -> Object {
+pub fn nvim_load_context(dict: Dict) -> Result<Object, Error> {
     let mut ctx = CONTEXT_INIT;
     let save_did_emsg = g_st().did_emsg.get();
     g_st().did_emsg.set(0);
 
-    ctx_from_dict(dict, &mut ctx, err);
-    if !error_set(err) {
+    let res = ctx_from_dict(dict, &mut ctx);
+    if res.is_ok() {
         ctx_load(&mut ctx, K_CTX_ALL, 0);
     }
 
     ctx_free(&mut ctx);
     g_st().did_emsg.set(save_did_emsg);
-    nil_obj()
+    res?;
+    Ok(nil_obj())
 }
 
 /// Gets the current mode. |mode()|
@@ -1947,9 +1868,8 @@ pub fn nvim_set_keymap(
     lhs: NvimString,
     rhs: NvimString,
     opts: &mut KeyDictKeymap,
-    err: &mut Error,
-) {
-    modify_keymap(channel_id, -1, MAPTYPE_MAP, mode, lhs, rhs, Some(opts), err);
+) -> Result<(), Error> {
+    modify_keymap(channel_id, -1, MAPTYPE_MAP, mode, lhs, rhs, Some(opts))
 }
 
 /// Unmaps a global |mapping| for the given mode.
@@ -1969,9 +1889,8 @@ pub fn nvim_del_keymap(
     mode: NvimString,
     lhs: NvimString,
     opts: &mut KeyDictKeymapDel,
-    err: &mut Error,
-) {
-    nvim_buf_del_keymap(channel_id, -1, mode, lhs, opts, err);
+) -> Result<(), Error> {
+    nvim_buf_del_keymap(channel_id, -1, mode, lhs, opts)
 }
 
 /// Returns a 2-tuple (Array), where item 0 is the current channel id and item
@@ -2050,8 +1969,7 @@ pub fn nvim_set_client_info(
     client_type: NvimString,
     methods: Dict,
     attributes: Dict,
-    _err: &mut Error,
-) {
+) -> Result<(), Error> {
     let mut info_items = [const { KeyValuePair::new() }; 5];
     let mut info = Dict::from_buf(&mut info_items);
     put_c(&mut info, c"name", string_obj(name));
@@ -2078,6 +1996,7 @@ pub fn nvim_set_client_info(
     put_c(&mut info, c"attributes", dict_obj(attributes));
 
     rpc_set_client_info(channel_id, copy_dict(info));
+    Ok(())
 }
 
 /// Sets channel properties.
@@ -2098,15 +2017,12 @@ pub fn nvim_chan_set(
     channel_id: u64,
     mut chan: Integer,
     config: &mut KeyDictChanSet,
-    err: &mut Error,
-) {
+) -> Result<(), Error> {
     if chan == 0 && !is_internal_call(channel_id) {
         chan = channel_id as Integer;
     }
     let channel = find_channel(chan as u64);
-    if !validate_int(channel.is_some(), c"chan", chan, err) {
-        return;
-    }
+    validate_int(channel.is_some(), c"chan", chan)?;
     let channel = channel.unwrap();
     if (config.is_set_chan_set & (1u64 << KEYSET_OPTIDX_CHAN_SET_DETACH)) != 0 {
         channel.detach = config.detach;
@@ -2125,6 +2041,7 @@ pub fn nvim_chan_set(
     {
         channel_event(channel, EVENT_CHANINFO);
     }
+    Ok(())
 }
 
 /// Records the cmdwin scratchbuf and type, or clears both when type="" / buf=0. Internal use only.
@@ -2133,17 +2050,16 @@ pub fn nvim_chan_set(
 /// @param buf   cmdwin buffer id, or 0 to clear.
 /// @param[out] err Error details, if any.
 // DLLEXPORT void nvim__cmdwin_set(String type, Buffer buf, Error *err) FUNC_API_SINCE(14);
-pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
+pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer) -> Result<(), Error> {
     if type_str.size == 0 || buf == 0 {
         g_st().cmdwin_type.set(0);
         g_st().cmdwin_buf.set(crate::globals::BufPtr::NULL);
-        return;
+        return Ok(());
     }
-    let Some(b) = find_buffer_by_handle(buf, err) else {
-        return;
-    };
+    let b = find_buffer_by_handle(buf)?;
     g_st().cmdwin_type.set(i32::from(type_str.first_byte()));
     g_st().cmdwin_buf.set(b);
+    Ok(())
 }
 
 /// Gets information about a channel.
@@ -2177,15 +2093,15 @@ pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
 ///    - "trust"    (optional) Trust the peer: allow its incoming |RPC| |API| calls. |nvim_chan_set()|
 // DLLEXPORT Dict nvim_get_chan_info(uint64_t channel_id, Integer chan, Arena *arena,
 //                                   Error *err) FUNC_API_SINCE(4);
-pub fn nvim_get_chan_info(channel_id: u64, mut chan: Integer, _err: &mut Error) -> Dict {
+pub fn nvim_get_chan_info(channel_id: u64, mut chan: Integer) -> Result<Dict, Error> {
     if chan < 0 {
-        return Dict::new();
+        return Ok(Dict::new());
     }
     if chan == 0 && !is_internal_call(channel_id) {
         assert!(channel_id <= (i64::MAX as u64));
         chan = channel_id as Integer;
     }
-    channel_info(chan as u64)
+    Ok(channel_info(chan as u64))
 }
 
 /// Get information about all open channels.
@@ -2302,12 +2218,8 @@ pub fn nvim_list_uis() -> Array {
 ///
 /// @return Array of child process ids, empty if process not found.
 // DLLEXPORT Array nvim_get_proc_children(Integer pid, Arena *arena, Error *err) FUNC_API_SINCE(4);
-pub fn nvim_get_proc_children(pid: Integer, err: &mut Error) -> Array {
-    let mut rvobj = Array::new();
-
-    if !validate_int(pid > 0 && pid <= Integer::from(i32::MAX), c"pid", pid, err) {
-        return rvobj;
-    }
+pub fn nvim_get_proc_children(pid: Integer) -> Result<Array, Error> {
+    validate_int(pid > 0 && pid <= Integer::from(i32::MAX), c"pid", pid)?;
 
     match os_proc_children(pid as i32) {
         Err(rv) => {
@@ -2318,52 +2230,45 @@ pub fn nvim_get_proc_children(pid: Integer, err: &mut Error) -> Array {
                 None,
                 a,
                 K_RET_OBJECT,
-                err,
-            );
+            )?;
             if o.obj_type == ObjectType::ObjectTypeArray {
-                rvobj = o.data.array();
-            } else if !error_set(err) {
-                api_set_error!(
-                    err,
+                Ok(o.data.array())
+            } else {
+                Err(api_error!(
                     ErrorType::ErrorTypeException,
                     c"Failed to get process children. pid=%lld error=%d",
                     pid,
                     rv,
-                );
+                ))
             }
         }
         Ok(children) => {
-            rvobj = Array::with_capacity(children.len());
+            let mut rvobj = Array::with_capacity(children.len());
             for child_pid in children {
                 add_c(&mut rvobj, integer_obj(Integer::from(child_pid)));
             }
+            Ok(rvobj)
         }
     }
-
-    rvobj
 }
 
 /// Gets info describing process `pid`.
 ///
 /// @return Map of process properties, or NIL if process not found.
 // DLLEXPORT Object nvim_get_proc(Integer pid, Arena *arena, Error *err) FUNC_API_SINCE(4);
-pub fn nvim_get_proc(pid: Integer, err: &mut Error) -> Object {
-    if !validate_int(pid > 0 && pid <= Integer::from(i32::MAX), c"pid", pid, err) {
-        return nil_obj();
-    }
+pub fn nvim_get_proc(pid: Integer) -> Result<Object, Error> {
+    validate_int(pid > 0 && pid <= Integer::from(i32::MAX), c"pid", pid)?;
 
     #[cfg(windows)]
     {
-        let _ = err;
         let rvobj = dict_obj(os_proc_info(pid as i32));
         if rvobj.data.dict().size == 0 {
-            return nil_obj();
+            return Ok(nil_obj());
         }
-        rvobj
+        Ok(rvobj)
     }
     #[cfg(not(windows))]
     {
-        let mut rvobj = nil_obj();
         let mut a_items = [integer_obj(pid)];
         let a = Array::from_slice(&mut a_items[..1]);
         let o = nlua_exec(
@@ -2371,21 +2276,18 @@ pub fn nvim_get_proc(pid: Integer, err: &mut Error) -> Object {
             None,
             a,
             K_RET_OBJECT,
-            err,
-        );
+        )?;
         if o.obj_type == ObjectType::ObjectTypeArray && o.data.array().size == 0 {
-            return nil_obj();
+            Ok(nil_obj())
         } else if o.obj_type == ObjectType::ObjectTypeDict {
-            rvobj = o;
-        } else if !error_set(err) {
-            api_set_error!(
-                err,
+            Ok(o)
+        } else {
+            Err(api_error!(
                 ErrorType::ErrorTypeException,
                 c"Failed to get process info. pid=%lld",
                 pid,
-            );
+            ))
         }
-        rvobj
     }
 }
 
@@ -2411,32 +2313,29 @@ pub fn nvim_select_popupmenu_item(
     mut insert: Boolean,
     finish: Boolean,
     _opts: &mut KeyDictEmpty,
-    _err: &mut Error,
-) {
+) -> Result<(), Error> {
     if finish {
         insert = true;
     }
     pum_ext_select_item(item as i32, insert, finish);
+    Ok(())
 }
 
 /// NB: if your UI doesn't use hlstate, this will not return hlstate first time.
 // DLLEXPORT Array nvim__inspect_cell(Integer grid, Integer row, Integer col, Arena *arena,
 //                                    Error *err);
-pub fn nvim_inspect_cell(grid: Integer, row: Integer, col: Integer, err: &mut Error) -> Array {
+pub fn nvim_inspect_cell(grid: Integer, row: Integer, col: Integer) -> Result<Array, Error> {
     let mut ret = Array::new();
     let g: &ScreenGrid = if grid == Integer::from(g_st().pum_grid.handle.get()) {
         &g_st().pum_grid
     } else if grid > 1 {
         let wp = get_win_by_grid_handle(grid as ObjHandle);
-        if !validate_int(
+        validate_int(
             wp.clone()
                 .is_some_and(|w| !w.w_grid_alloc.chars.borrow().is_empty()),
             c"grid handle",
             grid,
-            err,
-        ) {
-            return ret;
-        }
+        )?;
 
         &wp.unwrap().w_grid_alloc
     } else {
@@ -2448,7 +2347,7 @@ pub fn nvim_inspect_cell(grid: Integer, row: Integer, col: Integer, err: &mut Er
         || col < 0
         || col >= Integer::from(g.cols.get())
     {
-        return ret;
+        return Ok(ret);
     }
     ret = Array::with_capacity(3);
     let off = g.line_offset.borrow()[row as usize] + (col as usize);
@@ -2461,12 +2360,12 @@ pub fn nvim_inspect_cell(grid: Integer, row: Integer, col: Integer, err: &mut Er
     let attr = g.attrs.borrow()[off];
     add_c(
         &mut ret,
-        dict_obj(hl_get_attr_by_id(Integer::from(attr), true, err)),
+        dict_obj(hl_get_attr_by_id(Integer::from(attr), true)?),
     );
     if !highlight_use_hlstate() {
         add_c(&mut ret, array_obj(hl_inspect(attr)));
     }
-    ret
+    Ok(ret)
 }
 
 /// @nodoc
@@ -2485,8 +2384,8 @@ pub fn nvim_invalidate_glyph_cache() {
 
 /// @nodoc
 // DLLEXPORT Object nvim__unpack(String str, Arena *arena, Error *err) FUNC_API_FAST;
-pub fn nvim_unpack(str_: NvimString, err: &mut Error) -> Object {
-    unpack(str_.as_bytes(), err)
+pub fn nvim_unpack(str_: NvimString) -> Result<Object, Error> {
+    unpack(str_.as_bytes())
 }
 
 /// Deletes an uppercase/file named mark. See |mark-motions|.
@@ -2497,25 +2396,19 @@ pub fn nvim_unpack(str_: NvimString, err: &mut Error) -> Object {
 /// @see |nvim_buf_del_mark()|
 /// @see |nvim_get_mark()|
 // DLLEXPORT Boolean nvim_del_mark(String name, Error *err) FUNC_API_SINCE(8);
-pub fn nvim_del_mark(name: NvimString, err: &mut Error) -> Boolean {
-    if !validate_s(
+pub fn nvim_del_mark(name: NvimString) -> Result<Boolean, Error> {
+    validate_s(
         name.size == 1,
         c"mark name (must be a single char)",
         name.as_opt_cstr(),
-        err,
-    ) {
-        return false;
-    }
+    )?;
     let ch = name.first_byte();
-    if !validate_s(
+    validate_s(
         ch.is_ascii_uppercase() || ch.is_ascii_digit(),
         c"mark name (must be file/uppercase)",
         name.as_opt_cstr(),
-        err,
-    ) {
-        return false;
-    }
-    set_mark(None, name, 0, 0, err)
+    )?;
+    set_mark(None, name, 0, 0)
 }
 
 /// Returns a `(row, col, buffer, buffername)` tuple representing the position
@@ -2534,25 +2427,18 @@ pub fn nvim_del_mark(name: NvimString, err: &mut Error) -> Boolean {
 // DLLEXPORT Tuple(Integer, Integer, Buffer, String) nvim_get_mark(String name, Dict(empty) *opts,
 //                                                                 Arena *arena,
 //                                                                 Error *err) FUNC_API_SINCE(8);
-pub fn nvim_get_mark(name: NvimString, _opts: &mut KeyDictEmpty, err: &mut Error) -> Array {
-    let mut rv = Array::new();
-    if !validate_s(
+pub fn nvim_get_mark(name: NvimString, _opts: &mut KeyDictEmpty) -> Result<Array, Error> {
+    validate_s(
         name.size == 1,
         c"mark name (must be a single char)",
         name.as_opt_cstr(),
-        err,
-    ) {
-        return rv;
-    }
+    )?;
     let ch = name.first_byte();
-    if !validate_s(
+    validate_s(
         ch.is_ascii_uppercase() || ch.is_ascii_digit(),
         c"mark name (must be file/uppercase)",
         name.as_opt_cstr(),
-        err,
-    ) {
-        return rv;
-    }
+    )?;
 
     let mark = mark_get_global(false, i32::from(name.first_byte()));
     let pos = mark.fmark.mark;
@@ -2585,7 +2471,7 @@ pub fn nvim_get_mark(name: NvimString, _opts: &mut KeyDictEmpty, err: &mut Error
         col = Integer::from(pos.col);
     }
 
-    rv = Array::with_capacity(4);
+    let mut rv = Array::with_capacity(4);
     add_c(&mut rv, integer_obj(row));
     add_c(&mut rv, integer_obj(col));
     add_c(&mut rv, integer_obj(Integer::from(bufnr)));
@@ -2594,7 +2480,7 @@ pub fn nvim_get_mark(name: NvimString, _opts: &mut KeyDictEmpty, err: &mut Error
         crate::api::private::helpers::cstr_to_nonnull_obj(filename),
     );
 
-    rv
+    Ok(rv)
 }
 
 /// Evaluates statusline string.
@@ -2628,9 +2514,7 @@ pub fn nvim_get_mark(name: NvimString, _opts: &mut KeyDictEmpty, err: &mut Error
 pub fn nvim_eval_statusline(
     str_: NvimString,
     opts: &mut KeyDictEvalStatusline,
-    err: &mut Error,
-) -> Dict {
-    let mut result = Dict::new();
+) -> Result<Dict, Error> {
     let mut fillchar: Schar = 0;
     let mut statuscol_lnum: i32 = 0;
 
@@ -2638,8 +2522,7 @@ pub fn nvim_eval_statusline(
     if !str_bytes.starts_with(b"%!") {
         let mut raw_errbuf = [0u8; ERR_BUFLEN];
         if let Some(errmsg) = check_stl_option(str_bytes, Some(&mut raw_errbuf)) {
-            api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg);
-            return result;
+            return Err(api_error!(ErrorType::ErrorTypeValidation, c"%s", errmsg));
         }
     }
 
@@ -2649,8 +2532,11 @@ pub fn nvim_eval_statusline(
         let ci = utf_ptr2_str_char_info(opts.fillchar.as_cstr());
         let cli = utf_cluster_info(ci);
         if ci.ptr.is_empty() || !cli.next.ptr.is_empty() || cli.cells != 1 {
-            api_err_exp(err, c"fillchar", c"one single-width character", None);
-            return result;
+            return Err(api_err_exp(
+                c"fillchar",
+                c"one single-width character",
+                None,
+            ));
         }
         fillchar = crate::grid::schar_from_cluster(ci, cli);
     }
@@ -2659,33 +2545,26 @@ pub fn nvim_eval_statusline(
 
     let wp = if opts.use_tabline {
         curwin()
-    } else if let Some(wp) = find_window_by_handle(window, err) {
-        wp
     } else {
-        return result;
+        find_window_by_handle(window)?
     };
 
     if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM))
         != 0
     {
         statuscol_lnum = opts.use_statuscol_lnum as i32;
-        if !validate_range(
+        validate_range(
             statuscol_lnum > 0 && statuscol_lnum <= wp.buf().b_ml.ml_line_count.get(),
             c"use_statuscol_lnum",
-            err,
-        ) {
-            return result;
-        }
+        )?;
         use_bools += 1;
     }
     if use_bools > 1 {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"%s",
             c"Can only use one of 'use_winbar', 'use_tabline' and 'use_statuscol_lnum'",
-        );
-        return result;
+        ));
     }
 
     let mut stc_hl_id: i32 = 0;
@@ -2753,7 +2632,7 @@ pub fn nvim_eval_statusline(
             wp.w_width.get()
         };
 
-    result = Dict::with_capacity(3);
+    let mut result = Dict::with_capacity(3);
     let mut buf_vec = [0u8; MAXPATHL];
     let mut hltab_len: usize = 0;
 
@@ -2868,7 +2747,7 @@ pub fn nvim_eval_statusline(
         ))),
     );
 
-    result
+    Ok(result)
 }
 
 /// Sets info for the completion item at the given index. If the info text was shown in a window,
@@ -2882,15 +2761,13 @@ pub fn nvim_eval_statusline(
 ///       - bufnr: (integer) buffer id in floating window
 // DLLEXPORT DictOf(Integer) nvim__complete_set(Integer index, Dict(complete_set) *opts, Arena *arena,
 //                                              Error *err);
-pub fn nvim_complete_set(index: Integer, opts: &mut KeyDictCompleteSet, err: &mut Error) -> Dict {
+pub fn nvim_complete_set(index: Integer, opts: &mut KeyDictCompleteSet) -> Result<Dict, Error> {
     let mut rv = Dict::with_capacity(2);
     if (get_cot_flags() & K_OPT_COT_FLAG_POPUP) == 0 {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"completeopt option does not include popup",
-        );
-        return rv;
+        ));
     }
     if (opts.is_set_complete_set & (1u64 << KEYSET_OPTIDX_COMPLETE_SET_INFO)) != 0
         && let Some(wp) = pum_set_info(index as i32, Some(opts.info.as_bytes()))
@@ -2898,7 +2775,7 @@ pub fn nvim_complete_set(index: Integer, opts: &mut KeyDictCompleteSet, err: &mu
         put_c(&mut rv, c"winid", window_obj(wp.handle));
         put_c(&mut rv, c"bufnr", buffer_obj(wp.buf().b_fnum.get()));
     }
-    rv
+    Ok(rv)
 }
 
 fn redraw_status(wp: &WinInfoInfo, opts: &mut KeyDictRedraw) {
@@ -2952,42 +2829,32 @@ fn redraw_status(wp: &WinInfoInfo, opts: &mut KeyDictRedraw) {
 ///               - win: Target a specific |window-ID| as described below.
 ///               - winbar: Redraw the 'winbar' in `buf`, `win` or all windows.
 // DLLEXPORT void nvim__redraw(Dict(redraw) *opts, Error *err) FUNC_API_SINCE(12);
-pub fn nvim_redraw(opts: &mut KeyDictRedraw, err: &mut Error) {
+pub fn nvim_redraw(opts: &mut KeyDictRedraw) -> Result<(), Error> {
     let mut win = crate::globals::WinPtr::NULL;
     let mut buf = crate::globals::BufPtr::NULL;
 
     if (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_WIN)) != 0 {
-        win = crate::globals::WinPtr::from(find_window_by_handle(opts.win, err));
-        if error_set(err) {
-            return;
-        }
+        win = find_window_by_handle(opts.win)?;
     }
 
     if (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_BUF)) != 0 {
         if !win.is_null() {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"cannot use both 'buf' and 'win'",
-            );
-            return;
+            ));
         }
-        buf = crate::globals::BufPtr::from(find_buffer_by_handle(opts.buf, err));
-        if error_set(err) {
-            return;
-        }
+        buf = find_buffer_by_handle(opts.buf)?;
     }
 
     let count = u32::from(!win.is_null()) + u32::from(!buf.is_null());
     if xpopcount(opts.is_set_redraw) <= count {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"%s",
             c"at least one action required",
-        );
-        return;
+        ));
     }
 
     let has_valid = (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_VALID)) != 0;
@@ -3013,13 +2880,11 @@ pub fn nvim_redraw(opts: &mut KeyDictRedraw, err: &mut Error) {
             && r[0].data.integer() >= 0
             && r[1].data.integer() >= -1;
         if !ok {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"Invalid 'range': Expected 2-tuple of Integers",
-            );
-            return;
+            ));
         }
         let begin_raw = r[0].data.integer();
         let end_raw = r[1].data.integer();
@@ -3105,6 +2970,7 @@ pub fn nvim_redraw(opts: &mut KeyDictRedraw, err: &mut Error) {
 
     g_st().redrawing_disabled.set(save_rd);
     opt_vars().p_lz.set(save_lz);
+    Ok(())
 }
 
 // DLLEXPORT void nvim__set_restart_on_crash(String progpath, Array argv);

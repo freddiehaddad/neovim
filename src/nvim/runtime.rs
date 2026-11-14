@@ -2,11 +2,11 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    SID_API_CLIENT, SID_LUA, add_c, api_clear_error, boolean_obj, cstr_as_string, dict_obj,
-    integer_obj, put_c, static_cstr_as_string, string_obj,
+    SID_API_CLIENT, SID_LUA, add_c, boolean_obj, cstr_as_string, dict_obj, integer_obj, put_c,
+    static_cstr_as_string, string_obj,
 };
 use crate::api::private::validate::Dict;
-use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
+use crate::api::private::validate::{Array, NvimString, ObjectType};
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST, EVENT_SOURCEPRE,
     PROF_YES, apply_autocmds, has_autocmd, has_autocmd_fullname,
@@ -2813,21 +2813,16 @@ fn do_source_ext(
                 integer_obj(Integer::from(eap.line2)),
             ];
             let args = Array::from_slice(&mut args_items[..3]);
-            let mut err = Error::new();
-            let result = nlua_exec(
+            if let Ok(result) = nlua_exec(
                 static_cstr_as_string(c"return require('vim._core.util').source_is_lua(...)"),
                 None,
                 args,
                 K_RET_NIL_BOOL,
-                &mut err,
-            );
-            if err.err_type == ErrorType::ErrorTypeNone
-                && result.obj_type == ObjectType::ObjectTypeBoolean
+            ) && result.obj_type == ObjectType::ObjectTypeBoolean
                 && result.data.boolean()
             {
                 ts_lua = true;
             }
-            api_clear_error(&mut err);
         }
 
         if fname_opt.is_none()

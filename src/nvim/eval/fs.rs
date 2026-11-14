@@ -3,7 +3,6 @@
 //! Filesystem related builtin functions (`src/nvim/eval/fs.c`).
 
 use crate::api::private::helpers::{MAXLNUM, SID_API_CLIENT, find_buffer_by_handle};
-use crate::api::private::validate::{Error, ErrorType};
 use crate::cmdexpand::{
     EXPAND_FILES, WILD_ALL, WILD_ALL_KEEP, WILD_ALLLINKS, WILD_ICASE, WILD_KEEP_ALL, WILD_SILENT,
     WILD_USE_NL, expand_one, globpath,
@@ -861,11 +860,10 @@ fn getcwd_scope_args(
             return false;
         }
         if argv[K_BUF_ARG] > 0 {
-            let mut err = Error::new();
-            *buf = find_buffer_by_handle(argv[K_BUF_ARG], &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
+            if let Ok(b) = find_buffer_by_handle(argv[K_BUF_ARG]) {
+                *buf = Some(b);
+            } else {
                 emsg(gettext(c"E5007: Cannot find buffer number."));
-                crate::api::private::helpers::api_clear_error(&mut err);
                 return false;
             }
         }

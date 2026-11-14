@@ -6,8 +6,7 @@ use crate::api::command::is_user_cmdidx;
 #[cfg(windows)]
 use crate::api::private::helpers::api_free_object;
 use crate::api::private::helpers::{
-    HLF_E, api_clear_error, boolean_obj, cstr_as_obj, cstr_as_string, error_init, error_set,
-    integer_obj,
+    HLF_E, boolean_obj, cstr_as_obj, cstr_as_string, error_init, error_set, integer_obj,
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
 use crate::api::ui::{
@@ -9411,25 +9410,20 @@ fn ex_restart(eap: &mut Exarg) {
 
     #[cfg(windows)]
     let server_stopped = {
-        if listen_arg.is_none() {
-            let mut lua_err = error_init();
-            let rv = nlua_exec(
+        if listen_arg.is_none()
+            && let Ok(rv) = nlua_exec(
                 cstr_as_string(Some(
                     c"return require('vim._core.server').restart_canonical_addr",
                 )),
                 None,
                 Array::new(),
                 K_RET_OBJECT,
-                &mut lua_err,
-            );
-            if !error_set(&lua_err)
-                && rv.obj_type == ObjectType::ObjectTypeString
-                && rv.data.string().size > 0
-            {
+            )
+        {
+            if rv.obj_type == ObjectType::ObjectTypeString && rv.data.string().size > 0 {
                 listen_arg = Some(rv.data.string().to_cstring());
             }
             api_free_object(rv);
-            api_clear_error(&mut lua_err);
         }
         false
     };
@@ -9500,8 +9494,8 @@ fn ex_restart(eap: &mut Exarg) {
             },
         ];
         let detach_args = Array::from_slice(&mut detach_items[..2]);
-        rpc_send_call(chan_id, c"nvim_chan_set", detach_args, -1, &mut err);
-        if error_set(&err) {
+        if let Err(e) = rpc_send_call(chan_id, c"nvim_chan_set", detach_args, -1) {
+            err = e;
             break 'fail_2;
         }
         if !after_cmd.to_bytes().is_empty() {
@@ -9528,18 +9522,21 @@ fn ex_restart(eap: &mut Exarg) {
                 },
             ];
             let autocmd_args = Array::from_slice(&mut autocmd_items[..2]);
-            rpc_send_call(chan_id, c"nvim_create_autocmd", autocmd_args, -1, &mut err);
-            if error_set(&err) {
+            if let Err(e) = rpc_send_call(chan_id, c"nvim_create_autocmd", autocmd_args, -1) {
+                err = e;
                 break 'fail_2;
             }
         }
 
         let mut servername_items = [cstr_as_obj(Some(c"servername"))];
         let servername_args = Array::from_slice(&mut servername_items[..1]);
-        let result = rpc_send_call(chan_id, c"nvim_get_vvar", servername_args, -1, &mut err);
-        if error_set(&err) {
-            break 'fail_2;
-        }
+        let result = match rpc_send_call(chan_id, c"nvim_get_vvar", servername_args, -1) {
+            Ok(r) => r,
+            Err(e) => {
+                err = e;
+                break 'fail_2;
+            }
+        };
         if result.obj_type != ObjectType::ObjectTypeString || result.data.string().size == 0 {
             let _ = emsg(c"restart failed: could not get listen address from new server");
             break 'fail_2;
@@ -9559,8 +9556,8 @@ fn ex_restart(eap: &mut Exarg) {
                 },
             ];
             let lua_args = Array::from_slice(&mut lua_items[..2]);
-            rpc_send_call(chan_id, c"nvim_exec_lua", lua_args, -1, &mut err);
-            if error_set(&err) {
+            if let Err(e) = rpc_send_call(chan_id, c"nvim_exec_lua", lua_args, -1) {
+                err = e;
                 break 'fail_2;
             }
         }
@@ -9582,11 +9579,8 @@ fn ex_restart(eap: &mut Exarg) {
             quit_cmd_copy = Some(cstr);
             quit_cmd = quit_cmd_copy.as_deref().unwrap_or(c"");
         }
-        nvim_command(cstr_as_string(Some(quit_cmd)), &mut err);
-
-        if error_set(&err) {
-            let _ = emsg(err.msg_cstr().unwrap_or(c""));
-            api_clear_error(&mut err);
+        if let Err(e) = nvim_command(cstr_as_string(Some(quit_cmd))) {
+            let _ = emsg(e.msg_cstr().unwrap_or(c""));
         } else if !g_st().exiting.get() {
             let _ = semsg!(E_RESTART_FAILED_CMD_NO_QUIT, quit_cmd);
         }
@@ -9596,14 +9590,13 @@ fn ex_restart(eap: &mut Exarg) {
     set_vim_var_string(VV_EXITREASON, None, -1);
     if error_set(&err) {
         let _ = emsg(err.msg_cstr().unwrap_or(c""));
-        api_clear_error(&mut err);
+        err.clear();
     }
     #[cfg(not(windows))]
     {
         let mut chanclose_items = [cstr_as_obj(Some(c"chanclose(v:stderr)"))];
         let chanclose_args = Array::from_slice(&mut chanclose_items[..1]);
-        rpc_send_call(chan_id, c"nvim_eval", chanclose_args, -1, &mut err);
-        api_clear_error(&mut err);
+        let _ = rpc_send_call(chan_id, c"nvim_eval", chanclose_args, -1);
     }
 
     if let Some(chan) = crate::msgpack_rpc::channel::find_channel_opt(chan_id) {
@@ -10314,11 +10307,8 @@ fn ex_detach(eap: &mut Exarg) {
             );
         }
     } else {
-        let mut err = error_init();
-        ui_detach_channel(g_st().current_ui.get(), &mut err);
-        if error_set(&err) {
+        if let Err(err) = ui_detach_channel(g_st().current_ui.get()) {
             let _ = emsg(err.msg_cstr().unwrap_or(c""));
-            api_clear_error(&mut err);
             return;
         }
         if log_should_log(LOGLVL_INF) {
@@ -10449,13 +10439,11 @@ fn ex_connect(eap: &mut Exarg) {
 
     let stop_server = !is_ssh && ui_active() == 1;
 
-    let mut err = error_init();
-    remote_ui_connect(g_st().current_ui.get(), addr.as_bytes(), &mut err);
+    let connect_res = remote_ui_connect(g_st().current_ui.get(), addr.as_bytes());
     tv_clear(&mut ssh_rettv);
 
-    if error_set(&err) {
+    if let Err(err) = connect_res {
         let _ = emsg(err.msg_cstr().unwrap_or(c""));
-        api_clear_error(&mut err);
         return;
     }
 

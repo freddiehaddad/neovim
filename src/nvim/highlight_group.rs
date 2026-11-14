@@ -3,7 +3,7 @@
 
 use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::{
-    api_set_error, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, put_c,
+    api_error, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, put_c,
 };
 use crate::api::private::validate::{Dict, Error, ErrorType, NvimString, Object, ObjectType};
 use crate::api::ui::HLATTRS_DICT_SIZE;
@@ -1788,7 +1788,7 @@ fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: i32) -> bool {
     true
 }
 
-pub fn ns_get_hl_defs(ns_id: NS, opts: &mut KeyDictGetHighlight, err: &mut Error) -> Dict {
+pub fn ns_get_hl_defs(ns_id: NS, opts: &mut KeyDictGetHighlight) -> Result<Dict, Error> {
     let link = if has_key(opts.is_set_get_highlight, KEYSET_OPTIDX_GET_HIGHLIGHT_LINK) {
         opts.link
     } else {
@@ -1811,7 +1811,7 @@ pub fn ns_get_hl_defs(ns_id: NS, opts: &mut KeyDictGetHighlight, err: &mut Error
             syn_name2id_len(name_slice)
         };
         if id == 0 && !create {
-            return Dict::new();
+            return Ok(Dict::new());
         }
     } else if has_key(opts.is_set_get_highlight, KEYSET_OPTIDX_GET_HIGHLIGHT_ID) {
         id = opts.id as i32;
@@ -1819,21 +1819,16 @@ pub fn ns_get_hl_defs(ns_id: NS, opts: &mut KeyDictGetHighlight, err: &mut Error
 
     if id != -1 {
         if !(1 <= id && id <= hl_len()) {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"Highlight id out of bounds",
-            );
-            return Dict::new();
+            ));
         }
         let mut attrs = Dict::new();
         let target_id = if link { id } else { syn_get_final_id(id) };
         hlgroup2dict(&mut attrs, ns_id, target_id);
-        return attrs;
-    }
-    if err.err_type != ErrorType::ErrorTypeNone {
-        return Dict::new();
+        return Ok(attrs);
     }
 
     let len = hl_len();
@@ -1850,7 +1845,7 @@ pub fn ns_get_hl_defs(ns_id: NS, opts: &mut KeyDictGetHighlight, err: &mut Error
         put_c(&mut rv, target_name, dict_obj(attrs));
     }
 
-    rv
+    Ok(rv)
 }
 
 fn highlight_list_arg(

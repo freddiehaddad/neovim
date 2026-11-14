@@ -2,12 +2,10 @@
 //! Terminal UI functions invoked by the UI client process (`src/nvim/tui/tui.c`).
 
 use crate::api::private::helpers::{
-    api_clear_error, api_free_object, array_obj, boolean_obj, cstr_as_obj, dict_obj,
-    static_cstr_as_obj, static_cstr_as_string, string_obj,
+    api_free_object, array_obj, boolean_obj, cstr_as_obj, dict_obj, static_cstr_as_obj,
+    static_cstr_as_string, string_obj,
 };
-use crate::api::private::validate::{
-    Array, Dict, Error, KeyValuePair, NvimString, Object, ObjectType,
-};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, NvimString, Object, ObjectType};
 use crate::charset::getdigits_int;
 use crate::cursor_shape::{
     CursorShape, Cursorentry, SHAPE_IDX_COUNT, SHAPE_IDX_N, shape_table_entry,
@@ -624,18 +622,17 @@ fn apply_termdefs(tui: &mut TUIData) {
         return;
     }
 
-    let mut lua_err = Error::new();
     let empty_args = Array::new();
-    let rv = nlua_exec(
+    let Ok(rv) = nlua_exec(
         static_cstr_as_string(c"return require('vim.tty')._get_termdefs()"),
         None,
         empty_args,
         K_RET_OBJECT,
-        &mut lua_err,
-    );
+    ) else {
+        return;
+    };
     if rv.obj_type != ObjectType::ObjectTypeDict {
         api_free_object(rv);
-        api_clear_error(&mut lua_err);
         return;
     }
     let mut chunks: Vec<Object> = Vec::new();
@@ -736,7 +733,6 @@ fn apply_termdefs(tui: &mut TUIData) {
         rpc_send_event(g_st().ui_client_channel_id.get(), c"nvim_echo", args);
     }
     api_free_object(rv);
-    api_clear_error(&mut lua_err);
 }
 
 fn terminfo_start(tui: &mut TUIData) {

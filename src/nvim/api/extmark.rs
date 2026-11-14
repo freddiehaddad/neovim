@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    MAXLNUM, add_c, api_set_error, api_typename, array_obj, boolean_obj, cstr_as_string, dict_obj,
-    error_set, find_window_by_handle, has_key, integer_obj, object_to_hl_id, put_c, string_obj,
+    MAXLNUM, add_c, api_error, api_typename, array_obj, boolean_obj, cstr_as_string, dict_obj,
+    find_window_by_handle, has_key, integer_obj, object_to_hl_id, put_c, string_obj,
     string_to_cstr,
 };
 use crate::api::private::validate::{
@@ -53,7 +53,7 @@ use crate::msgpack_rpc::packer::Integer;
 use crate::sign::init_sign_text;
 use crate::window::WinInfoInfo;
 
-use crate::cursor::{Colnr, Linenr};
+use crate::cursor::{Colnr, CursorPos, Linenr};
 
 const SET_EXTMARK_TABLE_SIZE: usize = 37;
 
@@ -374,16 +374,11 @@ pub fn nvim_buf_get_extmark_by_id(
     ns_id: Integer,
     id: Integer,
     opts: &mut KeyDictGetExtmark,
-    err: &mut Error,
-) -> Array {
-    let rv = Array::new();
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
-        return rv;
-    };
+) -> Result<Array, Error> {
+    let b = crate::api::private::helpers::find_buffer_by_handle(buf)?;
 
     if !ns_initialized(ns_id as u32) {
-        api_err_invalid(err, c"ns_id", None, ns_id, false);
-        return rv;
+        return Err(api_err_invalid(c"ns_id", None, ns_id, false));
     }
 
     let details = opts.details;
@@ -395,9 +390,9 @@ pub fn nvim_buf_get_extmark_by_id(
 
     let extmark = extmark_from_id(&b, ns_id as u32, id as u32);
     if extmark.start.pos.row < 0 {
-        return rv;
+        return Ok(Array::new());
     }
-    extmark_to_array(extmark, false, details, hl_name)
+    Ok(extmark_to_array(extmark, false, details, hl_name))
 }
 
 /// Gets |extmarks| in "traversal order" from a |charwise| region defined by buffer positions
@@ -468,16 +463,11 @@ pub fn nvim_buf_get_extmarks(
     start: Object,
     end: Object,
     opts: &mut KeyDictGetExtmarks,
-    err: &mut Error,
-) -> Array {
-    let mut rv = Array::new();
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
-        return rv;
-    };
+) -> Result<Array, Error> {
+    let b = crate::api::private::helpers::find_buffer_by_handle(buf)?;
 
     if ns_id != -1 && !ns_initialized(ns_id as u32) {
-        api_err_invalid(err, c"ns_id", None, ns_id, false);
-        return rv;
+        return Err(api_err_invalid(c"ns_id", None, ns_id, false));
     }
 
     let mask = opts.is_set_get_extmarks;
@@ -496,13 +486,11 @@ pub fn nvim_buf_get_extmarks(
             b"virt_lines" => type_filter = K_EXTMARK_VIRT_LINES,
             b"highlight" => type_filter = K_EXTMARK_HIGHLIGHT,
             _ => {
-                api_err_exp(
-                    err,
+                return Err(api_err_exp(
                     c"type",
                     c"sign, virt_text, virt_lines or highlight",
                     opts.type_.as_opt_cstr(),
-                );
-                return rv;
+                ));
             }
         }
     }
@@ -514,22 +502,18 @@ pub fn nvim_buf_get_extmarks(
     };
 
     if limit == 0 {
-        return rv;
+        return Ok(Array::new());
     } else if limit < 0 {
         limit = i64::MAX;
     }
 
-    let mut l_row: i32 = 0;
-    let mut l_col: Colnr = 0;
-    if !extmark_get_index_from_obj(&b, ns_id, start, &mut l_row, &mut l_col, err) {
-        return rv;
-    }
+    let l_pos = extmark_get_index_from_obj(&b, ns_id as u32, start, false)?;
+    let mut l_row: i32 = l_pos.lnum;
+    let mut l_col: Colnr = l_pos.col;
 
-    let mut u_row: i32 = 0;
-    let mut u_col: Colnr = 0;
-    if !extmark_get_index_from_obj(&b, ns_id, end, &mut u_row, &mut u_col, err) {
-        return rv;
-    }
+    let u_pos = extmark_get_index_from_obj(&b, ns_id as u32, end, true)?;
+    let mut u_row: i32 = u_pos.lnum;
+    let mut u_col: Colnr = u_pos.col;
 
     let rv_limit = limit as usize;
     let reverse = l_row > u_row || (l_row == u_row && l_col > u_col);
@@ -551,7 +535,7 @@ pub fn nvim_buf_get_extmarks(
         opts.overlap,
     );
 
-    rv = Array::with_capacity(marks.len().min(rv_limit));
+    let mut rv = Array::with_capacity(marks.len().min(rv_limit));
     if reverse {
         for &mark in marks.iter().rev() {
             if rv.size >= rv_limit {
@@ -571,7 +555,7 @@ pub fn nvim_buf_get_extmarks(
         }
     }
 
-    rv
+    Ok(rv)
 }
 
 /// Creates or updates an |extmark|.
@@ -698,8 +682,7 @@ pub fn nvim_buf_set_extmark(
     mut line: Integer,
     mut col: Integer,
     opts: &mut KeyDictSetExtmark,
-    err: &mut Error,
-) -> Integer {
+) -> Result<Integer, Error> {
     let mut hl = DECOR_HIGHLIGHT_INLINE_INIT;
     let mut sign = DECOR_SIGN_HIGHLIGHT_INIT;
     let mut virt_text = DecorVirtText {
@@ -726,584 +709,546 @@ pub fn nvim_buf_set_extmark(
     let mut has_hl = false;
     let mut has_hl_multiple = false;
 
-    'error: {
-        let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
-            break 'error;
-        };
+    let b = crate::api::private::helpers::find_buffer_by_handle(buf)?;
 
-        if !ns_initialized(ns_id as u32) {
-            api_err_invalid(err, c"ns_id", None, ns_id, false);
-            break 'error;
+    if !ns_initialized(ns_id as u32) {
+        return Err(api_err_invalid(c"ns_id", None, ns_id, false));
+    }
+
+    let mask = opts.is_set_set_extmark;
+    let mut id: u32 = 0;
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_ID) {
+        if opts.id <= 0 {
+            return Err(api_err_exp(c"id", c"positive Integer", None));
         }
+        id = opts.id as u32;
+    }
 
-        let mask = opts.is_set_set_extmark;
-        let mut id: u32 = 0;
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_ID) {
-            if opts.id <= 0 {
-                api_err_exp(err, c"id", c"positive Integer", None);
-                break 'error;
-            }
-            id = opts.id as u32;
-        }
+    let mut line2: i32 = -1;
+    let mut did_end_line = false;
 
-        let mut line2: i32 = -1;
-        let mut did_end_line = false;
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_LINE) {
-            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_ROW) {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"%s",
-                    c"cannot use both 'end_row' and 'end_line'",
-                );
-                break 'error;
-            }
-            opts.end_row = opts.end_line;
-            did_end_line = true;
-        }
-
-        let strict = if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_STRICT) {
-            opts.strict
-        } else {
-            true
-        };
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_ROW) || did_end_line {
-            let val = opts.end_row;
-            if val < 0 || (val > i64::from(b.b_ml.ml_line_count.get()) && strict) {
-                api_err_range(err, c"end_row");
-                break 'error;
-            }
-            line2 = val as i32;
-        }
-
-        let mut col2: Colnr = -1;
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_COL) {
-            let mut val = opts.end_col;
-            if !(-1..=MAXCOL).contains(&val) {
-                api_err_range(err, c"end_col");
-                break 'error;
-            }
-            if val == -1 {
-                val = MAXCOL;
-            }
-            col2 = val as Colnr;
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_HL_GROUP) {
-            if opts.hl_group.obj_type == ObjectType::ObjectTypeArray {
-                let arr = opts.hl_group.data.array();
-                if arr.size >= 1 {
-                    hl.hl_id = object_to_hl_id(arr[0].clone(), c"hl_group item", err);
-                    if error_set(err) {
-                        break 'error;
-                    }
-                }
-                for i in 1..arr.size {
-                    let hl_id = object_to_hl_id(arr[i].clone(), c"hl_group item", err);
-                    if error_set(err) {
-                        break 'error;
-                    }
-                    if hl_id != 0 {
-                        has_hl_multiple = true;
-                    }
-                }
-            } else {
-                hl.hl_id = object_to_hl_id(opts.hl_group.clone(), c"hl_group", err);
-                if error_set(err) {
-                    break 'error;
-                }
-            }
-            has_hl = hl.hl_id > 0;
-        }
-
-        sign.hl_id = opts.sign_hl_group as i32;
-        sign.cursorline_hl_id = opts.cursorline_hl_group as i32;
-        sign.number_hl_id = opts.number_hl_group as i32;
-        sign.line_hl_id = opts.line_hl_group as i32;
-
-        if sign.hl_id != 0
-            || sign.cursorline_hl_id != 0
-            || sign.number_hl_id != 0
-            || sign.line_hl_id != 0
-        {
-            sign.flags |= K_SHIS_SIGN;
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_CONCEAL) {
-            if opts.conceal.obj_type != ObjectType::ObjectTypeBoolean
-                && opts.conceal.obj_type != ObjectType::ObjectTypeString
-            {
-                api_err_exp(
-                    err,
-                    c"conceal",
-                    c"String or Boolean",
-                    Some(api_typename(opts.conceal.obj_type)),
-                );
-                break 'error;
-            }
-
-            has_hl = true;
-            if opts.conceal.obj_type == ObjectType::ObjectTypeBoolean {
-                hl.flags |= if opts.conceal.data.boolean() {
-                    K_SHCONCEAL
-                } else {
-                    K_SHCONCEAL_OFF
-                };
-            } else {
-                let conceal_str = opts.conceal.data.string();
-                hl.flags |= K_SHCONCEAL;
-                if conceal_str.size > 0 {
-                    let ci = utf_ptr2_str_char_info(conceal_str.as_cstr());
-                    let cli = utf_cluster_info(ci);
-                    if ci.chr.value < 0x20 || cli.cells > 2 {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeValidation,
-                            c"%s",
-                            c"conceal char must be printable",
-                        );
-                        break 'error;
-                    }
-                    hl.conceal_char = schar_from_cluster(ci, cli);
-                }
-            }
-        }
-
-        if opts._conceal_continuation {
-            if (hl.flags & K_SHCONCEAL) == 0 {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"%s",
-                    c"_conceal_continuation requires conceal",
-                );
-                break 'error;
-            }
-            hl.flags |= K_SHCONCEAL_CONT;
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_CONCEAL_LINES) {
-            hl.flags |= K_SHCONCEAL_LINES;
-            has_hl = true;
-            if !opts.conceal_lines.cstr_bytes().is_empty() {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"%s",
-                    c"conceal_lines has to be an empty string",
-                );
-                break 'error;
-            }
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT) {
-            virt_text.data = DecorVirtTextData::VirtText(parse_virt_text(
-                opts.virt_text.clone(),
-                err,
-                Some(&mut virt_text.width),
-                false,
-            ));
-            if error_set(err) {
-                break 'error;
-            }
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT_POS) {
-            let str_val = &opts.virt_text_pos;
-            match str_val.cstr_bytes() {
-                b"eol" => virt_text.pos = K_VPOS_END_OF_LINE,
-                b"overlay" => virt_text.pos = K_VPOS_OVERLAY,
-                b"right_align" => virt_text.pos = K_VPOS_RIGHT_ALIGN,
-                b"eol_right_align" => virt_text.pos = K_VPOS_END_OF_LINE_RIGHT_ALIGN,
-                b"inline" => virt_text.pos = K_VPOS_INLINE,
-                _ => {
-                    api_err_invalid(err, c"virt_text_pos", str_val.as_opt_cstr(), 0, true);
-                    break 'error;
-                }
-            }
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT_WIN_COL) {
-            virt_text.col = opts.virt_text_win_col as i32;
-            virt_text.pos = K_VPOS_WIN_COL;
-        }
-
-        hl.flags |= if opts.hl_eol { K_SHHL_EOL } else { 0 };
-        virt_text.flags |= (if opts.virt_text_hide { K_VTHIDE } else { 0 })
-            | (if opts.virt_text_repeat_linebreak {
-                K_VTREPEAT_LINEBREAK
-            } else {
-                0
-            });
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_HL_MODE) {
-            let str_val = &opts.hl_mode;
-            match str_val.cstr_bytes() {
-                b"replace" => virt_text.hl_mode = K_HL_MODE_REPLACE,
-                b"combine" => virt_text.hl_mode = K_HL_MODE_COMBINE,
-                b"blend" => {
-                    if virt_text.pos == K_VPOS_INLINE {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeValidation,
-                            c"%s",
-                            c"cannot use 'blend' hl_mode with inline virtual text",
-                        );
-                        break 'error;
-                    }
-                    virt_text.hl_mode = K_HL_MODE_BLEND;
-                }
-                _ => {
-                    api_err_invalid(err, c"hl_mode", str_val.as_opt_cstr(), 0, true);
-                    break 'error;
-                }
-            }
-        }
-
-        let virt_lines_flags = if opts.virt_lines_leftcol {
-            K_VLLEFTCOL
-        } else {
-            0
-        };
-        let mut virt_lines_overflow = K_VLOVERFLOW_TRUNC;
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_LINES_OVERFLOW) {
-            let str_val = &opts.virt_lines_overflow;
-            match str_val.cstr_bytes() {
-                b"scroll" => virt_lines_overflow = K_VLOVERFLOW_SCROLL,
-                b"wrap" => virt_lines_overflow = K_VLOVERFLOW_WRAP,
-                b"auto" => virt_lines_overflow = K_VLOVERFLOW_AUTO,
-                b"trunc" => {}
-                _ => {
-                    api_err_invalid(err, c"virt_lines_overflow", str_val.as_opt_cstr(), 0, true);
-                    break 'error;
-                }
-            }
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_LINES) {
-            let a = &opts.virt_lines;
-            for item in a.as_slice() {
-                if item.obj_type != ObjectType::ObjectTypeArray {
-                    api_err_exp(
-                        err,
-                        c"virt_text_line",
-                        api_typename(ObjectType::ObjectTypeArray),
-                        Some(api_typename(item.obj_type)),
-                    );
-                    break 'error;
-                }
-                let mut dummig: i32 = 0;
-                let jtem = parse_virt_text(item.data.array(), err, Some(&mut dummig), false);
-                virt_lines.data.virt_lines_mut().push(VirtLine {
-                    line: std::rc::Rc::new(jtem),
-                    flags: virt_lines_flags,
-                    overflow: virt_lines_overflow,
-                });
-                if error_set(err) {
-                    break 'error;
-                }
-            }
-        }
-
-        virt_lines.flags |= if opts.virt_lines_above {
-            K_VTLINES_ABOVE
-        } else {
-            0
-        };
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_PRIORITY) {
-            if !((0..=i64::from(u16::MAX)).contains(&opts.priority)) {
-                api_err_range(err, c"priority");
-                break 'error;
-            }
-            let prio = opts.priority as DecorPriority;
-            hl.priority = prio;
-            sign.priority = prio;
-            virt_text.priority = prio;
-            virt_lines.priority = prio;
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_SIGN_TEXT) {
-            sign.text[0] = 0;
-            if !init_sign_text(None, &mut sign.text, opts.sign_text.as_bytes()) {
-                api_err_invalid(err, c"sign_text", Some(c""), 0, true);
-                break 'error;
-            }
-            sign.flags |= K_SHIS_SIGN;
-        }
-
-        let right_gravity = if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_RIGHT_GRAVITY) {
-            opts.right_gravity
-        } else {
-            true
-        };
-
-        if line2 == -1 && col2 == -1 && has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_RIGHT_GRAVITY) {
-            api_set_error!(
-                err,
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_LINE) {
+        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_ROW) {
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"%s",
-                c"cannot set end_right_gravity without end_row or end_col",
-            );
-            break 'error;
+                c"cannot use both 'end_row' and 'end_line'",
+            ));
+        }
+        opts.end_row = opts.end_line;
+        did_end_line = true;
+    }
+
+    let strict = if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_STRICT) {
+        opts.strict
+    } else {
+        true
+    };
+
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_ROW) || did_end_line {
+        let val = opts.end_row;
+        if val < 0 || (val > i64::from(b.b_ml.ml_line_count.get()) && strict) {
+            return Err(api_err_range(c"end_row"));
+        }
+        line2 = val as i32;
+    }
+
+    let mut col2: Colnr = -1;
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_COL) {
+        let mut val = opts.end_col;
+        if !(-1..=MAXCOL).contains(&val) {
+            return Err(api_err_range(c"end_col"));
+        }
+        if val == -1 {
+            val = MAXCOL;
+        }
+        col2 = val as Colnr;
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_HL_GROUP) {
+        if opts.hl_group.obj_type == ObjectType::ObjectTypeArray {
+            let arr = opts.hl_group.data.array();
+            if arr.size >= 1 {
+                hl.hl_id = object_to_hl_id(arr[0].clone(), c"hl_group item")?;
+            }
+            for i in 1..arr.size {
+                let hl_id = object_to_hl_id(arr[i].clone(), c"hl_group item")?;
+                if hl_id != 0 {
+                    has_hl_multiple = true;
+                }
+            }
+        } else {
+            hl.hl_id = object_to_hl_id(opts.hl_group.clone(), c"hl_group")?;
+        }
+        has_hl = hl.hl_id > 0;
+    }
+
+    sign.hl_id = opts.sign_hl_group as i32;
+    sign.cursorline_hl_id = opts.cursorline_hl_group as i32;
+    sign.number_hl_id = opts.number_hl_group as i32;
+    sign.line_hl_id = opts.line_hl_group as i32;
+
+    if sign.hl_id != 0
+        || sign.cursorline_hl_id != 0
+        || sign.number_hl_id != 0
+        || sign.line_hl_id != 0
+    {
+        sign.flags |= K_SHIS_SIGN;
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_CONCEAL) {
+        if opts.conceal.obj_type != ObjectType::ObjectTypeBoolean
+            && opts.conceal.obj_type != ObjectType::ObjectTypeString
+        {
+            return Err(api_err_exp(
+                c"conceal",
+                c"String or Boolean",
+                Some(api_typename(opts.conceal.obj_type)),
+            ));
         }
 
-        let mut len: Colnr = 0;
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_SPELL) {
-            hl.flags |= if opts.spell {
-                K_SHSPELL_ON
+        has_hl = true;
+        if opts.conceal.obj_type == ObjectType::ObjectTypeBoolean {
+            hl.flags |= if opts.conceal.data.boolean() {
+                K_SHCONCEAL
             } else {
-                K_SHSPELL_OFF
+                K_SHCONCEAL_OFF
             };
-            has_hl = true;
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_URL) {
-            url = Some(string_to_cstr(opts.url.clone()));
-            has_hl = true;
-        }
-
-        if opts.ui_watched {
-            hl.flags |= K_SHUIWATCHED;
-            if virt_text.pos == K_VPOS_OVERLAY {
-                hl.flags |= K_SHUIWATCHED_OVERLAY;
+        } else {
+            let conceal_str = opts.conceal.data.string();
+            hl.flags |= K_SHCONCEAL;
+            if conceal_str.size > 0 {
+                let ci = utf_ptr2_str_char_info(conceal_str.as_cstr());
+                let cli = utf_cluster_info(ci);
+                if ci.chr.value < 0x20 || cli.cells > 2 {
+                    return Err(api_error!(
+                        ErrorType::ErrorTypeValidation,
+                        c"%s",
+                        c"conceal char must be printable",
+                    ));
+                }
+                hl.conceal_char = schar_from_cluster(ci, cli);
             }
-            has_hl = true;
         }
+    }
 
-        if line < 0 {
-            api_err_range(err, c"line");
-            break 'error;
+    if opts._conceal_continuation {
+        if (hl.flags & K_SHCONCEAL) == 0 {
+            return Err(api_error!(
+                ErrorType::ErrorTypeValidation,
+                c"%s",
+                c"_conceal_continuation requires conceal",
+            ));
         }
+        hl.flags |= K_SHCONCEAL_CONT;
+    }
 
-        if line > i64::from(b.b_ml.ml_line_count.get()) {
-            if strict {
-                api_err_range(err, c"line");
-                break 'error;
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_CONCEAL_LINES) {
+        hl.flags |= K_SHCONCEAL_LINES;
+        has_hl = true;
+        if !opts.conceal_lines.cstr_bytes().is_empty() {
+            return Err(api_error!(
+                ErrorType::ErrorTypeValidation,
+                c"%s",
+                c"conceal_lines has to be an empty string",
+            ));
+        }
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT) {
+        virt_text.data = DecorVirtTextData::VirtText(parse_virt_text(
+            opts.virt_text.clone(),
+            Some(&mut virt_text.width),
+            false,
+        )?);
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT_POS) {
+        let str_val = &opts.virt_text_pos;
+        match str_val.cstr_bytes() {
+            b"eol" => virt_text.pos = K_VPOS_END_OF_LINE,
+            b"overlay" => virt_text.pos = K_VPOS_OVERLAY,
+            b"right_align" => virt_text.pos = K_VPOS_RIGHT_ALIGN,
+            b"eol_right_align" => virt_text.pos = K_VPOS_END_OF_LINE_RIGHT_ALIGN,
+            b"inline" => virt_text.pos = K_VPOS_INLINE,
+            _ => {
+                return Err(api_err_invalid(
+                    c"virt_text_pos",
+                    str_val.as_opt_cstr(),
+                    0,
+                    true,
+                ));
             }
-            line = i64::from(b.b_ml.ml_line_count.get());
-        } else if line < i64::from(b.b_ml.ml_line_count.get()) {
+        }
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT_WIN_COL) {
+        virt_text.col = opts.virt_text_win_col as i32;
+        virt_text.pos = K_VPOS_WIN_COL;
+    }
+
+    hl.flags |= if opts.hl_eol { K_SHHL_EOL } else { 0 };
+    virt_text.flags |= (if opts.virt_text_hide { K_VTHIDE } else { 0 })
+        | (if opts.virt_text_repeat_linebreak {
+            K_VTREPEAT_LINEBREAK
+        } else {
+            0
+        });
+
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_HL_MODE) {
+        let str_val = &opts.hl_mode;
+        match str_val.cstr_bytes() {
+            b"replace" => virt_text.hl_mode = K_HL_MODE_REPLACE,
+            b"combine" => virt_text.hl_mode = K_HL_MODE_COMBINE,
+            b"blend" => {
+                if virt_text.pos == K_VPOS_INLINE {
+                    return Err(api_error!(
+                        ErrorType::ErrorTypeValidation,
+                        c"%s",
+                        c"cannot use 'blend' hl_mode with inline virtual text",
+                    ));
+                }
+                virt_text.hl_mode = K_HL_MODE_BLEND;
+            }
+            _ => {
+                return Err(api_err_invalid(c"hl_mode", str_val.as_opt_cstr(), 0, true));
+            }
+        }
+    }
+
+    let virt_lines_flags = if opts.virt_lines_leftcol {
+        K_VLLEFTCOL
+    } else {
+        0
+    };
+    let mut virt_lines_overflow = K_VLOVERFLOW_TRUNC;
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_LINES_OVERFLOW) {
+        let str_val = &opts.virt_lines_overflow;
+        match str_val.cstr_bytes() {
+            b"scroll" => virt_lines_overflow = K_VLOVERFLOW_SCROLL,
+            b"wrap" => virt_lines_overflow = K_VLOVERFLOW_WRAP,
+            b"auto" => virt_lines_overflow = K_VLOVERFLOW_AUTO,
+            b"trunc" => {}
+            _ => {
+                return Err(api_err_invalid(
+                    c"virt_lines_overflow",
+                    str_val.as_opt_cstr(),
+                    0,
+                    true,
+                ));
+            }
+        }
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_LINES) {
+        let a = &opts.virt_lines;
+        for item in a.as_slice() {
+            if item.obj_type != ObjectType::ObjectTypeArray {
+                return Err(api_err_exp(
+                    c"virt_text_line",
+                    api_typename(ObjectType::ObjectTypeArray),
+                    Some(api_typename(item.obj_type)),
+                ));
+            }
+            let mut dummig: i32 = 0;
+            let jtem = parse_virt_text(item.data.array(), Some(&mut dummig), false)?;
+            virt_lines.data.virt_lines_mut().push(VirtLine {
+                line: std::rc::Rc::new(jtem),
+                flags: virt_lines_flags,
+                overflow: virt_lines_overflow,
+            });
+        }
+    }
+
+    virt_lines.flags |= if opts.virt_lines_above {
+        K_VTLINES_ABOVE
+    } else {
+        0
+    };
+
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_PRIORITY) {
+        if !((0..=i64::from(u16::MAX)).contains(&opts.priority)) {
+            return Err(api_err_range(c"priority"));
+        }
+        let prio = opts.priority as DecorPriority;
+        hl.priority = prio;
+        sign.priority = prio;
+        virt_text.priority = prio;
+        virt_lines.priority = prio;
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_SIGN_TEXT) {
+        sign.text[0] = 0;
+        if !init_sign_text(None, &mut sign.text, opts.sign_text.as_bytes()) {
+            return Err(api_err_invalid(c"sign_text", Some(c""), 0, true));
+        }
+        sign.flags |= K_SHIS_SIGN;
+    }
+
+    let right_gravity = if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_RIGHT_GRAVITY) {
+        opts.right_gravity
+    } else {
+        true
+    };
+
+    if line2 == -1 && col2 == -1 && has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_RIGHT_GRAVITY) {
+        return Err(api_error!(
+            ErrorType::ErrorTypeValidation,
+            c"%s",
+            c"cannot set end_right_gravity without end_row or end_col",
+        ));
+    }
+
+    let mut len: Colnr = 0;
+
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_SPELL) {
+        hl.flags |= if opts.spell {
+            K_SHSPELL_ON
+        } else {
+            K_SHSPELL_OFF
+        };
+        has_hl = true;
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_URL) {
+        url = Some(string_to_cstr(opts.url.clone()));
+        has_hl = true;
+    }
+
+    if opts.ui_watched {
+        hl.flags |= K_SHUIWATCHED;
+        if virt_text.pos == K_VPOS_OVERLAY {
+            hl.flags |= K_SHUIWATCHED_OVERLAY;
+        }
+        has_hl = true;
+    }
+
+    if line < 0 {
+        return Err(api_err_range(c"line"));
+    }
+
+    if line > i64::from(b.b_ml.ml_line_count.get()) {
+        if strict {
+            return Err(api_err_range(c"line"));
+        }
+        line = i64::from(b.b_ml.ml_line_count.get());
+    } else if line < i64::from(b.b_ml.ml_line_count.get()) {
+        len = if opts.ephemeral {
+            MAXCOL as Colnr
+        } else {
+            ml_get_buf_len(&b, (line as Linenr) + 1)
+        };
+    }
+
+    if col == -1 {
+        col = i64::from(len);
+    } else if col > i64::from(len) {
+        if strict {
+            return Err(api_err_range(c"col"));
+        }
+        col = i64::from(len);
+    } else if col < -1 {
+        return Err(api_err_range(c"col"));
+    }
+
+    if col2 >= 0 {
+        if line2 >= 0 && line2 < b.b_ml.ml_line_count.get() {
             len = if opts.ephemeral {
                 MAXCOL as Colnr
             } else {
-                ml_get_buf_len(&b, (line as Linenr) + 1)
+                ml_get_buf_len(&b, line2 + 1)
             };
+        } else if line2 == b.b_ml.ml_line_count.get() {
+            len = 0;
+        } else {
+            line2 = line as i32;
         }
-
-        if col == -1 {
-            col = i64::from(len);
-        } else if col > i64::from(len) {
+        if col2 > len {
             if strict {
-                api_err_range(err, c"col");
-                break 'error;
+                return Err(api_err_range(c"end_col"));
             }
-            col = i64::from(len);
-        } else if col < -1 {
-            api_err_range(err, c"col");
-            break 'error;
+            col2 = len;
+        }
+    } else if line2 >= 0 {
+        col2 = 0;
+    }
+
+    if opts.ephemeral
+        && !g_st().decor_state.borrow().win.is_null()
+        && g_st().decor_state.borrow().win.w_buffer.get() == b
+    {
+        let r = line as i32;
+        let c = col as i32;
+        if line2 == -1 {
+            line2 = r;
+            col2 = c;
         }
 
-        if col2 >= 0 {
-            if line2 >= 0 && line2 < b.b_ml.ml_line_count.get() {
-                len = if opts.ephemeral {
-                    MAXCOL as Colnr
-                } else {
-                    ml_get_buf_len(&b, line2 + 1)
+        let mut subpriority: DecorPriority = 0;
+        if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_SUBPRIORITY) {
+            if !((0..=i64::from(u16::MAX)).contains(&opts._subpriority)) {
+                return Err(api_err_range(c"_subpriority"));
+            }
+            subpriority = opts._subpriority as DecorPriority;
+        }
+
+        if !virt_text.data.virt_text().is_empty() {
+            decor_range_add_virt(
+                &mut g_st().decor_state.borrow_mut(),
+                r,
+                c,
+                line2,
+                col2,
+                decor_put_vt(virt_text, crate::decoration::DecorVirtId::NULL),
+                true,
+            );
+        }
+        if !virt_lines.data.virt_lines().is_empty() {
+            decor_range_add_virt(
+                &mut g_st().decor_state.borrow_mut(),
+                r,
+                c,
+                line2,
+                col2,
+                decor_put_vt(virt_lines, crate::decoration::DecorVirtId::NULL),
+                true,
+            );
+        }
+        if has_hl {
+            let mut sh = decor_sh_from_inline(hl);
+            sh.url = url.take();
+            decor_range_add_sh(
+                &mut g_st().decor_state.borrow_mut(),
+                r,
+                c,
+                line2,
+                col2,
+                &sh,
+                true,
+                ns_id as u32,
+                id,
+                subpriority,
+            );
+        }
+    } else {
+        if opts.ephemeral {
+            return Err(api_error!(
+                ErrorType::ErrorTypeException,
+                c"cannot set emphemeral mark outside of a decoration provider",
+            ));
+        }
+
+        let mut decor_flags: u32 = 0;
+        let mut decor_alloc = crate::decoration::DecorVirtId::NULL;
+        if !virt_text.data.virt_text().is_empty() {
+            if virt_text.pos == K_VPOS_INLINE {
+                decor_flags |= MT_FLAG_DECOR_VIRT_TEXT_INLINE;
+            }
+            decor_alloc = decor_put_vt(virt_text, decor_alloc);
+        }
+        if !virt_lines.data.virt_lines().is_empty() {
+            decor_alloc = decor_put_vt(virt_lines, decor_alloc);
+            decor_flags |= MT_FLAG_DECOR_VIRT_LINES;
+        }
+
+        let mut decor_indexed: u32 = DECOR_ID_INVALID;
+
+        if (sign.flags & K_SHIS_SIGN) != 0 {
+            if sign.text[0] != 0 {
+                decor_flags |= MT_FLAG_DECOR_SIGNTEXT;
+            }
+            if sign.number_hl_id != 0 || sign.line_hl_id != 0 || sign.cursorline_hl_id != 0 {
+                decor_flags |= MT_FLAG_DECOR_SIGNHL;
+            }
+            sign.next = decor_indexed;
+            decor_indexed = decor_put_sh(sign);
+        }
+
+        if has_hl_multiple {
+            let arr = opts.hl_group.data.array();
+            let mut i = arr.size - 1;
+            while i > 0 {
+                let hl_id = match object_to_hl_id(arr[i].clone(), c"hl_group item") {
+                    Ok(id) => id,
+                    Err(e) => {
+                        decor_free(DecorInline {
+                            data: DecorInlineData::Ext(DecorExt {
+                                sh_idx: decor_indexed,
+                                vt: decor_alloc,
+                            }),
+                        });
+                        return Err(e);
+                    }
                 };
-            } else if line2 == b.b_ml.ml_line_count.get() {
-                len = 0;
-            } else {
-                line2 = line as i32;
-            }
-            if col2 > len {
-                if strict {
-                    api_err_range(err, c"end_col");
-                    break 'error;
+                if hl_id > 0 {
+                    let mut sh = DECOR_SIGN_HIGHLIGHT_INIT;
+                    sh.hl_id = hl_id;
+                    sh.flags = if opts.hl_eol { K_SHHL_EOL } else { 0 };
+                    sh.next = decor_indexed;
+                    decor_indexed = decor_put_sh(sh);
+                    decor_flags |= MT_FLAG_DECOR_HL;
                 }
-                col2 = len;
+                i -= 1;
             }
-        } else if line2 >= 0 {
-            col2 = 0;
         }
 
-        if opts.ephemeral
-            && !g_st().decor_state.borrow().win.is_null()
-            && g_st().decor_state.borrow().win.w_buffer.get() == b
+        if (hl.flags & K_SHCONCEAL) != 0 {
+            decor_flags |= MT_FLAG_DECOR_CONCEAL;
+        }
+        if (hl.flags & K_SHCONCEAL_LINES) != 0 {
+            decor_flags |= MT_FLAG_DECOR_CONCEAL_LINES;
+        }
+
+        let mut decor = DecorInline {
+            data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
+        };
+        if !decor_alloc.is_null()
+            || decor_indexed != DECOR_ID_INVALID
+            || url.is_some()
+            || schar_high(hl.conceal_char)
         {
-            let r = line as i32;
-            let c = col as i32;
-            if line2 == -1 {
-                line2 = r;
-                col2 = c;
-            }
-
-            let mut subpriority: DecorPriority = 0;
-            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_SUBPRIORITY) {
-                if !((0..=i64::from(u16::MAX)).contains(&opts._subpriority)) {
-                    api_err_range(err, c"_subpriority");
-                    break 'error;
-                }
-                subpriority = opts._subpriority as DecorPriority;
-            }
-
-            if !virt_text.data.virt_text().is_empty() {
-                decor_range_add_virt(
-                    &mut g_st().decor_state.borrow_mut(),
-                    r,
-                    c,
-                    line2,
-                    col2,
-                    decor_put_vt(virt_text, crate::decoration::DecorVirtId::NULL),
-                    true,
-                );
-            }
-            if !virt_lines.data.virt_lines().is_empty() {
-                decor_range_add_virt(
-                    &mut g_st().decor_state.borrow_mut(),
-                    r,
-                    c,
-                    line2,
-                    col2,
-                    decor_put_vt(virt_lines, crate::decoration::DecorVirtId::NULL),
-                    true,
-                );
-            }
             if has_hl {
                 let mut sh = decor_sh_from_inline(hl);
                 sh.url = url.take();
-                decor_range_add_sh(
-                    &mut g_st().decor_state.borrow_mut(),
-                    r,
-                    c,
-                    line2,
-                    col2,
-                    &sh,
-                    true,
-                    ns_id as u32,
-                    id,
-                    subpriority,
-                );
+                sh.next = decor_indexed;
+                decor_indexed = decor_put_sh(sh);
             }
+            decor.data = DecorInlineData::Ext(DecorExt {
+                sh_idx: decor_indexed,
+                vt: decor_alloc,
+            });
         } else {
-            if opts.ephemeral {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"cannot set emphemeral mark outside of a decoration provider",
-                );
-                break 'error;
-            }
-
-            let mut decor_flags: u32 = 0;
-            let mut decor_alloc = crate::decoration::DecorVirtId::NULL;
-            if !virt_text.data.virt_text().is_empty() {
-                if virt_text.pos == K_VPOS_INLINE {
-                    decor_flags |= MT_FLAG_DECOR_VIRT_TEXT_INLINE;
-                }
-                decor_alloc = decor_put_vt(virt_text, decor_alloc);
-            }
-            if !virt_lines.data.virt_lines().is_empty() {
-                decor_alloc = decor_put_vt(virt_lines, decor_alloc);
-                decor_flags |= MT_FLAG_DECOR_VIRT_LINES;
-            }
-
-            let mut decor_indexed: u32 = DECOR_ID_INVALID;
-
-            if (sign.flags & K_SHIS_SIGN) != 0 {
-                if sign.text[0] != 0 {
-                    decor_flags |= MT_FLAG_DECOR_SIGNTEXT;
-                }
-                if sign.number_hl_id != 0 || sign.line_hl_id != 0 || sign.cursorline_hl_id != 0 {
-                    decor_flags |= MT_FLAG_DECOR_SIGNHL;
-                }
-                sign.next = decor_indexed;
-                decor_indexed = decor_put_sh(sign);
-            }
-
-            if has_hl_multiple {
-                let arr = opts.hl_group.data.array();
-                let mut i = arr.size - 1;
-                while i > 0 {
-                    let hl_id = object_to_hl_id(arr[i].clone(), c"hl_group item", err);
-                    if hl_id > 0 {
-                        let mut sh = DECOR_SIGN_HIGHLIGHT_INIT;
-                        sh.hl_id = hl_id;
-                        sh.flags = if opts.hl_eol { K_SHHL_EOL } else { 0 };
-                        sh.next = decor_indexed;
-                        decor_indexed = decor_put_sh(sh);
-                        decor_flags |= MT_FLAG_DECOR_HL;
-                    }
-                    i -= 1;
-                }
-            }
-
-            if (hl.flags & K_SHCONCEAL) != 0 {
-                decor_flags |= MT_FLAG_DECOR_CONCEAL;
-            }
-            if (hl.flags & K_SHCONCEAL_LINES) != 0 {
-                decor_flags |= MT_FLAG_DECOR_CONCEAL_LINES;
-            }
-
-            let mut decor = DecorInline {
-                data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
-            };
-            if !decor_alloc.is_null()
-                || decor_indexed != DECOR_ID_INVALID
-                || url.is_some()
-                || schar_high(hl.conceal_char)
-            {
-                if has_hl {
-                    let mut sh = decor_sh_from_inline(hl);
-                    sh.url = url.take();
-                    sh.next = decor_indexed;
-                    decor_indexed = decor_put_sh(sh);
-                }
-                decor.data = DecorInlineData::Ext(DecorExt {
-                    sh_idx: decor_indexed,
-                    vt: decor_alloc,
-                });
-            } else {
-                decor.data = DecorInlineData::Hl(hl);
-            }
-
-            if has_hl {
-                decor_flags |= MT_FLAG_DECOR_HL;
-            }
-
-            let undo_restore = if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_UNDO_RESTORE) {
-                opts.undo_restore
-            } else {
-                true
-            };
-
-            extmark_set(
-                &b,
-                ns_id as u32,
-                Some(&mut id),
-                line as i32,
-                col as Colnr,
-                line2,
-                col2,
-                decor,
-                decor_flags,
-                right_gravity,
-                opts.end_right_gravity,
-                !undo_restore,
-                opts.invalidate,
-            );
-            if error_set(err) {
-                decor_free(decor);
-                return 0;
-            }
+            decor.data = DecorInlineData::Hl(hl);
         }
 
-        return i64::from(id);
+        if has_hl {
+            decor_flags |= MT_FLAG_DECOR_HL;
+        }
+
+        let undo_restore = if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_UNDO_RESTORE) {
+            opts.undo_restore
+        } else {
+            true
+        };
+
+        extmark_set(
+            &b,
+            ns_id as u32,
+            Some(&mut id),
+            line as i32,
+            col as Colnr,
+            line2,
+            col2,
+            decor,
+            decor_flags,
+            right_gravity,
+            opts.end_right_gravity,
+            !undo_restore,
+            opts.invalidate,
+        );
     }
 
-    0
+    Ok(i64::from(id))
 }
 
 /// Removes an |extmark|.
@@ -1315,15 +1260,12 @@ pub fn nvim_buf_set_extmark(
 /// @return true if the extmark was found, else false
 // DLLEXPORT Boolean nvim_buf_del_extmark(Buffer buf, Integer ns_id, Integer id, Error *err)
 //   FUNC_API_SINCE(7);
-pub fn nvim_buf_del_extmark(buf: Buffer, ns_id: Integer, id: Integer, err: &mut Error) -> Boolean {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
-        return false;
-    };
+pub fn nvim_buf_del_extmark(buf: Buffer, ns_id: Integer, id: Integer) -> Result<Boolean, Error> {
+    let b = crate::api::private::helpers::find_buffer_by_handle(buf)?;
     if !ns_initialized(ns_id as u32) {
-        api_err_invalid(err, c"ns_id", None, ns_id, false);
-        return false;
+        return Err(api_err_invalid(c"ns_id", None, ns_id, false));
     }
-    extmark_del_id(&b, ns_id as u32, id as u32)
+    Ok(extmark_del_id(&b, ns_id as u32, id as u32))
 }
 
 /// Clears |namespace|d objects (highlights, |extmarks|, virtual text) from
@@ -1346,15 +1288,11 @@ pub fn nvim_buf_clear_namespace(
     ns_id: Integer,
     line_start: Integer,
     mut line_end: Integer,
-    err: &mut Error,
-) {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
-        return;
-    };
+) -> Result<(), Error> {
+    let b = crate::api::private::helpers::find_buffer_by_handle(buf)?;
 
     if !(0..MAXLNUM).contains(&line_start) {
-        api_err_range(err, c"line number");
-        return;
+        return Err(api_err_range(c"line number"));
     }
 
     if !(0..=MAXLNUM).contains(&line_end) {
@@ -1368,6 +1306,7 @@ pub fn nvim_buf_clear_namespace(
         (line_end as i32) - 1,
         MAXCOL as Colnr,
     );
+    Ok(())
 }
 
 /// Set or change decoration provider for a |namespace|
@@ -1444,8 +1383,7 @@ pub fn nvim_buf_clear_namespace(
 pub fn nvim_set_decoration_provider(
     ns_id: Integer,
     opts: &mut KeyDictSetDecorationProvider,
-    _err: &mut Error,
-) {
+) -> Result<(), Error> {
     with_decor_provider_mut(ns_id as NS, true, |p| {
         decor_provider_clear(Some(&mut *p));
 
@@ -1474,6 +1412,7 @@ pub fn nvim_set_decoration_provider(
         p.hl_cached = false;
     });
     redraw_all_later(UPD_NOT_VALID);
+    Ok(())
 }
 
 /// @nodoc
@@ -1481,23 +1420,19 @@ pub fn nvim_set_decoration_provider(
 /// them first, so rows not yet drawn are measured concealed. Each enable needs one disable.
 // DLLEXPORT void nvim__buf_set_conceal_provider(Buffer buf, Boolean enabled, Error *err)
 //   FUNC_API_LUA_ONLY;
-pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Error) {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
-        return;
-    };
+pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean) -> Result<(), Error> {
+    let b = crate::api::private::helpers::find_buffer_by_handle(buf)?;
     let count = b.b_conceal_providers.get() + if enabled { 1 } else { -1 };
     if count < 0 {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"%s",
             c"Conceal provider is not enabled",
-        );
-        return;
+        ));
     }
     b.b_conceal_providers.set(count);
     if count != if enabled { 1 } else { 0 } {
-        return;
+        return Ok(());
     }
     let b_ptr = b;
     for tp in for_all_tabpages_ptr() {
@@ -1511,147 +1446,130 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Er
             }
         }
     }
+    Ok(())
 }
 
 fn extmark_get_index_from_obj(
-    buf: &FileBuf,
-    ns_id: Integer,
+    b: &FileBuf,
+    ns_id: u32,
     obj: Object,
-    row: &mut i32,
-    col: &mut Colnr,
-    err: &mut Error,
-) -> bool {
+    _end: bool,
+) -> Result<CursorPos, Error> {
     if obj.obj_type == ObjectType::ObjectTypeInteger {
         let id = obj.data.integer();
         if id == 0 {
-            *row = 0;
-            *col = 0;
-            return true;
+            return Ok(CursorPos {
+                lnum: 0,
+                col: 0,
+                coladd: 0,
+            });
         } else if id == -1 {
-            *row = MAXLNUM as i32;
-            *col = MAXCOL as Colnr;
-            return true;
+            return Ok(CursorPos {
+                lnum: MAXLNUM as i32,
+                col: MAXCOL as Colnr,
+                coladd: 0,
+            });
         } else if id < 0 {
-            api_err_invalid(err, c"mark id", None, id, false);
-            return false;
+            return Err(api_err_invalid(c"mark id", None, id, false));
         }
 
-        let extmark = extmark_from_id(buf, ns_id as u32, id as u32);
+        let extmark = extmark_from_id(b, ns_id, id as u32);
         if extmark.start.pos.row < 0 {
-            api_err_invalid(err, c"mark id (not found)", None, id, false);
-            return false;
+            return Err(api_err_invalid(c"mark id (not found)", None, id, false));
         }
-        *row = extmark.start.pos.row;
-        *col = extmark.start.pos.col;
-        true
+        Ok(CursorPos {
+            lnum: extmark.start.pos.row,
+            col: extmark.start.pos.col,
+            coladd: 0,
+        })
     } else if obj.obj_type == ObjectType::ObjectTypeArray {
         let pos = obj.data.array();
         if pos.size != 2
             || pos[0].obj_type != ObjectType::ObjectTypeInteger
             || pos[1].obj_type != ObjectType::ObjectTypeInteger
         {
-            api_err_exp(err, c"mark position", c"2 Integer items", None);
-            return false;
+            return Err(api_err_exp(c"mark position", c"2 Integer items", None));
         }
 
         let pos_row = pos[0].data.integer();
         let pos_col = pos[1].data.integer();
-        *row = (if pos_row >= 0 { pos_row } else { MAXLNUM }) as i32;
-        *col = (if pos_col >= 0 { pos_col } else { MAXCOL }) as Colnr;
-        true
+        Ok(CursorPos {
+            lnum: (if pos_row >= 0 { pos_row } else { MAXLNUM }) as i32,
+            col: (if pos_col >= 0 { pos_col } else { MAXCOL }) as Colnr,
+            coladd: 0,
+        })
     } else {
-        api_err_exp(
-            err,
+        Err(api_err_exp(
             c"mark position",
             c"mark id Integer or 2-item Array",
             None,
-        );
-        false
+        ))
     }
 }
 
 // DLLEXPORT VirtText parse_virt_text(Array chunks, Error *err, int *width, bool untab);
 pub fn parse_virt_text(
     chunks: Array,
-    err: &mut Error,
     width: Option<&mut i32>,
     untab: bool,
-) -> VirtText {
+) -> Result<VirtText, Error> {
     let mut virt_text = VirtText::new();
     let mut w: i32 = 0;
 
-    'free_exit: {
-        for item in chunks.as_slice() {
-            if item.obj_type != ObjectType::ObjectTypeArray {
-                api_err_exp(
-                    err,
-                    c"chunk",
-                    api_typename(ObjectType::ObjectTypeArray),
-                    Some(api_typename(item.obj_type)),
-                );
-                break 'free_exit;
-            }
-            let chunk = item.data.array();
-            if chunk.size == 0
-                || chunk.size > 2
-                || chunk[0].obj_type != ObjectType::ObjectTypeString
-            {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"%s",
-                    c"Invalid chunk: expected Array with 1 or 2 Strings",
-                );
-                break 'free_exit;
-            }
+    for item in chunks.as_slice() {
+        if item.obj_type != ObjectType::ObjectTypeArray {
+            return Err(api_err_exp(
+                c"chunk",
+                api_typename(ObjectType::ObjectTypeArray),
+                Some(api_typename(item.obj_type)),
+            ));
+        }
+        let chunk = item.data.array();
+        if chunk.size == 0 || chunk.size > 2 || chunk[0].obj_type != ObjectType::ObjectTypeString {
+            return Err(api_error!(
+                ErrorType::ErrorTypeValidation,
+                c"%s",
+                c"Invalid chunk: expected Array with 1 or 2 Strings",
+            ));
+        }
 
-            let str_val = chunk[0].data.string();
-            let mut hl_id: i32 = -1;
-            if chunk.size == 2 {
-                let hl = chunk[1].clone();
-                if hl.obj_type == ObjectType::ObjectTypeArray {
-                    let arr = hl.data.array();
-                    for j in 0..arr.size {
-                        hl_id = object_to_hl_id(arr[j].clone(), c"virt_text highlight", err);
-                        if error_set(err) {
-                            break 'free_exit;
-                        }
-                        if j < arr.size - 1 {
-                            virt_text.push(VirtTextChunk { text: None, hl_id });
-                        }
-                    }
-                } else {
-                    hl_id = object_to_hl_id(hl, c"virt_text highlight", err);
-                    if error_set(err) {
-                        break 'free_exit;
+        let str_val = chunk[0].data.string();
+        let mut hl_id: i32 = -1;
+        if chunk.size == 2 {
+            let hl = chunk[1].clone();
+            if hl.obj_type == ObjectType::ObjectTypeArray {
+                let arr = hl.data.array();
+                for j in 0..arr.size {
+                    hl_id = object_to_hl_id(arr[j].clone(), c"virt_text highlight")?;
+                    if j < arr.size - 1 {
+                        virt_text.push(VirtTextChunk { text: None, hl_id });
                     }
                 }
+            } else {
+                hl_id = object_to_hl_id(hl, c"virt_text highlight")?;
             }
-
-            let text_cstr = transstr(
-                if str_val.size > 0 {
-                    str_val.cstr_bytes()
-                } else {
-                    b""
-                },
-                untab,
-            );
-            w += mb_string2cells(text_cstr.as_bytes()) as i32;
-
-            virt_text.push(VirtTextChunk {
-                text: Some(crate::option_vars::RcCStr::from_cstring(text_cstr)),
-                hl_id,
-            });
         }
 
-        if let Some(width) = width {
-            *width = w;
-        }
-        return virt_text;
+        let text_cstr = transstr(
+            if str_val.size > 0 {
+                str_val.cstr_bytes()
+            } else {
+                b""
+            },
+            untab,
+        );
+        w += mb_string2cells(text_cstr.as_bytes()) as i32;
+
+        virt_text.push(VirtTextChunk {
+            text: Some(crate::option_vars::RcCStr::from_cstring(text_cstr)),
+            hl_id,
+        });
     }
 
-    virt_text.clear();
-    virt_text
+    if let Some(width) = width {
+        *width = w;
+    }
+    Ok(virt_text)
 }
 
 /// @nodoc
@@ -1661,12 +1579,9 @@ pub fn nvim_buf_debug_extmarks(
     buf: Buffer,
     keys: Boolean,
     dot: Boolean,
-    err: &mut Error,
-) -> NvimString {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
-        return NvimString::new();
-    };
-    mt_inspect(&b.b_marktree.borrow(), keys, dot)
+) -> Result<NvimString, Error> {
+    let b = crate::api::private::helpers::find_buffer_by_handle(buf)?;
+    Ok(mt_inspect(&b.b_marktree.borrow(), keys, dot))
 }
 
 /// Set some properties for namespace
@@ -1676,10 +1591,9 @@ pub fn nvim_buf_debug_extmarks(
 ///           - wins: a list of windows to be scoped in
 ///
 // DLLEXPORT void nvim__ns_set(Integer ns_id, Dict(ns_opts) *opts, Error *err);
-pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDictNsOpts, err: &mut Error) {
+pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDictNsOpts) -> Result<(), Error> {
     if !ns_initialized(ns_id as u32) {
-        api_err_invalid(err, c"ns_id", None, ns_id, false);
-        return;
+        return Err(api_err_invalid(c"ns_id", None, ns_id, false));
     }
 
     let mut set_scoped = true;
@@ -1693,9 +1607,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDictNsOpts, err: &mut Error) {
             std::collections::HashSet::new();
         for i in 0..opts.wins.size {
             let win = opts.wins[i].data.integer();
-            let Some(wp) = find_window_by_handle(win as Window, err) else {
-                return;
-            };
+            let wp = find_window_by_handle(win as Window)?;
             windows.insert(wp.as_ptr());
         }
 
@@ -1745,6 +1657,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDictNsOpts, err: &mut Error) {
             }
         }
     }
+    Ok(())
 }
 
 /// Get the properties for namespace
@@ -1752,15 +1665,14 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDictNsOpts, err: &mut Error) {
 /// @param ns_id Namespace
 /// @return  Map defining the namespace properties, see |nvim__ns_set()|
 // DLLEXPORT Dict(ns_opts) nvim__ns_get(Integer ns_id, Arena *arena, Error *err);
-pub fn nvim_ns_get(ns_id: Integer, err: &mut Error) -> KeyDictNsOpts {
+pub fn nvim_ns_get(ns_id: Integer) -> Result<KeyDictNsOpts, Error> {
     let mut opts = KeyDictNsOpts {
         is_set_ns_opts: 1u64 << KEYSET_OPTIDX_NS_OPTS_WINS,
         wins: Array::new(),
     };
 
     if !ns_initialized(ns_id as u32) {
-        api_err_invalid(err, c"ns_id", None, ns_id, false);
-        return opts;
+        return Err(api_err_invalid(c"ns_id", None, ns_id, false));
     }
 
     if !g_st()
@@ -1768,7 +1680,7 @@ pub fn nvim_ns_get(ns_id: Integer, err: &mut Error) -> KeyDictNsOpts {
         .borrow()
         .contains(&(ns_id as u32))
     {
-        return opts;
+        return Ok(opts);
     }
 
     let mut count = 0usize;
@@ -1791,7 +1703,7 @@ pub fn nvim_ns_get(ns_id: Integer, err: &mut Error) -> KeyDictNsOpts {
     }
 
     opts.wins = windows;
-    opts
+    Ok(opts)
 }
 
 #[cfg(test)]

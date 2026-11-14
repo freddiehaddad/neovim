@@ -2,9 +2,7 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::nil_obj;
-use crate::api::private::validate::{
-    Array, Dict, Error, NvimString, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Array, Dict, NvimString, Object, ObjectData, ObjectType};
 use crate::eval::decode::decode_string;
 use crate::eval::typval::{
     TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_dict_add, tv_dict_alloc, tv_list_alloc,
@@ -299,7 +297,7 @@ pub fn vim_to_object(obj: &TypVal) -> Object {
 }
 
 /// Convert an API `Object` into a Vimscript `TypVal` (`object_to_vim`).
-pub fn object_to_vim(obj: Object, tv: &mut TypVal, _err: &mut Error) {
+pub fn object_to_vim(obj: Object, tv: &mut TypVal) {
     object_to_vim_ref(&obj, tv);
 }
 
@@ -370,12 +368,7 @@ fn object_to_vim_ref(obj: &Object, tv: &mut TypVal) {
 
 /// Convert an API `Object` into a Vimscript `TypVal`, optionally consuming nested `LuaRef`s
 /// (`object_to_vim_take_luaref`).
-pub fn object_to_vim_take_luaref(
-    obj: &mut Object,
-    tv: &mut TypVal,
-    take_luaref: bool,
-    _err: &mut Error,
-) {
+pub fn object_to_vim_take_luaref(obj: &mut Object, tv: &mut TypVal, take_luaref: bool) {
     if !take_luaref {
         object_to_vim_ref(obj, tv);
         return;
@@ -473,7 +466,6 @@ mod tests {
                     data: ObjectData::Integer(99),
                 },
                 &mut tv,
-                &mut Error::new(),
             );
             assert_eq!(tv.v_type, VarType::VarNumber);
             assert_eq!(tv.vval.v_number(), 99);

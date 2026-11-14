@@ -5,8 +5,8 @@
 use crate::api::buffer::KeyDictKeymap;
 use crate::api::private::converter::object_to_vim_take_luaref;
 use crate::api::private::helpers::{
-    ArrayBuilder, api_clear_error, api_free_object, api_set_error, api_set_sctx, dict_obj, has_key,
-    integer_obj, luaref_obj, put_c, string_obj, string_to_cstr,
+    ArrayBuilder, api_error, api_free_object, api_set_sctx, dict_obj, has_key, integer_obj,
+    luaref_obj, put_c, string_obj, string_to_cstr,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
 use crate::api::tabpage::Buffer;
@@ -1798,16 +1798,17 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
     let save_msg_col = g_st().msg_col.get();
     let save_msg_row = g_st().msg_row.get();
     if luaref != LUA_NOREF {
-        let mut err = Error::new();
         let args = Array::new();
-        let ret = nlua_call_ref(luaref, None, args, K_RET_OBJECT, Some(&mut err));
-        if ret.obj_type == ObjectType::ObjectTypeString {
-            p = Some(string_to_cstr(ret.data.string()));
-        }
-        api_free_object(ret);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            semsg_multiline!(c"emsg", c"E5108: %s", err.msg_cstr());
-            api_clear_error(&mut err);
+        match nlua_call_ref(luaref, None, args, K_RET_OBJECT) {
+            Ok(ret) => {
+                if ret.obj_type == ObjectType::ObjectTypeString {
+                    p = Some(string_to_cstr(ret.data.string()));
+                }
+                api_free_object(ret);
+            }
+            Err(err) => {
+                semsg_multiline!(c"emsg", c"E5108: %s", err.msg_cstr());
+            }
         }
     } else {
         p = eval_to_string(crate::memory::bytes_as_cstr(&expr_bytes), false, false);
@@ -2415,12 +2416,7 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
             )
         });
         let mut dobj = dict_obj(dict);
-        object_to_vim_take_luaref(
-            &mut dobj,
-            &mut *rettv,
-            true,
-            &mut crate::api::private::validate::Error::new(),
-        );
+        object_to_vim_take_luaref(&mut dobj, &mut *rettv, true);
     } else {
         tv_dict_alloc_ret(rettv);
     }
@@ -2646,12 +2642,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                         vval: TypvalVval::Number(0),
                     };
                     let mut dobj = dict_obj(dict);
-                    object_to_vim_take_luaref(
-                        &mut dobj,
-                        &mut d,
-                        true,
-                        &mut crate::api::private::validate::Error::new(),
-                    );
+                    object_to_vim_take_luaref(&mut dobj, &mut d, true);
                     debug_assert!(d.v_type == VarType::VarDict);
                     tv_list_append_dict(rettv.vval.v_list_ref(), d.vval.v_dict_opt());
                 }
@@ -2912,17 +2903,14 @@ pub fn modify_keymap(
     lhs: NvimString,
     rhs: NvimString,
     opts: Option<&mut KeyDictKeymap>,
-    err: &mut Error,
-) {
+) -> Result<(), Error> {
     let mut lua_funcref: LuaRef = LUA_NOREF;
     let is_unmap = maptype == MAPTYPE_UNMAP || maptype == MAPTYPE_UNMAP_LHS;
     let global = buffer == -1;
     if global {
         buffer = 0;
     }
-    let Some(target_buf) = crate::api::private::helpers::find_buffer_by_handle(buffer, err) else {
-        return;
-    };
+    let target_buf = crate::api::private::helpers::find_buffer_by_handle(buffer)?;
 
     let save_current_sctx = api_set_sctx(channel_id);
 
@@ -2945,14 +2933,12 @@ pub fn modify_keymap(
     }
     parsed_args.buffer = !global;
 
-    'block: {
+    let res = 'block: {
         if parsed_args.replace_keycodes && !parsed_args.expr {
-            api_set_error!(
-                err,
+            break 'block Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"\"replace_keycodes\" requires \"expr\"",
-            );
-            break 'block;
+            ));
         }
 
         if !set_maparg_lhs_rhs(
@@ -2962,23 +2948,19 @@ pub fn modify_keymap(
             &opt_vars().p_cpo.as_bytes(),
             &mut parsed_args,
         ) {
-            api_set_error!(
-                err,
+            break 'block Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"LHS exceeds maximum map length: %s",
                 lhs,
-            );
-            break 'block;
+            ));
         }
 
         if parsed_args.lhs_len > MAXMAPLEN || parsed_args.alt_lhs_len > MAXMAPLEN {
-            api_set_error!(
-                err,
+            break 'block Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"LHS exceeds maximum map length: %s",
                 lhs,
-            );
-            break 'block;
+            ));
         }
 
         let mut p_slice: &[u8] = if mode.size > 0 { mode.as_bytes() } else { b"m" };
@@ -2993,18 +2975,18 @@ pub fn modify_keymap(
             p_slice = &p_slice[1..];
         }
         if mode.size > 0 && !p_slice.is_empty() {
-            api_set_error!(
-                err,
+            break 'block Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"Invalid mode shortname: \"%s\"",
                 mode,
-            );
-            break 'block;
+            ));
         }
 
         if parsed_args.lhs_len == 0 {
-            api_set_error!(err, ErrorType::ErrorTypeValidation, c"Invalid (empty) LHS",);
-            break 'block;
+            break 'block Err(api_error!(
+                ErrorType::ErrorTypeValidation,
+                c"Invalid (empty) LHS",
+            ));
         }
 
         let is_noremap = parsed_args.noremap;
@@ -3021,21 +3003,19 @@ pub fn modify_keymap(
                 std::process::abort();
             }
         } else if is_unmap && (parsed_args.rhs_len != 0 || parsed_args.rhs_lua != LUA_NOREF) {
-            if parsed_args.rhs_len != 0 {
-                api_set_error!(
-                    err,
+            let err = if parsed_args.rhs_len != 0 {
+                api_error!(
                     ErrorType::ErrorTypeValidation,
                     c"Gave nonempty RHS in unmap command: %s",
                     parsed_args.rhs.as_deref().unwrap_or(c""),
-                );
+                )
             } else {
-                api_set_error!(
-                    err,
+                api_error!(
                     ErrorType::ErrorTypeValidation,
                     c"Gave nonempty RHS for unmap",
-                );
-            }
-            break 'block;
+                )
+            };
+            break 'block Err(err);
         }
 
         if maptype == MAPTYPE_MAP && is_noremap {
@@ -3043,45 +3023,37 @@ pub fn modify_keymap(
         }
 
         match buf_do_map(maptype, &mut parsed_args, mode_val, is_abbrev, &target_buf) {
-            0 => {}
-            1 => {
-                api_set_error!(err, ErrorType::ErrorTypeException, E_INVARG, 0);
-            }
-            2 => {
-                api_set_error!(err, ErrorType::ErrorTypeException, E_NOMAP, 0);
-            }
-            5 => {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    if is_abbrev {
-                        E_ABBREVIATION_ALREADY_EXISTS_FOR_STR
-                    } else {
-                        E_MAPPING_ALREADY_EXISTS_FOR_STR
-                    },
-                    lhs,
-                );
-            }
-            6 => {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    if is_abbrev {
-                        E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR
-                    } else {
-                        E_GLOBAL_MAPPING_ALREADY_EXISTS_FOR_STR
-                    },
-                    lhs,
-                );
-            }
+            0 => Ok(()),
+            1 => Err(api_error!(ErrorType::ErrorTypeException, E_INVARG, 0)),
+            2 => Err(api_error!(ErrorType::ErrorTypeException, E_NOMAP, 0)),
+            5 => Err(api_error!(
+                ErrorType::ErrorTypeException,
+                if is_abbrev {
+                    E_ABBREVIATION_ALREADY_EXISTS_FOR_STR
+                } else {
+                    E_MAPPING_ALREADY_EXISTS_FOR_STR
+                },
+                lhs,
+            )),
+            6 => Err(api_error!(
+                ErrorType::ErrorTypeException,
+                if is_abbrev {
+                    E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR
+                } else {
+                    E_GLOBAL_MAPPING_ALREADY_EXISTS_FOR_STR
+                },
+                lhs,
+            )),
             _ => {
                 debug_assert!(false, "Unrecognized return code!");
+                Ok(())
             }
         }
-    }
+    };
 
     g_st().current_sctx.set(save_current_sctx);
     nlua_clear_ref(&mut parsed_args.rhs_lua);
+    res
 }
 
 /// Get an array containing dictionaries describing mappings

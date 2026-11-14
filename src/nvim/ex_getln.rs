@@ -4,9 +4,8 @@
 
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
-    HLF_E, TryState, add_c, api_clear_error, api_free_array, array_obj, cstr_as_obj,
-    cstr_as_string, cstrn_as_string, error_init, error_set, integer_obj, string_obj, try_enter,
-    try_leave,
+    HLF_E, TryState, add_c, api_free_array, array_obj, cstr_as_obj, cstr_as_string,
+    cstrn_as_string, error_init, error_set, integer_obj, string_obj, try_enter, try_leave,
 };
 use crate::api::private::validate::{Array, NvimString};
 use crate::api::vim::nvim_create_buf;
@@ -1147,15 +1146,12 @@ fn command_line_enter(
                 curbuf_opt().as_deref(),
             );
             restore_v_event(&dict, &mut save_v_event);
-            try_leave(&tstate, &mut err);
-
-            if error_set(&err) {
+            if let Err(err) = try_leave(&tstate) {
                 if !ui_has(K_UIMESSAGES) {
                     msg_putchar(b'\n' as i32);
                 }
                 g_st().msg_scroll.set(1);
                 msg_puts_hl(err.msg_cstr().unwrap_or(c""), HLF_E, true);
-                api_clear_error(&mut err);
                 redrawcmd();
             }
             err = error_init();
@@ -1241,7 +1237,9 @@ fn command_line_enter(
                 false,
                 curbuf_opt().as_deref(),
             );
-            try_leave(&tstate, &mut err);
+            if let Err(e) = try_leave(&tstate) {
+                err = e;
+            }
             if tv_dict_get_number(Some(&dict), c"abort") != 0 {
                 s.gotesc = true;
             }
@@ -1317,7 +1315,7 @@ fn command_line_enter(
             }
             emsg(err.msg_cstr().unwrap_or(c""));
             g_st().did_emsg.set(0);
-            api_clear_error(&mut err);
+            err.clear();
         }
 
         if s.some_key_typed && !error_set(&err) {
@@ -2992,12 +2990,9 @@ fn cmdpreview_open_buf() -> Option<crate::globals::BufPtr> {
         crate::globals::BufPtr::NULL
     };
     if cmdpreview_buf.is_null() {
-        let mut err = error_init();
-        let bufnr = nvim_create_buf(false, true, &mut err);
-
-        if error_set(&err) {
+        let Ok(bufnr) = nvim_create_buf(false, true) else {
             return None;
-        }
+        };
 
         cmdpreview_buf = crate::globals::BufPtr::from(buflist_findnr(bufnr));
     }
@@ -3038,7 +3033,6 @@ fn cmdpreview_open_win(cmdpreview_buf: &FileBuf) -> Option<crate::globals::WinPt
     }
 
     let preview_win = curwin();
-    let mut err = error_init();
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
@@ -3049,9 +3043,7 @@ fn cmdpreview_open_win(cmdpreview_buf: &FileBuf) -> Option<crate::globals::WinPt
         cmdpreview_buf.b_fnum.get(),
         0,
     );
-    try_leave(&tstate, &mut err);
-    if error_set(&err) || !result {
-        api_clear_error(&mut err);
+    if try_leave(&tstate).is_err() || !result {
         return None;
     }
 
@@ -3225,13 +3217,10 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
 
     g_st().cmdpreview.set(true);
 
-    let mut err = error_init();
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     cmdpreview_type = execute_cmd(&mut ea, &mut cmod, true);
-    try_leave(&tstate, &mut err);
-    if error_set(&err) {
-        api_clear_error(&mut err);
+    if try_leave(&tstate).is_err() {
         cmdpreview_type = 0;
     }
 
@@ -3266,7 +3255,6 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
 /// Trigger `CmdlineChanged` autocommands.
 fn do_autocmd_cmdlinechanged(firstc: i32) {
     if has_event(EVENT_CMDLINECHANGED) {
-        let mut err = error_init();
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let dict = get_v_event(&mut save_v_event);
 
@@ -3290,14 +3278,12 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
             curbuf_opt().as_deref(),
         );
         restore_v_event(&dict, &mut save_v_event);
-        try_leave(&tstate, &mut err);
-        if error_set(&err) {
+        if let Err(err) = try_leave(&tstate) {
             if !ui_has(K_UIMESSAGES) {
                 msg_putchar(b'\n' as i32);
             }
             g_st().msg_scroll.set(1);
             msg_puts_hl(err.msg_cstr().unwrap_or(c""), HLF_E, true);
-            api_clear_error(&mut err);
             redrawcmd();
         }
     }
@@ -3766,7 +3752,9 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                     18,
                     &color_cb,
                 );
-                try_leave(&tstate, &mut err);
+                if let Err(e) = try_leave(&tstate) {
+                    err = e;
+                }
                 can_free_cb = true;
             } else if colored_ccline.cmdfirstc.get() == b'=' as i32 {
                 color_expr_cmdline(colored_ccline, &mut colored_ccline.last_colors.borrow_mut());
@@ -3805,7 +3793,9 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
             if g_st().got_int.get() {
                 GETLN_STATE.with(|s| s.getln_interrupted_highlight.set(true));
             }
-            try_leave(&tstate, &mut err);
+            if let Err(e) = try_leave(&tstate) {
+                err = e;
+            }
             if error_set(&err) || !cbcall_ret {
                 break 'color_cmdline_error;
             }
@@ -3959,7 +3949,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
             msg_putchar(b'\n' as i32);
             smsg!(HLF_E, gettext(err_errmsg), err.msg_cstr());
             printed_errmsg = true;
-            api_clear_error(&mut err);
+            err.clear();
         }
         let _ = printed_errmsg;
 

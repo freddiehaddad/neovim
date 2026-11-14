@@ -2,9 +2,7 @@
 
 //! Expression evaluation (`src/nvim/eval.c`).
 
-use crate::api::private::helpers::{
-    HLF_E, api_clear_error, cstr_as_string, cstr_to_string, tv_dict_is_watched,
-};
+use crate::api::private::helpers::{HLF_E, cstr_as_string, cstr_to_string, tv_dict_is_watched};
 use crate::api::private::validate::Array;
 use crate::charset::{
     NUL, VARNUMBER_MIN, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_islower, ascii_isupper,
@@ -101,7 +99,7 @@ use std::ffi::CStr;
 use std::ptr;
 
 use crate::api::private::converter::{object_to_vim, vim_to_object};
-use crate::api::private::validate::{Error, ErrorType, NvimString, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{NvimString, Object, ObjectData, ObjectType};
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, PROF_YES};
 use crate::cmdexpand::{
     Cmdidx, EXPAND_COMMANDS, EXPAND_ENV_VARS, EXPAND_EXPRESSION, EXPAND_FUNCTIONS, EXPAND_NOTHING,
@@ -4926,23 +4924,20 @@ pub fn callback_call(
                 *luaargs.next_slot_mut() = vim_to_object(arg_tv);
                 luaargs.size += 1;
             }
-            let mut err = Error::new();
             let luaref = callback.data.as_luaref();
             EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() + (1)));
-            let result = nlua_call_ref(luaref, None, luaargs, K_RET_OBJECT, Some(&mut err));
+            let res = nlua_call_ref(luaref, None, luaargs, K_RET_OBJECT);
             EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() - (1)));
-            let ok = err.err_type == ErrorType::ErrorTypeNone;
-            if !ok {
-                semsg_multiline!(c"emsg", c"E5108: %s", err.msg_cstr());
-                api_clear_error(&mut err);
-            } else {
-                object_to_vim(
-                    result,
-                    rettv,
-                    &mut crate::api::private::validate::Error::new(),
-                );
-            }
-            return ok;
+            return match res {
+                Ok(result) => {
+                    object_to_vim(result, rettv);
+                    true
+                }
+                Err(err) => {
+                    semsg_multiline!(c"emsg", c"E5108: %s", err.msg_cstr());
+                    false
+                }
+            };
         }
         K_CALLBACK_EXPR => {
             EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() + (1)));

@@ -2,8 +2,7 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, cstr_as_obj, error_init, error_set, find_window_by_handle,
-    has_key,
+    api_error, cstr_as_obj, error_set, find_window_by_handle, has_key,
 };
 use crate::api::private::validate::{Error, ErrorType};
 use crate::api::vim::nvim_create_buf;
@@ -49,8 +48,7 @@ pub fn win_new_float(
     wp_opt: Option<&WinInfoInfo>,
     last: bool,
     fconfig: WinConfig,
-    err: &mut Error,
-) -> Option<crate::globals::WinPtr> {
+) -> Result<crate::globals::WinPtr, Error> {
     let wp = if let Some(wp) = wp_opt {
         let wp = crate::globals::WinPtr::from(wp);
         debug_assert!(!last);
@@ -65,12 +63,10 @@ pub fn win_new_float(
                 && win_tp.tp_firstwin.get() == wp
                 && lastwin_nofloating(win_tp.opt()) == wp
         {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeException,
                 c"Cannot change last window into float",
-            );
-            return None;
+            ));
         }
         let tp = if win_tp == g_st().curtab.get() {
             crate::globals::TabpagePtr::NULL
@@ -104,8 +100,8 @@ pub fn win_new_float(
         };
         if fconfig.window != 0 {
             debug_assert!(!last);
-            let parent_wp = find_window_by_handle(fconfig.window, err)?;
-            let tp = win_find_tabpage(parent_wp.borrow())?;
+            let parent_wp = find_window_by_handle(fconfig.window)?;
+            let tp = win_find_tabpage(parent_wp.borrow()).unwrap();
             tp_last = lastwin_nofloating(if tp == g_st().curtab.get() {
                 None
             } else {
@@ -138,7 +134,7 @@ pub fn win_new_float(
 
     win_config_float(&wp, fconfig);
     redraw_later(Some(&wp), UPD_VALID);
-    Some(wp)
+    Ok(wp)
 }
 
 pub fn win_set_minimal_style(wp: &WinInfoInfo) {
@@ -279,8 +275,7 @@ pub fn win_config_float(wp: &WinInfoInfo, mut fconfig: WinConfig) {
     if wp.w_config.borrow().relative == K_FLOAT_RELATIVE_WINDOW {
         let mut row = wp.w_config.borrow().row as i32;
         let mut col = wp.w_config.borrow().col as i32;
-        let mut dummy = error_init();
-        let parent = find_window_by_handle(wp.w_config.borrow().window, &mut dummy);
+        let parent = find_window_by_handle(wp.w_config.borrow().window).ok();
         if let Some(parent) = parent.as_deref() {
             row += parent.w_winrow.get();
             col += parent.w_wincol.get();
@@ -303,7 +298,6 @@ pub fn win_config_float(wp: &WinInfoInfo, mut fconfig: WinConfig) {
                 col += tcol - 1;
             }
         }
-        api_clear_error(&mut dummy);
         wp.w_winrow.set(row);
         wp.w_wincol.set(col);
     } else {
@@ -417,13 +411,9 @@ pub fn win_float_find_altwin(
 
 /// Abort `win_float_special()`: emit any error, tear down the half-built window, unblock autocmds.
 #[inline]
-fn win_float_special_fail(
-    wp: Option<&WinInfoInfo>,
-    err: &mut Error,
-) -> Option<crate::globals::WinPtr> {
-    if error_set(err) {
+fn win_float_special_fail(wp: Option<&WinInfoInfo>, err: Error) -> Option<crate::globals::WinPtr> {
+    if error_set(&err) {
         emsg(err.msg_cstr().unwrap_or(c""));
-        api_clear_error(err);
     }
     if let Some(wp) = wp {
         win_remove(wp, None);
@@ -457,7 +447,6 @@ pub fn win_float_special(
     config.noautocmd = true;
     config.hide = true;
     config.style = K_WIN_STYLE_MINIMAL;
-    let mut err = error_init();
     let preview = kind == K_WIN_PREVIEW;
     if preview && !win_previewpopup_config(&opt_vars().p_pvp.as_cstr(), &mut config) {
         emsg(gettext(E_INVARG));
@@ -465,17 +454,20 @@ pub fn win_float_special(
     }
 
     block_autocmds();
-    let Some(wp) = win_new_float(None, false, config, &mut err) else {
-        return win_float_special_fail(None, &mut err);
+    let wp = match win_new_float(None, false, config) {
+        Ok(wp) => wp,
+        Err(err) => return win_float_special_fail(None, err),
     };
 
     if new_buf {
-        let b = nvim_create_buf(false, true, &mut err);
-        if b == 0 {
-            return win_float_special_fail(Some(&wp), &mut err);
-        }
-        let Some(buf) = crate::api::private::helpers::find_buffer_by_handle(b, &mut err) else {
-            return win_float_special_fail(Some(&wp), &mut err);
+        let b = match nvim_create_buf(false, true) {
+            Ok(b) if b != 0 => b,
+            Ok(_) => return win_float_special_fail(Some(&wp), Error::new()),
+            Err(err) => return win_float_special_fail(Some(&wp), err),
+        };
+        let buf = match crate::api::private::helpers::find_buffer_by_handle(b) {
+            Ok(buf) => buf,
+            Err(err) => return win_float_special_fail(Some(&wp), err),
         };
         buf.b_p_bl.set(false); // unlist
         set_option_direct_for(
@@ -485,9 +477,8 @@ pub fn win_float_special(
             0,
             OptTarget::Buf(buf.clone()),
         );
-        win_set_buf(&wp, &buf, &mut err);
-        if error_set(&err) {
-            return win_float_special_fail(Some(&wp), &mut err);
+        if let Err(err) = win_set_buf(&wp, &buf) {
+            return win_float_special_fail(Some(&wp), err);
         }
     }
     unblock_autocmds();
@@ -529,14 +520,11 @@ pub fn win_float_update_preview(wp: &WinInfoInfo) {
         shorten_buf_fname(&wp.buf(), crate::memory::bytes_as_cstr(&dirname), 0);
 
         wp.w_config.borrow_mut().title_chunks.clear();
-        let mut err = error_init();
-        parse_bordertext(
+        let _ = parse_bordertext(
             cstr_as_obj(wp.buf().fname_opt().as_deref()),
             K_BORDER_TEXT_TITLE,
             &mut wp.w_config.borrow_mut(),
-            &mut err,
         );
-        api_clear_error(&mut err);
         wp.w_config.borrow_mut().title_pos = K_ALIGN_CENTER;
     }
 
@@ -627,13 +615,10 @@ pub fn win_previewpopup_config(value: &std::ffi::CStr, config: &mut WinConfig) -
         } else {
             Some(p_winborder.as_bytes()).filter(|b| !b.is_empty())
         };
-        if let Some(border) = border {
-            let mut err = error_init();
-            let ok = parse_winborder(Some(&mut *config), border, &mut err);
-            api_clear_error(&mut err);
-            if !ok {
-                return false;
-            }
+        if let Some(border) = border
+            && parse_winborder(Some(&mut *config), border).is_err()
+        {
+            return false;
         }
 
         if !config.border {

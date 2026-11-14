@@ -4,7 +4,7 @@
 
 use crate::api::private::dispatch::MsgpackRpcRequestHandler;
 use crate::api::private::helpers::{
-    OBJECT_NIL, api_clear_error, api_free_dict, api_free_object, api_set_error, cstr_as_string,
+    OBJECT_NIL, api_error, api_free_dict, api_free_object, cstr_as_string,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
@@ -292,16 +292,13 @@ pub fn rpc_send_call(
     method_name: &CStr,
     args: Array,
     timeout: i32,
-    err: &mut Error,
-) -> Object {
+) -> Result<Object, Error> {
     let Some(channel) = find_rpc_channel_opt(id) else {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Invalid channel: %llu",
             id,
-        );
-        return OBJECT_NIL;
+        ));
     };
 
     channel_incref(channel);
@@ -349,33 +346,31 @@ pub fn rpc_send_call(
     }
 
     if !frame.returned.get() {
-        if find_channel_opt(id).is_none_or(|c| c.rpc.closed.get()) {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Invalid channel: %llu",
-                id,
-            );
+        let err = if find_channel_opt(id).is_none_or(|c| c.rpc.closed.get()) {
+            api_error!(ErrorType::ErrorTypeException, c"Invalid channel: %llu", id,)
         } else {
-            api_set_error!(
-                err,
+            api_error!(
                 ErrorType::ErrorTypeException,
                 c"Request timed out after %d ms: %s",
                 timeout,
                 method_name,
-            );
-        }
+            )
+        };
 
         if let Some(channel) = find_channel_opt(id) {
             channel_decref(channel);
         }
-        return OBJECT_NIL;
+        return Err(err);
+    }
+
+    if let Some(channel) = find_channel_opt(id) {
+        channel_decref(channel);
     }
 
     if frame.errored.get() {
         let res = frame.result.get();
-        if res.obj_type == ObjectType::ObjectTypeString {
-            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", res.data.string(),);
+        let err = if res.obj_type == ObjectType::ObjectTypeString {
+            api_error!(ErrorType::ErrorTypeException, c"%s", res.data.string())
         } else if res.obj_type == ObjectType::ObjectTypeArray {
             let array = res.data.array();
             if array.size == 2
@@ -387,23 +382,16 @@ pub fn rpc_send_call(
                 )
                 && array[1].obj_type == ObjectType::ObjectTypeString
             {
-                api_set_error!(err, et, c"%s", array[1].data.string(),);
+                api_error!(et, c"%s", array[1].data.string())
             } else {
-                api_set_error!(err, ErrorType::ErrorTypeException, c"%s", c"unknown error",);
+                api_error!(ErrorType::ErrorTypeException, c"%s", c"unknown error")
             }
         } else {
-            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", c"unknown error",);
-        }
-    }
-
-    if let Some(channel) = find_channel_opt(id) {
-        channel_decref(channel);
-    }
-
-    if frame.errored.get() {
-        OBJECT_NIL
+            api_error!(ErrorType::ErrorTypeException, c"%s", c"unknown error")
+        };
+        Err(err)
     } else {
-        frame.result.get()
+        Ok(frame.result.get())
     }
 }
 
@@ -524,7 +512,7 @@ fn parse_msgpack(channel: &mut Channel, read_buf: &mut &[u8]) {
             .to_owned();
         chan_close_on_err(channel, &msg, LOGLVL_INF);
 
-        api_clear_error(&mut channel.unpacker_mut().unpack_error);
+        channel.unpacker_mut().unpack_error.clear();
     }
 }
 
@@ -544,8 +532,7 @@ fn handle_request(channel: &mut Channel, args: Array) {
             .r#fn
             .is_some_and(|f| f as *const () != handle_nvim_error_event as *const ())
     {
-        api_set_error!(
-            &mut p.unpack_error,
+        p.unpack_error = api_error!(
             ErrorType::ErrorTypeException,
             c"Rejected API call from untrusted peer: %s",
             p.handler.name,
@@ -558,7 +545,7 @@ fn handle_request(channel: &mut Channel, args: Array) {
         let msg_type = p.msg_type;
         let request_id = p.request_id;
         let msg = p.unpack_error.msg.take();
-        api_clear_error(&mut p.unpack_error);
+        p.unpack_error.clear();
         send_error(channel, handler, msg_type, request_id, msg);
         return;
     }
@@ -605,15 +592,13 @@ fn handle_request(channel: &mut Channel, args: Array) {
 
 pub fn request_event(mut e: RequestEvent) {
     let handler = e.handler;
-    let mut error = Error::new();
 
     let is_open = find_channel_opt(e.chan_id).is_some_and(|c| !c.rpc.closed.get());
     if is_open {
         let fn_call = handler.r#fn.unwrap();
         let args = std::mem::take(&mut e.args);
-        let mut result = fn_call(e.chan_id, args, &mut error);
-        if (e.r#type == MessageType::MessageTypeRequest
-            || error.err_type != ErrorType::ErrorTypeNone)
+        let mut call_res = fn_call(e.chan_id, args);
+        if (e.r#type == MessageType::MessageTypeRequest || call_res.is_err())
             && let Some(channel) = find_channel_opt(e.chan_id)
         {
             serialize_response(
@@ -621,17 +606,17 @@ pub fn request_event(mut e: RequestEvent) {
                 e.handler,
                 e.r#type,
                 e.request_id,
-                &mut error,
-                &mut result,
+                call_res.as_mut().map_err(|err| &*err),
             );
         }
-        if handler.ret_alloc {
+        if handler.ret_alloc
+            && let Ok(result) = call_res
+        {
             api_free_object(result);
         }
     }
 
     drop(e);
-    api_clear_error(&mut error);
 }
 
 pub fn rpc_write_raw(id: u64, buffer: std::rc::Rc<WBuffer>) -> bool {
@@ -708,13 +693,11 @@ fn send_error(
     id: u32,
     err: Option<std::ffi::CString>,
 ) {
-    let mut e = Error {
+    let e = Error {
         err_type: ErrorType::ErrorTypeException,
         msg: err,
     };
-    let mut nil_obj = OBJECT_NIL;
-    serialize_response(chan, handler, r#type, id, &mut e, &mut nil_obj);
-    api_clear_error(&mut e);
+    serialize_response(chan, handler, r#type, id, Err(&e));
 }
 
 fn broadcast_event(name: &CStr, args: Array) {
@@ -758,7 +741,7 @@ pub fn rpc_close_event(chan_id: u64) {
     #[cfg(windows)]
     let ui_closed = channel.rpc.has_ui;
 
-    remote_ui_disconnect(channel.id, &mut Error::new(), false);
+    let _ = remote_ui_disconnect(channel.id, false);
 
     let is_ui_client =
         g_st().ui_client_channel_id.get() != 0 && channel.id == g_st().ui_client_channel_id.get();
@@ -833,17 +816,17 @@ pub fn serialize_response(
     handler: MsgpackRpcRequestHandler,
     r#type: MessageType,
     response_id: u32,
-    err: &mut Error,
-    arg: &mut Object,
+    res: Result<&mut Object, &Error>,
 ) {
-    if err.err_type != ErrorType::ErrorTypeNone && r#type == MessageType::MessageTypeNotification {
+    if let Err(err) = res
+        && r#type == MessageType::MessageTypeNotification
+    {
         let is_paste = handler
             .r#fn
             .is_some_and(|f| f as *const () == handle_nvim_paste as *const ());
 
         if is_paste {
             semsg!(c"paste: %s", err.msg_cstr());
-            api_clear_error(err);
         } else {
             let mut items = [
                 Object {
@@ -868,14 +851,17 @@ pub fn serialize_response(
     mpack_w(&mut packer, 1);
     mpack_uint(&mut packer, response_id);
 
-    if err.err_type != ErrorType::ErrorTypeNone {
-        mpack_array(&mut packer, 2);
-        mpack_integer(&mut packer, err.err_type as Integer);
-        mpack_str(cstr_as_string(err.msg_cstr()), &mut packer);
-        mpack_nil(&mut packer);
-    } else {
-        mpack_nil(&mut packer);
-        mpack_object(arg, &mut packer);
+    match res {
+        Err(err) => {
+            mpack_array(&mut packer, 2);
+            mpack_integer(&mut packer, err.err_type as Integer);
+            mpack_str(cstr_as_string(err.msg_cstr()), &mut packer);
+            mpack_nil(&mut packer);
+        }
+        Ok(arg) => {
+            mpack_nil(&mut packer);
+            mpack_object(arg, &mut packer);
+        }
     }
 
     packer_buffer_finish_channels(&mut packer);

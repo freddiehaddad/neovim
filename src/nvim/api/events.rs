@@ -41,22 +41,21 @@ pub fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
 /// @param[out] err Error details, if any.
 // DLLEXPORT void nvim_ui_term_event(uint64_t channel_id, String event, Object value,
 //                                   Error *err) FUNC_API_SINCE(12) FUNC_API_REMOTE_ONLY;
-pub fn nvim_ui_term_event(channel_id: u64, event: NvimString, value: Object, err: &mut Error) {
+pub fn nvim_ui_term_event(channel_id: u64, event: NvimString, value: Object) -> Result<(), Error> {
     if !event.data.is_null() && event.cstr_bytes() == b"termresponse" {
         if value.obj_type != ObjectType::ObjectTypeString {
-            api_err_exp(
-                err,
+            return Err(api_err_exp(
                 c"termresponse",
                 api_typename(ObjectType::ObjectTypeString),
                 Some(api_typename(value.obj_type)),
-            );
-            return;
+            ));
         }
 
         let termresponse = value.data.string();
         set_vim_var_bytes(VV_TERMRESPONSE, termresponse.as_bytes());
         do_termresponse_autocmd(termresponse, channel_id);
     }
+    Ok(())
 }
 
 #[cfg(test)]

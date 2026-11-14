@@ -2,10 +2,9 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    OBJECT_NIL, add_c, api_free_object, api_set_error, api_typename, array_obj, boolean_obj,
-    copy_object, dict_obj, error_set, find_buffer_by_handle, find_tab_by_handle,
-    find_window_by_handle, has_key, integer_obj, put_c, static_cstr_as_obj, string_obj, try_wrap,
-    with_script_context,
+    OBJECT_NIL, add_c, api_error, api_typename, array_obj, boolean_obj, copy_object, dict_obj,
+    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, has_key, integer_obj, put_c,
+    static_cstr_as_obj, string_obj, try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType, api_err_conflict,
@@ -71,199 +70,179 @@ fn validate_option_value_args<'a>(
     filetype: Option<&mut Option<&'a CStr>>,
     operation: Option<&mut SetOp>,
     dry_run: Option<&mut bool>,
-    err: &mut Error,
-) -> bool {
+) -> Result<(), Error> {
+    let mask = opts.is_set_option;
+    if has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE)
+        && (has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE)
+            || has_key(mask, KEYSET_OPTIDX_OPTION_BUF)
+            || has_key(mask, KEYSET_OPTIDX_OPTION_WIN)
+            || has_key(mask, KEYSET_OPTIDX_OPTION_TAB))
     {
-        let mask = opts.is_set_option;
-        if has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE)
-            && (has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE)
-                || has_key(mask, KEYSET_OPTIDX_OPTION_BUF)
-                || has_key(mask, KEYSET_OPTIDX_OPTION_WIN)
-                || has_key(mask, KEYSET_OPTIDX_OPTION_TAB))
-        {
-            api_err_conflict(err, c"filetype", c"'scope', 'buf', 'win' or 'tab'");
-            return false;
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_OPTION_TAB) && !allow_tab {
-            api_err_conflict(err, c"tab", c"this function");
-            return false;
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_OPTION_TAB)
-            && (has_key(mask, KEYSET_OPTIDX_OPTION_WIN)
-                || has_key(mask, KEYSET_OPTIDX_OPTION_BUF)
-                || has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE)
-                || has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE))
-        {
-            api_err_conflict(err, c"tab", c"'win', 'buf', 'filetype' or 'scope'");
-            return false;
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_OPTION_WIN) && has_key(mask, KEYSET_OPTIDX_OPTION_BUF) {
-            api_err_conflict(err, c"buf", c"win");
-            return false;
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE) {
-            match opts.scope.cstr_bytes() {
-                b"local" => *opt_flags = OPT_LOCAL,
-                b"global" => *opt_flags = OPT_GLOBAL,
-                _ => {
-                    api_err_exp(err, c"scope", c"'local' or 'global'", None);
-                    return false;
-                }
-            }
-        }
-
-        *scope = K_OPT_SCOPE_GLOBAL;
-
-        if let Some(ft_out) = filetype
-            && has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE)
-        {
-            *ft_out = opts.filetype.as_opt_cstr();
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_OPTION_WIN) {
-            *scope = K_OPT_SCOPE_WIN;
-            *from = OptTarget::Win(find_window_by_handle(opts.win, err).into());
-            if error_set(err) {
-                return false;
-            }
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_OPTION_BUF) {
-            if has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE) && *opt_flags == OPT_GLOBAL {
-                api_err_conflict(err, c"buf", c"global scope");
-                return false;
-            }
-            *opt_flags = OPT_LOCAL;
-            *scope = K_OPT_SCOPE_BUF;
-            *from = OptTarget::Buf(find_buffer_by_handle(opts.buf, err).into());
-            if error_set(err) {
-                return false;
-            }
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_OPTION_TAB) {
-            *scope = K_OPT_SCOPE_TAB;
-            *from = OptTarget::Tab(find_tab_by_handle(opts.tab, err).into());
-            if error_set(err) {
-                return false;
-            }
-        }
-
-        *opt_idxp = find_option(name.to_bytes());
-        if *opt_idxp == K_OPT_INVALID {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Unknown option '%s'",
-                name,
-            );
-            return false;
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_OPTION_OPERATION)
-            && let Some(operation) = operation
-        {
-            match opts.operation.cstr_bytes() {
-                b"set" => *operation = OP_NONE,
-                b"append" => *operation = OP_ADDING,
-                b"prepend" => *operation = OP_PREPENDING,
-                b"remove" => *operation = OP_REMOVING,
-                _ => {
-                    api_err_exp(
-                        err,
-                        c"operation",
-                        c"'set', 'append', 'prepend', or 'remove'",
-                        None,
-                    );
-                    return false;
-                }
-            }
-
-            if !(*operation == OP_NONE
-                || option_has_type(*opt_idxp, ObjectType::ObjectTypeString)
-                || option_has_type(*opt_idxp, ObjectType::ObjectTypeInteger))
-            {
-                api_err_conflict(err, opts.operation.as_cstr(), c"boolean options");
-                return false;
-            }
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_OPTION_DRY_RUN)
-            && let Some(dry_run) = dry_run
-        {
-            *dry_run = opts.dry_run;
-        }
-
-        if has_key(mask, KEYSET_OPTIDX_OPTION_TAB) && !option_has_scope(*opt_idxp, K_OPT_SCOPE_TAB)
-        {
-            api_err_conflict(err, c"tab", name);
-            return false;
-        }
-
-        if (*scope == K_OPT_SCOPE_BUF || *scope == K_OPT_SCOPE_WIN)
-            && !option_has_scope(*opt_idxp, *scope)
-        {
-            let tgt = if *scope == K_OPT_SCOPE_BUF {
-                c"buf"
-            } else {
-                c"win"
-            };
-            let global = if option_has_scope(*opt_idxp, K_OPT_SCOPE_GLOBAL) {
-                c"global "
-            } else {
-                c""
-            };
-            let req = if option_has_scope(*opt_idxp, K_OPT_SCOPE_BUF) {
-                c"buffer-local "
-            } else if option_has_scope(*opt_idxp, K_OPT_SCOPE_WIN) {
-                c"window-local "
-            } else {
-                c""
-            };
-
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"'%s' cannot be passed for %s%soption '%s'",
-                tgt,
-                global,
-                req,
-                name,
-            );
-            return false;
-        }
-
-        !error_set(err)
+        return Err(api_err_conflict(
+            c"filetype",
+            c"'scope', 'buf', 'win' or 'tab'",
+        ));
     }
+
+    if has_key(mask, KEYSET_OPTIDX_OPTION_TAB) && !allow_tab {
+        return Err(api_err_conflict(c"tab", c"this function"));
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_OPTION_TAB)
+        && (has_key(mask, KEYSET_OPTIDX_OPTION_WIN)
+            || has_key(mask, KEYSET_OPTIDX_OPTION_BUF)
+            || has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE)
+            || has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE))
+    {
+        return Err(api_err_conflict(
+            c"tab",
+            c"'win', 'buf', 'filetype' or 'scope'",
+        ));
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_OPTION_WIN) && has_key(mask, KEYSET_OPTIDX_OPTION_BUF) {
+        return Err(api_err_conflict(c"buf", c"win"));
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE) {
+        match opts.scope.cstr_bytes() {
+            b"local" => *opt_flags = OPT_LOCAL,
+            b"global" => *opt_flags = OPT_GLOBAL,
+            _ => {
+                return Err(api_err_exp(c"scope", c"'local' or 'global'", None));
+            }
+        }
+    }
+
+    *scope = K_OPT_SCOPE_GLOBAL;
+
+    if let Some(ft_out) = filetype
+        && has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE)
+    {
+        *ft_out = opts.filetype.as_opt_cstr();
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_OPTION_WIN) {
+        *scope = K_OPT_SCOPE_WIN;
+        *from = OptTarget::Win(find_window_by_handle(opts.win)?);
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_OPTION_BUF) {
+        if has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE) && *opt_flags == OPT_GLOBAL {
+            return Err(api_err_conflict(c"buf", c"global scope"));
+        }
+        *opt_flags = OPT_LOCAL;
+        *scope = K_OPT_SCOPE_BUF;
+        *from = OptTarget::Buf(find_buffer_by_handle(opts.buf)?);
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_OPTION_TAB) {
+        *scope = K_OPT_SCOPE_TAB;
+        *from = OptTarget::Tab(find_tab_by_handle(opts.tab)?);
+    }
+
+    *opt_idxp = find_option(name.to_bytes());
+    if *opt_idxp == K_OPT_INVALID {
+        return Err(api_error!(
+            ErrorType::ErrorTypeValidation,
+            c"Unknown option '%s'",
+            name,
+        ));
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_OPTION_OPERATION)
+        && let Some(operation) = operation
+    {
+        match opts.operation.cstr_bytes() {
+            b"set" => *operation = OP_NONE,
+            b"append" => *operation = OP_ADDING,
+            b"prepend" => *operation = OP_PREPENDING,
+            b"remove" => *operation = OP_REMOVING,
+            _ => {
+                return Err(api_err_exp(
+                    c"operation",
+                    c"'set', 'append', 'prepend', or 'remove'",
+                    None,
+                ));
+            }
+        }
+
+        if !(*operation == OP_NONE
+            || option_has_type(*opt_idxp, ObjectType::ObjectTypeString)
+            || option_has_type(*opt_idxp, ObjectType::ObjectTypeInteger))
+        {
+            return Err(api_err_conflict(
+                opts.operation.as_cstr(),
+                c"boolean options",
+            ));
+        }
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_OPTION_DRY_RUN)
+        && let Some(dry_run) = dry_run
+    {
+        *dry_run = opts.dry_run;
+    }
+
+    if has_key(mask, KEYSET_OPTIDX_OPTION_TAB) && !option_has_scope(*opt_idxp, K_OPT_SCOPE_TAB) {
+        return Err(api_err_conflict(c"tab", name));
+    }
+
+    if (*scope == K_OPT_SCOPE_BUF || *scope == K_OPT_SCOPE_WIN)
+        && !option_has_scope(*opt_idxp, *scope)
+    {
+        let tgt = if *scope == K_OPT_SCOPE_BUF {
+            c"buf"
+        } else {
+            c"win"
+        };
+        let global = if option_has_scope(*opt_idxp, K_OPT_SCOPE_GLOBAL) {
+            c"global "
+        } else {
+            c""
+        };
+        let req = if option_has_scope(*opt_idxp, K_OPT_SCOPE_BUF) {
+            c"buffer-local "
+        } else if option_has_scope(*opt_idxp, K_OPT_SCOPE_WIN) {
+            c"window-local "
+        } else {
+            c""
+        };
+
+        return Err(api_error!(
+            ErrorType::ErrorTypeValidation,
+            c"'%s' cannot be passed for %s%soption '%s'",
+            tgt,
+            global,
+            req,
+            name,
+        ));
+    }
+
+    Ok(())
 }
 
 fn do_ft_buf(
     filetype: Option<&CStr>,
     aco: &mut CtxSwitch,
-    err: &mut Error,
-) -> Option<crate::globals::BufPtr> {
-    let filetype = filetype?;
+) -> Result<Option<crate::globals::BufPtr>, Error> {
+    let Some(filetype) = filetype else {
+        return Ok(None);
+    };
 
     let Some(ftbuf) = buflist_new(None, None, 1, BLN_DUMMY) else {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Could not create internal buffer",
-        );
-        return None;
+        ));
     };
 
     if !ml_open(&ftbuf) {
-        api_set_error!(
-            err,
+        wipe_ft_buf(ftbuf.borrow());
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Could not load internal buffer",
-        );
-        return Some(ftbuf);
+        ));
     }
 
     let mut bufref = Bufref {
@@ -295,33 +274,44 @@ fn do_ft_buf(
     ftbuf.b_p_ft.set_option_cstr(filetype);
 
     if !has_event(EVENT_FILETYPE) {
-        return (!ftbuf.is_null()).then_some(ftbuf);
+        return Ok((!ftbuf.is_null()).then_some(ftbuf));
     }
 
     let mut did_au_ft = false;
-    try_wrap(err, || {
+    let au_res = try_wrap(|| {
         did_au_ft = do_filetype_autocmd(ftbuf.borrow(), true);
     });
 
     if !bufref_valid(Some(&bufref)) {
-        if !error_set(err) {
-            api_set_error!(
-                err,
+        ctx_restore(aco);
+        return Err(match au_res {
+            Err(err) => err,
+            Ok(()) => api_error!(
                 ErrorType::ErrorTypeException,
                 c"Internal buffer was deleted",
-            );
-        }
-        return None;
+            ),
+        });
     }
 
-    if !did_au_ft && !error_set(err) {
-        api_set_error!(
-            err,
+    if let Err(err) = au_res {
+        ctx_restore(aco);
+        if !ftbuf.is_null() {
+            wipe_ft_buf(ftbuf.borrow());
+        }
+        return Err(err);
+    }
+
+    if !did_au_ft {
+        ctx_restore(aco);
+        if !ftbuf.is_null() {
+            wipe_ft_buf(ftbuf.borrow());
+        }
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Could not execute FileType autocommands",
-        );
+        ));
     }
-    (!ftbuf.is_null()).then_some(ftbuf)
+    Ok((!ftbuf.is_null()).then_some(ftbuf))
 }
 
 fn wipe_ft_buf(buf: &FileBuf) {
@@ -371,18 +361,14 @@ fn wipe_ft_buf(buf: &FileBuf) {
 /// @return          Option value
 // DLLEXPORT Object nvim_get_option_value(String name, Dict(option) *opts, Error *err)
 //   FUNC_API_SINCE(9) FUNC_API_RET_ALLOC;
-pub fn nvim_get_option_value(
-    name: NvimString,
-    opts: &mut KeyDictOption,
-    err: &mut Error,
-) -> Object {
+pub fn nvim_get_option_value(name: NvimString, opts: &mut KeyDictOption) -> Result<Object, Error> {
     let mut opt_idx: OptIndex = 0;
     let mut opt_flags: i32 = 0;
     let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
     let mut from = OptTarget::Global;
     let mut filetype: Option<&CStr> = None;
 
-    if !validate_option_value_args(
+    validate_option_value_args(
         opts,
         name.as_cstr(),
         true,
@@ -393,37 +379,22 @@ pub fn nvim_get_option_value(
         Some(&mut filetype),
         None,
         None,
-        err,
-    ) {
-        return OBJECT_NIL;
-    }
+    )?;
 
     let mut aco: CtxSwitch = CtxSwitch::new();
 
-    let ftbuf = crate::globals::BufPtr::from(do_ft_buf(filetype, &mut aco, err));
-    if error_set(err) {
-        ctx_restore(&mut aco);
-        if !ftbuf.is_null() {
-            wipe_ft_buf(ftbuf.borrow());
-        }
-        return OBJECT_NIL;
-    }
+    let ftbuf = crate::globals::BufPtr::from(do_ft_buf(filetype, &mut aco)?);
 
     if !ftbuf.is_null() {
         assert!(matches!(from, OptTarget::Global));
         from = OptTarget::Buf(ftbuf.clone());
     }
 
-    let value = get_option_value_for(opt_idx, opt_flags, scope, from, err);
+    let value = get_option_value_for(opt_idx, opt_flags, scope, from);
 
     ctx_restore(&mut aco);
     if !ftbuf.is_null() {
         wipe_ft_buf(ftbuf.borrow());
-    }
-
-    if error_set(err) {
-        api_free_object(value);
-        return OBJECT_NIL;
     }
 
     value
@@ -509,19 +480,17 @@ fn option_to_object_idx(opt_idx: OptIndex, value: Object) -> Object {
 /// @nodoc
 // DLLEXPORT Object nvim__option_to_object(String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_LUA_ONLY;
-pub fn nvim_option_to_object(name: NvimString, value: Object, err: &mut Error) -> Object {
+pub fn nvim_option_to_object(name: NvimString, value: Object) -> Result<Object, Error> {
     let opt_idx = find_option(name.as_bytes());
     if opt_idx == K_OPT_INVALID {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"Unknown option '%s'",
             name,
-        );
-        return OBJECT_NIL;
+        ));
     }
 
-    option_to_object_idx(opt_idx, value)
+    Ok(option_to_object_idx(opt_idx, value))
 }
 
 /// Sets the value of an option. The behavior of this function matches that of
@@ -557,8 +526,7 @@ pub fn nvim_set_option_value(
     name: NvimString,
     value: Object,
     opts: &mut KeyDictOption,
-    err: &mut Error,
-) -> Object {
+) -> Result<Object, Error> {
     let mut opt_idx: OptIndex = 0;
     let mut opt_flags: i32 = 0;
     let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
@@ -566,7 +534,7 @@ pub fn nvim_set_option_value(
     let mut to = OptTarget::Global;
     let mut dry_run = false;
 
-    if !validate_option_value_args(
+    validate_option_value_args(
         opts,
         name.as_cstr(),
         true,
@@ -577,10 +545,7 @@ pub fn nvim_set_option_value(
         None,
         Some(&mut operation),
         Some(&mut dry_run),
-        err,
-    ) {
-        return OBJECT_NIL;
-    }
+    )?;
 
     if scope == K_OPT_SCOPE_WIN && opt_flags == 0 && option_has_scope(opt_idx, K_OPT_SCOPE_GLOBAL) {
         opt_flags = OPT_LOCAL;
@@ -637,14 +602,12 @@ pub fn nvim_set_option_value(
         let right_type = optval_right.obj_type;
 
         if error {
-            api_err_exp(
-                err,
+            optval_free(merged_val);
+            return Err(api_err_exp(
                 name.as_cstr(),
                 c"a valid type",
                 Some(api_typename(value.obj_type)),
-            );
-            optval_free(merged_val);
-            return OBJECT_NIL;
+            ));
         }
 
         if right_type == ObjectType::ObjectTypeInteger {
@@ -731,9 +694,8 @@ pub fn nvim_set_option_value(
             );
             optval_free(oldval);
             if let Some(errmsg) = errmsg {
-                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg);
                 optval_free(merged_val);
-                return OBJECT_NIL;
+                return Err(api_error!(ErrorType::ErrorTypeValidation, c"%s", errmsg));
             }
         }
     }
@@ -756,12 +718,11 @@ pub fn nvim_set_option_value(
         let errmsg = validate_and_prepare_option_value(&mut args);
         merged_val = args.os_newval;
         if let Some(errmsg) = errmsg {
-            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg);
             optval_free(merged_val);
-            return OBJECT_NIL;
+            return Err(api_error!(ErrorType::ErrorTypeException, c"%s", errmsg));
         }
     } else {
-        with_script_context(channel_id, || {
+        let res = with_script_context(channel_id, || {
             set_option_value_for(
                 opt_idx,
                 merged_val.clone(),
@@ -769,14 +730,17 @@ pub fn nvim_set_option_value(
                 scope,
                 to,
                 operation == OP_NONE,
-                err,
-            );
+            )
         });
+        if let Err(err) = res {
+            optval_free(merged_val);
+            return Err(err);
+        }
     }
 
     let rv = option_to_object_idx(opt_idx, merged_val.clone());
     optval_free(merged_val);
-    rv
+    Ok(rv)
 }
 
 /// Gets the option information for all options.
@@ -789,8 +753,8 @@ pub fn nvim_set_option_value(
 /// @return dict of all options
 // DLLEXPORT Dict nvim_get_all_options_info(Arena *arena, Error *err)
 //   FUNC_API_SINCE(7);
-pub fn nvim_get_all_options_info(_err: &mut Error) -> Dict {
-    get_all_options_info()
+pub fn nvim_get_all_options_info() -> Result<Dict, Error> {
+    Ok(get_all_options_info())
 }
 
 /// Gets the option information for one option from arbitrary buffer or window
@@ -829,13 +793,13 @@ pub fn nvim_get_all_options_info(_err: &mut Error) -> Dict {
 // DLLEXPORT DictAs(get_option_info) nvim_get_option_info2(String name, Dict(option) *opts,
 //                                                         Arena *arena, Error *err)
 //   FUNC_API_SINCE(11);
-pub fn nvim_get_option_info2(name: NvimString, opts: &mut KeyDictOption, err: &mut Error) -> Dict {
+pub fn nvim_get_option_info2(name: NvimString, opts: &mut KeyDictOption) -> Result<Dict, Error> {
     let mut opt_idx: OptIndex = 0;
     let mut opt_flags: i32 = 0;
     let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
     let mut from = OptTarget::Global;
 
-    if !validate_option_value_args(
+    validate_option_value_args(
         opts,
         name.as_cstr(),
         false,
@@ -846,10 +810,7 @@ pub fn nvim_get_option_info2(name: NvimString, opts: &mut KeyDictOption, err: &m
         None,
         None,
         None,
-        err,
-    ) {
-        return Dict::new();
-    }
+    )?;
 
     let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, &from) {
         b
@@ -862,7 +823,7 @@ pub fn nvim_get_option_info2(name: NvimString, opts: &mut KeyDictOption, err: &m
         &crate::globals::curwin()
     };
 
-    get_option_info(name, opt_flags, buf.borrow(), win.borrow(), err)
+    get_option_info(name, opt_flags, buf.borrow(), win.borrow())
 }
 
 #[cfg(test)]

@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    add_c, api_dict_to_keydict, api_set_error, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj,
+    add_c, api_dict_to_keydict, api_error, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj,
     integer_obj, put_c, string_obj,
 };
 use crate::api::private::validate::{
@@ -484,24 +484,29 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
         add_c(&mut args, cstr_as_obj(Some(&hl_name)));
         add_c(&mut args, boolean_obj(link));
 
-        let mut err = Error::new();
         hl_st(|st| st.ns_get_hl_recursive.set(st.ns_get_hl_recursive.get() + 1));
-        let ret = nlua_call_ref(hl_def, Some(c"hl_def"), args, K_RET_OBJECT, Some(&mut err));
+        let ret = nlua_call_ref(hl_def, Some(c"hl_def"), args, K_RET_OBJECT);
         hl_st(|st| st.ns_get_hl_recursive.set(st.ns_get_hl_recursive.get() - 1));
 
         let mut fallback = true;
         let mut tmp = false;
         let mut attrs = HLATTRS_INIT;
-        if ret.obj_type == ObjectType::ObjectTypeDict {
+        if let Ok(ret) = ret
+            && ret.obj_type == ObjectType::ObjectTypeDict
+        {
             fallback = false;
             let mut dict = KeyDictHighlight::default();
             if api_dict_to_keydict(
                 &mut dict,
                 Some(key_dict_highlight_get_field),
                 ret.data.dict(),
-                &mut err,
-            ) {
-                attrs = dict2hlattrs(&mut dict, true, Some(&mut it.link_id), None, &mut err);
+            )
+            .is_ok()
+            {
+                if let Ok(parsed_attrs) = dict2hlattrs(&mut dict, true, Some(&mut it.link_id), None)
+                {
+                    attrs = parsed_attrs;
+                }
                 fallback = if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FALLBACK) {
                     dict.fallback
                 } else {
@@ -1193,21 +1198,17 @@ pub fn syn_attr2entry(attr: i32) -> HlAttrs {
     })
 }
 
-pub fn hl_get_attr_by_id(attr_id: Integer, rgb: Boolean, err: &mut Error) -> Dict {
-    let dic = Dict::new();
-
+pub fn hl_get_attr_by_id(attr_id: Integer, rgb: Boolean) -> Result<Dict, Error> {
     if attr_id == 0 {
-        return dic;
+        return Ok(Dict::new());
     }
 
     if attr_id < 0 || (attr_id as usize) >= hl_st(|st| st.attr_entries.borrow().len()) {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Invalid attribute id: %lld",
             attr_id,
-        );
-        return dic;
+        ));
     }
     let mut retval = Dict::with_capacity(HLATTRS_DICT_SIZE);
     hlattrs2dict(
@@ -1217,7 +1218,7 @@ pub fn hl_get_attr_by_id(attr_id: Integer, rgb: Boolean, err: &mut Error) -> Dic
         rgb,
         false,
     );
-    retval
+    Ok(retval)
 }
 
 pub fn hlattrs2dict(
@@ -1382,8 +1383,7 @@ pub fn dict2hlattrs(
     use_rgb: bool,
     mut link_id: Option<&mut i32>,
     base: Option<&HlAttrs>,
-    err: &mut Error,
-) -> HlAttrs {
+) -> Result<HlAttrs, Error> {
     let mut hlattrs = HLATTRS_INIT;
     let mut fg: i32 = if let Some(base) = base {
         base.rgb_fg_color
@@ -1568,37 +1568,27 @@ pub fn dict2hlattrs(
     );
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FG) {
-        fg = object_to_color(dict.fg.clone(), c"fg", use_rgb, err);
+        fg = object_to_color(dict.fg.clone(), c"fg", use_rgb)?;
     } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FOREGROUND) {
-        fg = object_to_color(dict.foreground.clone(), c"foreground", use_rgb, err);
-    }
-    if err.err_type != ErrorType::ErrorTypeNone {
-        return hlattrs;
+        fg = object_to_color(dict.foreground.clone(), c"foreground", use_rgb)?;
     }
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BG) {
-        bg = object_to_color(dict.bg.clone(), c"bg", use_rgb, err);
+        bg = object_to_color(dict.bg.clone(), c"bg", use_rgb)?;
     } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BACKGROUND) {
-        bg = object_to_color(dict.background.clone(), c"background", use_rgb, err);
-    }
-    if err.err_type != ErrorType::ErrorTypeNone {
-        return hlattrs;
+        bg = object_to_color(dict.background.clone(), c"background", use_rgb)?;
     }
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_SP) {
-        sp = object_to_color(dict.sp.clone(), c"sp", true, err);
+        sp = object_to_color(dict.sp.clone(), c"sp", true)?;
     } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_SPECIAL) {
-        sp = object_to_color(dict.special.clone(), c"special", true, err);
-    }
-    if err.err_type != ErrorType::ErrorTypeNone {
-        return hlattrs;
+        sp = object_to_color(dict.special.clone(), c"special", true)?;
     }
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BLEND) {
         let blend0 = dict.blend;
         if !(0..=100).contains(&blend0) {
-            api_err_invalid(err, c"blend", Some(c"out of range"), 0, false);
-            return hlattrs;
+            return Err(api_err_invalid(c"blend", Some(c"out of range"), 0, false));
         }
         blend = blend0 as i32;
     }
@@ -1607,8 +1597,7 @@ pub fn dict2hlattrs(
         || has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL)
     {
         if link_id.is_none() {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"Invalid Key: '%s'",
                 if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL) {
@@ -1616,8 +1605,7 @@ pub fn dict2hlattrs(
                 } else {
                     c"link"
                 },
-            );
-            return hlattrs;
+            ));
         }
         if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL) {
             *link_id.as_deref_mut().unwrap() = dict.link_global as i32;
@@ -1625,22 +1613,15 @@ pub fn dict2hlattrs(
         } else {
             *link_id.unwrap() = dict.link as i32;
         }
-
-        if err.err_type != ErrorType::ErrorTypeNone {
-            return hlattrs;
-        }
     }
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_CTERM) {
         let mut cterm = KeyDictHighlightCterm::default();
-        if !api_dict_to_keydict(
+        api_dict_to_keydict(
             &mut cterm,
             Some(key_dict_highlight_cterm_get_field),
             dict.cterm.clone(),
-            err,
-        ) {
-            return hlattrs;
-        }
+        )?;
 
         cterm_mask_provided = true;
         cterm_mask = 0;
@@ -1663,17 +1644,11 @@ pub fn dict2hlattrs(
     }
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_CTERMFG) {
-        ctermfg = object_to_color(dict.ctermfg.clone(), c"ctermfg", false, err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            return hlattrs;
-        }
+        ctermfg = object_to_color(dict.ctermfg.clone(), c"ctermfg", false)?;
     }
 
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_CTERMBG) {
-        ctermbg = object_to_color(dict.ctermbg.clone(), c"ctermbg", false, err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            return hlattrs;
-        }
+        ctermbg = object_to_color(dict.ctermbg.clone(), c"ctermbg", false)?;
     }
 
     if use_rgb {
@@ -1713,16 +1688,16 @@ pub fn dict2hlattrs(
     }
     hlattrs.font = font;
 
-    hlattrs
+    Ok(hlattrs)
 }
 
-pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut Error) -> i32 {
+pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool) -> Result<i32, Error> {
     if val.obj_type == ObjectType::ObjectTypeInteger {
-        val.data.integer() as i32
+        Ok(val.data.integer() as i32)
     } else if val.obj_type == ObjectType::ObjectTypeString {
         let str_ = val.data.string();
         if str_.size == 0 || is_none_str(str_.cstr_bytes()) {
-            return -1;
+            return Ok(-1);
         }
         let color = if rgb {
             let mut dummy: i32 = 0;
@@ -1731,13 +1706,16 @@ pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut E
             name_to_ctermcolor(str_.as_cstr()).unwrap_or(-1)
         };
         if color < 0 {
-            api_err_invalid(err, c"highlight color", str_.as_opt_cstr(), 0, true);
-            return color;
+            return Err(api_err_invalid(
+                c"highlight color",
+                str_.as_opt_cstr(),
+                0,
+                true,
+            ));
         }
-        color
+        Ok(color)
     } else {
-        api_err_exp(err, key, c"String or Integer", None);
-        0
+        Err(api_err_exp(key, c"String or Integer", None))
     }
 }
 

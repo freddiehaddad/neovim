@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    OBJECT_NIL, add_c, api_clear_error, api_set_error, dict_get_value, dict_set_var, error_set,
-    find_window_by_handle, has_key, integer_obj, normalize_index, put_c, try_wrap, try_wrap_err,
+    OBJECT_NIL, add_c, api_error, dict_get_value, dict_set_var, find_window_by_handle, has_key,
+    integer_obj, normalize_index, put_c, try_wrap, try_wrap_err,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_conflict, api_err_exp,
@@ -66,11 +66,9 @@ pub struct KeyDictWinResize {
 /// @return Buffer id
 // DLLEXPORT Buffer nvim_win_get_buf(Window win, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_get_buf(win: Window, err: &mut Error) -> Buffer {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
-        return 0;
-    };
-    w.buf().b_fnum.get()
+pub fn nvim_win_get_buf(win: Window) -> Result<Buffer, Error> {
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
+    Ok(w.buf().b_fnum.get())
 }
 
 /// Sets the current buffer in a window.
@@ -82,14 +80,10 @@ pub fn nvim_win_get_buf(win: Window, err: &mut Error) -> Buffer {
 // DLLEXPORT void nvim_win_set_buf(Window win, Buffer buf, Error *err)
 //   FUNC_API_SINCE(5)
 //   FUNC_API_TEXTLOCK;
-pub fn nvim_win_set_buf(win: Window, buf: Buffer, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
-        return;
-    };
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
-        return;
-    };
-    win_set_buf(&w, &b, err);
+pub fn nvim_win_set_buf(win: Window, buf: Buffer) -> Result<(), Error> {
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
+    let b = crate::api::private::helpers::find_buffer_by_handle(buf)?;
+    win_set_buf(&w, &b)
 }
 
 /// Gets the (1,0)-indexed, buffer-relative cursor position for a given window
@@ -103,14 +97,12 @@ pub fn nvim_win_set_buf(win: Window, buf: Buffer, err: &mut Error) {
 /// @return (row, col) tuple
 // DLLEXPORT ArrayOf(Integer, 2) nvim_win_get_cursor(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_get_cursor(win: Window, err: &mut Error) -> Array {
-    let mut rv = Array::new();
-    if let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) {
-        rv = Array::with_capacity(2);
-        add_c(&mut rv, integer_obj(i64::from(w.w_cursor.get().lnum)));
-        add_c(&mut rv, integer_obj(i64::from(w.w_cursor.get().col)));
-    }
-    rv
+pub fn nvim_win_get_cursor(win: Window) -> Result<Array, Error> {
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
+    let mut rv = Array::with_capacity(2);
+    add_c(&mut rv, integer_obj(i64::from(w.w_cursor.get().lnum)));
+    add_c(&mut rv, integer_obj(i64::from(w.w_cursor.get().col)));
+    Ok(rv)
 }
 
 /// Sets the (1,0)-indexed cursor position (byte offset) in the window. |api-indexing|
@@ -121,30 +113,25 @@ pub fn nvim_win_get_cursor(win: Window, err: &mut Error) -> Array {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_win_set_cursor(Window win, ArrayOf(Integer, 2) pos, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
-        return;
-    };
+pub fn nvim_win_set_cursor(win: Window, pos: Array) -> Result<(), Error> {
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
 
     if pos.size != 2
         || pos[0].obj_type != ObjectType::ObjectTypeInteger
         || pos[1].obj_type != ObjectType::ObjectTypeInteger
     {
-        api_err_exp(err, c"pos", c"[row, col] array", None);
-        return;
+        return Err(api_err_exp(c"pos", c"[row, col] array", None));
     }
 
     let row = pos[0].data.integer();
     let col = pos[1].data.integer();
 
     if row <= 0 || row > i64::from(w.buf().b_ml.ml_line_count.get()) {
-        api_err_range(err, c"cursor line");
-        return;
+        return Err(api_err_range(c"cursor line"));
     }
 
     if !(0..=MAXCOL).contains(&col) {
-        api_err_range(err, c"cursor column");
-        return;
+        return Err(api_err_range(c"cursor column"));
     }
 
     w.w_cursor.set_lnum(row as Linenr);
@@ -169,6 +156,7 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
 
     redraw_later(Some(&w), UPD_VALID);
     w.w_redr_status.set(true);
+    Ok(())
 }
 
 /// Gets the window height
@@ -178,11 +166,9 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
 /// @return Height as a count of rows
 // DLLEXPORT Integer nvim_win_get_height(Window win, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_get_height(win: Window, err: &mut Error) -> Integer {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
-        return 0;
-    };
-    i64::from(w.w_height.get())
+pub fn nvim_win_get_height(win: Window) -> Result<Integer, Error> {
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
+    Ok(i64::from(w.w_height.get()))
 }
 
 /// Gets the window width
@@ -192,11 +178,9 @@ pub fn nvim_win_get_height(win: Window, err: &mut Error) -> Integer {
 /// @return Width as a count of columns
 // DLLEXPORT Integer nvim_win_get_width(Window win, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_get_width(win: Window, err: &mut Error) -> Integer {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
-        return 0;
-    };
-    i64::from(w.w_width.get())
+pub fn nvim_win_get_width(win: Window) -> Result<Integer, Error> {
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
+    Ok(i64::from(w.w_width.get()))
 }
 
 /// Gets a window-scoped (w:) variable
@@ -207,11 +191,9 @@ pub fn nvim_win_get_width(win: Window, err: &mut Error) -> Integer {
 /// @return Variable value
 // DLLEXPORT Object nvim_win_get_var(Window win, String name, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_get_var(win: Window, name: NvimString, err: &mut Error) -> Object {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
-        return OBJECT_NIL;
-    };
-    dict_get_value(Some(&*w.w_vars()), name, err)
+pub fn nvim_win_get_var(win: Window, name: NvimString) -> Result<Object, Error> {
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
+    dict_get_value(Some(&*w.w_vars()), name)
 }
 
 /// Sets a window-scoped (w:) variable
@@ -222,11 +204,10 @@ pub fn nvim_win_get_var(win: Window, name: NvimString, err: &mut Error) -> Objec
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_win_set_var(Window win, String name, Object value, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_set_var(win: Window, name: NvimString, value: Object, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
-        return;
-    };
-    dict_set_var(&w.w_vars(), name, value, false, false, err);
+pub fn nvim_win_set_var(win: Window, name: NvimString, value: Object) -> Result<(), Error> {
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
+    dict_set_var(&w.w_vars(), name, value, false, false)?;
+    Ok(())
 }
 
 /// Removes a window-scoped (w:) variable
@@ -236,11 +217,10 @@ pub fn nvim_win_set_var(win: Window, name: NvimString, value: Object, err: &mut 
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_win_del_var(Window win, String name, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_del_var(win: Window, name: NvimString, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
-        return;
-    };
-    dict_set_var(&w.w_vars(), name, OBJECT_NIL, true, false, err);
+pub fn nvim_win_del_var(win: Window, name: NvimString) -> Result<(), Error> {
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
+    dict_set_var(&w.w_vars(), name, OBJECT_NIL, true, false)?;
+    Ok(())
 }
 
 /// Gets the window position in display cells. First position is zero.
@@ -250,14 +230,12 @@ pub fn nvim_win_del_var(win: Window, name: NvimString, err: &mut Error) {
 /// @return (row, col) tuple with the window position
 // DLLEXPORT ArrayOf(Integer, 2) nvim_win_get_position(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_get_position(win: Window, err: &mut Error) -> Array {
-    let mut rv = Array::new();
-    if let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) {
-        rv = Array::with_capacity(2);
-        add_c(&mut rv, integer_obj(i64::from(w.w_winrow.get())));
-        add_c(&mut rv, integer_obj(i64::from(w.w_wincol.get())));
-    }
-    rv
+pub fn nvim_win_get_position(win: Window) -> Result<Array, Error> {
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
+    let mut rv = Array::with_capacity(2);
+    add_c(&mut rv, integer_obj(i64::from(w.w_winrow.get())));
+    add_c(&mut rv, integer_obj(i64::from(w.w_wincol.get())));
+    Ok(rv)
 }
 
 /// Gets the window tabpage
@@ -267,12 +245,9 @@ pub fn nvim_win_get_position(win: Window, err: &mut Error) -> Array {
 /// @return Tabpage that contains the window
 // DLLEXPORT Tabpage nvim_win_get_tabpage(Window win, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_get_tabpage(win: Window, err: &mut Error) -> Tabpage {
-    let mut rv: Tabpage = 0;
-    if let Some(w) = find_window_by_handle(win, err) {
-        rv = win_find_tabpage(w.borrow()).unwrap().handle;
-    }
-    rv
+pub fn nvim_win_get_tabpage(win: Window) -> Result<Tabpage, Error> {
+    let w = find_window_by_handle(win)?;
+    Ok(win_find_tabpage(w.borrow()).unwrap().handle)
 }
 
 /// Gets the window number
@@ -282,14 +257,12 @@ pub fn nvim_win_get_tabpage(win: Window, err: &mut Error) -> Tabpage {
 /// @return Window number
 // DLLEXPORT Integer nvim_win_get_number(Window win, Error *err)
 //   FUNC_API_SINCE(1);
-pub fn nvim_win_get_number(win: Window, err: &mut Error) -> Integer {
-    let mut rv: i32 = 0;
-    let Some(w) = find_window_by_handle(win, err) else {
-        return i64::from(rv);
-    };
+pub fn nvim_win_get_number(win: Window) -> Result<Integer, Error> {
+    let w = find_window_by_handle(win)?;
     let mut tabnr: i32 = 0;
+    let mut rv: i32 = 0;
     win_get_tabwin(w.handle, &mut tabnr, &mut rv);
-    i64::from(rv)
+    Ok(i64::from(rv))
 }
 
 /// Checks if a window is valid
@@ -299,10 +272,7 @@ pub fn nvim_win_get_number(win: Window, err: &mut Error) -> Integer {
 // DLLEXPORT Boolean nvim_win_is_valid(Window win)
 //   FUNC_API_SINCE(1);
 pub fn nvim_win_is_valid(win: Window) -> Boolean {
-    let mut stub = Error::new();
-    let ret = find_window_by_handle(win, &mut stub).is_some();
-    api_clear_error(&mut stub);
-    ret
+    find_window_by_handle(win).is_ok()
 }
 
 /// Closes the window and hides the buffer it contains (like |:hide| with a |window-ID|; unrelated
@@ -315,13 +285,11 @@ pub fn nvim_win_is_valid(win: Window) -> Boolean {
 // DLLEXPORT void nvim_win_hide(Window win, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_TEXTLOCK;
-pub fn nvim_win_hide(win: Window, err: &mut Error) {
-    let Some(w) = find_window_by_handle(win, err) else {
-        return;
-    };
+pub fn nvim_win_hide(win: Window) -> Result<(), Error> {
+    let w = find_window_by_handle(win)?;
 
     let tabpage = crate::globals::TabpagePtr::from(win_find_tabpage(w.borrow()));
-    try_wrap(err, || {
+    try_wrap(|| {
         if is_ctx_win(w.borrow()) {
             emsg(gettext(E_AUTOCMD_CLOSE));
         } else if tabpage == g_st().curtab.get() {
@@ -329,7 +297,7 @@ pub fn nvim_win_hide(win: Window, err: &mut Error) {
         } else {
             win_close_othertab(w.borrow(), 0, tabpage.borrow(), false);
         }
-    });
+    })
 }
 
 /// Closes the window (like |:close| with a |window-ID|).
@@ -342,13 +310,11 @@ pub fn nvim_win_hide(win: Window, err: &mut Error) {
 // DLLEXPORT void nvim_win_close(Window win, Boolean force, Error *err)
 //   FUNC_API_SINCE(6)
 //   FUNC_API_TEXTLOCK;
-pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
-        return;
-    };
+pub fn nvim_win_close(win: Window, force: Boolean) -> Result<(), Error> {
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
 
     let tabpage = crate::globals::TabpagePtr::from(win_find_tabpage(&w));
-    try_wrap(err, || {
+    try_wrap(|| {
         ex_win_close(
             force,
             &w,
@@ -358,7 +324,7 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
                 tabpage.opt()
             },
         );
-    });
+    })
 }
 
 /// Calls function `fn` in the context of window `win` and returns its result (may be multiple
@@ -374,15 +340,13 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
 // DLLEXPORT Object nvim_win_call(Window win, LuaRef fn, lua_State *lstate, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_LUA_ONLY;
-pub fn nvim_win_call(win: Window, fn_ref: LuaRef, err: &mut Error) -> Object {
-    let Some(w) = find_window_by_handle(win, err) else {
-        return OBJECT_NIL;
-    };
+pub fn nvim_win_call(win: Window, fn_ref: LuaRef) -> Result<Object, Error> {
+    let w = find_window_by_handle(win)?;
     let tabpage = crate::globals::TabpagePtr::from(win_find_tabpage(w.borrow()));
 
-    try_wrap_err(err, |err| {
+    try_wrap_err(|| {
         let mut cs: CtxSwitch = CtxSwitch::new();
-        if ctx_switch(
+        let res = if ctx_switch(
             &mut cs,
             w.opt(),
             tabpage.opt(),
@@ -390,11 +354,14 @@ pub fn nvim_win_call(win: Window, fn_ref: LuaRef, err: &mut Error) -> Object {
             K_CTX_NO_DISPLAY | K_CTX_KEEP_CWD | K_CTX_VALIDATE,
         ) {
             let args = Array::new();
-            nlua_call_ref(fn_ref, None, args, K_RET_MULTI_STACK, Some(err));
-        }
+            nlua_call_ref(fn_ref, None, args, K_RET_MULTI_STACK).map(|_| ())
+        } else {
+            Ok(())
+        };
         ctx_restore(&mut cs);
-    });
-    OBJECT_NIL
+        res
+    })?;
+    Ok(OBJECT_NIL)
 }
 
 /// Set highlight namespace for a window. This will use highlights defined with
@@ -408,19 +375,17 @@ pub fn nvim_win_call(win: Window, fn_ref: LuaRef, err: &mut Error) -> Object {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_win_set_hl_ns(Window win, Integer ns_id, Error *err)
 //   FUNC_API_SINCE(10);
-pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
-    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
-        return;
-    };
+pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer) -> Result<(), Error> {
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
 
     if ns_id < -1 {
-        api_err_invalid(err, c"namespace", Some(c""), 0, true);
-        return;
+        return Err(api_err_invalid(c"namespace", Some(c""), 0, true));
     }
 
     w.w_ns_hl.set(ns_id as i32);
     w.w_hl_needs_update.set(1);
     redraw_later(Some(&w), UPD_NOT_VALID);
+    Ok(())
 }
 
 /// Computes the number of screen lines occupied by a range of text in a given window.
@@ -465,12 +430,10 @@ pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
 // DLLEXPORT DictAs(win_text_height_ret) nvim_win_text_height(Window win, Dict(win_text_height) *opts,
 //                                                            Arena *arena, Error *err)
 //   FUNC_API_SINCE(12);
-pub fn nvim_win_text_height(win: Window, opts: &mut KeyDictWinTextHeight, err: &mut Error) -> Dict {
+pub fn nvim_win_text_height(win: Window, opts: &mut KeyDictWinTextHeight) -> Result<Dict, Error> {
     let mut rv = Dict::with_capacity(4);
 
-    let Some(w) = crate::api::private::helpers::find_window_by_handle(win, err) else {
-        return rv;
-    };
+    let w = crate::api::private::helpers::find_window_by_handle(win)?;
     let buf = w.buf();
     let line_count = buf.b_ml.ml_line_count.get();
 
@@ -491,75 +454,62 @@ pub fn nvim_win_text_height(win: Window, opts: &mut KeyDictWinTextHeight, err: &
     }
 
     if oob {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"%s",
             c"Line index out of bounds",
-        );
-        return rv;
+        ));
     }
     if start_lnum > end_lnum {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"%s",
             c"'start_row' is higher than 'end_row'",
-        );
-        return rv;
+        ));
     }
 
     if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_START_VCOL) {
         if !has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_START_ROW) {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"'start_vcol' specified without 'start_row'",
-            );
-            return rv;
+            ));
         }
         start_vcol = opts.start_vcol;
         if !(0..=MAXCOL).contains(&start_vcol) {
-            api_err_range(err, c"start_vcol");
-            return rv;
+            return Err(api_err_range(c"start_vcol"));
         }
     }
 
     if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_VCOL) {
         if !has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_ROW) {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"'end_vcol' specified without 'end_row'",
-            );
-            return rv;
+            ));
         }
         end_vcol = opts.end_vcol;
         if !(0..=MAXCOL).contains(&end_vcol) {
-            api_err_range(err, c"end_vcol");
-            return rv;
+            return Err(api_err_range(c"end_vcol"));
         }
     }
 
     let mut max: i64 = i64::MAX;
     if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_MAX_HEIGHT) {
         if opts.max_height <= 0 {
-            api_err_range(err, c"max_height");
-            return rv;
+            return Err(api_err_range(c"max_height"));
         }
         max = opts.max_height;
     }
 
     if start_lnum == end_lnum && start_vcol >= 0 && end_vcol >= 0 && start_vcol > end_vcol {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"%s",
             c"'start_vcol' is higher than 'end_vcol'",
-        );
-        return rv;
+        ));
     }
 
     let mut fill: i64 = 0;
@@ -582,7 +532,7 @@ pub fn nvim_win_text_height(win: Window, opts: &mut KeyDictWinTextHeight, err: &
     put_c(&mut rv, c"fill", integer_obj(fill));
     put_c(&mut rv, c"end_row", integer_obj(i64::from(end_lnum - 1)));
     put_c(&mut rv, c"end_vcol", integer_obj(end_vcol));
-    rv
+    Ok(rv)
 }
 
 /// Resizes a window, anchored to a given edge.
@@ -610,24 +560,18 @@ pub fn nvim_win_resize(
     width: Integer,
     height: Integer,
     opts: &mut KeyDictWinResize,
-    err: &mut Error,
-) {
-    let Some(w) = find_window_by_handle(win, err) else {
-        return;
-    };
+) -> Result<(), Error> {
+    let w = find_window_by_handle(win)?;
 
     if !(height >= 0 || height == -1) {
-        api_err_exp(err, c"height", c"non-negative number or -1", None);
-        return;
+        return Err(api_err_exp(c"height", c"non-negative number or -1", None));
     }
     if !(width >= 0 || width == -1) {
-        api_err_exp(err, c"width", c"non-negative number or -1", None);
-        return;
+        return Err(api_err_exp(c"width", c"non-negative number or -1", None));
     }
 
     if !(height >= 0 || width >= 0) {
-        api_err_required(err, c"'height' or 'width'");
-        return;
+        return Err(api_err_required(c"'height' or 'width'"));
     }
 
     let mut from_top = true;
@@ -640,36 +584,33 @@ pub fn nvim_win_resize(
         let is_width = anchor_bytes == b"left" || anchor_bytes == b"right";
 
         if !(is_height || is_width) {
-            api_err_exp(
-                err,
+            return Err(api_err_exp(
                 c"anchor",
                 c"\"top\", \"bottom\", \"left\" or \"right\"",
                 anchor.as_opt_cstr(),
-            );
-            return;
+            ));
         }
         if (is_height && height == -1) || (is_width && width == -1) {
-            api_err_conflict(
-                err,
+            return Err(api_err_conflict(
                 anchor.as_cstr(),
                 if is_width { c"width" } else { c"height" },
-            );
-            return;
+            ));
         }
 
         from_top = anchor_bytes != b"bottom";
         from_left = anchor_bytes != b"right";
     }
     if height >= 0 {
-        try_wrap(err, || {
+        try_wrap(|| {
             win_setheight_win(height as i32, w.borrow(), from_top);
-        });
+        })?;
     }
-    if !error_set(err) && width >= 0 {
-        try_wrap(err, || {
+    if width >= 0 {
+        try_wrap(|| {
             win_setwidth_win(width as i32, w.borrow(), from_left);
-        });
+        })?;
     }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -1,8 +1,7 @@
 //! The input engine "bytes layer" (`src/nvim/input.c`).
 #![forbid(unsafe_code)]
 
-use crate::api::private::helpers::api_clear_error;
-use crate::api::private::validate::{Array, Error, ErrorType, NvimString};
+use crate::api::private::validate::{Array, NvimString};
 use crate::api::vim::{is_internal_call, nvim_paste};
 use crate::charset::{ascii_iswhite, is_special, to_special};
 use crate::cursor::{Colnr, Linenr, get_cursor_line_ptr};
@@ -3264,12 +3263,9 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
         g_st().repeat_luamap.set(id);
     }
 
-    let mut err = Error::new();
     let args = Array::new();
-    nlua_call_ref(ref_, None, args, K_RET_NIL_BOOL, Some(&mut err));
-    if err.err_type != ErrorType::ErrorTypeNone {
+    if let Err(err) = nlua_call_ref(ref_, None, args, K_RET_NIL_BOOL) {
         semsg_multiline!(c"emsg", c"E5108: %s", err.msg_cstr());
-        api_clear_error(&mut err);
     }
 
     true
@@ -3383,14 +3379,11 @@ pub fn paste_repeat(count: i32) {
     g_st().no_mapping.set(g_st().no_mapping.get() - (1));
 
     let str_ = NvimString::from_bytes(&buf);
-    let mut err = Error::new();
     let mut i = 0;
     while !aborted && i < count {
-        nvim_paste(LUA_INTERNAL_CALL, str_.clone(), false, -1, &mut err);
-        aborted = err.err_type != ErrorType::ErrorTypeNone;
+        aborted = nvim_paste(LUA_INTERNAL_CALL, str_.clone(), false, -1).is_err();
         i += 1;
     }
-    api_clear_error(&mut err);
 }
 
 #[cfg(test)]

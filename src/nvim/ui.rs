@@ -4,8 +4,8 @@
 
 use crate::api::extmark::describe_ns;
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, array_obj, boolean_obj, cstr_as_string, float_obj, integer_obj,
-    string_obj, window_obj,
+    api_error, array_obj, boolean_obj, cstr_as_string, float_obj, integer_obj, string_obj,
+    window_obj,
 };
 use crate::api::private::validate::Dict;
 use crate::api::private::validate::{
@@ -837,20 +837,18 @@ pub fn ui_array() -> Array {
     all_uis
 }
 
-pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut Error) {
+pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32) -> Result<(), Error> {
     if grid_handle == DEFAULT_GRID_HANDLE {
         screen_resize(width, height);
-        return;
+        return Ok(());
     }
 
     let Some(wp) = get_win_by_grid_handle(grid_handle) else {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"Invalid window handle: %lld",
             i64::from(grid_handle),
-        );
-        return;
+        ));
     };
 
     if wp.w_floating.get() {
@@ -865,6 +863,7 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut
         wp.w_width_request.set(width.max(0));
         win_set_inner_size(&wp, true);
     }
+    Ok(())
 }
 
 fn ui_attach_error(ns_id: u32, name: &CStr, msg: Option<&CStr>) {
@@ -910,24 +909,19 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
             continue;
         }
         g_st().ui_event_ns_id.set(ns_id);
-        let mut err = Error::new();
-        let res = nlua_call_ref_ctx(
-            fast,
-            cb_ref,
-            Some(name),
-            args.clone(),
-            K_RET_NIL_BOOL,
-            Some(&mut err),
-        );
+        let res = nlua_call_ref_ctx(fast, cb_ref, Some(name), args.clone(), K_RET_NIL_BOOL);
         g_st().ui_event_ns_id.set(0);
-        if res.obj_type == ObjectType::ObjectTypeBoolean && res.data.boolean() {
-            handled = true;
+        match res {
+            Ok(res) => {
+                if res.obj_type == ObjectType::ObjectTypeBoolean && res.data.boolean() {
+                    handled = true;
+                }
+            }
+            Err(err) => {
+                ui_attach_error(ns_id, name, err.msg.as_deref());
+                ui_remove_cb(ns_id, true);
+            }
         }
-        if !matches!(err.err_type, ErrorType::ErrorTypeNone) {
-            ui_attach_error(ns_id, name, err.msg.as_deref());
-            ui_remove_cb(ns_id, true);
-        }
-        api_clear_error(&mut err);
     }
     g_st().expr_map_lock.set(save_expr_map_lock);
     g_st().textlock.set(save_textlock);

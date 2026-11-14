@@ -3,9 +3,9 @@
 
 use crate::api::private::converter::{object_to_vim, vim_to_object};
 use crate::api::private::helpers::{
-    TryState, add_c, api_set_error, api_set_sctx, array_obj, boolean_obj, bytes_to_string,
-    cstr_as_string, dict_obj, error_set, float_obj, integer_obj, nil_obj, put_c, string_obj,
-    try_enter, try_leave,
+    TryState, add_c, api_error, api_set_sctx, array_obj, boolean_obj, bytes_to_string,
+    cstr_as_string, dict_obj, float_obj, integer_obj, nil_obj, put_c, string_obj, try_enter,
+    try_leave,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -89,20 +89,16 @@ pub fn nvim_exec2(
     channel_id: u64,
     src: NvimString,
     opts: &mut KeyDictExecOpts,
-    err: &mut Error,
-) -> Dict {
+) -> Result<Dict, Error> {
     let mut result = Dict::new();
-    let output = exec_impl(channel_id, src, &mut *opts, err);
-    if error_set(err) {
-        return result;
-    }
+    let output = exec_impl(channel_id, src, &mut *opts)?;
     if opts.output {
         result.push(KeyValuePair {
             key: cstr_to_string(Some(c"output")),
             value: string_obj(output),
         });
     }
-    result
+    Ok(result)
 }
 
 // DLLEXPORT String exec_impl(uint64_t channel_id, String src, Dict(exec_opts) *opts, Error *err);
@@ -110,8 +106,7 @@ pub fn exec_impl(
     channel_id: u64,
     src: NvimString,
     opts: &mut KeyDictExecOpts,
-    err: &mut Error,
-) -> NvimString {
+) -> Result<NvimString, Error> {
     let save_msg_silent = g_st().msg_silent.get();
     let save_redir_off = g_st().redir_off.get();
     let mut save_capture_ga = g_st().capture_ga.take();
@@ -143,14 +138,14 @@ pub fn exec_impl(
         g_st().msg_col.set(save_msg_col);
     }
     g_st().current_sctx.set(save_current_sctx);
-    try_leave(&tstate, err);
+    try_leave(&tstate)?;
 
-    if !error_set(err) && opts.output && capture_local.len() > 1 {
+    if opts.output && capture_local.len() > 1 {
         let slice = capture_local.strip_prefix(b"\n").unwrap_or(&capture_local);
-        return bytes_to_string(slice);
+        return Ok(bytes_to_string(slice));
     }
 
-    NvimString::new()
+    Ok(NvimString::new())
 }
 
 /// Executes an Ex command.
@@ -163,11 +158,11 @@ pub fn exec_impl(
 /// @param cmd  Ex command string
 /// @param[out] err Error details (Vim error), if any
 // DLLEXPORT void nvim_command(String cmd, Error *err) FUNC_API_SINCE(1);
-pub fn nvim_command(cmd: NvimString, err: &mut Error) {
+pub fn nvim_command(cmd: NvimString) -> Result<(), Error> {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     do_cmdline_cmd(cmd.as_cstr());
-    try_leave(&tstate, err);
+    try_leave(&tstate)
 }
 
 /// Evaluates a Vimscript |expression|. Dicts and Lists are recursively expanded.
@@ -178,9 +173,7 @@ pub fn nvim_command(cmd: NvimString, err: &mut Error) {
 /// @param[out] err Error details, if any
 /// @return         Evaluation result or expanded object
 // DLLEXPORT Object nvim_eval(String expr, Arena *arena, Error *err) FUNC_API_SINCE(1);
-pub fn nvim_eval(expr: NvimString, err: &mut Error) -> Object {
-    let mut rv = nil_obj();
-
+pub fn nvim_eval(expr: NvimString) -> Result<Object, Error> {
     let eval_rec = API_VIMS_STATE.with(|st| st.eval_recursive.get());
     if eval_rec == 0 {
         g_st().force_abort.set(false);
@@ -203,26 +196,23 @@ pub fn nvim_eval(expr: NvimString, err: &mut Error) -> Object {
         None,
         &mut crate::eval::vars::Evalarg { eval_flags: 1 },
     );
-    try_leave(&tstate, err);
-
-    if !error_set(err) {
+    let res = try_leave(&tstate).and_then(|()| {
         if !ok {
-            api_set_error!(
-                err,
+            Err(api_error!(
                 ErrorType::ErrorTypeException,
                 c"Failed to evaluate expression: '%.*s'",
                 256_i32,
                 expr,
-            );
+            ))
         } else {
-            rv = vim_to_object(&rettv);
+            Ok(vim_to_object(&rettv))
         }
-    }
+    });
 
     tv_clear(&mut rettv);
     API_VIMS_STATE.with(|st| st.eval_recursive.set(st.eval_recursive.get() - 1));
 
-    rv
+    res
 }
 
 fn call_function_impl(
@@ -230,23 +220,18 @@ fn call_function_impl(
     fn_name: NvimString,
     args: Array,
     self_dict: Option<&TvDict>,
-    err: &mut Error,
-) -> Object {
-    let mut rv = nil_obj();
-
+) -> Result<Object, Error> {
     if args.size > MAX_FUNC_ARGS {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"Function called with too many arguments",
-        );
-        return rv;
+        ));
     }
 
     let mut vim_args: [TypVal; MAX_FUNC_ARGS + 1] = [const { TypVal::new() }; MAX_FUNC_ARGS + 1];
     let mut i = 0usize;
     while i < args.size {
-        object_to_vim(args[i].clone(), &mut vim_args[i], err);
+        object_to_vim(args[i].clone(), &mut vim_args[i]);
         i += 1;
     }
 
@@ -285,11 +270,7 @@ fn call_function_impl(
         &mut funcexe,
     );
     g_st().current_sctx.set(save_current_sctx);
-    try_leave(&tstate, err);
-
-    if !error_set(err) {
-        rv = vim_to_object(&rettv);
-    }
+    let res = try_leave(&tstate).map(|()| vim_to_object(&rettv));
 
     tv_clear(&mut rettv);
     API_VIMS_STATE.with(|st| st.call_func_recursive.set(st.call_func_recursive.get() - 1));
@@ -299,7 +280,7 @@ fn call_function_impl(
         tv_clear(&mut vim_args[i]);
     }
 
-    rv
+    res
 }
 
 /// Calls a Vimscript function with the given arguments.
@@ -316,9 +297,8 @@ pub fn nvim_call_function(
     channel_id: u64,
     fn_name: NvimString,
     args: Array,
-    err: &mut Error,
-) -> Object {
-    call_function_impl(channel_id, fn_name, args, None, err)
+) -> Result<Object, Error> {
+    call_function_impl(channel_id, fn_name, args, None)
 }
 
 /// Calls a Vimscript |Dictionary-function| with the given arguments.
@@ -337,9 +317,7 @@ pub fn nvim_call_dict_function(
     dict: Object,
     mut fn_name: NvimString,
     args: Array,
-    err: &mut Error,
-) -> Object {
-    let mut rv = nil_obj();
+) -> Result<Object, Error> {
     let mut rettv: TypVal = TypVal::new();
     let mut mustfree = false;
 
@@ -354,33 +332,33 @@ pub fn nvim_call_dict_function(
                 None,
                 &mut crate::eval::vars::Evalarg { eval_flags: 1 },
             );
-            try_leave(&tstate, err);
-            if error_set(err) {
-                return rv;
-            }
+            try_leave(&tstate)?;
             if !eval_ret {
                 std::process::abort();
             }
             mustfree = true;
         }
         ObjectType::ObjectTypeDict => {
-            object_to_vim(dict.clone(), &mut rettv, err);
+            object_to_vim(dict.clone(), &mut rettv);
         }
         _ => {
-            api_err_exp(err, c"dict argument", c"String or Dict", None);
-            return rv;
+            return Err(api_err_exp(c"dict argument", c"String or Dict", None));
         }
     }
 
     let fn_name_owned;
-    'body: {
+    let res = 'body: {
         let Some(self_dict_ref) = rettv.vval.v_dict_opt() else {
-            api_set_error!(err, ErrorType::ErrorTypeValidation, c"dict not found",);
-            break 'body;
+            break 'body Err(api_error!(
+                ErrorType::ErrorTypeValidation,
+                c"dict not found",
+            ));
         };
         if rettv.v_type != VarType::VarDict {
-            api_set_error!(err, ErrorType::ErrorTypeValidation, c"dict not found",);
-            break 'body;
+            break 'body Err(api_error!(
+                ErrorType::ErrorTypeValidation,
+                c"dict not found",
+            ));
         }
 
         if !fn_name.data.is_null()
@@ -392,31 +370,25 @@ pub fn nvim_call_dict_function(
                 fn_name.as_cstr(),
                 fn_name.size as isize,
             ) else {
-                api_set_error!(
-                    err,
+                break 'body Err(api_error!(
                     ErrorType::ErrorTypeValidation,
                     c"Not found: %s",
                     fn_name,
-                );
-                break 'body;
+                ));
             };
             let di_tv = di.tv();
             if di_tv.v_type == VarType::VarPartial {
-                api_set_error!(
-                    err,
+                break 'body Err(api_error!(
                     ErrorType::ErrorTypeValidation,
                     c"partial function not supported",
-                );
-                break 'body;
+                ));
             }
             if di_tv.v_type != VarType::VarFunc {
-                api_set_error!(
-                    err,
+                break 'body Err(api_error!(
                     ErrorType::ErrorTypeValidation,
                     c"Not a function: %s",
                     fn_name,
-                );
-                break 'body;
+                ));
             }
             fn_name_owned = di_tv.vval.v_string_cstr().map(std::ffi::CStr::to_owned);
             drop(di_tv);
@@ -424,23 +396,21 @@ pub fn nvim_call_dict_function(
         }
 
         if fn_name.data.is_null() || fn_name.size == 0 {
-            api_set_error!(
-                err,
+            break 'body Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"Invalid function name: %s",
                 c"(empty)",
-            );
-            break 'body;
+            ));
         }
 
-        rv = call_function_impl(channel_id, fn_name, args, Some(self_dict_ref), err);
-    }
+        call_function_impl(channel_id, fn_name, args, Some(self_dict_ref))
+    };
 
     if mustfree {
         tv_clear(&mut rettv);
     }
 
-    rv
+    res
 }
 
 /// Parse a Vimscript expression.
@@ -523,8 +493,7 @@ pub fn nvim_parse_expression(
     expr: NvimString,
     flags: NvimString,
     hl: Boolean,
-    err: &mut Error,
-) -> Dict {
+) -> Result<Dict, Error> {
     let mut pflags: i32 = 0;
     for &b in flags.as_bytes() {
         match b {
@@ -532,23 +501,19 @@ pub fn nvim_parse_expression(
             b'E' => pflags |= K_EXPR_FLAGS_DISALLOW_EOC,
             b'l' => pflags |= K_EXPR_FLAGS_PARSE_LET,
             0 => {
-                api_set_error!(
-                    err,
+                return Err(api_error!(
                     ErrorType::ErrorTypeValidation,
                     c"Invalid flag: '\\0' (%u)",
                     u32::from(b),
-                );
-                return Dict::new();
+                ));
             }
             _ => {
-                api_set_error!(
-                    err,
+                return Err(api_error!(
                     ErrorType::ErrorTypeValidation,
                     c"Invalid flag: '%c' (%u)",
                     i32::from(b as i8),
                     u32::from(b),
-                );
-                return Dict::new();
+                ));
             }
         }
     }
@@ -608,7 +573,7 @@ pub fn nvim_parse_expression(
     put_c(&mut ret, c"ast", ast);
 
     debug_assert_eq!(ret.size, ret.capacity);
-    ret
+    Ok(ret)
 }
 
 fn expr_ast_node_to_obj(node: &ExprASTNode) -> Object {

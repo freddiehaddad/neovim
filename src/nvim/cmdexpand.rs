@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 
 use crate::api::command::is_user_cmdidx;
-use crate::api::private::helpers::{api_clear_error, api_free_object, cstr_as_string};
-use crate::api::private::validate::{Array, Error, NvimString, Object, ObjectData, ObjectType};
+use crate::api::private::helpers::{api_free_object, cstr_as_string};
+use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
 use crate::arglist::get_arglist_name;
 use crate::autocmd::{
     HLF_T, aucmd_set_expand_context, expand_get_augroup_name, expand_get_event_name,
@@ -4562,10 +4562,9 @@ fn get_healthcheck_names(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
         || CMDEXP_STATE.with(|s| s.healthcheck_last_gen.get()) == 0
     {
         let a = Array::new();
-        let mut err = Error::new();
         let code = c"return vim.health._complete()";
-        let res = nlua_exec(NvimString::from_cstr(code), None, a, K_RET_OBJECT, &mut err);
-        api_clear_error(&mut err);
+        let res = nlua_exec(NvimString::from_cstr(code), None, a, K_RET_OBJECT)
+            .unwrap_or_else(|_| Object::new());
         api_free_object(CMDEXP_STATE.with(|s| s.healthcheck_names.get()));
         CMDEXP_STATE.with(|s| s.healthcheck_names.set(res));
         CMDEXP_STATE.with(|s| s.healthcheck_last_gen.set(prompt_id));
@@ -4621,15 +4620,8 @@ fn get_arg1_from_lua<'a>(
             },
         ];
         let args = Array::from_slice(&mut args_items[..2]);
-        let mut err = Error::new();
-        let res = nlua_exec(
-            cstr_as_string(Some(lua)),
-            None,
-            args,
-            K_RET_OBJECT,
-            &mut err,
-        );
-        api_clear_error(&mut err);
+        let res = nlua_exec(cstr_as_string(Some(lua)), None, args, K_RET_OBJECT)
+            .unwrap_or_else(|_| Object::new());
         api_free_object(CMDEXP_STATE.with(|s| s.arg1_lua_names.get()));
         CMDEXP_STATE.with(|s| s.arg1_lua_names.set(res));
         CMDEXP_STATE.with(|s| s.arg1_lua_last_gen.set(prompt_id));

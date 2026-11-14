@@ -190,41 +190,43 @@ impl Drop for HlMessageChunk {
 
 use crate::api::vim::HlMessage;
 
-pub fn api_set_error_str(err: &mut Error, err_type: ErrorType, msg: &CStr) {
+pub fn api_error_str(err_type: ErrorType, msg: &CStr) -> Error {
     debug_assert!(!matches!(err_type, ErrorType::ErrorTypeNone));
-    err.msg = Some(msg.to_owned());
-    err.err_type = err_type;
+    Error {
+        err_type,
+        msg: Some(msg.to_owned()),
+    }
 }
 
-pub fn api_set_error_fmt(
-    err: &mut Error,
+pub fn api_error_fmt(
     err_type: ErrorType,
     fmt_cstr: &CStr,
     fmt_args: &[crate::strings::FmtVal<'_>],
-) {
+) -> Error {
     let len = crate::strings::format_to_buf_fmt(&mut [], Some(fmt_cstr), fmt_args);
     let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
     let mut buf = vec![0u8; bufsize];
     crate::strings::format_to_buf_fmt(&mut buf, Some(fmt_cstr), fmt_args);
-    err.msg = Some(crate::memory::cstring_until_nul(&buf));
-    err.err_type = err_type;
+    Error {
+        err_type,
+        msg: Some(crate::memory::cstring_until_nul(&buf)),
+    }
 }
 
 #[macro_export]
-macro_rules! api_set_error {
-    ($err:expr, $err_type:expr, $fmt:expr $(,)?) => {{
-        $crate::api::private::helpers::api_set_error_str($err, $err_type, $fmt);
+macro_rules! api_error {
+    ($err_type:expr, $fmt:expr $(,)?) => {{
+        $crate::api::private::helpers::api_error_str($err_type, $fmt)
     }};
-    ($err:expr, $err_type:expr, $fmt:expr, $($arg:expr),+ $(,)?) => {{
-        $crate::api::private::helpers::api_set_error_fmt(
-            $err,
+    ($err_type:expr, $fmt:expr, $($arg:expr),+ $(,)?) => {{
+        $crate::api::private::helpers::api_error_fmt(
             $err_type,
             $fmt,
             &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),+],
-        );
+        )
     }};
 }
-pub use api_set_error;
+pub use api_error;
 
 #[inline]
 pub const fn has_key(mask: u64, idx: u64) -> bool {
@@ -247,26 +249,29 @@ pub fn cstr_to_nonnull_obj(s: Option<&CStr>) -> Object {
 }
 
 #[inline]
-pub fn try_wrap<F: FnOnce()>(err: &mut Error, f: F) {
+pub fn try_wrap<T, F: FnOnce() -> T>(f: F) -> Result<T, Error> {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    f();
-    try_leave(&tstate, err);
+    let val = f();
+    try_leave(&tstate)?;
+    Ok(val)
 }
 
 #[inline]
-pub fn try_wrap_err<F: FnOnce(&mut Error)>(err: &mut Error, f: F) {
+pub fn try_wrap_err<T, F: FnOnce() -> Result<T, Error>>(f: F) -> Result<T, Error> {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    f(err);
-    try_leave(&tstate, err);
+    let res = f();
+    try_leave(&tstate)?;
+    res
 }
 
 #[inline]
-pub fn with_script_context<F: FnOnce()>(channel_id: u64, f: F) {
+pub fn with_script_context<R, F: FnOnce() -> R>(channel_id: u64, f: F) -> R {
     let save_current_sctx = api_set_sctx(channel_id);
-    f();
+    let res = f();
     g_st().current_sctx.set(save_current_sctx);
+    res
 }
 
 #[inline]
@@ -336,19 +341,23 @@ pub fn try_enter(tstate: &mut TryState) {
     g_st().trylevel.set(g_st().trylevel.get() + (1));
 }
 
-/// Ends a `try_enter` block; sets error message if any (`try_leave`).
-pub fn try_leave(tstate: &TryState, err: &mut Error) {
+/// Ends a `try_enter` block; returns error message if any (`try_leave`).
+pub fn try_leave(tstate: &TryState) -> Result<(), Error> {
     debug_assert!(g_st().trylevel.get() > 0);
     g_st().trylevel.set(g_st().trylevel.get() - (1));
 
     g_st().did_emsg.set(0);
     g_st().force_abort.set(false);
 
+    let mut res = Ok(());
     if g_st().got_int.get() {
         if g_st().did_throw.get() {
             discard_current_exception();
         }
-        api_set_error!(err, ErrorType::ErrorTypeException, c"Keyboard interrupt",);
+        res = Err(api_error!(
+            ErrorType::ErrorTypeException,
+            c"Keyboard interrupt",
+        ));
         g_st().got_int.set(false);
     } else if g_st()
         .msg_list
@@ -360,31 +369,29 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
         let throw_bytes = msgs[msgs[0].throw_idx].msg.as_bytes();
         let throw_slice = &throw_bytes[msgs[0].throw_off.min(throw_bytes.len())..];
         let msg = get_error_exception_string(throw_slice, None);
-        api_set_error!(err, ErrorType::ErrorTypeException, c"%s", &msg);
+        res = Err(api_error!(ErrorType::ErrorTypeException, c"%s", &msg));
     } else if g_st().did_throw.get() || g_st().need_rethrow.get() {
         if let Some(excp) = g_st().current_exception.get().clone() {
-            if !excp.throw_name.as_bytes().is_empty() {
+            res = Err(if !excp.throw_name.as_bytes().is_empty() {
                 if excp.throw_lnum != 0 {
-                    api_set_error!(
-                        err,
+                    api_error!(
                         ErrorType::ErrorTypeException,
                         c"%s, line %d: %s",
                         &excp.throw_name,
                         excp.throw_lnum,
                         &excp.value,
-                    );
+                    )
                 } else {
-                    api_set_error!(
-                        err,
+                    api_error!(
                         ErrorType::ErrorTypeException,
                         c"%s: %s",
                         &excp.throw_name,
                         &excp.value,
-                    );
+                    )
                 }
             } else {
-                api_set_error!(err, ErrorType::ErrorTypeException, c"%s", &excp.value,);
-            }
+                api_error!(ErrorType::ErrorTypeException, c"%s", &excp.value,)
+            });
         }
         discard_current_exception();
     }
@@ -397,57 +404,63 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
     g_st().did_throw.set(tstate.did_throw);
     g_st().need_rethrow.set(tstate.need_rethrow != 0);
     g_st().did_emsg.set(tstate.did_emsg);
+    res
 }
 
 /// Recursively expands a vimscript value in a dict (`dict_get_value`).
-pub fn dict_get_value(dict: Option<&TvDict>, key: NvimString, err: &mut Error) -> Object {
+pub fn dict_get_value(dict: Option<&TvDict>, key: NvimString) -> Result<Object, Error> {
     let key_cstr = key.as_opt_cstr().unwrap_or(c"");
     let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, key_cstr, key.size as isize) else {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"Key not found: %s",
             key,
-        );
-        return OBJECT_NIL;
+        ));
     };
-    vim_to_object(&di.tv())
+    Ok(vim_to_object(&di.tv()))
 }
 
 pub fn dict_check_writable(
     dict: &TvDict,
     key: &NvimString,
     del: bool,
-    err: &mut Error,
-) -> Option<crate::eval::typval::DictitemId> {
+) -> Result<Option<crate::eval::typval::DictitemId>, Error> {
     let key_cstr = key.as_opt_cstr().unwrap_or(c"");
     let di = tv_dict_find_opt(Some(dict), key_cstr, key.size as isize);
     if let Some(ref di) = di {
         if (di.di_flags.get() & DI_FLAGS_RO) != 0 {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeException,
                 c"Key is read-only: %s",
                 key,
-            );
+            ));
         } else if (di.di_flags.get() & DI_FLAGS_LOCK) != 0 {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeException,
                 c"Key is locked: %s",
                 key,
-            );
+            ));
         } else if del && (di.di_flags.get() & DI_FLAGS_FIX) != 0 {
-            api_set_error!(err, ErrorType::ErrorTypeException, c"Key is fixed: %s", key,);
+            return Err(api_error!(
+                ErrorType::ErrorTypeException,
+                c"Key is fixed: %s",
+                key,
+            ));
         }
     } else if dict.dv_lock.get() != 0 {
-        api_set_error!(err, ErrorType::ErrorTypeException, c"Dict is locked",);
+        return Err(api_error!(ErrorType::ErrorTypeException, c"Dict is locked"));
     } else if key.size == 0 {
-        api_set_error!(err, ErrorType::ErrorTypeValidation, c"Key name is empty",);
+        return Err(api_error!(
+            ErrorType::ErrorTypeValidation,
+            c"Key name is empty",
+        ));
     } else if key.size > i32::MAX as usize {
-        api_set_error!(err, ErrorType::ErrorTypeValidation, c"Key name is too long",);
+        return Err(api_error!(
+            ErrorType::ErrorTypeValidation,
+            c"Key name is too long",
+        ));
     }
-    di
+    Ok(di)
 }
 
 /// Set a value in a scope dict (`dict_set_var`).
@@ -457,24 +470,18 @@ pub fn dict_set_var(
     value: Object,
     del: bool,
     retval: bool,
-    err: &mut Error,
-) -> Object {
+) -> Result<Object, Error> {
     let mut rv = OBJECT_NIL;
-    let di_opt = dict_check_writable(dict, &key, del, err);
-    if error_set(err) {
-        return rv;
-    }
+    let di_opt = dict_check_writable(dict, &key, del)?;
 
     let watched = tv_dict_is_watched(Some(dict));
     if del {
         let Some(di) = di_opt else {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"Key not found: %s",
                 key,
-            );
-            return rv;
+            ));
         };
         if watched {
             let old_tv = di.tv().clone();
@@ -487,7 +494,7 @@ pub fn dict_set_var(
         tv_dict_item_remove(dict, &di);
     } else {
         let mut tv: TypVal = TypVal::new();
-        object_to_vim(value, &mut tv, err);
+        object_to_vim(value, &mut tv);
         let mut oldtv: TypVal = TypVal::new();
 
         let di: crate::eval::typval::DictitemId = if let Some(di) = di_opt {
@@ -500,14 +507,13 @@ pub fn dict_set_var(
             {
                 tv_clear(&mut tv);
                 if type_error {
-                    api_set_error!(
-                        err,
+                    return Err(api_error!(
                         ErrorType::ErrorTypeValidation,
                         c"Setting v:%s to value with wrong type",
                         key,
-                    );
+                    ));
                 }
-                return rv;
+                return Ok(rv);
             }
             if watched {
                 tv_copy(&di.tv(), &mut oldtv);
@@ -535,13 +541,15 @@ pub fn dict_set_var(
         tv_clear(&mut tv);
     }
 
-    rv
+    Ok(rv)
 }
 
-pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<crate::globals::BufPtr> {
+pub fn find_buffer_by_handle(buffer: Buffer) -> Result<crate::globals::BufPtr, Error> {
     if buffer == 0 {
         let b = g_st().curbuf.get();
-        return (!b.is_null()).then_some(b);
+        if !b.is_null() {
+            return Ok(b);
+        }
     }
     let rv = g_st()
         .buffer_handles
@@ -550,21 +558,21 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<crate::g
         .cloned()
         .unwrap_or_default();
     if rv.is_null() {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"Invalid buffer id: %lld",
             i64::from(buffer),
-        );
-        return None;
+        ));
     }
-    Some(rv)
+    Ok(rv)
 }
 
-pub fn find_window_by_handle(window: Window, err: &mut Error) -> Option<WinPtr> {
+pub fn find_window_by_handle(window: Window) -> Result<WinPtr, Error> {
     if window == 0 {
         let w = curwin();
-        return (!w.is_null()).then_some(w);
+        if !w.is_null() {
+            return Ok(w);
+        }
     }
     let rv = g_st()
         .window_handles
@@ -573,15 +581,13 @@ pub fn find_window_by_handle(window: Window, err: &mut Error) -> Option<WinPtr> 
         .cloned()
         .unwrap_or_default();
     if rv.is_null() {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"Invalid window id: %lld",
             i64::from(window),
-        );
-        return None;
+        ));
     }
-    Some(rv)
+    Ok(rv)
 }
 
 #[allow(unsafe_code)]
@@ -590,13 +596,15 @@ pub extern "C" fn find_window_by_handle_ffi(
     window: Window,
     _err: *mut std::ffi::c_void,
 ) -> *mut WinInfoInfo {
-    let mut err = Error::new();
-    find_window_by_handle(window, &mut err).map_or(std::ptr::null_mut(), |w| w.as_ptr())
+    find_window_by_handle(window).map_or(std::ptr::null_mut(), |w| w.as_ptr())
 }
 
-pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<crate::globals::TabpagePtr> {
+pub fn find_tab_by_handle(tabpage: Tabpage) -> Result<crate::globals::TabpagePtr, Error> {
     if tabpage == 0 {
-        return (!g_st().curtab.get().is_null()).then(|| g_st().curtab.get().clone());
+        let t = g_st().curtab.get();
+        if !t.is_null() {
+            return Ok(t);
+        }
     }
     let rv = g_st()
         .tabpage_handles
@@ -605,15 +613,13 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<crate::gl
         .cloned()
         .unwrap_or_default();
     if rv.is_null() {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"Invalid tabpage id: %lld",
             i64::from(tabpage),
-        );
-        return None;
+        ));
     }
-    Some(rv)
+    Ok(rv)
 }
 
 pub fn cstr_to_string(str_: Option<&CStr>) -> NvimString {
@@ -713,16 +719,12 @@ pub fn buf_get_text(
     lnum: i64,
     mut start_col: i64,
     mut end_col: i64,
-    err: &mut Error,
-) -> NvimString {
-    let rv = NvimString::new();
+) -> Result<NvimString, Error> {
     if lnum >= MAXLNUM {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"'line index' value out of range",
-        );
-        return rv;
+        ));
     }
 
     let bufstr_cstr = ml_get_buf(buf, lnum as Linenr);
@@ -740,18 +742,16 @@ pub fn buf_get_text(
     end_col = end_col.clamp(0, line_length);
 
     if start_col > end_col {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"start_col must be less than or equal to end_col",
-        );
-        return rv;
+        ));
     }
 
-    NvimString::from_bytes_len(
+    Ok(NvimString::from_bytes_len(
         &bufstr[start_col as usize..],
         (end_col - start_col) as usize,
-    )
+    ))
 }
 
 pub fn api_free_string(value: NvimString) {
@@ -812,14 +812,6 @@ pub fn api_free_dict(value: Dict) {
         api_free_object(item.value.clone());
     }
     drop(value);
-}
-
-pub fn api_clear_error(value: &mut Error) {
-    if !error_set(value) {
-        return;
-    }
-    value.msg = None;
-    value.err_type = ErrorType::ErrorTypeNone;
 }
 
 pub fn copy_string(str_: NvimString) -> NvimString {
@@ -888,45 +880,38 @@ pub fn copy_object(obj: Object) -> Object {
     }
 }
 
-pub fn api_object_to_bool(obj: Object, what: &CStr, nil_value: bool, err: &mut Error) -> bool {
+pub fn api_object_to_bool(obj: Object, what: &CStr, nil_value: bool) -> Result<bool, Error> {
     match obj.obj_type {
-        ObjectType::ObjectTypeBoolean => obj.data.boolean(),
-        ObjectType::ObjectTypeInteger => obj.data.integer() != 0,
-        ObjectType::ObjectTypeNil => nil_value,
-        _ => {
-            api_err_exp(err, what, c"boolean", None);
-            false
-        }
+        ObjectType::ObjectTypeBoolean => Ok(obj.data.boolean()),
+        ObjectType::ObjectTypeInteger => Ok(obj.data.integer() != 0),
+        ObjectType::ObjectTypeNil => Ok(nil_value),
+        _ => Err(api_err_exp(what, c"boolean", None)),
     }
 }
 
-pub fn object_to_hl_id(obj: Object, what: &CStr, err: &mut Error) -> i32 {
+pub fn object_to_hl_id(obj: Object, what: &CStr) -> Result<i32, Error> {
     match obj.obj_type {
         ObjectType::ObjectTypeString => {
             let str_ = obj.data.string();
             if str_.size != 0 {
-                syn_check_group(str_.as_bytes())
+                Ok(syn_check_group(str_.as_bytes()))
             } else {
-                0
+                Ok(0)
             }
         }
         ObjectType::ObjectTypeInteger => {
             let id = obj.data.integer() as i32;
             if (1..=highlight_num_groups()).contains(&id) {
-                id
+                Ok(id)
             } else {
-                0
+                Ok(0)
             }
         }
-        _ => {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Invalid 'hl_group': '%s'",
-                what,
-            );
-            0
-        }
+        _ => Err(api_error!(
+            ErrorType::ErrorTypeValidation,
+            c"Invalid 'hl_group': '%s'",
+            what,
+        )),
     }
 }
 
@@ -947,33 +932,29 @@ pub const fn api_typename(t: ObjectType) -> &'static std::ffi::CStr {
     }
 }
 
-pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
+pub fn parse_hl_msg(chunks: Array, is_err: bool) -> Result<HlMessage, Error> {
     let mut hl_msg = HlMessage::new();
     for i in 0..chunks.size {
         let item = &chunks[i];
         if item.obj_type != ObjectType::ObjectTypeArray {
-            api_err_exp(
-                err,
+            return Err(api_err_exp(
                 c"chunk",
                 api_typename(ObjectType::ObjectTypeArray),
                 Some(api_typename(item.obj_type)),
-            );
-            return HlMessage::new();
+            ));
         }
         let chunk = item.data.array();
         if chunk.size == 0 || chunk.size > 2 || chunk[0].obj_type != ObjectType::ObjectTypeString {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"Invalid chunk: expected Array with 1 or 2 Strings",
-            );
-            return HlMessage::new();
+            ));
         }
 
         let str_ = copy_string(chunk[0].data.string());
         let hl_id = if chunk.size == 2 {
-            object_to_hl_id(chunk[1].clone(), c"text highlight", err)
+            object_to_hl_id(chunk[1].clone(), c"text highlight")?
         } else if is_err {
             HLF_E
         } else {
@@ -981,30 +962,27 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
         };
         hl_msg.push(HlMessageChunk { text: str_, hl_id });
     }
-    hl_msg
+    Ok(hl_msg)
 }
 
 pub fn api_dict_to_keydict<T: crate::api::private::validate::KeyDict>(
     retval: &mut T,
     hashy: FieldHashfn<T>,
     mut dict: Dict,
-    err: &mut Error,
-) -> bool {
+) -> Result<(), Error> {
     let Some(hashy_fn) = hashy else {
-        return false;
+        return Err(Error::new());
     };
     for i in 0..dict.size {
         let k = dict[i].key.clone();
         let key_bytes = k.as_bytes();
         let Some(field) = hashy_fn(key_bytes) else {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"Invalid key: '%.*s'",
                 k.size as i32,
                 k,
-            );
-            return false;
+            ));
         };
 
         field.mark_set(retval);
@@ -1020,22 +998,17 @@ pub fn api_dict_to_keydict<T: crate::api::private::validate::KeyDict>(
                 if field.is_hlgroup {
                     let mut hl_id: i32 = 0;
                     if value.obj_type != ObjectType::ObjectTypeNil {
-                        hl_id = object_to_hl_id(value.clone(), k.as_cstr(), err);
-                        if error_set(err) {
-                            return false;
-                        }
+                        hl_id = object_to_hl_id(value.clone(), k.as_cstr())?;
                     }
 
                     *field.field_mut::<Integer>(retval) = Integer::from(hl_id);
                 } else {
                     if value.obj_type != ObjectType::ObjectTypeInteger {
-                        api_err_exp(
-                            err,
+                        return Err(api_err_exp(
                             field_name,
                             api_typename(ObjectType::ObjectTypeInteger),
                             Some(api_typename(value.obj_type)),
-                        );
-                        return false;
+                        ));
                     }
 
                     *field.field_mut::<Integer>(retval) = value.data.integer();
@@ -1048,45 +1021,35 @@ pub fn api_dict_to_keydict<T: crate::api::private::validate::KeyDict>(
                 } else if value.obj_type == ObjectType::ObjectTypeFloat {
                     *val = value.data.floating();
                 } else {
-                    api_err_exp(
-                        err,
+                    return Err(api_err_exp(
                         field_name,
                         api_typename(ObjectType::ObjectTypeFloat),
                         Some(api_typename(value.obj_type)),
-                    );
-                    return false;
+                    ));
                 }
             }
             ObjectType::ObjectTypeBoolean => {
                 *field.field_mut::<Boolean>(retval) =
-                    api_object_to_bool(value.clone(), field_name, false, err);
-
-                if error_set(err) {
-                    return false;
-                }
+                    api_object_to_bool(value.clone(), field_name, false)?;
             }
             ObjectType::ObjectTypeString => {
                 if value.obj_type != ObjectType::ObjectTypeString {
-                    api_err_exp(
-                        err,
+                    return Err(api_err_exp(
                         field_name,
                         api_typename(ObjectType::ObjectTypeString),
                         Some(api_typename(value.obj_type)),
-                    );
-                    return false;
+                    ));
                 }
 
                 *field.field_mut::<NvimString>(retval) = value.data.string();
             }
             ObjectType::ObjectTypeArray => {
                 if value.obj_type != ObjectType::ObjectTypeArray {
-                    api_err_exp(
-                        err,
+                    return Err(api_err_exp(
                         field_name,
                         api_typename(ObjectType::ObjectTypeArray),
                         Some(api_typename(value.obj_type)),
-                    );
-                    return false;
+                    ));
                 }
 
                 *field.field_mut::<Array>(retval) = value.data.array();
@@ -1098,13 +1061,11 @@ pub fn api_dict_to_keydict<T: crate::api::private::validate::KeyDict>(
                 } else if value.obj_type == ObjectType::ObjectTypeDict {
                     *val = value.data.dict();
                 } else {
-                    api_err_exp(
-                        err,
+                    return Err(api_err_exp(
                         field_name,
                         api_typename(field_type),
                         Some(api_typename(value.obj_type)),
-                    );
-                    return false;
+                    ));
                 }
             }
             ObjectType::ObjectTypeBuffer
@@ -1113,29 +1074,25 @@ pub fn api_dict_to_keydict<T: crate::api::private::validate::KeyDict>(
                 if value.obj_type == ObjectType::ObjectTypeInteger || value.obj_type == field_type {
                     *field.field_mut::<ObjHandle>(retval) = value.data.integer() as ObjHandle;
                 } else {
-                    api_err_exp(
-                        err,
+                    return Err(api_err_exp(
                         field_name,
                         api_typename(field_type),
                         Some(api_typename(value.obj_type)),
-                    );
-                    return false;
+                    ));
                 }
             }
             ObjectType::ObjectTypeLuaRef => {
-                api_set_error!(
-                    err,
+                return Err(api_error!(
                     ErrorType::ErrorTypeValidation,
                     c"Invalid key: '%.*s' is only allowed from Lua",
                     k.size as i32,
                     k,
-                );
-                return false;
+                ));
             }
             ObjectType::ObjectTypeUnset => std::process::abort(),
         }
     }
-    true
+    Ok(())
 }
 
 pub fn api_keydict_to_dict<T: crate::api::private::validate::KeyDict>(
@@ -1261,8 +1218,7 @@ pub fn set_mark(
     name: NvimString,
     line: Integer,
     mut col: Integer,
-    err: &mut Error,
-) -> bool {
+) -> Result<bool, Error> {
     let buf: &FileBuf = match buf {
         Some(b) => b,
         None => &curbuf(),
@@ -1273,20 +1229,16 @@ pub fn set_mark(
         deleting = true;
     } else {
         if col > MAXCOL {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"'column' value out of range",
-            );
-            return false;
+            ));
         }
         if line < 1 || line > i64::from(buf.b_ml.ml_line_count.get()) {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"'line' value out of range",
-            );
-            return false;
+            ));
         }
     }
     let mut pos = CursorPos {
@@ -1298,22 +1250,20 @@ pub fn set_mark(
     let res = setmark_pos(mark_char, &mut pos, buf.b_fnum.get(), None);
     if !res {
         if deleting {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeException,
                 c"Failed to delete named mark: %c",
                 mark_char,
-            );
+            ));
         } else {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeException,
                 c"Failed to set named mark: %c",
                 mark_char,
-            );
+            ));
         }
     }
-    res
+    Ok(res)
 }
 
 pub fn get_default_stl_hl(
@@ -4147,10 +4097,11 @@ pub fn api_get_packed_metadata() -> &'static [u8] {
 pub fn api_metadata() -> Object {
     API_META_STATE.with(|st| {
         if st.metadata_obj.get().obj_type == ObjectType::ObjectTypeNil {
-            let mut err = Error::new();
             let packed = api_get_packed_metadata();
-            let obj = unpack(packed, &mut err);
-            if error_set(&err) || obj.obj_type != ObjectType::ObjectTypeDict {
+            let Ok(obj) = unpack(packed) else {
+                std::process::abort();
+            };
+            if obj.obj_type != ObjectType::ObjectTypeDict {
                 std::process::abort();
             }
             st.metadata_obj.set(obj);

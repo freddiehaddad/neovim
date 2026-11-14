@@ -47,10 +47,10 @@ use crate::api::options::{
     nvim_option_to_object, nvim_set_option_value,
 };
 use crate::api::private::helpers::{
-    OBJECT_NIL, api_dict_to_keydict, api_free_dict, api_free_object, api_free_string,
-    api_keydict_to_dict, api_luarefs_free_keydict, api_luarefs_free_object, api_set_error,
-    api_set_error_str, array_obj, boolean_obj, buffer_obj, dict_obj, float_obj, integer_obj,
-    string_obj, tabpage_obj, window_obj,
+    OBJECT_NIL, api_dict_to_keydict, api_error, api_error_str, api_free_dict, api_free_object,
+    api_free_string, api_keydict_to_dict, api_luarefs_free_keydict, api_luarefs_free_object,
+    array_obj, boolean_obj, buffer_obj, dict_obj, float_obj, integer_obj, string_obj, tabpage_obj,
+    window_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectType,
@@ -118,7 +118,7 @@ use crate::ui_client::handle_ui_client_redraw;
 
 const K_UNPACK_TYPE_STRING_ARRAY_CONST: i32 = -1;
 
-pub type ApiDispatchWrapper = Option<fn(channel_id: u64, args: Array, error: &mut Error) -> Object>;
+pub type ApiDispatchWrapper = Option<fn(channel_id: u64, args: Array) -> Result<Object, Error>>;
 
 #[derive(Copy, Clone)]
 pub struct MsgpackRpcRequestHandler {
@@ -144,20 +144,17 @@ fn dlog_internal_call(channel_id: u64, func_name: &std::ffi::CStr, msg: &std::ff
 #[inline]
 fn extract_keydict<T: Default + KeyDict>(
     item: Object,
-    out: &mut T,
     get_field: FieldHashfn<T>,
     wrong_type_msg: &std::ffi::CStr,
-    error: &mut Error,
-) -> bool {
+) -> Result<T, Error> {
     if item.obj_type == ObjectType::ObjectTypeDict {
-        *out = T::default();
-        api_dict_to_keydict(out, get_field, item.data.dict(), error)
+        let mut out = T::default();
+        api_dict_to_keydict(&mut out, get_field, item.data.dict())?;
+        Ok(out)
     } else if item.obj_type == ObjectType::ObjectTypeArray && item.data.array().size == 0 {
-        *out = T::default();
-        true
+        Ok(T::default())
     } else {
-        api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg);
-        false
+        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
     }
 }
 
@@ -165,123 +162,74 @@ fn extract_keydict<T: Default + KeyDict>(
 fn extract_handle(
     item: Object,
     expected: ObjectType,
-    out: &mut ObjHandle,
     wrong_type_msg: &std::ffi::CStr,
-    error: &mut Error,
-) -> bool {
+) -> Result<ObjHandle, Error> {
     if (item.obj_type == expected || item.obj_type == ObjectType::ObjectTypeInteger)
         && item.data.integer() >= 0
     {
-        *out = item.data.integer() as ObjHandle;
-        true
+        Ok(item.data.integer() as ObjHandle)
     } else {
-        api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg);
-        false
+        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
     }
 }
 
 #[inline]
-fn extract_boolean(
-    item: Object,
-    out: &mut Boolean,
-    wrong_type_msg: &std::ffi::CStr,
-    error: &mut Error,
-) -> bool {
+fn extract_boolean(item: Object, wrong_type_msg: &std::ffi::CStr) -> Result<Boolean, Error> {
     if item.obj_type == ObjectType::ObjectTypeBoolean {
-        *out = item.data.boolean();
-        true
+        Ok(item.data.boolean())
     } else if item.obj_type == ObjectType::ObjectTypeInteger && item.data.integer() >= 0 {
-        *out = (item.data.integer() as ObjHandle) != 0;
-        true
+        Ok((item.data.integer() as ObjHandle) != 0)
     } else {
-        api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg);
-        false
+        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
     }
 }
 
 #[inline]
-fn extract_float(
-    item: Object,
-    out: &mut Float,
-    wrong_type_msg: &std::ffi::CStr,
-    error: &mut Error,
-) -> bool {
+fn extract_float(item: Object, wrong_type_msg: &std::ffi::CStr) -> Result<Float, Error> {
     if item.obj_type == ObjectType::ObjectTypeFloat {
-        *out = item.data.floating();
-        true
+        Ok(item.data.floating())
     } else if item.obj_type == ObjectType::ObjectTypeInteger {
-        *out = item.data.integer() as Float;
-        true
+        Ok(item.data.integer() as Float)
     } else {
-        api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg);
-        false
+        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
     }
 }
 
 #[inline]
-fn extract_dict(
-    item: Object,
-    out: &mut Dict,
-    wrong_type_msg: &std::ffi::CStr,
-    error: &mut Error,
-) -> bool {
+fn extract_dict(item: Object, wrong_type_msg: &std::ffi::CStr) -> Result<Dict, Error> {
     if item.obj_type == ObjectType::ObjectTypeDict {
-        *out = item.data.dict();
-        true
+        Ok(item.data.dict())
     } else if item.obj_type == ObjectType::ObjectTypeArray && item.data.array().size == 0 {
-        *out = Dict::new();
-        true
+        Ok(Dict::new())
     } else {
-        api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg);
-        false
+        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
     }
 }
 
 #[inline]
-fn extract_integer(
-    item: Object,
-    out: &mut Integer,
-    wrong_type_msg: &std::ffi::CStr,
-    error: &mut Error,
-) -> bool {
+fn extract_integer(item: Object, wrong_type_msg: &std::ffi::CStr) -> Result<Integer, Error> {
     if item.obj_type == ObjectType::ObjectTypeInteger {
-        *out = item.data.integer();
-        true
+        Ok(item.data.integer())
     } else {
-        api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg);
-        false
+        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
     }
 }
 
 #[inline]
-fn extract_string(
-    item: Object,
-    out: &mut NvimString,
-    wrong_type_msg: &std::ffi::CStr,
-    error: &mut Error,
-) -> bool {
+fn extract_string(item: Object, wrong_type_msg: &std::ffi::CStr) -> Result<NvimString, Error> {
     if item.obj_type == ObjectType::ObjectTypeString {
-        *out = item.data.string();
-        true
+        Ok(item.data.string())
     } else {
-        api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg);
-        false
+        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
     }
 }
 
 #[inline]
-fn extract_array(
-    item: Object,
-    out: &mut Array,
-    wrong_type_msg: &std::ffi::CStr,
-    error: &mut Error,
-) -> bool {
+fn extract_array(item: Object, wrong_type_msg: &std::ffi::CStr) -> Result<Array, Error> {
     if item.obj_type == ObjectType::ObjectTypeArray {
-        *out = item.data.array();
-        true
+        Ok(item.data.array())
     } else {
-        api_set_error_str(error, ErrorType::ErrorTypeException, wrong_type_msg);
-        false
+        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
     }
 }
 
@@ -4729,676 +4677,425 @@ pub fn key_dict_xdl_diff_get_field(key: &[u8]) -> Option<&'static KeySetLink<Key
     xdl_diff_hash(key).map(|h| &XDL_DIFF_TABLE[h])
 }
 
-pub fn handle_nvim_get_autocmds(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_autocmds(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_autocmds",
         c"API: vim -> nvim_get_autocmds",
     );
-    let mut ret = OBJECT_NIL;
     let mut arg_1: KeyDictGetAutocmds = Default::default();
     if args.size > 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting at most 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if args.size >= 1
-            && !extract_keydict(args[0].clone(), &mut arg_1, Some(key_dict_get_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_get_autocmds, expecting Dict(get_autocmds) *", error) {
-                return ret;
-            }
-    let rv = nvim_get_autocmds(&mut arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
+    if args.size >= 1 {
+        arg_1 = extract_keydict(args[0].clone(), Some(key_dict_get_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_get_autocmds, expecting Dict(get_autocmds) *")?;
     }
-    ret = array_obj(rv);
-    ret
+    let rv = nvim_get_autocmds(&mut arg_1)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_create_autocmd(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_create_autocmd(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_create_autocmd",
         c"API: vim -> nvim_create_autocmd",
     );
-    let mut ret = OBJECT_NIL;
     let mut arg_2: KeyDictCreateAutocmd = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let arg_1: Object = args[0].clone();
-    if args.size >= 2
-            && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_create_autocmd_get_field), c"Wrong type for argument 2 when calling nvim_create_autocmd, expecting Dict(create_autocmd) *", error) {
-                return ret;
-            }
-    let rv = nvim_create_autocmd(channel_id, arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(args[1].clone(), Some(key_dict_create_autocmd_get_field), c"Wrong type for argument 2 when calling nvim_create_autocmd, expecting Dict(create_autocmd) *")?;
     }
-    ret = integer_obj(rv);
-    ret
+    let rv = nvim_create_autocmd(channel_id, arg_1, &mut arg_2)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_del_autocmd(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_del_autocmd(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_autocmd",
         c"API: vim -> nvim_del_autocmd",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_del_autocmd, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_del_autocmd(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_del_autocmd(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_clear_autocmds(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_clear_autocmds(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_clear_autocmds",
         c"API: vim -> nvim_clear_autocmds",
     );
-    let ret = OBJECT_NIL;
     let mut arg_1: KeyDictClearAutocmds = Default::default();
     if args.size > 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting at most 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if args.size >= 1
-            && !extract_keydict(args[0].clone(), &mut arg_1, Some(key_dict_clear_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_clear_autocmds, expecting Dict(clear_autocmds) *", error) {
-                return ret;
-            }
-    nvim_clear_autocmds(&mut arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
+    if args.size >= 1 {
+        arg_1 = extract_keydict(args[0].clone(), Some(key_dict_clear_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_clear_autocmds, expecting Dict(clear_autocmds) *")?;
     }
-    ret
+    nvim_clear_autocmds(&mut arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_create_augroup(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_create_augroup(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_create_augroup",
         c"API: vim -> nvim_create_augroup",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     let mut arg_2: KeyDictCreateAugroup = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_create_augroup, expecting String",
-        error,
-    ) {
-        return ret;
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(args[1].clone(), Some(key_dict_create_augroup_get_field), c"Wrong type for argument 2 when calling nvim_create_augroup, expecting Dict(create_augroup) *")?;
     }
-    if args.size >= 2
-            && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_create_augroup_get_field), c"Wrong type for argument 2 when calling nvim_create_augroup, expecting Dict(create_augroup) *", error) {
-                return ret;
-            }
-    let rv = nvim_create_augroup(channel_id, arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    let rv = nvim_create_augroup(channel_id, arg_1, &mut arg_2)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_del_augroup_by_id(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_del_augroup_by_id(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_augroup_by_id",
         c"API: vim -> nvim_del_augroup_by_id",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_del_augroup_by_id, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_del_augroup_by_id(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_del_augroup_by_id(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_del_augroup_by_name(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_del_augroup_by_name(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_augroup_by_name",
         c"API: vim -> nvim_del_augroup_by_name",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_del_augroup_by_name, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_del_augroup_by_name(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_del_augroup_by_name(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_exec_autocmds(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_exec_autocmds(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_exec_autocmds",
         c"API: vim -> nvim_exec_autocmds",
     );
-    let ret = OBJECT_NIL;
     let mut arg_2: KeyDictExecAutocmds = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let arg_1: Object = args[0].clone();
-    if args.size >= 2
-            && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_exec_autocmds_get_field), c"Wrong type for argument 2 when calling nvim_exec_autocmds, expecting Dict(exec_autocmds) *", error) {
-                return ret;
-            }
-    nvim_exec_autocmds(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(args[1].clone(), Some(key_dict_exec_autocmds_get_field), c"Wrong type for argument 2 when calling nvim_exec_autocmds, expecting Dict(exec_autocmds) *")?;
     }
-    ret
+    nvim_exec_autocmds(arg_1, &mut arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_buf_line_count(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_line_count(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_line_count",
         c"API: vim -> nvim_buf_line_count",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_line_count, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_line_count(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_line_count(arg_1)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_buf_attach(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_attach(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_attach",
         c"API: vim -> nvim_buf_attach",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Boolean = Default::default();
     let mut arg_3: KeyDictBufAttach = Default::default();
     if args.size < 2 || args.size > 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 to 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_attach, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_attach, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 3
-        && !extract_keydict(
+    )?;
+    if args.size >= 3 {
+        arg_3 = extract_keydict(
             args[2].clone(),
-            &mut arg_3,
             Some(key_dict_buf_attach_get_field),
             c"Wrong type for argument 3 when calling nvim_buf_attach, expecting Dict(buf_attach) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    let rv = nvim_buf_attach(channel_id, arg_1, arg_2, &mut arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = boolean_obj(rv);
-    ret
+    let rv = nvim_buf_attach(channel_id, arg_1, arg_2, &mut arg_3)?;
+    Ok(boolean_obj(rv))
 }
 
-pub fn handle_nvim_buf_detach(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_detach(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_detach",
         c"API: vim -> nvim_buf_detach",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_detach, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_detach(channel_id, arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = boolean_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_detach(channel_id, arg_1)?;
+    Ok(boolean_obj(rv))
 }
 
-pub fn handle_nvim_buf_get_lines(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_get_lines(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_lines",
         c"API: vim -> nvim_buf_get_lines",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
-    let mut arg_4: Boolean = Default::default();
     if args.size != 4 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 4 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_get_lines, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_get_lines, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_get_lines, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_4: Boolean = extract_boolean(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_buf_get_lines, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_get_lines(
-        channel_id,
-        arg_1,
-        arg_2,
-        arg_3,
-        arg_4,
-        std::ptr::null_mut(),
-        error,
-    );
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_get_lines(channel_id, arg_1, arg_2, arg_3, arg_4, std::ptr::null_mut())?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_buf_set_lines(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_set_lines(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_lines",
         c"API: vim -> nvim_buf_set_lines",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
-    let mut arg_4: Boolean = Default::default();
-    let mut arg_5: Array = Default::default();
     if args.size != 5 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 5 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_set_lines, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_set_lines, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_set_lines, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_4: Boolean = extract_boolean(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_buf_set_lines, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_array(
+    )?;
+    let arg_5: Array = extract_array(
         args[4].clone(),
-        &mut arg_5,
         c"Wrong type for argument 5 when calling nvim_buf_set_lines, expecting ArrayOf(String)",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    nvim_buf_set_lines(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_buf_set_lines(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_buf_set_text(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_set_text(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_text",
         c"API: vim -> nvim_buf_set_text",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
-    let mut arg_4: Integer = Default::default();
-    let mut arg_5: Integer = Default::default();
-    let mut arg_6: Array = Default::default();
     if args.size != 6 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 6 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_set_text, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_set_text, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_set_text, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_4: Integer = extract_integer(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_buf_set_text, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_5: Integer = extract_integer(
         args[4].clone(),
-        &mut arg_5,
         c"Wrong type for argument 5 when calling nvim_buf_set_text, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_array(
+    )?;
+    let arg_6: Array = extract_array(
         args[5].clone(),
-        &mut arg_6,
         c"Wrong type for argument 6 when calling nvim_buf_set_text, expecting ArrayOf(String)",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    nvim_buf_set_text(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_buf_set_text(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_buf_get_text(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_get_text(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_text",
         c"API: vim -> nvim_buf_get_text",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
-    let mut arg_4: Integer = Default::default();
-    let mut arg_5: Integer = Default::default();
     let mut arg_6: KeyDictEmpty = Default::default();
     if args.size < 5 || args.size > 6 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 5 to 6 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_get_text, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_get_text, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_get_text, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_4: Integer = extract_integer(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_buf_get_text, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_5: Integer = extract_integer(
         args[4].clone(),
-        &mut arg_5,
         c"Wrong type for argument 5 when calling nvim_buf_get_text, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 6
-        && !extract_keydict(
+    )?;
+    if args.size >= 6 {
+        arg_6 = extract_keydict(
             args[5].clone(),
-            &mut arg_6,
             Some(key_dict_empty_get_field),
             c"Wrong type for argument 6 when calling nvim_buf_get_text, expecting Dict(empty) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
     let rv = nvim_buf_get_text(
         channel_id,
@@ -5409,7966 +5106,5075 @@ pub fn handle_nvim_buf_get_text(channel_id: u64, args: Array, error: &mut Error)
         arg_5,
         &mut arg_6,
         std::ptr::null_mut(),
-        error,
-    );
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    )?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_buf_get_offset(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_get_offset(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_offset",
         c"API: vim -> nvim_buf_get_offset",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_get_offset, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_get_offset, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_get_offset(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_get_offset(arg_1, arg_2)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_buf_get_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_get_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_var",
         c"API: vim -> nvim_buf_get_var",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_get_var, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_get_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_get_var(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_buf_get_var(arg_1, arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_buf_get_changedtick(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_get_changedtick(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_changedtick",
         c"API: vim -> nvim_buf_get_changedtick",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_get_changedtick, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_get_changedtick(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_get_changedtick(arg_1)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_buf_get_keymap(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_get_keymap(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_keymap",
         c"API: vim -> nvim_buf_get_keymap",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_get_keymap, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_get_keymap, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_get_keymap(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_get_keymap(arg_1, arg_2)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_buf_set_keymap(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_set_keymap(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_keymap",
         c"API: vim -> nvim_buf_set_keymap",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
-    let mut arg_3: NvimString = Default::default();
-    let mut arg_4: NvimString = Default::default();
     let mut arg_5: KeyDictKeymap = Default::default();
     if args.size < 4 || args.size > 5 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 4 to 5 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_set_keymap, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_set_keymap, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_3: NvimString = extract_string(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_set_keymap, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_4: NvimString = extract_string(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_buf_set_keymap, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 5
-        && !extract_keydict(
+    )?;
+    if args.size >= 5 {
+        arg_5 = extract_keydict(
             args[4].clone(),
-            &mut arg_5,
             Some(key_dict_keymap_get_field),
             c"Wrong type for argument 5 when calling nvim_buf_set_keymap, expecting Dict(keymap) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    nvim_buf_set_keymap(channel_id, arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_buf_set_keymap(channel_id, arg_1, arg_2, arg_3, arg_4, &mut arg_5)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_buf_del_keymap(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_del_keymap(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_del_keymap",
         c"API: vim -> nvim_buf_del_keymap",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
-    let mut arg_3: NvimString = Default::default();
     let mut arg_4: KeyDictKeymapDel = Default::default();
     if args.size < 3 || args.size > 4 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 to 4 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_del_keymap, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_del_keymap, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_3: NvimString = extract_string(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_del_keymap, expecting String",
-        error,
-    ) {
-        return ret;
+    )?;
+    if args.size >= 4 {
+        arg_4 = extract_keydict(args[3].clone(), Some(key_dict_keymap_del_get_field), c"Wrong type for argument 4 when calling nvim_buf_del_keymap, expecting Dict(keymap_del) *")?;
     }
-    if args.size >= 4
-            && !extract_keydict(args[3].clone(), &mut arg_4, Some(key_dict_keymap_del_get_field), c"Wrong type for argument 4 when calling nvim_buf_del_keymap, expecting Dict(keymap_del) *", error) {
-                return ret;
-            }
-    nvim_buf_del_keymap(channel_id, arg_1, arg_2, arg_3, &mut arg_4, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_buf_del_keymap(channel_id, arg_1, arg_2, arg_3, &mut arg_4)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_buf_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_set_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_var",
         c"API: vim -> nvim_buf_set_var",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_set_var, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_set_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_3: Object = args[2].clone();
-    nvim_buf_set_var(arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_buf_set_var(arg_1, arg_2, arg_3)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_buf_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_del_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_del_var",
         c"API: vim -> nvim_buf_del_var",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_del_var, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_del_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_buf_del_var(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_buf_del_var(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_buf_get_name(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_get_name(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_name",
         c"API: vim -> nvim_buf_get_name",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_get_name, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_get_name(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = string_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_get_name(arg_1)?;
+    Ok(string_obj(rv))
 }
 
-pub fn handle_nvim_buf_set_name(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_set_name(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_name",
         c"API: vim -> nvim_buf_set_name",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_set_name, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_set_name, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_buf_set_name(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_buf_set_name(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_buf_is_loaded(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_is_loaded(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_is_loaded",
         c"API: vim -> nvim_buf_is_loaded",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_is_loaded, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let rv = nvim_buf_is_loaded(arg_1);
-    ret = boolean_obj(rv);
-    ret
+    Ok(boolean_obj(rv))
 }
 
-pub fn handle_nvim_buf_delete(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_delete(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_delete",
         c"API: vim -> nvim_buf_delete",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
     let mut arg_2: KeyDictBufDelete = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_delete, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 2
-        && !extract_keydict(
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(
             args[1].clone(),
-            &mut arg_2,
             Some(key_dict_buf_delete_get_field),
             c"Wrong type for argument 2 when calling nvim_buf_delete, expecting Dict(buf_delete) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    nvim_buf_delete(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_buf_delete(arg_1, &mut arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_buf_is_valid(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_is_valid(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_is_valid",
         c"API: vim -> nvim_buf_is_valid",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_is_valid, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let rv = nvim_buf_is_valid(arg_1);
-    ret = boolean_obj(rv);
-    ret
+    Ok(boolean_obj(rv))
 }
 
-pub fn handle_nvim_buf_del_mark(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_del_mark(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_del_mark",
         c"API: vim -> nvim_buf_del_mark",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_del_mark, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_del_mark, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_del_mark(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = boolean_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_del_mark(arg_1, arg_2)?;
+    Ok(boolean_obj(rv))
 }
 
-pub fn handle_nvim_buf_set_mark(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_set_mark(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_mark",
         c"API: vim -> nvim_buf_set_mark",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
-    let mut arg_3: Integer = Default::default();
-    let mut arg_4: Integer = Default::default();
     let mut arg_5: KeyDictEmpty = Default::default();
     if args.size < 4 || args.size > 5 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 4 to 5 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_set_mark, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_set_mark, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_set_mark, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_4: Integer = extract_integer(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_buf_set_mark, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 5
-        && !extract_keydict(
+    )?;
+    if args.size >= 5 {
+        arg_5 = extract_keydict(
             args[4].clone(),
-            &mut arg_5,
             Some(key_dict_empty_get_field),
             c"Wrong type for argument 5 when calling nvim_buf_set_mark, expecting Dict(empty) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    let rv = nvim_buf_set_mark(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = boolean_obj(rv);
-    ret
+    let rv = nvim_buf_set_mark(arg_1, arg_2, arg_3, arg_4, &mut arg_5)?;
+    Ok(boolean_obj(rv))
 }
 
-pub fn handle_nvim_buf_get_mark(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_get_mark(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_mark",
         c"API: vim -> nvim_buf_get_mark",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_get_mark, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_get_mark, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_get_mark(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_get_mark(arg_1, arg_2)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_buf_stats(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_stats(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__buf_stats",
         c"API: vim -> nvim__buf_stats",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__buf_stats, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_stats(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_stats(arg_1)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_parse_cmd(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_parse_cmd(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_parse_cmd",
         c"API: vim -> nvim_parse_cmd",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     let mut arg_2: KeyDictEmpty = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_parse_cmd, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 2
-        && !extract_keydict(
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(
             args[1].clone(),
-            &mut arg_2,
             Some(key_dict_empty_get_field),
             c"Wrong type for argument 2 when calling nvim_parse_cmd, expecting Dict(empty) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    let rv = nvim_parse_cmd(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(api_keydict_to_dict(&rv, &CMD_TABLE, CMD_TABLE.len()));
-    ret
+    let rv = nvim_parse_cmd(arg_1, &mut arg_2)?;
+    Ok(dict_obj(api_keydict_to_dict(
+        &rv,
+        &CMD_TABLE,
+        CMD_TABLE.len(),
+    )))
 }
 
-pub fn handle_nvim_cmd(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_cmd(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(channel_id, c"handle_nvim_cmd", c"API: vim -> nvim_cmd");
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: KeyDictCmd = Default::default();
     let mut arg_2: KeyDictCmdOpts = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_keydict(
+    let mut arg_1: KeyDictCmd = extract_keydict(
         args[0].clone(),
-        &mut arg_1,
         Some(key_dict_cmd_get_field),
         c"Wrong type for argument 1 when calling nvim_cmd, expecting Dict(cmd) *",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 2
-        && !extract_keydict(
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(
             args[1].clone(),
-            &mut arg_2,
             Some(key_dict_cmd_opts_get_field),
             c"Wrong type for argument 2 when calling nvim_cmd, expecting Dict(cmd_opts) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    let rv = nvim_cmd(channel_id, &mut arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = string_obj(rv);
-    ret
+    let rv = nvim_cmd(channel_id, &mut arg_1, &mut arg_2)?;
+    Ok(string_obj(rv))
 }
 
-pub fn handle_nvim_create_user_command(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_create_user_command(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_create_user_command",
         c"API: vim -> nvim_create_user_command",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     let mut arg_3: KeyDictUserCommand = Default::default();
     if args.size < 2 || args.size > 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 to 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_create_user_command, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_2: Object = args[1].clone();
-    if args.size >= 3
-            && !extract_keydict(args[2].clone(), &mut arg_3, Some(key_dict_user_command_get_field), c"Wrong type for argument 3 when calling nvim_create_user_command, expecting Dict(user_command) *", error) {
-                return ret;
-            }
-    nvim_create_user_command(channel_id, arg_1, arg_2, &mut arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
+    if args.size >= 3 {
+        arg_3 = extract_keydict(args[2].clone(), Some(key_dict_user_command_get_field), c"Wrong type for argument 3 when calling nvim_create_user_command, expecting Dict(user_command) *")?;
     }
-    ret
+    nvim_create_user_command(channel_id, arg_1, arg_2, &mut arg_3)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_del_user_command(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_del_user_command(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_user_command",
         c"API: vim -> nvim_del_user_command",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_del_user_command, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_del_user_command(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_del_user_command(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_buf_create_user_command(
-    channel_id: u64,
-    args: Array,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_create_user_command(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_create_user_command",
         c"API: vim -> nvim_buf_create_user_command",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     let mut arg_4: KeyDictUserCommand = Default::default();
     if args.size < 3 || args.size > 4 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 to 4 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_create_user_command, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_create_user_command, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_3: Object = args[2].clone();
-    if args.size >= 4
-            && !extract_keydict(args[3].clone(), &mut arg_4, Some(key_dict_user_command_get_field), c"Wrong type for argument 4 when calling nvim_buf_create_user_command, expecting Dict(user_command) *", error) {
-                return ret;
-            }
-    nvim_buf_create_user_command(channel_id, arg_1, arg_2, arg_3, &mut arg_4, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
+    if args.size >= 4 {
+        arg_4 = extract_keydict(args[3].clone(), Some(key_dict_user_command_get_field), c"Wrong type for argument 4 when calling nvim_buf_create_user_command, expecting Dict(user_command) *")?;
     }
-    ret
+    nvim_buf_create_user_command(channel_id, arg_1, arg_2, arg_3, &mut arg_4)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_buf_del_user_command(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_del_user_command(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_del_user_command",
         c"API: vim -> nvim_buf_del_user_command",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_del_user_command, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_del_user_command, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_buf_del_user_command(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_buf_del_user_command(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_get_commands(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_commands(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_commands",
         c"API: vim -> nvim_get_commands",
     );
-    let mut ret = OBJECT_NIL;
     let mut arg_1: KeyDictGetCommands = Default::default();
     if args.size > 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting at most 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if args.size >= 1
-            && !extract_keydict(args[0].clone(), &mut arg_1, Some(key_dict_get_commands_get_field), c"Wrong type for argument 1 when calling nvim_get_commands, expecting Dict(get_commands) *", error) {
-                return ret;
-            }
-    let rv = nvim_get_commands(&mut arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
+    if args.size >= 1 {
+        arg_1 = extract_keydict(args[0].clone(), Some(key_dict_get_commands_get_field), c"Wrong type for argument 1 when calling nvim_get_commands, expecting Dict(get_commands) *")?;
     }
-    ret = dict_obj(rv);
-    ret
+    let rv = nvim_get_commands(&mut arg_1)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_buf_get_commands(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_get_commands(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_commands",
         c"API: vim -> nvim_buf_get_commands",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
     let mut arg_2: KeyDictGetCommands = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_get_commands, expecting Buffer",
-        error,
-    ) {
-        return ret;
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(args[1].clone(), Some(key_dict_get_commands_get_field), c"Wrong type for argument 2 when calling nvim_buf_get_commands, expecting Dict(get_commands) *")?;
     }
-    if args.size >= 2
-            && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_get_commands_get_field), c"Wrong type for argument 2 when calling nvim_buf_get_commands, expecting Dict(get_commands) *", error) {
-                return ret;
-            }
-    let rv = nvim_buf_get_commands(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    let rv = nvim_buf_get_commands(arg_1, &mut arg_2)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_exec(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_exec(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(channel_id, c"handle_nvim_exec", c"API: vim -> nvim_exec");
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: Boolean = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_exec, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_exec, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_exec(channel_id, arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = string_obj(rv);
-    ret
+    )?;
+    let rv = nvim_exec(channel_id, arg_1, arg_2)?;
+    Ok(string_obj(rv))
 }
 
-pub fn handle_nvim_command_output(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_command_output(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_command_output",
         c"API: vim -> nvim_command_output",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_command_output, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_command_output(channel_id, arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = string_obj(rv);
-    ret
+    )?;
+    let rv = nvim_command_output(channel_id, arg_1)?;
+    Ok(string_obj(rv))
 }
 
-pub fn handle_nvim_execute_lua(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_execute_lua(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_execute_lua",
         c"API: vim -> nvim_execute_lua",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: Array = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_execute_lua, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_array(
+    )?;
+    let arg_2: Array = extract_array(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_execute_lua, expecting Array",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_execute_lua(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_execute_lua(arg_1, arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_buf_get_number(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_get_number(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_number",
         c"API: vim -> nvim_buf_get_number",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_get_number, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_get_number(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_get_number(arg_1)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_buf_clear_highlight(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_clear_highlight(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_clear_highlight",
         c"API: vim -> nvim_buf_clear_highlight",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
-    let mut arg_4: Integer = Default::default();
     if args.size != 4 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 4 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_clear_highlight, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_clear_highlight, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_clear_highlight, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_4: Integer = extract_integer(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_buf_clear_highlight, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_buf_clear_highlight(arg_1, arg_2, arg_3, arg_4, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_buf_clear_highlight(arg_1, arg_2, arg_3, arg_4)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_buf_add_highlight(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_add_highlight(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_add_highlight",
         c"API: vim -> nvim_buf_add_highlight",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: NvimString = Default::default();
-    let mut arg_4: Integer = Default::default();
-    let mut arg_5: Integer = Default::default();
-    let mut arg_6: Integer = Default::default();
     if args.size != 6 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 6 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_add_highlight, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_add_highlight, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_3: NvimString = extract_string(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_add_highlight, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_4: Integer = extract_integer(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_buf_add_highlight, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_5: Integer = extract_integer(
         args[4].clone(),
-        &mut arg_5,
         c"Wrong type for argument 5 when calling nvim_buf_add_highlight, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_6: Integer = extract_integer(
         args[5].clone(),
-        &mut arg_6,
         c"Wrong type for argument 6 when calling nvim_buf_add_highlight, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_add_highlight(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_add_highlight(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_buf_set_virtual_text(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_set_virtual_text(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_virtual_text",
         c"API: vim -> nvim_buf_set_virtual_text",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
-    let mut arg_4: Array = Default::default();
     let mut arg_5: KeyDictEmpty = Default::default();
     if args.size < 4 || args.size > 5 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 4 to 5 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_set_virtual_text, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_set_virtual_text, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_set_virtual_text, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_array(
+    )?;
+    let arg_4: Array = extract_array(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_buf_set_virtual_text, expecting Array",
-        error,
-    ) {
-        return ret;
+    )?;
+    if args.size >= 5 {
+        arg_5 = extract_keydict(args[4].clone(), Some(key_dict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_virtual_text, expecting Dict(empty) *")?;
     }
-    if args.size >= 5
-            && !extract_keydict(args[4].clone(), &mut arg_5, Some(key_dict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_virtual_text, expecting Dict(empty) *", error) {
-                return ret;
-            }
-    let rv = nvim_buf_set_virtual_text(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    let rv = nvim_buf_set_virtual_text(arg_1, arg_2, arg_3, arg_4, &mut arg_5)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_get_hl_by_id(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_hl_by_id(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_hl_by_id",
         c"API: vim -> nvim_get_hl_by_id",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
-    let mut arg_2: Boolean = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_hl_by_id, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_get_hl_by_id, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_get_hl_by_id(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    )?;
+    let rv = nvim_get_hl_by_id(arg_1, arg_2)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_get_hl_by_name(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_hl_by_name(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_hl_by_name",
         c"API: vim -> nvim_get_hl_by_name",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: Boolean = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_hl_by_name, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_get_hl_by_name, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_get_hl_by_name(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    )?;
+    let rv = nvim_get_hl_by_name(arg_1, arg_2)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_buffer_insert(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_buffer_insert(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_insert",
         c"API: vim -> buffer_insert",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Array = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling buffer_insert, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling buffer_insert, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_array(
+    )?;
+    let arg_3: Array = extract_array(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling buffer_insert, expecting ArrayOf(String)",
-        error,
-    ) {
-        return ret;
-    }
-    buffer_insert(arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    buffer_insert(arg_1, arg_2, arg_3)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_buffer_get_line(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_buffer_get_line(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_get_line",
         c"API: vim -> buffer_get_line",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling buffer_get_line, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling buffer_get_line, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = buffer_get_line(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = string_obj(rv);
-    ret
+    )?;
+    let rv = buffer_get_line(arg_1, arg_2)?;
+    Ok(string_obj(rv))
 }
 
-pub fn handle_buffer_set_line(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_buffer_set_line(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_set_line",
         c"API: vim -> buffer_set_line",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: NvimString = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling buffer_set_line, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling buffer_set_line, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_3: NvimString = extract_string(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling buffer_set_line, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    buffer_set_line(arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    buffer_set_line(arg_1, arg_2, arg_3)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_buffer_del_line(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_buffer_del_line(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_del_line",
         c"API: vim -> buffer_del_line",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling buffer_del_line, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling buffer_del_line, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    buffer_del_line(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    buffer_del_line(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_buffer_get_line_slice(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_buffer_get_line_slice(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_get_line_slice",
         c"API: vim -> buffer_get_line_slice",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
-    let mut arg_4: Boolean = Default::default();
-    let mut arg_5: Boolean = Default::default();
     if args.size != 5 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 5 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling buffer_get_line_slice, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling buffer_get_line_slice, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling buffer_get_line_slice, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_4: Boolean = extract_boolean(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling buffer_get_line_slice, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_5: Boolean = extract_boolean(
         args[4].clone(),
-        &mut arg_5,
         c"Wrong type for argument 5 when calling buffer_get_line_slice, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = buffer_get_line_slice(arg_1, arg_2, arg_3, arg_4, arg_5, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    )?;
+    let rv = buffer_get_line_slice(arg_1, arg_2, arg_3, arg_4, arg_5)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_buffer_set_line_slice(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_buffer_set_line_slice(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_set_line_slice",
         c"API: vim -> buffer_set_line_slice",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
-    let mut arg_4: Boolean = Default::default();
-    let mut arg_5: Boolean = Default::default();
-    let mut arg_6: Array = Default::default();
     if args.size != 6 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 6 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling buffer_set_line_slice, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling buffer_set_line_slice, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling buffer_set_line_slice, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_4: Boolean = extract_boolean(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling buffer_set_line_slice, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_5: Boolean = extract_boolean(
         args[4].clone(),
-        &mut arg_5,
         c"Wrong type for argument 5 when calling buffer_set_line_slice, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_array(
+    )?;
+    let arg_6: Array = extract_array(
         args[5].clone(),
-        &mut arg_6,
         c"Wrong type for argument 6 when calling buffer_set_line_slice, expecting ArrayOf(String)",
-        error,
-    ) {
-        return ret;
-    }
-    buffer_set_line_slice(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    buffer_set_line_slice(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_buffer_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_buffer_set_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_set_var",
         c"API: vim -> buffer_set_var",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling buffer_set_var, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling buffer_set_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_3: Object = args[2].clone();
-    let rv = buffer_set_var(arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    let rv = buffer_set_var(arg_1, arg_2, arg_3)?;
+    Ok(rv)
 }
 
-pub fn handle_buffer_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_buffer_del_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_buffer_del_var",
         c"API: vim -> buffer_del_var",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling buffer_del_var, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling buffer_del_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = buffer_del_var(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = buffer_del_var(arg_1, arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_window_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_window_set_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_window_set_var",
         c"API: vim -> window_set_var",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling window_set_var, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling window_set_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_3: Object = args[2].clone();
-    let rv = window_set_var(arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    let rv = window_set_var(arg_1, arg_2, arg_3)?;
+    Ok(rv)
 }
 
-pub fn handle_window_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_window_del_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_window_del_var",
         c"API: vim -> window_del_var",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling window_del_var, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling window_del_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = window_del_var(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = window_del_var(arg_1, arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_tabpage_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_tabpage_set_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_tabpage_set_var",
         c"API: vim -> tabpage_set_var",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Tabpage = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Tabpage = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeTabpage,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling tabpage_set_var, expecting Tabpage",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling tabpage_set_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_3: Object = args[2].clone();
-    let rv = tabpage_set_var(arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    let rv = tabpage_set_var(arg_1, arg_2, arg_3)?;
+    Ok(rv)
 }
 
-pub fn handle_tabpage_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_tabpage_del_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_tabpage_del_var",
         c"API: vim -> tabpage_del_var",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Tabpage = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Tabpage = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeTabpage,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling tabpage_del_var, expecting Tabpage",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling tabpage_del_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = tabpage_del_var(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = tabpage_del_var(arg_1, arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_vim_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_vim_set_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_vim_set_var",
         c"API: vim -> vim_set_var",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling vim_set_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_2: Object = args[1].clone();
-    let rv = vim_set_var(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    let rv = vim_set_var(arg_1, arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_vim_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_vim_del_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_vim_del_var",
         c"API: vim -> vim_del_var",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling vim_del_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = vim_del_var(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = vim_del_var(arg_1)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_get_option_info(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_option_info(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_option_info",
         c"API: vim -> nvim_get_option_info",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_option_info, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_get_option_info(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    )?;
+    let rv = nvim_get_option_info(arg_1)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_set_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_option(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_option",
         c"API: vim -> nvim_set_option",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_option, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_2: Object = args[1].clone();
-    nvim_set_option(channel_id, arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_set_option(channel_id, arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_get_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_option(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_option",
         c"API: vim -> nvim_get_option",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_option, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_get_option(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_get_option(arg_1)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_buf_get_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_get_option(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_option",
         c"API: vim -> nvim_buf_get_option",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_get_option, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_get_option, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_get_option(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_buf_get_option(arg_1, arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_buf_set_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_set_option(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_option",
         c"API: vim -> nvim_buf_set_option",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_set_option, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_set_option, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_3: Object = args[2].clone();
-    nvim_buf_set_option(channel_id, arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_buf_set_option(channel_id, arg_1, arg_2, arg_3)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_win_get_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_get_option(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_option",
         c"API: vim -> nvim_win_get_option",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_get_option, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_win_get_option, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_win_get_option(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_win_get_option(arg_1, arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_win_set_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_set_option(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_option",
         c"API: vim -> nvim_win_set_option",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_set_option, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_win_set_option, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_3: Object = args[2].clone();
-    nvim_win_set_option(channel_id, arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_win_set_option(channel_id, arg_1, arg_2, arg_3)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_call_atomic(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_call_atomic(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_call_atomic",
         c"API: vim -> nvim_call_atomic",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Array = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_array(
+    let arg_1: Array = extract_array(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_call_atomic, expecting Array",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_call_atomic(channel_id, arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    )?;
+    let rv = nvim_call_atomic(channel_id, arg_1)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_subscribe(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_subscribe(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_subscribe",
         c"API: vim -> nvim_subscribe",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_subscribe, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     nvim_subscribe(channel_id, arg_1);
-    ret
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_unsubscribe(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_unsubscribe(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_unsubscribe",
         c"API: vim -> nvim_unsubscribe",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_unsubscribe, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     nvim_unsubscribe(channel_id, arg_1);
-    ret
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_out_write(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_out_write(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_out_write",
         c"API: vim -> nvim_out_write",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_out_write, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     nvim_out_write(arg_1);
-    ret
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_err_write(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_err_write(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_err_write",
         c"API: vim -> nvim_err_write",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_err_write, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     nvim_err_write(arg_1);
-    ret
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_err_writeln(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_err_writeln(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_err_writeln",
         c"API: vim -> nvim_err_writeln",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_err_writeln, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     nvim_err_writeln(arg_1);
-    ret
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_notify(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_notify(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_notify",
         c"API: vim -> nvim_notify",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Dict = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_notify, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_notify, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_dict(
+    )?;
+    let arg_3: Dict = extract_dict(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_notify, expecting Dict",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_notify(arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_notify(arg_1, arg_2, arg_3)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_win_set_height(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_set_height(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_height",
         c"API: vim -> nvim_win_set_height",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: Integer = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_set_height, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_win_set_height, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_win_set_height(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_win_set_height(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_win_set_width(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_set_width(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_width",
         c"API: vim -> nvim_win_set_width",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: Integer = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_set_width, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_win_set_width, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_win_set_width(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_win_set_width(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_error_event(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_error_event(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_error_event",
         c"API: vim -> nvim_error_event",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_error_event, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_error_event, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     nvim_error_event(channel_id, arg_1, arg_2);
-    ret
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_ui_term_event(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_ui_term_event(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_term_event",
         c"API: vim -> nvim_ui_term_event",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_ui_term_event, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_2: Object = args[1].clone();
-    nvim_ui_term_event(channel_id, arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_ui_term_event(channel_id, arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_create_namespace(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_create_namespace(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_create_namespace",
         c"API: vim -> nvim_create_namespace",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_create_namespace, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let rv = nvim_create_namespace(arg_1);
-    ret = integer_obj(rv);
-    ret
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_get_namespaces(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_namespaces(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_namespaces",
         c"API: vim -> nvim_get_namespaces",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_get_namespaces();
-    ret = dict_obj(rv);
-    ret
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_buf_get_extmark_by_id(
-    channel_id: u64,
-    args: Array,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_buf_get_extmark_by_id(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_extmark_by_id",
         c"API: vim -> nvim_buf_get_extmark_by_id",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
     let mut arg_4: KeyDictGetExtmark = Default::default();
     if args.size < 3 || args.size > 4 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 to 4 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_get_extmark_by_id, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_get_extmark_by_id, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_get_extmark_by_id, expecting Integer",
-        error,
-    ) {
-        return ret;
+    )?;
+    if args.size >= 4 {
+        arg_4 = extract_keydict(args[3].clone(), Some(key_dict_get_extmark_get_field), c"Wrong type for argument 4 when calling nvim_buf_get_extmark_by_id, expecting Dict(get_extmark) *")?;
     }
-    if args.size >= 4
-            && !extract_keydict(args[3].clone(), &mut arg_4, Some(key_dict_get_extmark_get_field), c"Wrong type for argument 4 when calling nvim_buf_get_extmark_by_id, expecting Dict(get_extmark) *", error) {
-                return ret;
-            }
-    let rv = nvim_buf_get_extmark_by_id(arg_1, arg_2, arg_3, &mut arg_4, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    let rv = nvim_buf_get_extmark_by_id(arg_1, arg_2, arg_3, &mut arg_4)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_buf_get_extmarks(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_get_extmarks(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_get_extmarks",
         c"API: vim -> nvim_buf_get_extmarks",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
     let mut arg_5: KeyDictGetExtmarks = Default::default();
     if args.size < 4 || args.size > 5 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 4 to 5 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_get_extmarks, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_get_extmarks, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_3: Object = args[2].clone();
     let arg_4: Object = args[3].clone();
-    if args.size >= 5
-            && !extract_keydict(args[4].clone(), &mut arg_5, Some(key_dict_get_extmarks_get_field), c"Wrong type for argument 5 when calling nvim_buf_get_extmarks, expecting Dict(get_extmarks) *", error) {
-                return ret;
-            }
-    let rv = nvim_buf_get_extmarks(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
+    if args.size >= 5 {
+        arg_5 = extract_keydict(args[4].clone(), Some(key_dict_get_extmarks_get_field), c"Wrong type for argument 5 when calling nvim_buf_get_extmarks, expecting Dict(get_extmarks) *")?;
     }
-    ret = array_obj(rv);
-    ret
+    let rv = nvim_buf_get_extmarks(arg_1, arg_2, arg_3, arg_4, &mut arg_5)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_buf_set_extmark(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_set_extmark(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_set_extmark",
         c"API: vim -> nvim_buf_set_extmark",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
-    let mut arg_4: Integer = Default::default();
     let mut arg_5: KeyDictSetExtmark = Default::default();
     if args.size < 4 || args.size > 5 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 4 to 5 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_set_extmark, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_set_extmark, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_set_extmark, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_4: Integer = extract_integer(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_buf_set_extmark, expecting Integer",
-        error,
-    ) {
-        return ret;
+    )?;
+    if args.size >= 5 {
+        arg_5 = extract_keydict(args[4].clone(), Some(key_dict_set_extmark_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_extmark, expecting Dict(set_extmark) *")?;
     }
-    if args.size >= 5
-            && !extract_keydict(args[4].clone(), &mut arg_5, Some(key_dict_set_extmark_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_extmark, expecting Dict(set_extmark) *", error) {
-                return ret;
-            }
-    let rv = nvim_buf_set_extmark(arg_1, arg_2, arg_3, arg_4, &mut arg_5, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    let rv = nvim_buf_set_extmark(arg_1, arg_2, arg_3, arg_4, &mut arg_5)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_buf_del_extmark(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_del_extmark(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_del_extmark",
         c"API: vim -> nvim_buf_del_extmark",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_del_extmark, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_del_extmark, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_del_extmark, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_del_extmark(arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = boolean_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_del_extmark(arg_1, arg_2, arg_3)?;
+    Ok(boolean_obj(rv))
 }
 
-pub fn handle_nvim_buf_clear_namespace(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_clear_namespace(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_buf_clear_namespace",
         c"API: vim -> nvim_buf_clear_namespace",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
-    let mut arg_4: Integer = Default::default();
     if args.size != 4 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 4 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_buf_clear_namespace, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_buf_clear_namespace, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_buf_clear_namespace, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_4: Integer = extract_integer(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_buf_clear_namespace, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_buf_clear_namespace(arg_1, arg_2, arg_3, arg_4, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_buf_clear_namespace(arg_1, arg_2, arg_3, arg_4)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_buf_debug_extmarks(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_buf_debug_extmarks(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__buf_debug_extmarks",
         c"API: vim -> nvim__buf_debug_extmarks",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Boolean = Default::default();
-    let mut arg_3: Boolean = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__buf_debug_extmarks, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim__buf_debug_extmarks, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_3: Boolean = extract_boolean(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim__buf_debug_extmarks, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_buf_debug_extmarks(arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = string_obj(rv);
-    ret
+    )?;
+    let rv = nvim_buf_debug_extmarks(arg_1, arg_2, arg_3)?;
+    Ok(string_obj(rv))
 }
 
-pub fn handle_nvim_ns_set(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_ns_set(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__ns_set",
         c"API: vim -> nvim__ns_set",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
     let mut arg_2: KeyDictNsOpts = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__ns_set, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 2
-        && !extract_keydict(
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(
             args[1].clone(),
-            &mut arg_2,
             Some(key_dict_ns_opts_get_field),
             c"Wrong type for argument 2 when calling nvim__ns_set, expecting Dict(ns_opts) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    nvim_ns_set(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_ns_set(arg_1, &mut arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_ns_get(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_ns_get(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__ns_get",
         c"API: vim -> nvim__ns_get",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__ns_get, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_ns_get(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(api_keydict_to_dict(
+    )?;
+    let rv = nvim_ns_get(arg_1)?;
+    Ok(dict_obj(api_keydict_to_dict(
         &rv,
         &NS_OPTS_TABLE,
         NS_OPTS_TABLE.len(),
-    ));
-    ret
+    )))
 }
 
-pub fn handle_nvim_get_option_value(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_option_value(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_option_value",
         c"API: vim -> nvim_get_option_value",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     let mut arg_2: KeyDictOption = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_option_value, expecting String",
-        error,
-    ) {
-        return ret;
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(args[1].clone(), Some(key_dict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_value, expecting Dict(option) *")?;
     }
-    if args.size >= 2
-            && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_value, expecting Dict(option) *", error) {
-                return ret;
-            }
-    let rv = nvim_get_option_value(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    let rv = nvim_get_option_value(arg_1, &mut arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_set_option_value(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_option_value(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_option_value",
         c"API: vim -> nvim_set_option_value",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     let mut arg_3: KeyDictOption = Default::default();
     if args.size < 2 || args.size > 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 to 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_option_value, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_2: Object = args[1].clone();
-    if args.size >= 3
-            && !extract_keydict(args[2].clone(), &mut arg_3, Some(key_dict_option_get_field), c"Wrong type for argument 3 when calling nvim_set_option_value, expecting Dict(option) *", error) {
-                return ret;
-            }
-    let rv = nvim_set_option_value(channel_id, arg_1, arg_2, &mut arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
+    if args.size >= 3 {
+        arg_3 = extract_keydict(args[2].clone(), Some(key_dict_option_get_field), c"Wrong type for argument 3 when calling nvim_set_option_value, expecting Dict(option) *")?;
     }
-    ret = rv;
-    ret
+    let rv = nvim_set_option_value(channel_id, arg_1, arg_2, &mut arg_3)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_get_all_options_info(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_all_options_info(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_all_options_info",
         c"API: vim -> nvim_get_all_options_info",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    let rv = nvim_get_all_options_info(error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    let rv = nvim_get_all_options_info()?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_get_option_info2(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_option_info2(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_option_info2",
         c"API: vim -> nvim_get_option_info2",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     let mut arg_2: KeyDictOption = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_option_info2, expecting String",
-        error,
-    ) {
-        return ret;
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(args[1].clone(), Some(key_dict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_info2, expecting Dict(option) *")?;
     }
-    if args.size >= 2
-            && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_info2, expecting Dict(option) *", error) {
-                return ret;
-            }
-    let rv = nvim_get_option_info2(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    let rv = nvim_get_option_info2(arg_1, &mut arg_2)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_tabpage_list_wins(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_tabpage_list_wins(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_list_wins",
         c"API: vim -> nvim_tabpage_list_wins",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Tabpage = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Tabpage = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeTabpage,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_tabpage_list_wins, expecting Tabpage",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_tabpage_list_wins(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    )?;
+    let rv = nvim_tabpage_list_wins(arg_1)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_tabpage_get_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_tabpage_get_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_get_var",
         c"API: vim -> nvim_tabpage_get_var",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Tabpage = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Tabpage = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeTabpage,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_tabpage_get_var, expecting Tabpage",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_tabpage_get_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_tabpage_get_var(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_tabpage_get_var(arg_1, arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_tabpage_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_tabpage_set_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_set_var",
         c"API: vim -> nvim_tabpage_set_var",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Tabpage = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Tabpage = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeTabpage,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_tabpage_set_var, expecting Tabpage",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_tabpage_set_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_3: Object = args[2].clone();
-    nvim_tabpage_set_var(arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_tabpage_set_var(arg_1, arg_2, arg_3)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_tabpage_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_tabpage_del_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_del_var",
         c"API: vim -> nvim_tabpage_del_var",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Tabpage = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Tabpage = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeTabpage,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_tabpage_del_var, expecting Tabpage",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_tabpage_del_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_tabpage_del_var(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_tabpage_del_var(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_tabpage_get_win(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_tabpage_get_win(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_get_win",
         c"API: vim -> nvim_tabpage_get_win",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Tabpage = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Tabpage = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeTabpage,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_tabpage_get_win, expecting Tabpage",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_tabpage_get_win(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = window_obj(rv);
-    ret
+    )?;
+    let rv = nvim_tabpage_get_win(arg_1)?;
+    Ok(window_obj(rv))
 }
 
-pub fn handle_nvim_tabpage_set_win(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_tabpage_set_win(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_set_win",
         c"API: vim -> nvim_tabpage_set_win",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Tabpage = Default::default();
-    let mut arg_2: Window = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Tabpage = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeTabpage,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_tabpage_set_win, expecting Tabpage",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_handle(
+    )?;
+    let arg_2: Window = extract_handle(
         args[1].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_tabpage_set_win, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_tabpage_set_win(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_tabpage_set_win(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_tabpage_get_number(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_tabpage_get_number(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_get_number",
         c"API: vim -> nvim_tabpage_get_number",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Tabpage = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Tabpage = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeTabpage,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_tabpage_get_number, expecting Tabpage",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_tabpage_get_number(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    )?;
+    let rv = nvim_tabpage_get_number(arg_1)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_tabpage_is_valid(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_tabpage_is_valid(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_tabpage_is_valid",
         c"API: vim -> nvim_tabpage_is_valid",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Tabpage = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Tabpage = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeTabpage,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_tabpage_is_valid, expecting Tabpage",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let rv = nvim_tabpage_is_valid(arg_1);
-    ret = boolean_obj(rv);
-    ret
+    Ok(boolean_obj(rv))
 }
 
-pub fn handle_nvim_open_tabpage(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_open_tabpage(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_open_tabpage",
         c"API: vim -> nvim_open_tabpage",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Boolean = Default::default();
-    let mut arg_3: KeyDictTabpageConfig = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_open_tabpage, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_open_tabpage, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_keydict(args[2].clone(), &mut arg_3, Some(key_dict_tabpage_config_get_field), c"Wrong type for argument 3 when calling nvim_open_tabpage, expecting Dict(tabpage_config) *", error) {
-            return ret;
-        }
+    )?;
+    let mut arg_3: KeyDictTabpageConfig = extract_keydict(args[2].clone(), Some(key_dict_tabpage_config_get_field), c"Wrong type for argument 3 when calling nvim_open_tabpage, expecting Dict(tabpage_config) *")?;
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    let rv = nvim_open_tabpage(arg_1, arg_2, &mut arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = tabpage_obj(rv);
-    ret
+    let rv = nvim_open_tabpage(arg_1, arg_2, &mut arg_3)?;
+    Ok(tabpage_obj(rv))
 }
 
-pub fn handle_nvim_ui_attach(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_ui_attach(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_attach",
         c"API: vim -> nvim_ui_attach",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Dict = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_ui_attach, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_ui_attach, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_dict(
+    )?;
+    let arg_3: Dict = extract_dict(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_ui_attach, expecting Dict",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_ui_attach(channel_id, arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_ui_attach(channel_id, arg_1, arg_2, arg_3)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_ui_attach(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_ui_attach(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(channel_id, c"handle_ui_attach", c"API: vim -> ui_attach");
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Boolean = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling ui_attach, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling ui_attach, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_3: Boolean = extract_boolean(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling ui_attach, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    ui_attach(channel_id, arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    ui_attach(channel_id, arg_1, arg_2, arg_3)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_ui_set_focus(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_ui_set_focus(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_set_focus",
         c"API: vim -> nvim_ui_set_focus",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Boolean = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_boolean(
+    let arg_1: Boolean = extract_boolean(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_ui_set_focus, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_ui_set_focus(channel_id, arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_ui_set_focus(channel_id, arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_ui_detach(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_ui_detach(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_detach",
         c"API: vim -> nvim_ui_detach",
     );
-    let ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    nvim_ui_detach(channel_id, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_ui_detach(channel_id)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_ui_try_resize(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_ui_try_resize(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_try_resize",
         c"API: vim -> nvim_ui_try_resize",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
-    let mut arg_2: Integer = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_ui_try_resize, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_ui_try_resize, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_ui_try_resize(channel_id, arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_ui_try_resize(channel_id, arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_ui_set_option(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_ui_set_option(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_set_option",
         c"API: vim -> nvim_ui_set_option",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_ui_set_option, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_2: Object = args[1].clone();
-    nvim_ui_set_option(channel_id, arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_ui_set_option(channel_id, arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_ui_try_resize_grid(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_ui_try_resize_grid(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_try_resize_grid",
         c"API: vim -> nvim_ui_try_resize_grid",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_ui_try_resize_grid, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_ui_try_resize_grid, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_ui_try_resize_grid, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_ui_try_resize_grid(channel_id, arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_ui_try_resize_grid(channel_id, arg_1, arg_2, arg_3)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_ui_pum_set_height(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_ui_pum_set_height(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_pum_set_height",
         c"API: vim -> nvim_ui_pum_set_height",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_ui_pum_set_height, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_ui_pum_set_height(channel_id, arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_ui_pum_set_height(channel_id, arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_ui_pum_set_bounds(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_ui_pum_set_bounds(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_pum_set_bounds",
         c"API: vim -> nvim_ui_pum_set_bounds",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Float = Default::default();
-    let mut arg_2: Float = Default::default();
-    let mut arg_3: Float = Default::default();
-    let mut arg_4: Float = Default::default();
     if args.size != 4 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 4 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_float(
+    let arg_1: Float = extract_float(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_ui_pum_set_bounds, expecting Float",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_float(
+    )?;
+    let arg_2: Float = extract_float(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_ui_pum_set_bounds, expecting Float",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_float(
+    )?;
+    let arg_3: Float = extract_float(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_ui_pum_set_bounds, expecting Float",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_float(
+    )?;
+    let arg_4: Float = extract_float(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_ui_pum_set_bounds, expecting Float",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_ui_pum_set_bounds(channel_id, arg_1, arg_2, arg_3, arg_4, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_ui_pum_set_bounds(channel_id, arg_1, arg_2, arg_3, arg_4)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_ui_send(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_ui_send(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_ui_send",
         c"API: vim -> nvim_ui_send",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_ui_send, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_ui_send(channel_id, arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_ui_send(channel_id, arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_get_hl_id_by_name(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_hl_id_by_name(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_hl_id_by_name",
         c"API: vim -> nvim_get_hl_id_by_name",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_hl_id_by_name, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_get_hl_id_by_name(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    )?;
+    let rv = nvim_get_hl_id_by_name(arg_1)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_get_hl(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_hl(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_hl",
         c"API: vim -> nvim_get_hl",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
     let mut arg_2: KeyDictGetHighlight = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_hl, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 2
-        && !extract_keydict(
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(
             args[1].clone(),
-            &mut arg_2,
             Some(key_dict_get_highlight_get_field),
             c"Wrong type for argument 2 when calling nvim_get_hl, expecting Dict(get_highlight) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    let rv = nvim_get_hl(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    let rv = nvim_get_hl(arg_1, &mut arg_2)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_set_hl(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_hl(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_hl",
         c"API: vim -> nvim_set_hl",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
-    let mut arg_2: NvimString = Default::default();
-    let mut arg_3: KeyDictHighlight = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_hl, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_set_hl, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_keydict(
+    )?;
+    let mut arg_3: KeyDictHighlight = extract_keydict(
         args[2].clone(),
-        &mut arg_3,
         Some(key_dict_highlight_get_field),
         c"Wrong type for argument 3 when calling nvim_set_hl, expecting Dict(highlight) *",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_set_hl(channel_id, arg_1, arg_2, &mut arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_set_hl(channel_id, arg_1, arg_2, &mut arg_3)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_get_hl_ns(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_hl_ns(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_hl_ns",
         c"API: vim -> nvim_get_hl_ns",
     );
-    let mut ret = OBJECT_NIL;
     let mut arg_1: KeyDictGetNs = Default::default();
     if args.size > 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting at most 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if args.size >= 1
-        && !extract_keydict(
+    if args.size >= 1 {
+        arg_1 = extract_keydict(
             args[0].clone(),
-            &mut arg_1,
             Some(key_dict_get_ns_get_field),
             c"Wrong type for argument 1 when calling nvim_get_hl_ns, expecting Dict(get_ns) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    let rv = nvim_get_hl_ns(&mut arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    let rv = nvim_get_hl_ns(&mut arg_1)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_set_hl_ns(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_hl_ns(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_hl_ns",
         c"API: vim -> nvim_set_hl_ns",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_hl_ns, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_set_hl_ns(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_set_hl_ns(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_set_hl_ns_fast(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_hl_ns_fast(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_hl_ns_fast",
         c"API: vim -> nvim_set_hl_ns_fast",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_hl_ns_fast, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_set_hl_ns_fast(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_set_hl_ns_fast(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_feedkeys(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_feedkeys(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_feedkeys",
         c"API: vim -> nvim_feedkeys",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: NvimString = Default::default();
-    let mut arg_3: Boolean = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_feedkeys, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_feedkeys, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_3: Boolean = extract_boolean(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_feedkeys, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     nvim_feedkeys(arg_1, arg_2, arg_3);
-    ret
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_input(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_input(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(channel_id, c"handle_nvim_input", c"API: vim -> nvim_input");
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_input, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let rv = nvim_input(channel_id, arg_1);
-    ret = integer_obj(rv);
-    ret
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_input_mouse(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_input_mouse(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_input_mouse",
         c"API: vim -> nvim_input_mouse",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: NvimString = Default::default();
-    let mut arg_3: NvimString = Default::default();
-    let mut arg_4: Integer = Default::default();
-    let mut arg_5: Integer = Default::default();
-    let mut arg_6: Integer = Default::default();
     if args.size != 6 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 6 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_input_mouse, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_input_mouse, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_3: NvimString = extract_string(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_input_mouse, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_4: Integer = extract_integer(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_input_mouse, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_5: Integer = extract_integer(
         args[4].clone(),
-        &mut arg_5,
         c"Wrong type for argument 5 when calling nvim_input_mouse, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_6: Integer = extract_integer(
         args[5].clone(),
-        &mut arg_6,
         c"Wrong type for argument 6 when calling nvim_input_mouse, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_input_mouse(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_input_mouse(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_replace_termcodes(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_replace_termcodes(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_replace_termcodes",
         c"API: vim -> nvim_replace_termcodes",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: Boolean = Default::default();
-    let mut arg_3: Boolean = Default::default();
-    let mut arg_4: Boolean = Default::default();
     if args.size != 4 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 4 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_replace_termcodes, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_replace_termcodes, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_3: Boolean = extract_boolean(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_replace_termcodes, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_4: Boolean = extract_boolean(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_replace_termcodes, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let rv = nvim_replace_termcodes(arg_1, arg_2, arg_3, arg_4);
-    ret = string_obj(rv);
-    ret
+    Ok(string_obj(rv))
 }
 
-pub fn handle_nvim_exec_lua(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_exec_lua(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_exec_lua",
         c"API: vim -> nvim_exec_lua",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: Array = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_exec_lua, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_array(
+    )?;
+    let arg_2: Array = extract_array(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_exec_lua, expecting Array",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_exec_lua(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_exec_lua(arg_1, arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_exec_lua_fast(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_exec_lua_fast(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__exec_lua_fast",
         c"API: vim -> nvim__exec_lua_fast",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: Array = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__exec_lua_fast, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_array(
+    )?;
+    let arg_2: Array = extract_array(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim__exec_lua_fast, expecting Array",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_exec_lua_fast(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_exec_lua_fast(arg_1, arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_strwidth(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_strwidth(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_strwidth",
         c"API: vim -> nvim_strwidth",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_strwidth, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_strwidth(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    )?;
+    let rv = nvim_strwidth(arg_1)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_list_runtime_paths(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_list_runtime_paths(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_list_runtime_paths",
         c"API: vim -> nvim_list_runtime_paths",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    let rv = nvim_list_runtime_paths(error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    let rv = nvim_list_runtime_paths()?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_runtime_inspect(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_runtime_inspect(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__runtime_inspect",
         c"API: vim -> nvim__runtime_inspect",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_runtime_inspect();
-    ret = array_obj(rv);
-    ret
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_get_runtime_file(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_runtime_file(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_runtime_file",
         c"API: vim -> nvim_get_runtime_file",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: Boolean = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_runtime_file, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_get_runtime_file, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_get_runtime_file(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    )?;
+    let rv = nvim_get_runtime_file(arg_1, arg_2)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_get_lib_dir(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_lib_dir(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__get_lib_dir",
         c"API: vim -> nvim__get_lib_dir",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_get_lib_dir();
-    ret = string_obj(rv);
-    ret
+    Ok(string_obj(rv))
 }
 
-pub fn handle_nvim_get_runtime(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_runtime(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__get_runtime",
         c"API: vim -> nvim__get_runtime",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Array = Default::default();
-    let mut arg_2: Boolean = Default::default();
     let mut arg_3: KeyDictRuntime = Default::default();
     if args.size < 2 || args.size > 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 to 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_array(
+    let arg_1: Array = extract_array(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__get_runtime, expecting ArrayOf(String)",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim__get_runtime, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 3
-        && !extract_keydict(
+    )?;
+    if args.size >= 3 {
+        arg_3 = extract_keydict(
             args[2].clone(),
-            &mut arg_3,
             Some(key_dict_runtime_get_field),
             c"Wrong type for argument 3 when calling nvim__get_runtime, expecting Dict(runtime) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    let rv = nvim_get_runtime(arg_1, arg_2, &mut arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    let rv = nvim_get_runtime(arg_1, arg_2, &mut arg_3)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_set_current_dir(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_current_dir(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_current_dir",
         c"API: vim -> nvim_set_current_dir",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_current_dir, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_set_current_dir(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_set_current_dir(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_get_current_line(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_current_line(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_current_line",
         c"API: vim -> nvim_get_current_line",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    let rv = nvim_get_current_line(error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = string_obj(rv);
-    ret
+    let rv = nvim_get_current_line()?;
+    Ok(string_obj(rv))
 }
 
-pub fn handle_nvim_set_current_line(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_current_line(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_current_line",
         c"API: vim -> nvim_set_current_line",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_current_line, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    nvim_set_current_line(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_set_current_line(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_del_current_line(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_del_current_line(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_current_line",
         c"API: vim -> nvim_del_current_line",
     );
-    let ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    nvim_del_current_line(error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_del_current_line()?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_get_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_var",
         c"API: vim -> nvim_get_var",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_get_var(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_get_var(arg_1)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_var",
         c"API: vim -> nvim_set_var",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_2: Object = args[1].clone();
-    nvim_set_var(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_set_var(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_del_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_var",
         c"API: vim -> nvim_del_var",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_del_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_del_var(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_del_var(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_get_vvar(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_vvar(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_vvar",
         c"API: vim -> nvim_get_vvar",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_vvar, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_get_vvar(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_get_vvar(arg_1)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_set_vvar(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_vvar(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_vvar",
         c"API: vim -> nvim_set_vvar",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_vvar, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_2: Object = args[1].clone();
-    nvim_set_vvar(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_set_vvar(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_echo(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_echo(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(channel_id, c"handle_nvim_echo", c"API: vim -> nvim_echo");
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Array = Default::default();
-    let mut arg_2: Boolean = Default::default();
     let mut arg_3: KeyDictEchoOpts = Default::default();
     if args.size < 2 || args.size > 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 to 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_array(args[0].clone(), &mut arg_1, c"Wrong type for argument 1 when calling nvim_echo, expecting ArrayOf(Tuple(String, *HLGroupID))", error) {
-            return ret;
-        }
-    if !extract_boolean(
+    let arg_1: Array = extract_array(args[0].clone(), c"Wrong type for argument 1 when calling nvim_echo, expecting ArrayOf(Tuple(String, *HLGroupID))")?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_echo, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 3
-        && !extract_keydict(
+    )?;
+    if args.size >= 3 {
+        arg_3 = extract_keydict(
             args[2].clone(),
-            &mut arg_3,
             Some(key_dict_echo_opts_get_field),
             c"Wrong type for argument 3 when calling nvim_echo, expecting Dict(echo_opts) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    let rv = nvim_echo(arg_1, arg_2, &mut arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    let rv = nvim_echo(arg_1, arg_2, &mut arg_3)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_list_bufs(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_list_bufs(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_list_bufs",
         c"API: vim -> nvim_list_bufs",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_list_bufs();
-    ret = array_obj(rv);
-    ret
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_get_current_buf(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_current_buf(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_current_buf",
         c"API: vim -> nvim_get_current_buf",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_get_current_buf();
-    ret = buffer_obj(rv);
-    ret
+    Ok(buffer_obj(rv))
 }
 
-pub fn handle_nvim_set_current_buf(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_current_buf(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_current_buf",
         c"API: vim -> nvim_set_current_buf",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_current_buf, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    nvim_set_current_buf(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_set_current_buf(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_list_wins(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_list_wins(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_list_wins",
         c"API: vim -> nvim_list_wins",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_list_wins();
-    ret = array_obj(rv);
-    ret
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_get_current_win(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_current_win(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_current_win",
         c"API: vim -> nvim_get_current_win",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_get_current_win();
-    ret = window_obj(rv);
-    ret
+    Ok(window_obj(rv))
 }
 
-pub fn handle_nvim_set_current_win(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_current_win(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_current_win",
         c"API: vim -> nvim_set_current_win",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_current_win, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    nvim_set_current_win(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_set_current_win(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_create_buf(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_create_buf(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_create_buf",
         c"API: vim -> nvim_create_buf",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Boolean = Default::default();
-    let mut arg_2: Boolean = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_boolean(
+    let arg_1: Boolean = extract_boolean(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_create_buf, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_create_buf, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_create_buf(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = buffer_obj(rv);
-    ret
+    )?;
+    let rv = nvim_create_buf(arg_1, arg_2)?;
+    Ok(buffer_obj(rv))
 }
 
-pub fn handle_nvim_open_term(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_open_term(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_open_term",
         c"API: vim -> nvim_open_term",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
     let mut arg_2: KeyDictOpenTerm = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_open_term, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 2
-        && !extract_keydict(
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(
             args[1].clone(),
-            &mut arg_2,
             Some(key_dict_open_term_get_field),
             c"Wrong type for argument 2 when calling nvim_open_term, expecting Dict(open_term) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    let rv = nvim_open_term(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    let rv = nvim_open_term(arg_1, &mut arg_2)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_chan_send(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_chan_send(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_chan_send",
         c"API: vim -> nvim_chan_send",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_chan_send, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_chan_send, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_chan_send(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_chan_send(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_list_tabpages(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_list_tabpages(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_list_tabpages",
         c"API: vim -> nvim_list_tabpages",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_list_tabpages();
-    ret = array_obj(rv);
-    ret
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_get_current_tabpage(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_current_tabpage(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_current_tabpage",
         c"API: vim -> nvim_get_current_tabpage",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_get_current_tabpage();
-    ret = tabpage_obj(rv);
-    ret
+    Ok(tabpage_obj(rv))
 }
 
-pub fn handle_nvim_set_current_tabpage(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_current_tabpage(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_current_tabpage",
         c"API: vim -> nvim_set_current_tabpage",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Tabpage = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Tabpage = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeTabpage,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_current_tabpage, expecting Tabpage",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    nvim_set_current_tabpage(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_set_current_tabpage(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_paste(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_paste(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(channel_id, c"handle_nvim_paste", c"API: vim -> nvim_paste");
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: Boolean = Default::default();
-    let mut arg_3: Integer = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_paste, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_paste, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_paste, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    let rv = nvim_paste(channel_id, arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = boolean_obj(rv);
-    ret
+    let rv = nvim_paste(channel_id, arg_1, arg_2, arg_3)?;
+    Ok(boolean_obj(rv))
 }
 
-pub fn handle_nvim_put(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_put(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(channel_id, c"handle_nvim_put", c"API: vim -> nvim_put");
-    let ret = OBJECT_NIL;
-    let mut arg_1: Array = Default::default();
-    let mut arg_2: NvimString = Default::default();
-    let mut arg_3: Boolean = Default::default();
-    let mut arg_4: Boolean = Default::default();
     if args.size != 4 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 4 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_array(
+    let arg_1: Array = extract_array(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_put, expecting ArrayOf(String)",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_put, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_3: Boolean = extract_boolean(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_put, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_4: Boolean = extract_boolean(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_put, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    nvim_put(arg_1, arg_2, arg_3, arg_4, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_put(arg_1, arg_2, arg_3, arg_4)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_get_color_by_name(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_color_by_name(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_color_by_name",
         c"API: vim -> nvim_get_color_by_name",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_color_by_name, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let rv = nvim_get_color_by_name(arg_1);
-    ret = integer_obj(rv);
-    ret
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_get_color_map(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_color_map(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_color_map",
         c"API: vim -> nvim_get_color_map",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_get_color_map();
-    ret = dict_obj(rv);
-    ret
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_get_context(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_context(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_context",
         c"API: vim -> nvim_get_context",
     );
-    let mut ret = OBJECT_NIL;
     let mut arg_1: KeyDictContext = Default::default();
     if args.size > 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting at most 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if args.size >= 1
-        && !extract_keydict(
+    if args.size >= 1 {
+        arg_1 = extract_keydict(
             args[0].clone(),
-            &mut arg_1,
             Some(key_dict_context_get_field),
             c"Wrong type for argument 1 when calling nvim_get_context, expecting Dict(context) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    let rv = nvim_get_context(&mut arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    let rv = nvim_get_context(&mut arg_1)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_load_context(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_load_context(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_load_context",
         c"API: vim -> nvim_load_context",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Dict = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_dict(
+    let arg_1: Dict = extract_dict(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_load_context, expecting Dict",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_load_context(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_load_context(arg_1)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_get_mode(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_mode(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_mode",
         c"API: vim -> nvim_get_mode",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_get_mode();
-    ret = dict_obj(rv);
-    ret
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_get_keymap(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_keymap(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_keymap",
         c"API: vim -> nvim_get_keymap",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_keymap, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let rv = nvim_get_keymap(arg_1);
-    ret = array_obj(rv);
-    ret
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_set_keymap(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_keymap(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_keymap",
         c"API: vim -> nvim_set_keymap",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: NvimString = Default::default();
-    let mut arg_3: NvimString = Default::default();
     let mut arg_4: KeyDictKeymap = Default::default();
     if args.size < 3 || args.size > 4 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 to 4 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_keymap, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_set_keymap, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_3: NvimString = extract_string(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_set_keymap, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 4
-        && !extract_keydict(
+    )?;
+    if args.size >= 4 {
+        arg_4 = extract_keydict(
             args[3].clone(),
-            &mut arg_4,
             Some(key_dict_keymap_get_field),
             c"Wrong type for argument 4 when calling nvim_set_keymap, expecting Dict(keymap) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    nvim_set_keymap(channel_id, arg_1, arg_2, arg_3, &mut arg_4, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_set_keymap(channel_id, arg_1, arg_2, arg_3, &mut arg_4)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_del_keymap(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_del_keymap(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_keymap",
         c"API: vim -> nvim_del_keymap",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: NvimString = Default::default();
     let mut arg_3: KeyDictKeymapDel = Default::default();
     if args.size < 2 || args.size > 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 to 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_del_keymap, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_del_keymap, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 3
-        && !extract_keydict(
+    )?;
+    if args.size >= 3 {
+        arg_3 = extract_keydict(
             args[2].clone(),
-            &mut arg_3,
             Some(key_dict_keymap_del_get_field),
             c"Wrong type for argument 3 when calling nvim_del_keymap, expecting Dict(keymap_del) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    nvim_del_keymap(channel_id, arg_1, arg_2, &mut arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_del_keymap(channel_id, arg_1, arg_2, &mut arg_3)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_get_api_info(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_api_info(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_api_info",
         c"API: vim -> nvim_get_api_info",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_get_api_info(channel_id);
-    ret = array_obj(rv);
-    ret
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_set_client_info(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_client_info(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_set_client_info",
         c"API: vim -> nvim_set_client_info",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: Dict = Default::default();
-    let mut arg_3: NvimString = Default::default();
-    let mut arg_4: Dict = Default::default();
-    let mut arg_5: Dict = Default::default();
     if args.size != 5 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 5 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_set_client_info, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_dict(
+    )?;
+    let arg_2: Dict = extract_dict(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_set_client_info, expecting Dict",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_3: NvimString = extract_string(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_set_client_info, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_dict(
+    )?;
+    let arg_4: Dict = extract_dict(
         args[3].clone(),
-        &mut arg_4,
         c"Wrong type for argument 4 when calling nvim_set_client_info, expecting Dict",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_dict(
+    )?;
+    let arg_5: Dict = extract_dict(
         args[4].clone(),
-        &mut arg_5,
         c"Wrong type for argument 5 when calling nvim_set_client_info, expecting Dict",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_set_client_info(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_set_client_info(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_chan_set(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_chan_set(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_chan_set",
         c"API: vim -> nvim_chan_set",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
-    let mut arg_2: KeyDictChanSet = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_chan_set, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_keydict(
+    )?;
+    let mut arg_2: KeyDictChanSet = extract_keydict(
         args[1].clone(),
-        &mut arg_2,
         Some(key_dict_chan_set_get_field),
         c"Wrong type for argument 2 when calling nvim_chan_set, expecting Dict(chan_set) *",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_chan_set(channel_id, arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_chan_set(channel_id, arg_1, &mut arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_cmdwin_set(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_cmdwin_set(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__cmdwin_set",
         c"API: vim -> nvim__cmdwin_set",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: Buffer = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__cmdwin_set, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_handle(
+    )?;
+    let arg_2: Buffer = extract_handle(
         args[1].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim__cmdwin_set, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_cmdwin_set(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_cmdwin_set(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_get_chan_info(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_chan_info(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_chan_info",
         c"API: vim -> nvim_get_chan_info",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_chan_info, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_get_chan_info(channel_id, arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    )?;
+    let rv = nvim_get_chan_info(channel_id, arg_1)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_list_chans(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_list_chans(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_list_chans",
         c"API: vim -> nvim_list_chans",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_list_chans();
-    ret = array_obj(rv);
-    ret
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_id(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_id(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(channel_id, c"handle_nvim__id", c"API: vim -> nvim__id");
-    let mut ret = OBJECT_NIL;
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let arg_1: Object = args[0].clone();
     let rv = nvim_id(arg_1);
-    ret = rv;
-    ret
+    Ok(rv)
 }
 
-pub fn handle_nvim_id_array(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_id_array(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__id_array",
         c"API: vim -> nvim__id_array",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Array = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_array(
+    let arg_1: Array = extract_array(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__id_array, expecting Array",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let rv = nvim_id_array(arg_1);
-    ret = array_obj(rv);
-    ret
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_id_dict(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_id_dict(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__id_dict",
         c"API: vim -> nvim__id_dict",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Dict = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_dict(
+    let arg_1: Dict = extract_dict(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__id_dict, expecting Dict",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let rv = nvim_id_dict(arg_1);
-    ret = dict_obj(rv);
-    ret
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_id_float(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_id_float(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__id_float",
         c"API: vim -> nvim__id_float",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Float = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_float(
+    let arg_1: Float = extract_float(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__id_float, expecting Float",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let rv = nvim__id_float(arg_1);
-    ret = float_obj(rv);
-    ret
+    Ok(float_obj(rv))
 }
 
-pub fn handle_nvim_stats(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_stats(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__stats",
         c"API: vim -> nvim__stats",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_stats();
-    ret = dict_obj(rv);
-    ret
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_list_uis(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_list_uis(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_list_uis",
         c"API: vim -> nvim_list_uis",
     );
-    let mut ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let rv = nvim_list_uis();
-    ret = array_obj(rv);
-    ret
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_get_proc_children(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_proc_children(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_proc_children",
         c"API: vim -> nvim_get_proc_children",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_proc_children, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_get_proc_children(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    )?;
+    let rv = nvim_get_proc_children(arg_1)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_get_proc(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_proc(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_proc",
         c"API: vim -> nvim_get_proc",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_proc, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_get_proc(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_get_proc(arg_1)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_select_popupmenu_item(
-    channel_id: u64,
-    args: Array,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_select_popupmenu_item(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_select_popupmenu_item",
         c"API: vim -> nvim_select_popupmenu_item",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
-    let mut arg_2: Boolean = Default::default();
-    let mut arg_3: Boolean = Default::default();
     let mut arg_4: KeyDictEmpty = Default::default();
     if args.size < 3 || args.size > 4 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 to 4 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_select_popupmenu_item, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_select_popupmenu_item, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_3: Boolean = extract_boolean(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_select_popupmenu_item, expecting Boolean",
-        error,
-    ) {
-        return ret;
+    )?;
+    if args.size >= 4 {
+        arg_4 = extract_keydict(args[3].clone(), Some(key_dict_empty_get_field), c"Wrong type for argument 4 when calling nvim_select_popupmenu_item, expecting Dict(empty) *")?;
     }
-    if args.size >= 4
-            && !extract_keydict(args[3].clone(), &mut arg_4, Some(key_dict_empty_get_field), c"Wrong type for argument 4 when calling nvim_select_popupmenu_item, expecting Dict(empty) *", error) {
-                return ret;
-            }
-    nvim_select_popupmenu_item(arg_1, arg_2, arg_3, &mut arg_4, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_select_popupmenu_item(arg_1, arg_2, arg_3, &mut arg_4)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_inspect_cell(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_inspect_cell(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__inspect_cell",
         c"API: vim -> nvim__inspect_cell",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__inspect_cell, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim__inspect_cell, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim__inspect_cell, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_inspect_cell(arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    )?;
+    let rv = nvim_inspect_cell(arg_1, arg_2, arg_3)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_screenshot(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_screenshot(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__screenshot",
         c"API: vim -> nvim__screenshot",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__screenshot, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     nvim_screenshot(arg_1);
-    ret
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_invalidate_glyph_cache(
-    channel_id: u64,
-    args: Array,
-    error: &mut Error,
-) -> Object {
+pub fn handle_nvim_invalidate_glyph_cache(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__invalidate_glyph_cache",
         c"API: vim -> nvim__invalidate_glyph_cache",
     );
-    let ret = OBJECT_NIL;
     if args.size != 0 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 0 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     nvim_invalidate_glyph_cache();
-    ret
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_unpack(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_unpack(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__unpack",
         c"API: vim -> nvim__unpack",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__unpack, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_unpack(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_unpack(arg_1)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_del_mark(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_del_mark(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_del_mark",
         c"API: vim -> nvim_del_mark",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_del_mark, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_del_mark(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = boolean_obj(rv);
-    ret
+    )?;
+    let rv = nvim_del_mark(arg_1)?;
+    Ok(boolean_obj(rv))
 }
 
-pub fn handle_nvim_get_mark(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_get_mark(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_get_mark",
         c"API: vim -> nvim_get_mark",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     let mut arg_2: KeyDictEmpty = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_get_mark, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 2
-        && !extract_keydict(
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(
             args[1].clone(),
-            &mut arg_2,
             Some(key_dict_empty_get_field),
             c"Wrong type for argument 2 when calling nvim_get_mark, expecting Dict(empty) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    let rv = nvim_get_mark(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    let rv = nvim_get_mark(arg_1, &mut arg_2)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_eval_statusline(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_eval_statusline(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_eval_statusline",
         c"API: vim -> nvim_eval_statusline",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     let mut arg_2: KeyDictEvalStatusline = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_eval_statusline, expecting String",
-        error,
-    ) {
-        return ret;
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(args[1].clone(), Some(key_dict_eval_statusline_get_field), c"Wrong type for argument 2 when calling nvim_eval_statusline, expecting Dict(eval_statusline) *")?;
     }
-    if args.size >= 2
-            && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_eval_statusline_get_field), c"Wrong type for argument 2 when calling nvim_eval_statusline, expecting Dict(eval_statusline) *", error) {
-                return ret;
-            }
-    let rv = nvim_eval_statusline(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    let rv = nvim_eval_statusline(arg_1, &mut arg_2)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_complete_set(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_complete_set(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__complete_set",
         c"API: vim -> nvim__complete_set",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Integer = Default::default();
     let mut arg_2: KeyDictCompleteSet = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_integer(
+    let arg_1: Integer = extract_integer(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__complete_set, expecting Integer",
-        error,
-    ) {
-        return ret;
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(args[1].clone(), Some(key_dict_complete_set_get_field), c"Wrong type for argument 2 when calling nvim__complete_set, expecting Dict(complete_set) *")?;
     }
-    if args.size >= 2
-            && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_complete_set_get_field), c"Wrong type for argument 2 when calling nvim__complete_set, expecting Dict(complete_set) *", error) {
-                return ret;
-            }
-    let rv = nvim_complete_set(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    let rv = nvim_complete_set(arg_1, &mut arg_2)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_redraw(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_redraw(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__redraw",
         c"API: vim -> nvim__redraw",
     );
-    let ret = OBJECT_NIL;
     let mut arg_1: KeyDictRedraw = Default::default();
     if args.size > 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting at most 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if args.size >= 1
-        && !extract_keydict(
+    if args.size >= 1 {
+        arg_1 = extract_keydict(
             args[0].clone(),
-            &mut arg_1,
             Some(key_dict_redraw_get_field),
             c"Wrong type for argument 1 when calling nvim__redraw, expecting Dict(redraw) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    nvim_redraw(&mut arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_redraw(&mut arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_set_restart_on_crash(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_set_restart_on_crash(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim__set_restart_on_crash",
         c"API: vim -> nvim__set_restart_on_crash",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: Array = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim__set_restart_on_crash, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_array(
+    )?;
+    let arg_2: Array = extract_array(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim__set_restart_on_crash, expecting Array",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     nvim_set_restart_on_crash(arg_1, arg_2);
-    ret
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_exec2(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_exec2(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(channel_id, c"handle_nvim_exec2", c"API: vim -> nvim_exec2");
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     let mut arg_2: KeyDictExecOpts = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_exec2, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 2
-        && !extract_keydict(
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(
             args[1].clone(),
-            &mut arg_2,
             Some(key_dict_exec_opts_get_field),
             c"Wrong type for argument 2 when calling nvim_exec2, expecting Dict(exec_opts) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    let rv = nvim_exec2(channel_id, arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    let rv = nvim_exec2(channel_id, arg_1, &mut arg_2)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_command(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_command(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_command",
         c"API: vim -> nvim_command",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_command, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_command(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_command(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_eval(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_eval(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(channel_id, c"handle_nvim_eval", c"API: vim -> nvim_eval");
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_eval, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_eval(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_eval(arg_1)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_call_function(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_call_function(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_call_function",
         c"API: vim -> nvim_call_function",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: Array = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_call_function, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_array(
+    )?;
+    let arg_2: Array = extract_array(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_call_function, expecting Array",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_call_function(channel_id, arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_call_function(channel_id, arg_1, arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_call_dict_function(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_call_dict_function(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_call_dict_function",
         c"API: vim -> nvim_call_dict_function",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_2: NvimString = Default::default();
-    let mut arg_3: Array = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
     let arg_1: Object = args[0].clone();
-    if !extract_string(
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_call_dict_function, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_array(
+    )?;
+    let arg_3: Array = extract_array(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_call_dict_function, expecting Array",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_call_dict_function(channel_id, arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_call_dict_function(channel_id, arg_1, arg_2, arg_3)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_parse_expression(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_parse_expression(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_parse_expression",
         c"API: vim -> nvim_parse_expression",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: NvimString = Default::default();
-    let mut arg_2: NvimString = Default::default();
-    let mut arg_3: Boolean = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_string(
+    let arg_1: NvimString = extract_string(
         args[0].clone(),
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_parse_expression, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_parse_expression, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_3: Boolean = extract_boolean(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_parse_expression, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_parse_expression(arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    )?;
+    let rv = nvim_parse_expression(arg_1, arg_2, arg_3)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_open_win(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_open_win(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_open_win",
         c"API: vim -> nvim_open_win",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Buffer = Default::default();
-    let mut arg_2: Boolean = Default::default();
-    let mut arg_3: KeyDictWinConfig = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Buffer = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_open_win, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_open_win, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_keydict(
+    )?;
+    let mut arg_3: KeyDictWinConfig = extract_keydict(
         args[2].clone(),
-        &mut arg_3,
         Some(key_dict_win_config_get_field),
         c"Wrong type for argument 3 when calling nvim_open_win, expecting Dict(win_config) *",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    let rv = nvim_open_win(arg_1, arg_2, &mut arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = window_obj(rv);
-    ret
+    let rv = nvim_open_win(arg_1, arg_2, &mut arg_3)?;
+    Ok(window_obj(rv))
 }
 
-pub fn handle_nvim_win_set_config(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_set_config(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_config",
         c"API: vim -> nvim_win_set_config",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: KeyDictWinConfig = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_set_config, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_keydict(
+    )?;
+    let mut arg_2: KeyDictWinConfig = extract_keydict(
         args[1].clone(),
-        &mut arg_2,
         Some(key_dict_win_config_get_field),
         c"Wrong type for argument 2 when calling nvim_win_set_config, expecting Dict(win_config) *",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_win_set_config(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_win_set_config(arg_1, &mut arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_win_get_config(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_get_config(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_config",
         c"API: vim -> nvim_win_get_config",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_get_config, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_win_get_config(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(api_keydict_to_dict(
+    )?;
+    let rv = nvim_win_get_config(arg_1)?;
+    Ok(dict_obj(api_keydict_to_dict(
         &rv,
         &WIN_CONFIG_TABLE,
         WIN_CONFIG_TABLE.len(),
-    ));
-    ret
+    )))
 }
 
-pub fn handle_nvim_win_get_buf(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_get_buf(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_buf",
         c"API: vim -> nvim_win_get_buf",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_get_buf, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_win_get_buf(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = buffer_obj(rv);
-    ret
+    )?;
+    let rv = nvim_win_get_buf(arg_1)?;
+    Ok(buffer_obj(rv))
 }
 
-pub fn handle_nvim_win_set_buf(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_set_buf(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_buf",
         c"API: vim -> nvim_win_set_buf",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: Buffer = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_set_buf, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_handle(
+    )?;
+    let arg_2: Buffer = extract_handle(
         args[1].clone(),
         ObjectType::ObjectTypeBuffer,
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_win_set_buf, expecting Buffer",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    nvim_win_set_buf(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_win_set_buf(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_win_get_cursor(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_get_cursor(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_cursor",
         c"API: vim -> nvim_win_get_cursor",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_get_cursor, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_win_get_cursor(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    )?;
+    let rv = nvim_win_get_cursor(arg_1)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_win_set_cursor(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_set_cursor(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_cursor",
         c"API: vim -> nvim_win_set_cursor",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: Array = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_set_cursor, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_array(args[1].clone(), &mut arg_2, c"Wrong type for argument 2 when calling nvim_win_set_cursor, expecting ArrayOf(Integer, 2)", error) {
-            return ret;
-        }
-    nvim_win_set_cursor(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    let arg_2: Array = extract_array(args[1].clone(), c"Wrong type for argument 2 when calling nvim_win_set_cursor, expecting ArrayOf(Integer, 2)")?;
+    nvim_win_set_cursor(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_win_get_height(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_get_height(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_height",
         c"API: vim -> nvim_win_get_height",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_get_height, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_win_get_height(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    )?;
+    let rv = nvim_win_get_height(arg_1)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_win_get_width(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_get_width(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_width",
         c"API: vim -> nvim_win_get_width",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_get_width, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_win_get_width(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    )?;
+    let rv = nvim_win_get_width(arg_1)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_win_get_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_get_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_var",
         c"API: vim -> nvim_win_get_var",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_get_var, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_win_get_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_win_get_var(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = rv;
-    ret
+    )?;
+    let rv = nvim_win_get_var(arg_1, arg_2)?;
+    Ok(rv)
 }
 
-pub fn handle_nvim_win_set_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_set_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_var",
         c"API: vim -> nvim_win_set_var",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 3 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_set_var, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_win_set_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let arg_3: Object = args[2].clone();
-    nvim_win_set_var(arg_1, arg_2, arg_3, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_win_set_var(arg_1, arg_2, arg_3)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_win_del_var(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_del_var(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_del_var",
         c"API: vim -> nvim_win_del_var",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: NvimString = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_del_var, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_string(
+    )?;
+    let arg_2: NvimString = extract_string(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_win_del_var, expecting String",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_win_del_var(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_win_del_var(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_win_get_position(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_get_position(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_position",
         c"API: vim -> nvim_win_get_position",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_get_position, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_win_get_position(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = array_obj(rv);
-    ret
+    )?;
+    let rv = nvim_win_get_position(arg_1)?;
+    Ok(array_obj(rv))
 }
 
-pub fn handle_nvim_win_get_tabpage(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_get_tabpage(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_tabpage",
         c"API: vim -> nvim_win_get_tabpage",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_get_tabpage, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_win_get_tabpage(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = tabpage_obj(rv);
-    ret
+    )?;
+    let rv = nvim_win_get_tabpage(arg_1)?;
+    Ok(tabpage_obj(rv))
 }
 
-pub fn handle_nvim_win_get_number(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_get_number(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_get_number",
         c"API: vim -> nvim_win_get_number",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_get_number, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    let rv = nvim_win_get_number(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = integer_obj(rv);
-    ret
+    )?;
+    let rv = nvim_win_get_number(arg_1)?;
+    Ok(integer_obj(rv))
 }
 
-pub fn handle_nvim_win_is_valid(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_is_valid(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_is_valid",
         c"API: vim -> nvim_win_is_valid",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_is_valid, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     let rv = nvim_win_is_valid(arg_1);
-    ret = boolean_obj(rv);
-    ret
+    Ok(boolean_obj(rv))
 }
 
-pub fn handle_nvim_win_hide(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_hide(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_hide",
         c"API: vim -> nvim_win_hide",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
     if args.size != 1 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_hide, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    nvim_win_hide(arg_1, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_win_hide(arg_1)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_win_close(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_close(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_close",
         c"API: vim -> nvim_win_close",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: Boolean = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_close, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_boolean(
+    )?;
+    let arg_2: Boolean = extract_boolean(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_win_close, expecting Boolean",
-        error,
-    ) {
-        return ret;
-    }
+    )?;
     if text_locked() {
-        api_set_error_str(error, ErrorType::ErrorTypeException, get_text_locked_msg());
-        return ret;
+        return Err(api_error_str(
+            ErrorType::ErrorTypeException,
+            get_text_locked_msg(),
+        ));
     }
-    nvim_win_close(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_win_close(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_win_set_hl_ns(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_set_hl_ns(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_set_hl_ns",
         c"API: vim -> nvim_win_set_hl_ns",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: Integer = Default::default();
     if args.size != 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_set_hl_ns, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_win_set_hl_ns, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    nvim_win_set_hl_ns(arg_1, arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    )?;
+    nvim_win_set_hl_ns(arg_1, arg_2)?;
+    Ok(OBJECT_NIL)
 }
 
-pub fn handle_nvim_win_text_height(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_text_height(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_text_height",
         c"API: vim -> nvim_win_text_height",
     );
-    let mut ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
     let mut arg_2: KeyDictWinTextHeight = Default::default();
     if args.size < 1 || args.size > 2 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 1 to 2 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_text_height, expecting Window",
-        error,
-    ) {
-        return ret;
+    )?;
+    if args.size >= 2 {
+        arg_2 = extract_keydict(args[1].clone(), Some(key_dict_win_text_height_get_field), c"Wrong type for argument 2 when calling nvim_win_text_height, expecting Dict(win_text_height) *")?;
     }
-    if args.size >= 2
-            && !extract_keydict(args[1].clone(), &mut arg_2, Some(key_dict_win_text_height_get_field), c"Wrong type for argument 2 when calling nvim_win_text_height, expecting Dict(win_text_height) *", error) {
-                return ret;
-            }
-    let rv = nvim_win_text_height(arg_1, &mut arg_2, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret = dict_obj(rv);
-    ret
+    let rv = nvim_win_text_height(arg_1, &mut arg_2)?;
+    Ok(dict_obj(rv))
 }
 
-pub fn handle_nvim_win_resize(channel_id: u64, args: Array, error: &mut Error) -> Object {
+pub fn handle_nvim_win_resize(channel_id: u64, args: Array) -> Result<Object, Error> {
     dlog_internal_call(
         channel_id,
         c"handle_nvim_win_resize",
         c"API: vim -> nvim_win_resize",
     );
-    let ret = OBJECT_NIL;
-    let mut arg_1: Window = Default::default();
-    let mut arg_2: Integer = Default::default();
-    let mut arg_3: Integer = Default::default();
     let mut arg_4: KeyDictWinResize = Default::default();
     if args.size < 3 || args.size > 4 {
-        api_set_error!(
-            error,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Wrong number of arguments: expecting 3 to 4 but got %zu",
             args.size
-        );
-        return ret;
+        ));
     }
-    if !extract_handle(
+    let arg_1: Window = extract_handle(
         args[0].clone(),
         ObjectType::ObjectTypeWindow,
-        &mut arg_1,
         c"Wrong type for argument 1 when calling nvim_win_resize, expecting Window",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_2: Integer = extract_integer(
         args[1].clone(),
-        &mut arg_2,
         c"Wrong type for argument 2 when calling nvim_win_resize, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if !extract_integer(
+    )?;
+    let arg_3: Integer = extract_integer(
         args[2].clone(),
-        &mut arg_3,
         c"Wrong type for argument 3 when calling nvim_win_resize, expecting Integer",
-        error,
-    ) {
-        return ret;
-    }
-    if args.size >= 4
-        && !extract_keydict(
+    )?;
+    if args.size >= 4 {
+        arg_4 = extract_keydict(
             args[3].clone(),
-            &mut arg_4,
             Some(key_dict_win_resize_get_field),
             c"Wrong type for argument 4 when calling nvim_win_resize, expecting Dict(win_resize) *",
-            error,
-        )
-    {
-        return ret;
+        )?;
     }
-    nvim_win_resize(arg_1, arg_2, arg_3, &mut arg_4, error);
-    if error.err_type != ErrorType::ErrorTypeNone {
-        return ret;
-    }
-    ret
+    nvim_win_resize(arg_1, arg_2, arg_3, &mut arg_4)?;
+    Ok(OBJECT_NIL)
 }
 
 macro_rules! rpc_fn {
@@ -15369,10 +12175,7 @@ pub fn msgpack_rpc_get_handler_at(hash: usize) -> MsgpackRpcRequestHandler {
     METHOD_HANDLERS[hash]
 }
 
-pub fn msgpack_rpc_get_handler_for(
-    key_bytes: &[u8],
-    error: &mut Error,
-) -> MsgpackRpcRequestHandler {
+pub fn msgpack_rpc_get_handler_for(key_bytes: &[u8]) -> Result<MsgpackRpcRequestHandler, Error> {
     let Some(hash) = msgpack_rpc_get_handler_for_hash(key_bytes) else {
         let mut msg = b"Invalid method: ".to_vec();
         if key_bytes.is_empty() {
@@ -15380,16 +12183,12 @@ pub fn msgpack_rpc_get_handler_for(
         } else {
             msg.extend_from_slice(key_bytes);
         }
-        error.msg = Some(crate::memory::bytes_to_cstring(&msg));
-        error.err_type = ErrorType::ErrorTypeException;
-        return MsgpackRpcRequestHandler {
-            name: c"",
-            r#fn: None,
-            fast: false,
-            ret_alloc: false,
-        };
+        return Err(Error {
+            err_type: ErrorType::ErrorTypeException,
+            msg: Some(crate::memory::bytes_to_cstring(&msg)),
+        });
     };
-    msgpack_rpc_get_handler_at(hash)
+    Ok(msgpack_rpc_get_handler_at(hash))
 }
 
 use crate::lua::converter::{
@@ -15410,8 +12209,7 @@ extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) > 1 {
-                api_set_error_str(
-                    &mut err,
+                err = api_error_str(
                     ErrorType::ErrorTypeValidation,
                     c"Expected at most 1 argument",
                 );
@@ -15420,31 +12218,32 @@ extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_autocmds");
             }
-            if nlua_gettop(lstate) == 1 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 1
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg1,
                     Some(key_dict_get_autocmds_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
+                )
+            {
+                err = e;
+                break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_autocmds(&mut arg1, &mut err);
-            nlua_push_array(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_get_autocmds(&mut arg1) {
+                Ok(ret) => nlua_push_array(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg1, &GET_AUTOCMDS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State) -> i32 {
@@ -15455,44 +12254,44 @@ extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State) -> i32
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_create_autocmd_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_object(lstate, true, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"event");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_object(lstate, true) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"event");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_create_autocmd(LUA_INTERNAL_CALL, arg1.clone(), &mut arg2, &mut err);
-            nlua_push_integer(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_create_autocmd(LUA_INTERNAL_CALL, arg1.clone(), &mut arg2) {
+                Ok(ret) => nlua_push_integer(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
             api_luarefs_free_object(arg1);
         }
         api_luarefs_free_keydict(&arg2, &CREATE_AUTOCMD_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) -> i32 {
@@ -15501,27 +12300,28 @@ extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) -> i32 {
     let arg1: Integer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_del_autocmd");
         }
-        arg1 = nlua_pop_integer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"id");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_integer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"id");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_del_autocmd(arg1, &mut err);
+        if let Err(e) = nvim_del_autocmd(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State) -> i32 {
@@ -15531,8 +12331,7 @@ extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State) -> i32
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) > 1 {
-                api_set_error_str(
-                    &mut err,
+                err = api_error_str(
                     ErrorType::ErrorTypeValidation,
                     c"Expected at most 1 argument",
                 );
@@ -15541,26 +12340,27 @@ extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State) -> i32
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_clear_autocmds");
             }
-            if nlua_gettop(lstate) == 1 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 1
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg1,
                     Some(key_dict_clear_autocmds_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
+                )
+            {
+                err = e;
+                break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_clear_autocmds(&mut arg1, &mut err);
+            if let Err(e) = nvim_clear_autocmds(&mut arg1) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg1, &CLEAR_AUTOCMDS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State) -> i32 {
@@ -15571,46 +12371,46 @@ extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State) -> i32
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_create_augroup");
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_create_augroup_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_create_augroup(LUA_INTERNAL_CALL, arg1, &mut arg2, &mut err);
-            nlua_push_integer(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_create_augroup(LUA_INTERNAL_CALL, arg1, &mut arg2) {
+                Ok(ret) => nlua_push_integer(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &CREATE_AUGROUP_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_augroup_by_id(lstate: *mut lua_State) -> i32 {
@@ -15619,27 +12419,28 @@ extern "C-unwind" fn nlua_api_nvim_del_augroup_by_id(lstate: *mut lua_State) -> 
     let arg1: Integer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_del_augroup_by_id");
         }
-        arg1 = nlua_pop_integer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"id");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_integer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"id");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_del_augroup_by_id(arg1, &mut err);
+        if let Err(e) = nvim_del_augroup_by_id(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_State) -> i32 {
@@ -15648,27 +12449,28 @@ extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_State) -
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_del_augroup_by_name");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"name");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"name");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_del_augroup_by_name(arg1, &mut err);
+        if let Err(e) = nvim_del_augroup_by_name(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) -> i32 {
@@ -15679,42 +12481,42 @@ extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) -> i32 
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_exec_autocmds");
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_exec_autocmds_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_object(lstate, true, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"event");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_object(lstate, true) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"event");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_exec_autocmds(arg1.clone(), &mut arg2, &mut err);
+            if let Err(e) = nvim_exec_autocmds(arg1.clone(), &mut arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
             api_luarefs_free_object(arg1);
         }
         api_luarefs_free_keydict(&arg2, &EXEC_AUTOCMDS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State) -> i32 {
@@ -15723,32 +12525,33 @@ extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State) -> i32
     let arg1: Buffer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_line_count");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"buf");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Buffer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"buf");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_buf_line_count(arg1, &mut err);
-        nlua_push_integer(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_buf_line_count(arg1) {
+            Ok(ret) => nlua_push_integer(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> i32 {
@@ -15761,52 +12564,49 @@ extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> i32 {
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) < 2 || nlua_gettop(lstate) > 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 2 to 3 arguments",
-                    );
+                    err =
+                        api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 to 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_attach");
                 }
-                if nlua_gettop(lstate) == 3 {
-                    nlua_pop_keydict(
+                if nlua_gettop(lstate) == 3
+                    && let Err(e) = nlua_pop_keydict(
                         lstate,
                         &mut arg3,
                         Some(key_dict_buf_attach_get_field),
                         &mut err_param,
-                        &mut err,
-                    );
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        break 'exit_1;
-                    }
-                }
-                arg2 = nlua_pop_boolean(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"send_buffer");
+                    )
+                {
+                    err = e;
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_Buffer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"buf");
-                    break 'exit_2;
-                }
+                arg2 = nlua_pop_boolean(lstate);
+                arg1 = match nlua_pop_Buffer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"buf");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_buf_attach(LUA_INTERNAL_CALL, arg1, arg2, &mut arg3, &mut err);
-                nlua_push_boolean(
-                    lstate,
-                    ret,
-                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                );
+                match nvim_buf_attach(LUA_INTERNAL_CALL, arg1, arg2, &mut arg3) {
+                    Ok(ret) => nlua_push_boolean(
+                        lstate,
+                        ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    ),
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
         api_luarefs_free_keydict(&arg3, &BUF_ATTACH_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) -> i32 {
@@ -15821,59 +12621,56 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) -> i32 
             'exit_2: {
                 'exit_3: {
                     if nlua_gettop(lstate) != 4 {
-                        api_set_error_str(
-                            &mut err,
-                            ErrorType::ErrorTypeValidation,
-                            c"Expected 4 arguments",
-                        );
+                        err =
+                            api_error_str(ErrorType::ErrorTypeValidation, c"Expected 4 arguments");
                         break 'exit_0;
                     }
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_lines");
                     }
-                    arg4 = nlua_pop_boolean(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"strict_indexing");
-                        break 'exit_0;
-                    }
-                    arg3 = nlua_pop_integer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"end");
-                        break 'exit_1;
-                    }
-                    arg2 = nlua_pop_integer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"start");
-                        break 'exit_2;
-                    }
-                    arg1 = nlua_pop_Buffer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"buf");
-                        break 'exit_3;
-                    }
+                    arg4 = nlua_pop_boolean(lstate);
+                    arg3 = match nlua_pop_integer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"end");
+                            break 'exit_1;
+                        }
+                    };
+                    arg2 = match nlua_pop_integer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"start");
+                            break 'exit_2;
+                        }
+                    };
+                    arg1 = match nlua_pop_Buffer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"buf");
+                            break 'exit_3;
+                        }
+                    };
                     let save_active_lstate = active_lstate();
                     set_active_lstate(lstate);
                     let pretop = nlua_gettop(lstate);
-                    let ret = nvim_buf_get_lines(
-                        LUA_INTERNAL_CALL,
-                        arg1,
-                        arg2,
-                        arg3,
-                        arg4,
-                        lstate,
-                        &mut err,
-                    );
+                    if let Err(e) =
+                        nvim_buf_get_lines(LUA_INTERNAL_CALL, arg1, arg2, arg3, arg4, lstate)
+                    {
+                        err = e;
+                    }
                     debug_assert!(
                         err.err_type != ErrorType::ErrorTypeNone
                             || nlua_gettop(lstate) == pretop + 1
                     );
-                    let _ = ret;
                     set_active_lstate(save_active_lstate);
                 }
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, -1)
+    nlua_finish_api_call(lstate, err, err_param, -1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) -> i32 {
@@ -15885,13 +12682,12 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) -> i32 
     let arg2: Integer;
     let arg1: Buffer;
     'exit_0: {
-        'exit_1: {
+        {
             'exit_2: {
                 'exit_3: {
                     'exit_4: {
                         if nlua_gettop(lstate) != 5 {
-                            api_set_error_str(
-                                &mut err,
+                            err = api_error_str(
                                 ErrorType::ErrorTypeValidation,
                                 c"Expected 5 arguments",
                             );
@@ -15901,56 +12697,57 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) -> i32 
                             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_lines");
                         }
                         if text_locked() {
-                            api_set_error_str(
-                                &mut err,
-                                ErrorType::ErrorTypeException,
-                                get_text_locked_msg(),
-                            );
+                            err =
+                                api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
                             break 'exit_0;
                         }
-                        arg5 = nlua_pop_array(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"replacement");
-                            break 'exit_0;
-                        }
-                        arg4 = nlua_pop_boolean(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"strict_indexing");
-                            break 'exit_1;
-                        }
-                        arg3 = nlua_pop_integer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"end");
-                            break 'exit_2;
-                        }
-                        arg2 = nlua_pop_integer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"start");
-                            break 'exit_3;
-                        }
-                        arg1 = nlua_pop_Buffer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"buf");
-                            break 'exit_4;
-                        }
+                        arg5 = match nlua_pop_array(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"replacement");
+                                break 'exit_0;
+                            }
+                        };
+                        arg4 = nlua_pop_boolean(lstate);
+                        arg3 = match nlua_pop_integer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"end");
+                                break 'exit_2;
+                            }
+                        };
+                        arg2 = match nlua_pop_integer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"start");
+                                break 'exit_3;
+                            }
+                        };
+                        arg1 = match nlua_pop_Buffer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"buf");
+                                break 'exit_4;
+                            }
+                        };
                         let save_active_lstate = active_lstate();
                         set_active_lstate(lstate);
-                        nvim_buf_set_lines(
-                            LUA_INTERNAL_CALL,
-                            arg1,
-                            arg2,
-                            arg3,
-                            arg4,
-                            arg5,
-                            &mut err,
-                        );
+                        if let Err(e) =
+                            nvim_buf_set_lines(LUA_INTERNAL_CALL, arg1, arg2, arg3, arg4, arg5)
+                        {
+                            err = e;
+                        }
                         set_active_lstate(save_active_lstate);
                     }
                 }
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -> i32 {
@@ -15969,8 +12766,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -> i32 {
                     'exit_4: {
                         'exit_5: {
                             if nlua_gettop(lstate) != 6 {
-                                api_set_error_str(
-                                    &mut err,
+                                err = api_error_str(
                                     ErrorType::ErrorTypeValidation,
                                     c"Expected 6 arguments",
                                 );
@@ -15980,46 +12776,63 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -> i32 {
                                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_text");
                             }
                             if text_locked() {
-                                api_set_error_str(
-                                    &mut err,
+                                err = api_error_str(
                                     ErrorType::ErrorTypeException,
                                     get_text_locked_msg(),
                                 );
                                 break 'exit_0;
                             }
-                            arg6 = nlua_pop_array(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"replacement");
-                                break 'exit_0;
-                            }
-                            arg5 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"end_col");
-                                break 'exit_1;
-                            }
-                            arg4 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"end_row");
-                                break 'exit_2;
-                            }
-                            arg3 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"start_col");
-                                break 'exit_3;
-                            }
-                            arg2 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"start_row");
-                                break 'exit_4;
-                            }
-                            arg1 = nlua_pop_Buffer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"buf");
-                                break 'exit_5;
-                            }
+                            arg6 = match nlua_pop_array(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"replacement");
+                                    break 'exit_0;
+                                }
+                            };
+                            arg5 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"end_col");
+                                    break 'exit_1;
+                                }
+                            };
+                            arg4 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"end_row");
+                                    break 'exit_2;
+                                }
+                            };
+                            arg3 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"start_col");
+                                    break 'exit_3;
+                                }
+                            };
+                            arg2 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"start_row");
+                                    break 'exit_4;
+                                }
+                            };
+                            arg1 = match nlua_pop_Buffer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"buf");
+                                    break 'exit_5;
+                                }
+                            };
                             let save_active_lstate = active_lstate();
                             set_active_lstate(lstate);
-                            nvim_buf_set_text(
+                            if let Err(e) = nvim_buf_set_text(
                                 LUA_INTERNAL_CALL,
                                 arg1,
                                 arg2,
@@ -16027,8 +12840,9 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -> i32 {
                                 arg4,
                                 arg5,
                                 arg6,
-                                &mut err,
-                            );
+                            ) {
+                                err = e;
+                            }
                             set_active_lstate(save_active_lstate);
                         }
                     }
@@ -16036,7 +12850,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -> i32 {
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
@@ -16055,8 +12869,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
                     'exit_4: {
                         'exit_5: {
                             if nlua_gettop(lstate) < 5 || nlua_gettop(lstate) > 6 {
-                                api_set_error_str(
-                                    &mut err,
+                                err = api_error_str(
                                     ErrorType::ErrorTypeValidation,
                                     c"Expected 5 to 6 arguments",
                                 );
@@ -16065,47 +12878,61 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
                             if !nlua_is_deferred_safe() {
                                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_text");
                             }
-                            if nlua_gettop(lstate) == 6 {
-                                nlua_pop_keydict(
+                            if nlua_gettop(lstate) == 6
+                                && let Err(e) = nlua_pop_keydict(
                                     lstate,
                                     &mut arg6,
                                     Some(key_dict_empty_get_field),
                                     &mut err_param,
-                                    &mut err,
-                                );
-                                if err.err_type != ErrorType::ErrorTypeNone {
-                                    break 'exit_1;
-                                }
-                            }
-                            arg5 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"end_col");
+                                )
+                            {
+                                err = e;
                                 break 'exit_1;
                             }
-                            arg4 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"end_row");
-                                break 'exit_2;
-                            }
-                            arg3 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"start_col");
-                                break 'exit_3;
-                            }
-                            arg2 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"start_row");
-                                break 'exit_4;
-                            }
-                            arg1 = nlua_pop_Buffer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"buf");
-                                break 'exit_5;
-                            }
+                            arg5 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"end_col");
+                                    break 'exit_1;
+                                }
+                            };
+                            arg4 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"end_row");
+                                    break 'exit_2;
+                                }
+                            };
+                            arg3 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"start_col");
+                                    break 'exit_3;
+                                }
+                            };
+                            arg2 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"start_row");
+                                    break 'exit_4;
+                                }
+                            };
+                            arg1 = match nlua_pop_Buffer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"buf");
+                                    break 'exit_5;
+                                }
+                            };
                             let save_active_lstate = active_lstate();
                             set_active_lstate(lstate);
                             let pretop = nlua_gettop(lstate);
-                            let ret = nvim_buf_get_text(
+                            if let Err(e) = nvim_buf_get_text(
                                 LUA_INTERNAL_CALL,
                                 arg1,
                                 arg2,
@@ -16114,13 +12941,13 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
                                 arg5,
                                 &mut arg6,
                                 lstate,
-                                &mut err,
-                            );
+                            ) {
+                                err = e;
+                            }
                             debug_assert!(
                                 err.err_type != ErrorType::ErrorTypeNone
                                     || nlua_gettop(lstate) == pretop + 1
                             );
-                            let _ = ret;
                             set_active_lstate(save_active_lstate);
                         }
                     }
@@ -16129,7 +12956,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg6, &EMPTY_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, -1)
+    nlua_finish_api_call(lstate, err, err_param, -1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State) -> i32 {
@@ -16140,38 +12967,42 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State) -> i32
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_offset");
             }
-            arg2 = nlua_pop_integer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"index");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_integer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"index");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_buf_get_offset(arg1, arg2, &mut err);
-            nlua_push_integer(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_buf_get_offset(arg1, arg2) {
+                Ok(ret) => nlua_push_integer(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) -> i32 {
@@ -16182,38 +13013,42 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_var");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let mut ret = nvim_buf_get_var(arg1, arg2, &mut err);
-            nlua_push_object(
-                lstate,
-                &mut ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_buf_get_var(arg1, arg2) {
+                Ok(mut ret) => nlua_push_object(
+                    lstate,
+                    &mut ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_State) -> i32 {
@@ -16222,32 +13057,33 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_State) -
     let arg1: Buffer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_changedtick");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"buf");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Buffer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"buf");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_buf_get_changedtick(arg1, &mut err);
-        nlua_push_integer(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_buf_get_changedtick(arg1) {
+            Ok(ret) => nlua_push_integer(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State) -> i32 {
@@ -16258,38 +13094,42 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State) -> i32
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_keymap");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"mode");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"mode");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_buf_get_keymap(arg1, arg2, &mut err);
-            nlua_push_array(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_buf_get_keymap(arg1, arg2) {
+                Ok(ret) => nlua_push_array(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State) -> i32 {
@@ -16306,8 +13146,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State) -> i32
                 'exit_3: {
                     'exit_4: {
                         if nlua_gettop(lstate) < 4 || nlua_gettop(lstate) > 5 {
-                            api_set_error_str(
-                                &mut err,
+                            err = api_error_str(
                                 ErrorType::ErrorTypeValidation,
                                 c"Expected 4 to 5 arguments",
                             );
@@ -16316,49 +13155,61 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State) -> i32
                         if !nlua_is_deferred_safe() {
                             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_keymap");
                         }
-                        if nlua_gettop(lstate) == 5 {
-                            nlua_pop_keydict(
+                        if nlua_gettop(lstate) == 5
+                            && let Err(e) = nlua_pop_keydict(
                                 lstate,
                                 &mut arg5,
                                 Some(key_dict_keymap_get_field),
                                 &mut err_param,
-                                &mut err,
-                            );
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                break 'exit_1;
-                            }
-                        }
-                        arg4 = nlua_pop_string(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"rhs");
+                            )
+                        {
+                            err = e;
                             break 'exit_1;
                         }
-                        arg3 = nlua_pop_string(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"lhs");
-                            break 'exit_2;
-                        }
-                        arg2 = nlua_pop_string(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"mode");
-                            break 'exit_3;
-                        }
-                        arg1 = nlua_pop_Buffer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"buf");
-                            break 'exit_4;
-                        }
+                        arg4 = match nlua_pop_string(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"rhs");
+                                break 'exit_1;
+                            }
+                        };
+                        arg3 = match nlua_pop_string(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"lhs");
+                                break 'exit_2;
+                            }
+                        };
+                        arg2 = match nlua_pop_string(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"mode");
+                                break 'exit_3;
+                            }
+                        };
+                        arg1 = match nlua_pop_Buffer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"buf");
+                                break 'exit_4;
+                            }
+                        };
                         let save_active_lstate = active_lstate();
                         set_active_lstate(lstate);
-                        nvim_buf_set_keymap(
+                        if let Err(e) = nvim_buf_set_keymap(
                             LUA_INTERNAL_CALL,
                             arg1,
                             arg2,
                             arg3,
                             arg4,
                             &mut arg5,
-                            &mut err,
-                        );
+                        ) {
+                            err = e;
+                        }
                         set_active_lstate(save_active_lstate);
                     }
                 }
@@ -16366,7 +13217,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State) -> i32
         }
         api_luarefs_free_keydict(&arg5, &KEYMAP_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State) -> i32 {
@@ -16381,8 +13232,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State) -> i32
             'exit_2: {
                 'exit_3: {
                     if nlua_gettop(lstate) < 3 || nlua_gettop(lstate) > 4 {
-                        api_set_error_str(
-                            &mut err,
+                        err = api_error_str(
                             ErrorType::ErrorTypeValidation,
                             c"Expected 3 to 4 arguments",
                         );
@@ -16391,43 +13241,55 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State) -> i32
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_keymap");
                     }
-                    if nlua_gettop(lstate) == 4 {
-                        nlua_pop_keydict(
+                    if nlua_gettop(lstate) == 4
+                        && let Err(e) = nlua_pop_keydict(
                             lstate,
                             &mut arg4,
                             Some(key_dict_keymap_del_get_field),
                             &mut err_param,
-                            &mut err,
-                        );
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            break 'exit_1;
-                        }
-                    }
-                    arg3 = nlua_pop_string(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"lhs");
+                        )
+                    {
+                        err = e;
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_string(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"mode");
-                        break 'exit_2;
-                    }
-                    arg1 = nlua_pop_Buffer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"buf");
-                        break 'exit_3;
-                    }
+                    arg3 = match nlua_pop_string(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"lhs");
+                            break 'exit_1;
+                        }
+                    };
+                    arg2 = match nlua_pop_string(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"mode");
+                            break 'exit_2;
+                        }
+                    };
+                    arg1 = match nlua_pop_Buffer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"buf");
+                            break 'exit_3;
+                        }
+                    };
                     let save_active_lstate = active_lstate();
                     set_active_lstate(lstate);
-                    nvim_buf_del_keymap(LUA_INTERNAL_CALL, arg1, arg2, arg3, &mut arg4, &mut err);
+                    if let Err(e) =
+                        nvim_buf_del_keymap(LUA_INTERNAL_CALL, arg1, arg2, arg3, &mut arg4)
+                    {
+                        err = e;
+                    }
                     set_active_lstate(save_active_lstate);
                 }
             }
         }
         api_luarefs_free_keydict(&arg4, &KEYMAP_DEL_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_var(lstate: *mut lua_State) -> i32 {
@@ -16440,40 +13302,47 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_var(lstate: *mut lua_State) -> i32 {
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_var");
                 }
-                arg3 = nlua_pop_object(lstate, true, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"value");
-                    break 'exit_0;
-                }
-                arg2 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"name");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_Buffer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"buf");
-                    break 'exit_2;
-                }
+                arg3 = match nlua_pop_object(lstate, true) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"value");
+                        break 'exit_0;
+                    }
+                };
+                arg2 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"name");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_Buffer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"buf");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                nvim_buf_set_var(arg1, arg2, arg3.clone(), &mut err);
+                if let Err(e) = nvim_buf_set_var(arg1, arg2, arg3.clone()) {
+                    err = e;
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
         api_luarefs_free_object(arg3);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_del_var(lstate: *mut lua_State) -> i32 {
@@ -16484,33 +13353,37 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_var(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_var");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_buf_del_var(arg1, arg2, &mut err);
+            if let Err(e) = nvim_buf_del_var(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -> i32 {
@@ -16519,32 +13392,33 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -> i32 {
     let arg1: Buffer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_name");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"buf");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Buffer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"buf");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_buf_get_name(arg1, &mut err);
-        nlua_push_string(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_buf_get_name(arg1) {
+            Ok(ret) => nlua_push_string(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_name(lstate: *mut lua_State) -> i32 {
@@ -16555,33 +13429,37 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_name(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_name");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_buf_set_name(arg1, arg2, &mut err);
+            if let Err(e) = nvim_buf_set_name(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) -> i32 {
@@ -16590,21 +13468,20 @@ extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) -> i32 
     let arg1: Buffer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_is_loaded");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"buf");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Buffer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"buf");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         let ret = nvim_buf_is_loaded(arg1);
@@ -16615,7 +13492,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) -> i32 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> i32 {
@@ -16626,49 +13503,45 @@ extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_delete");
             }
             if text_locked() {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeException,
-                    get_text_locked_msg(),
-                );
+                err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
                 break 'exit_0;
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_buf_delete_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_buf_delete(arg1, &mut arg2, &mut err);
+            if let Err(e) = nvim_buf_delete(arg1, &mut arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &BUF_DELETE_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -> i32 {
@@ -16677,21 +13550,20 @@ extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -> i32 {
     let arg1: Buffer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_is_valid");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"buf");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Buffer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"buf");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         let ret = nvim_buf_is_valid(arg1);
@@ -16702,7 +13574,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -> i32 {
@@ -16713,38 +13585,42 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_mark");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_buf_del_mark(arg1, arg2, &mut err);
-            nlua_push_boolean(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_buf_del_mark(arg1, arg2) {
+                Ok(ret) => nlua_push_boolean(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -> i32 {
@@ -16761,8 +13637,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -> i32 {
                 'exit_3: {
                     'exit_4: {
                         if nlua_gettop(lstate) < 4 || nlua_gettop(lstate) > 5 {
-                            api_set_error_str(
-                                &mut err,
+                            err = api_error_str(
                                 ErrorType::ErrorTypeValidation,
                                 c"Expected 4 to 5 arguments",
                             );
@@ -16771,46 +13646,59 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -> i32 {
                         if !nlua_is_deferred_safe() {
                             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_mark");
                         }
-                        if nlua_gettop(lstate) == 5 {
-                            nlua_pop_keydict(
+                        if nlua_gettop(lstate) == 5
+                            && let Err(e) = nlua_pop_keydict(
                                 lstate,
                                 &mut arg5,
                                 Some(key_dict_empty_get_field),
                                 &mut err_param,
-                                &mut err,
-                            );
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                break 'exit_1;
-                            }
-                        }
-                        arg4 = nlua_pop_integer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"col");
+                            )
+                        {
+                            err = e;
                             break 'exit_1;
                         }
-                        arg3 = nlua_pop_integer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"line");
-                            break 'exit_2;
-                        }
-                        arg2 = nlua_pop_string(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"name");
-                            break 'exit_3;
-                        }
-                        arg1 = nlua_pop_Buffer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"buf");
-                            break 'exit_4;
-                        }
+                        arg4 = match nlua_pop_integer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"col");
+                                break 'exit_1;
+                            }
+                        };
+                        arg3 = match nlua_pop_integer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"line");
+                                break 'exit_2;
+                            }
+                        };
+                        arg2 = match nlua_pop_string(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"name");
+                                break 'exit_3;
+                            }
+                        };
+                        arg1 = match nlua_pop_Buffer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"buf");
+                                break 'exit_4;
+                            }
+                        };
                         let save_active_lstate = active_lstate();
                         set_active_lstate(lstate);
-                        let ret = nvim_buf_set_mark(arg1, arg2, arg3, arg4, &mut arg5, &mut err);
-                        nlua_push_boolean(
-                            lstate,
-                            ret,
-                            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                        );
+                        match nvim_buf_set_mark(arg1, arg2, arg3, arg4, &mut arg5) {
+                            Ok(ret) => nlua_push_boolean(
+                                lstate,
+                                ret,
+                                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                            ),
+                            Err(e) => err = e,
+                        }
                         set_active_lstate(save_active_lstate);
                     }
                 }
@@ -16818,7 +13706,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -> i32 {
         }
         api_luarefs_free_keydict(&arg5, &EMPTY_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -> i32 {
@@ -16829,38 +13717,42 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_mark");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_buf_get_mark(arg1, arg2, &mut err);
-            nlua_push_array(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_buf_get_mark(arg1, arg2) {
+                Ok(ret) => nlua_push_array(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> i32 {
@@ -16871,35 +13763,31 @@ extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_call");
             }
-            arg2 = nlua_pop_lua_ref(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"fn");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
-                break 'exit_1;
-            }
+            arg2 = nlua_pop_lua_ref(lstate);
+            arg1 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_buf_call(arg1, arg2, &mut err);
-            let _ = ret;
+            if let Err(e) = nvim_buf_call(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
         api_free_luaref(arg2);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, -1)
+    nlua_finish_api_call(lstate, err, err_param, -1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_stats(lstate: *mut lua_State) -> i32 {
@@ -16908,32 +13796,33 @@ extern "C-unwind" fn nlua_api_nvim_buf_stats(lstate: *mut lua_State) -> i32 {
     let arg1: Buffer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__buf_stats");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"buf");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Buffer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"buf");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_buf_stats(arg1, &mut err);
-        nlua_push_dict(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_buf_stats(arg1) {
+            Ok(ret) => nlua_push_dict(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> i32 {
@@ -16944,39 +13833,39 @@ extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_empty_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"str");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"str");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_parse_cmd(arg1, &mut arg2, &mut err);
-            nlua_push_keydict(lstate, &ret, &CMD_TABLE);
+            match nvim_parse_cmd(arg1, &mut arg2) {
+                Ok(ret) => nlua_push_keydict(lstate, &ret, &CMD_TABLE),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &EMPTY_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> i32 {
@@ -16988,53 +13877,50 @@ extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> i32 {
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 1 to 2 arguments",
-                    );
+                    err =
+                        api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_cmd");
                 }
-                if nlua_gettop(lstate) == 2 {
-                    nlua_pop_keydict(
+                if nlua_gettop(lstate) == 2
+                    && let Err(e) = nlua_pop_keydict(
                         lstate,
                         &mut arg2,
                         Some(key_dict_cmd_opts_get_field),
                         &mut err_param,
-                        &mut err,
-                    );
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        break 'exit_1;
-                    }
+                    )
+                {
+                    err = e;
+                    break 'exit_1;
                 }
-                nlua_pop_keydict(
+                if let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg1,
                     Some(key_dict_cmd_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
+                ) {
+                    err = e;
                     break 'exit_2;
                 }
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_cmd(LUA_INTERNAL_CALL, &mut arg1, &mut arg2, &mut err);
-                nlua_push_string(
-                    lstate,
-                    ret,
-                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                );
+                match nvim_cmd(LUA_INTERNAL_CALL, &mut arg1, &mut arg2) {
+                    Ok(ret) => nlua_push_string(
+                        lstate,
+                        ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    ),
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
             }
             api_luarefs_free_keydict(&arg1, &CMD_TABLE);
         }
         api_luarefs_free_keydict(&arg2, &CMD_OPTS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_State) -> i32 {
@@ -17047,54 +13933,54 @@ extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_State) -
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) < 2 || nlua_gettop(lstate) > 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 2 to 3 arguments",
-                    );
+                    err =
+                        api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 to 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_create_user_command");
                 }
-                if nlua_gettop(lstate) == 3 {
-                    nlua_pop_keydict(
+                if nlua_gettop(lstate) == 3
+                    && let Err(e) = nlua_pop_keydict(
                         lstate,
                         &mut arg3,
                         Some(key_dict_user_command_get_field),
                         &mut err_param,
-                        &mut err,
-                    );
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        break 'exit_1;
-                    }
-                }
-                arg2 = nlua_pop_object(lstate, true, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"cmd");
+                    )
+                {
+                    err = e;
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"name");
-                    break 'exit_2;
-                }
+                arg2 = match nlua_pop_object(lstate, true) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"cmd");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"name");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                nvim_create_user_command(
-                    LUA_INTERNAL_CALL,
-                    arg1,
-                    arg2.clone(),
-                    &mut arg3,
-                    &mut err,
-                );
+                if let Err(e) =
+                    nvim_create_user_command(LUA_INTERNAL_CALL, arg1, arg2.clone(), &mut arg3)
+                {
+                    err = e;
+                }
                 set_active_lstate(save_active_lstate);
             }
             api_luarefs_free_object(arg2);
         }
         api_luarefs_free_keydict(&arg3, &USER_COMMAND_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_State) -> i32 {
@@ -17103,27 +13989,28 @@ extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_State) -> i
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_del_user_command");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"name");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"name");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_del_user_command(arg1, &mut err);
+        if let Err(e) = nvim_del_user_command(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut lua_State) -> i32 {
@@ -17138,8 +14025,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut lua_Stat
             'exit_2: {
                 'exit_3: {
                     if nlua_gettop(lstate) < 3 || nlua_gettop(lstate) > 4 {
-                        api_set_error_str(
-                            &mut err,
+                        err = api_error_str(
                             ErrorType::ErrorTypeValidation,
                             c"Expected 3 to 4 arguments",
                         );
@@ -17151,43 +14037,52 @@ extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut lua_Stat
                             c"nvim_buf_create_user_command",
                         );
                     }
-                    if nlua_gettop(lstate) == 4 {
-                        nlua_pop_keydict(
+                    if nlua_gettop(lstate) == 4
+                        && let Err(e) = nlua_pop_keydict(
                             lstate,
                             &mut arg4,
                             Some(key_dict_user_command_get_field),
                             &mut err_param,
-                            &mut err,
-                        );
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            break 'exit_1;
-                        }
-                    }
-                    arg3 = nlua_pop_object(lstate, true, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"cmd");
+                        )
+                    {
+                        err = e;
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_string(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"name");
-                        break 'exit_2;
-                    }
-                    arg1 = nlua_pop_Buffer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"buf");
-                        break 'exit_3;
-                    }
+                    arg3 = match nlua_pop_object(lstate, true) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"cmd");
+                            break 'exit_1;
+                        }
+                    };
+                    arg2 = match nlua_pop_string(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"name");
+                            break 'exit_2;
+                        }
+                    };
+                    arg1 = match nlua_pop_Buffer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"buf");
+                            break 'exit_3;
+                        }
+                    };
                     let save_active_lstate = active_lstate();
                     set_active_lstate(lstate);
-                    nvim_buf_create_user_command(
+                    if let Err(e) = nvim_buf_create_user_command(
                         LUA_INTERNAL_CALL,
                         arg1,
                         arg2,
                         arg3.clone(),
                         &mut arg4,
-                        &mut err,
-                    );
+                    ) {
+                        err = e;
+                    }
                     set_active_lstate(save_active_lstate);
                 }
             }
@@ -17195,7 +14090,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut lua_Stat
         }
         api_luarefs_free_keydict(&arg4, &USER_COMMAND_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_State) -> i32 {
@@ -17206,33 +14101,37 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_State) 
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_user_command");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_buf_del_user_command(arg1, arg2, &mut err);
+            if let Err(e) = nvim_buf_del_user_command(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -> i32 {
@@ -17242,8 +14141,7 @@ extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) > 1 {
-                api_set_error_str(
-                    &mut err,
+                err = api_error_str(
                     ErrorType::ErrorTypeValidation,
                     c"Expected at most 1 argument",
                 );
@@ -17252,31 +14150,32 @@ extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_commands");
             }
-            if nlua_gettop(lstate) == 1 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 1
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg1,
                     Some(key_dict_get_commands_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
+                )
+            {
+                err = e;
+                break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_commands(&mut arg1, &mut err);
-            nlua_push_dict(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_get_commands(&mut arg1) {
+                Ok(ret) => nlua_push_dict(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg1, &GET_COMMANDS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_State) -> i32 {
@@ -17287,46 +14186,46 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_State) -> i
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_commands");
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_get_commands_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_buf_get_commands(arg1, &mut arg2, &mut err);
-            nlua_push_dict(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_buf_get_commands(arg1, &mut arg2) {
+                Ok(ret) => nlua_push_dict(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &GET_COMMANDS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> i32 {
@@ -17337,39 +14236,38 @@ extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_exec");
             }
-            arg2 = nlua_pop_boolean(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"output");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"src");
-                break 'exit_1;
-            }
+            arg2 = nlua_pop_boolean(lstate);
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"src");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_exec(LUA_INTERNAL_CALL, arg1, arg2, &mut err);
-            nlua_push_string(
-                lstate,
-                ret.clone(),
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_exec(LUA_INTERNAL_CALL, arg1, arg2) {
+                Ok(ret) => {
+                    nlua_push_string(
+                        lstate,
+                        ret.clone(),
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    );
+                    api_free_string(ret);
+                }
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
-            api_free_string(ret);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State) -> i32 {
@@ -17378,33 +14276,36 @@ extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State) -> i32
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_command_output");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"command");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"command");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_command_output(LUA_INTERNAL_CALL, arg1, &mut err);
-        nlua_push_string(
-            lstate,
-            ret.clone(),
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_command_output(LUA_INTERNAL_CALL, arg1) {
+            Ok(ret) => {
+                nlua_push_string(
+                    lstate,
+                    ret.clone(),
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                );
+                api_free_string(ret);
+            }
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
-        api_free_string(ret);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State) -> i32 {
@@ -17413,32 +14314,33 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State) -> i32
     let arg1: Buffer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_number");
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"buffer");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Buffer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"buffer");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_buf_get_number(arg1, &mut err);
-        nlua_push_integer(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_buf_get_number(arg1) {
+            Ok(ret) => nlua_push_integer(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_clear_highlight(lstate: *mut lua_State) -> i32 {
@@ -17453,45 +14355,56 @@ extern "C-unwind" fn nlua_api_nvim_buf_clear_highlight(lstate: *mut lua_State) -
             'exit_2: {
                 'exit_3: {
                     if nlua_gettop(lstate) != 4 {
-                        api_set_error_str(
-                            &mut err,
-                            ErrorType::ErrorTypeValidation,
-                            c"Expected 4 arguments",
-                        );
+                        err =
+                            api_error_str(ErrorType::ErrorTypeValidation, c"Expected 4 arguments");
                         break 'exit_0;
                     }
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_clear_highlight");
                     }
-                    arg4 = nlua_pop_integer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"line_end");
-                        break 'exit_0;
-                    }
-                    arg3 = nlua_pop_integer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"line_start");
-                        break 'exit_1;
-                    }
-                    arg2 = nlua_pop_integer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"ns_id");
-                        break 'exit_2;
-                    }
-                    arg1 = nlua_pop_Buffer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"buffer");
-                        break 'exit_3;
-                    }
+                    arg4 = match nlua_pop_integer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"line_end");
+                            break 'exit_0;
+                        }
+                    };
+                    arg3 = match nlua_pop_integer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"line_start");
+                            break 'exit_1;
+                        }
+                    };
+                    arg2 = match nlua_pop_integer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"ns_id");
+                            break 'exit_2;
+                        }
+                    };
+                    arg1 = match nlua_pop_Buffer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"buffer");
+                            break 'exit_3;
+                        }
+                    };
                     let save_active_lstate = active_lstate();
                     set_active_lstate(lstate);
-                    nvim_buf_clear_highlight(arg1, arg2, arg3, arg4, &mut err);
+                    if let Err(e) = nvim_buf_clear_highlight(arg1, arg2, arg3, arg4) {
+                        err = e;
+                    }
                     set_active_lstate(save_active_lstate);
                 }
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_State) -> i32 {
@@ -17510,8 +14423,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_State) -> 
                     'exit_4: {
                         'exit_5: {
                             if nlua_gettop(lstate) != 6 {
-                                api_set_error_str(
-                                    &mut err,
+                                err = api_error_str(
                                     ErrorType::ErrorTypeValidation,
                                     c"Expected 6 arguments",
                                 );
@@ -17523,46 +14435,64 @@ extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_State) -> 
                                     c"nvim_buf_add_highlight",
                                 );
                             }
-                            arg6 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"col_end");
-                                break 'exit_0;
-                            }
-                            arg5 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"col_start");
-                                break 'exit_1;
-                            }
-                            arg4 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"line");
-                                break 'exit_2;
-                            }
-                            arg3 = nlua_pop_string(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"hl_group");
-                                break 'exit_3;
-                            }
-                            arg2 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"ns_id");
-                                break 'exit_4;
-                            }
-                            arg1 = nlua_pop_Buffer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"buffer");
-                                break 'exit_5;
-                            }
+                            arg6 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"col_end");
+                                    break 'exit_0;
+                                }
+                            };
+                            arg5 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"col_start");
+                                    break 'exit_1;
+                                }
+                            };
+                            arg4 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"line");
+                                    break 'exit_2;
+                                }
+                            };
+                            arg3 = match nlua_pop_string(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"hl_group");
+                                    break 'exit_3;
+                                }
+                            };
+                            arg2 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"ns_id");
+                                    break 'exit_4;
+                                }
+                            };
+                            arg1 = match nlua_pop_Buffer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"buffer");
+                                    break 'exit_5;
+                                }
+                            };
                             let save_active_lstate = active_lstate();
                             set_active_lstate(lstate);
-                            let ret = nvim_buf_add_highlight(
-                                arg1, arg2, arg3, arg4, arg5, arg6, &mut err,
-                            );
-                            nlua_push_integer(
-                                lstate,
-                                ret,
-                                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                            );
+                            match nvim_buf_add_highlight(arg1, arg2, arg3, arg4, arg5, arg6) {
+                                Ok(ret) => nlua_push_integer(
+                                    lstate,
+                                    ret,
+                                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                                ),
+                                Err(e) => err = e,
+                            }
                             set_active_lstate(save_active_lstate);
                         }
                     }
@@ -17570,7 +14500,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_State) -> 
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_State) -> i32 {
@@ -17587,8 +14517,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_State) 
                 'exit_3: {
                     'exit_4: {
                         if nlua_gettop(lstate) < 4 || nlua_gettop(lstate) > 5 {
-                            api_set_error_str(
-                                &mut err,
+                            err = api_error_str(
                                 ErrorType::ErrorTypeValidation,
                                 c"Expected 4 to 5 arguments",
                             );
@@ -17600,47 +14529,59 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_State) 
                                 c"nvim_buf_set_virtual_text",
                             );
                         }
-                        if nlua_gettop(lstate) == 5 {
-                            nlua_pop_keydict(
+                        if nlua_gettop(lstate) == 5
+                            && let Err(e) = nlua_pop_keydict(
                                 lstate,
                                 &mut arg5,
                                 Some(key_dict_empty_get_field),
                                 &mut err_param,
-                                &mut err,
-                            );
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                break 'exit_1;
-                            }
-                        }
-                        arg4 = nlua_pop_array(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"chunks");
+                            )
+                        {
+                            err = e;
                             break 'exit_1;
                         }
-                        arg3 = nlua_pop_integer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"line");
-                            break 'exit_2;
-                        }
-                        arg2 = nlua_pop_integer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"src_id");
-                            break 'exit_3;
-                        }
-                        arg1 = nlua_pop_Buffer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"buffer");
-                            break 'exit_4;
-                        }
+                        arg4 = match nlua_pop_array(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"chunks");
+                                break 'exit_1;
+                            }
+                        };
+                        arg3 = match nlua_pop_integer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"line");
+                                break 'exit_2;
+                            }
+                        };
+                        arg2 = match nlua_pop_integer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"src_id");
+                                break 'exit_3;
+                            }
+                        };
+                        arg1 = match nlua_pop_Buffer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"buffer");
+                                break 'exit_4;
+                            }
+                        };
                         let save_active_lstate = active_lstate();
                         set_active_lstate(lstate);
-                        let ret =
-                            nvim_buf_set_virtual_text(arg1, arg2, arg3, arg4, &mut arg5, &mut err);
-                        nlua_push_integer(
-                            lstate,
-                            ret,
-                            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                        );
+                        match nvim_buf_set_virtual_text(arg1, arg2, arg3, arg4, &mut arg5) {
+                            Ok(ret) => nlua_push_integer(
+                                lstate,
+                                ret,
+                                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                            ),
+                            Err(e) => err = e,
+                        }
                         set_active_lstate(save_active_lstate);
                     }
                 }
@@ -17648,7 +14589,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_State) 
         }
         api_luarefs_free_keydict(&arg5, &EMPTY_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -> i32 {
@@ -17659,38 +14600,35 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl_by_id");
             }
-            arg2 = nlua_pop_boolean(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"rgb");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_integer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"hl_id");
-                break 'exit_1;
-            }
+            arg2 = nlua_pop_boolean(lstate);
+            arg1 = match nlua_pop_integer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"hl_id");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_hl_by_id(arg1, arg2, &mut err);
-            nlua_push_dict(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_get_hl_by_id(arg1, arg2) {
+                Ok(ret) => nlua_push_dict(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State) -> i32 {
@@ -17701,38 +14639,35 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State) -> i32
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl_by_name");
             }
-            arg2 = nlua_pop_boolean(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"rgb");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_1;
-            }
+            arg2 = nlua_pop_boolean(lstate);
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_hl_by_name(arg1, arg2, &mut err);
-            nlua_push_dict(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_get_hl_by_name(arg1, arg2) {
+                Ok(ret) => nlua_push_dict(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State) -> i32 {
@@ -17741,32 +14676,33 @@ extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State) -> i3
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_option_info");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"name");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"name");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_option_info(arg1, &mut err);
-        nlua_push_dict(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_get_option_info(arg1) {
+            Ok(ret) => nlua_push_dict(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_option(lstate: *mut lua_State) -> i32 {
@@ -17777,34 +14713,38 @@ extern "C-unwind" fn nlua_api_nvim_set_option(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_set_option");
             }
-            arg2 = nlua_pop_object(lstate, true, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"value");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_object(lstate, true) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"value");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_set_option(LUA_INTERNAL_CALL, arg1, arg2.clone(), &mut err);
+            if let Err(e) = nvim_set_option(LUA_INTERNAL_CALL, arg1, arg2.clone()) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_object(arg2);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> i32 {
@@ -17813,33 +14753,36 @@ extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_option");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"name");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"name");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let mut ret = nvim_get_option(arg1, &mut err);
-        nlua_push_object(
-            lstate,
-            &mut ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_get_option(arg1) {
+            Ok(mut ret) => {
+                nlua_push_object(
+                    lstate,
+                    &mut ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                );
+                api_free_object(ret);
+            }
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
-        api_free_object(ret);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State) -> i32 {
@@ -17850,39 +14793,45 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State) -> i32
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_option");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buffer");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buffer");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let mut ret = nvim_buf_get_option(arg1, arg2, &mut err);
-            nlua_push_object(
-                lstate,
-                &mut ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_buf_get_option(arg1, arg2) {
+                Ok(mut ret) => {
+                    nlua_push_object(
+                        lstate,
+                        &mut ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    );
+                    api_free_object(ret);
+                }
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
-            api_free_object(ret);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_option(lstate: *mut lua_State) -> i32 {
@@ -17895,40 +14844,47 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_option(lstate: *mut lua_State) -> i32
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_option");
                 }
-                arg3 = nlua_pop_object(lstate, true, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"value");
-                    break 'exit_0;
-                }
-                arg2 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"name");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_Buffer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"buffer");
-                    break 'exit_2;
-                }
+                arg3 = match nlua_pop_object(lstate, true) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"value");
+                        break 'exit_0;
+                    }
+                };
+                arg2 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"name");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_Buffer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"buffer");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                nvim_buf_set_option(LUA_INTERNAL_CALL, arg1, arg2, arg3.clone(), &mut err);
+                if let Err(e) = nvim_buf_set_option(LUA_INTERNAL_CALL, arg1, arg2, arg3.clone()) {
+                    err = e;
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
         api_luarefs_free_object(arg3);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State) -> i32 {
@@ -17939,39 +14895,45 @@ extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State) -> i32
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_option");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Window(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"window");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Window(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"window");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let mut ret = nvim_win_get_option(arg1, arg2, &mut err);
-            nlua_push_object(
-                lstate,
-                &mut ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_win_get_option(arg1, arg2) {
+                Ok(mut ret) => {
+                    nlua_push_object(
+                        lstate,
+                        &mut ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    );
+                    api_free_object(ret);
+                }
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
-            api_free_object(ret);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_option(lstate: *mut lua_State) -> i32 {
@@ -17984,40 +14946,47 @@ extern "C-unwind" fn nlua_api_nvim_win_set_option(lstate: *mut lua_State) -> i32
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_option");
                 }
-                arg3 = nlua_pop_object(lstate, true, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"value");
-                    break 'exit_0;
-                }
-                arg2 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"name");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_Window(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"window");
-                    break 'exit_2;
-                }
+                arg3 = match nlua_pop_object(lstate, true) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"value");
+                        break 'exit_0;
+                    }
+                };
+                arg2 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"name");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_Window(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"window");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                nvim_win_set_option(LUA_INTERNAL_CALL, arg1, arg2, arg3.clone(), &mut err);
+                if let Err(e) = nvim_win_set_option(LUA_INTERNAL_CALL, arg1, arg2, arg3.clone()) {
+                    err = e;
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
         api_luarefs_free_object(arg3);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_out_write(lstate: *mut lua_State) -> i32 {
@@ -18026,27 +14995,26 @@ extern "C-unwind" fn nlua_api_nvim_out_write(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_out_write");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"str");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"str");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         nvim_out_write(arg1);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_err_write(lstate: *mut lua_State) -> i32 {
@@ -18055,27 +15023,26 @@ extern "C-unwind" fn nlua_api_nvim_err_write(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_err_write");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"str");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"str");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         nvim_err_write(arg1);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_err_writeln(lstate: *mut lua_State) -> i32 {
@@ -18084,27 +15051,26 @@ extern "C-unwind" fn nlua_api_nvim_err_writeln(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_err_writeln");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"str");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"str");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         nvim_err_writeln(arg1);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> i32 {
@@ -18117,44 +15083,51 @@ extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> i32 {
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_notify");
                 }
-                arg3 = nlua_pop_dict(lstate, false, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"opts");
-                    break 'exit_0;
-                }
-                arg2 = nlua_pop_integer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"log_level");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"msg");
-                    break 'exit_2;
-                }
+                arg3 = match nlua_pop_dict(lstate, false) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"opts");
+                        break 'exit_0;
+                    }
+                };
+                arg2 = match nlua_pop_integer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"log_level");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"msg");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let mut ret = nvim_notify(arg1, arg2, arg3, &mut err);
-                nlua_push_object(
-                    lstate,
-                    &mut ret,
-                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                );
+                match nvim_notify(arg1, arg2, arg3) {
+                    Ok(mut ret) => nlua_push_object(
+                        lstate,
+                        &mut ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    ),
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_height(lstate: *mut lua_State) -> i32 {
@@ -18165,33 +15138,37 @@ extern "C-unwind" fn nlua_api_nvim_win_set_height(lstate: *mut lua_State) -> i32
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_height");
             }
-            arg2 = nlua_pop_integer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"height");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Window(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"win");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_integer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"height");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Window(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"win");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_win_set_height(arg1, arg2, &mut err);
+            if let Err(e) = nvim_win_set_height(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_width(lstate: *mut lua_State) -> i32 {
@@ -18202,33 +15179,37 @@ extern "C-unwind" fn nlua_api_nvim_win_set_width(lstate: *mut lua_State) -> i32 
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_width");
             }
-            arg2 = nlua_pop_integer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"width");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Window(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"win");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_integer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"width");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Window(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"win");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_win_set_width(arg1, arg2, &mut err);
+            if let Err(e) = nvim_win_set_width(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_State) -> i32 {
@@ -18237,21 +15218,20 @@ extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_State) -> i
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_create_namespace");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"name");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"name");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         let ret = nvim_create_namespace(arg1);
@@ -18262,7 +15242,7 @@ extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_State) -> i
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State) -> i32 {
@@ -18270,11 +15250,7 @@ extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State) -> i32
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -18290,7 +15266,7 @@ extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State) -> i32
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua_State) -> i32 {
@@ -18305,8 +15281,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua_State)
             'exit_2: {
                 'exit_3: {
                     if nlua_gettop(lstate) < 3 || nlua_gettop(lstate) > 4 {
-                        api_set_error_str(
-                            &mut err,
+                        err = api_error_str(
                             ErrorType::ErrorTypeValidation,
                             c"Expected 3 to 4 arguments",
                         );
@@ -18315,48 +15290,58 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua_State)
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_extmark_by_id");
                     }
-                    if nlua_gettop(lstate) == 4 {
-                        nlua_pop_keydict(
+                    if nlua_gettop(lstate) == 4
+                        && let Err(e) = nlua_pop_keydict(
                             lstate,
                             &mut arg4,
                             Some(key_dict_get_extmark_get_field),
                             &mut err_param,
-                            &mut err,
-                        );
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            break 'exit_1;
-                        }
-                    }
-                    arg3 = nlua_pop_integer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"id");
+                        )
+                    {
+                        err = e;
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_integer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"ns_id");
-                        break 'exit_2;
-                    }
-                    arg1 = nlua_pop_Buffer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"buf");
-                        break 'exit_3;
-                    }
+                    arg3 = match nlua_pop_integer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"id");
+                            break 'exit_1;
+                        }
+                    };
+                    arg2 = match nlua_pop_integer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"ns_id");
+                            break 'exit_2;
+                        }
+                    };
+                    arg1 = match nlua_pop_Buffer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"buf");
+                            break 'exit_3;
+                        }
+                    };
                     let save_active_lstate = active_lstate();
                     set_active_lstate(lstate);
-                    let ret = nvim_buf_get_extmark_by_id(arg1, arg2, arg3, &mut arg4, &mut err);
-                    nlua_push_array(
-                        lstate,
-                        ret,
-                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                    );
+                    match nvim_buf_get_extmark_by_id(arg1, arg2, arg3, &mut arg4) {
+                        Ok(ret) => nlua_push_array(
+                            lstate,
+                            ret,
+                            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                        ),
+                        Err(e) => err = e,
+                    }
                     set_active_lstate(save_active_lstate);
                 }
             }
         }
         api_luarefs_free_keydict(&arg4, &GET_EXTMARK_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_State) -> i32 {
@@ -18373,8 +15358,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_State) -> i
                 'exit_3: {
                     'exit_4: {
                         if nlua_gettop(lstate) < 4 || nlua_gettop(lstate) > 5 {
-                            api_set_error_str(
-                                &mut err,
+                            err = api_error_str(
                                 ErrorType::ErrorTypeValidation,
                                 c"Expected 4 to 5 arguments",
                             );
@@ -18383,53 +15367,65 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_State) -> i
                         if !nlua_is_deferred_safe() {
                             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_get_extmarks");
                         }
-                        if nlua_gettop(lstate) == 5 {
-                            nlua_pop_keydict(
+                        if nlua_gettop(lstate) == 5
+                            && let Err(e) = nlua_pop_keydict(
                                 lstate,
                                 &mut arg5,
                                 Some(key_dict_get_extmarks_get_field),
                                 &mut err_param,
-                                &mut err,
-                            );
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                break 'exit_1;
-                            }
-                        }
-                        arg4 = nlua_pop_object(lstate, true, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"end");
+                            )
+                        {
+                            err = e;
                             break 'exit_1;
                         }
-                        arg3 = nlua_pop_object(lstate, true, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"start");
-                            break 'exit_2;
-                        }
-                        arg2 = nlua_pop_integer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"ns_id");
-                            break 'exit_3;
-                        }
-                        arg1 = nlua_pop_Buffer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"buf");
-                            break 'exit_4;
-                        }
+                        arg4 = match nlua_pop_object(lstate, true) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"end");
+                                break 'exit_1;
+                            }
+                        };
+                        arg3 = match nlua_pop_object(lstate, true) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"start");
+                                break 'exit_2;
+                            }
+                        };
+                        arg2 = match nlua_pop_integer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"ns_id");
+                                break 'exit_3;
+                            }
+                        };
+                        arg1 = match nlua_pop_Buffer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"buf");
+                                break 'exit_4;
+                            }
+                        };
                         let save_active_lstate = active_lstate();
                         set_active_lstate(lstate);
-                        let ret = nvim_buf_get_extmarks(
+                        match nvim_buf_get_extmarks(
                             arg1,
                             arg2,
                             arg3.clone(),
                             arg4.clone(),
                             &mut arg5,
-                            &mut err,
-                        );
-                        nlua_push_array(
-                            lstate,
-                            ret,
-                            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                        );
+                        ) {
+                            Ok(ret) => nlua_push_array(
+                                lstate,
+                                ret,
+                                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                            ),
+                            Err(e) => err = e,
+                        }
                         set_active_lstate(save_active_lstate);
                     }
                 }
@@ -18439,7 +15435,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_State) -> i
         }
         api_luarefs_free_keydict(&arg5, &GET_EXTMARKS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State) -> i32 {
@@ -18456,8 +15452,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State) -> i3
                 'exit_3: {
                     'exit_4: {
                         if nlua_gettop(lstate) < 4 || nlua_gettop(lstate) > 5 {
-                            api_set_error_str(
-                                &mut err,
+                            err = api_error_str(
                                 ErrorType::ErrorTypeValidation,
                                 c"Expected 4 to 5 arguments",
                             );
@@ -18466,46 +15461,59 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State) -> i3
                         if !nlua_is_deferred_safe() {
                             return nlua_fast_api_disabled_error(lstate, c"nvim_buf_set_extmark");
                         }
-                        if nlua_gettop(lstate) == 5 {
-                            nlua_pop_keydict(
+                        if nlua_gettop(lstate) == 5
+                            && let Err(e) = nlua_pop_keydict(
                                 lstate,
                                 &mut arg5,
                                 Some(key_dict_set_extmark_get_field),
                                 &mut err_param,
-                                &mut err,
-                            );
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                break 'exit_1;
-                            }
-                        }
-                        arg4 = nlua_pop_integer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"col");
+                            )
+                        {
+                            err = e;
                             break 'exit_1;
                         }
-                        arg3 = nlua_pop_integer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"line");
-                            break 'exit_2;
-                        }
-                        arg2 = nlua_pop_integer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"ns_id");
-                            break 'exit_3;
-                        }
-                        arg1 = nlua_pop_Buffer(lstate, &mut err);
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            err_param = Some(c"buf");
-                            break 'exit_4;
-                        }
+                        arg4 = match nlua_pop_integer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"col");
+                                break 'exit_1;
+                            }
+                        };
+                        arg3 = match nlua_pop_integer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"line");
+                                break 'exit_2;
+                            }
+                        };
+                        arg2 = match nlua_pop_integer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"ns_id");
+                                break 'exit_3;
+                            }
+                        };
+                        arg1 = match nlua_pop_Buffer(lstate) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                err = e;
+                                err_param = Some(c"buf");
+                                break 'exit_4;
+                            }
+                        };
                         let save_active_lstate = active_lstate();
                         set_active_lstate(lstate);
-                        let ret = nvim_buf_set_extmark(arg1, arg2, arg3, arg4, &mut arg5, &mut err);
-                        nlua_push_integer(
-                            lstate,
-                            ret,
-                            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                        );
+                        match nvim_buf_set_extmark(arg1, arg2, arg3, arg4, &mut arg5) {
+                            Ok(ret) => nlua_push_integer(
+                                lstate,
+                                ret,
+                                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                            ),
+                            Err(e) => err = e,
+                        }
                         set_active_lstate(save_active_lstate);
                     }
                 }
@@ -18513,7 +15521,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State) -> i3
         }
         api_luarefs_free_keydict(&arg5, &SET_EXTMARK_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State) -> i32 {
@@ -18526,44 +15534,51 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State) -> i3
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_buf_del_extmark");
                 }
-                arg3 = nlua_pop_integer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"id");
-                    break 'exit_0;
-                }
-                arg2 = nlua_pop_integer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"ns_id");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_Buffer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"buf");
-                    break 'exit_2;
-                }
+                arg3 = match nlua_pop_integer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"id");
+                        break 'exit_0;
+                    }
+                };
+                arg2 = match nlua_pop_integer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"ns_id");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_Buffer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"buf");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_buf_del_extmark(arg1, arg2, arg3, &mut err);
-                nlua_push_boolean(
-                    lstate,
-                    ret,
-                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                );
+                match nvim_buf_del_extmark(arg1, arg2, arg3) {
+                    Ok(ret) => nlua_push_boolean(
+                        lstate,
+                        ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    ),
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_State) -> i32 {
@@ -18578,45 +15593,56 @@ extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_State) -
             'exit_2: {
                 'exit_3: {
                     if nlua_gettop(lstate) != 4 {
-                        api_set_error_str(
-                            &mut err,
-                            ErrorType::ErrorTypeValidation,
-                            c"Expected 4 arguments",
-                        );
+                        err =
+                            api_error_str(ErrorType::ErrorTypeValidation, c"Expected 4 arguments");
                         break 'exit_0;
                     }
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_buf_clear_namespace");
                     }
-                    arg4 = nlua_pop_integer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"line_end");
-                        break 'exit_0;
-                    }
-                    arg3 = nlua_pop_integer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"line_start");
-                        break 'exit_1;
-                    }
-                    arg2 = nlua_pop_integer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"ns_id");
-                        break 'exit_2;
-                    }
-                    arg1 = nlua_pop_Buffer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"buf");
-                        break 'exit_3;
-                    }
+                    arg4 = match nlua_pop_integer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"line_end");
+                            break 'exit_0;
+                        }
+                    };
+                    arg3 = match nlua_pop_integer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"line_start");
+                            break 'exit_1;
+                        }
+                    };
+                    arg2 = match nlua_pop_integer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"ns_id");
+                            break 'exit_2;
+                        }
+                    };
+                    arg1 = match nlua_pop_Buffer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"buf");
+                            break 'exit_3;
+                        }
+                    };
                     let save_active_lstate = active_lstate();
                     set_active_lstate(lstate);
-                    nvim_buf_clear_namespace(arg1, arg2, arg3, arg4, &mut err);
+                    if let Err(e) = nvim_buf_clear_namespace(arg1, arg2, arg3, arg4) {
+                        err = e;
+                    }
                     set_active_lstate(save_active_lstate);
                 }
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut lua_State) -> i32 {
@@ -18627,41 +15653,41 @@ extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut lua_Stat
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_set_decoration_provider");
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_set_decoration_provider_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_integer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"ns_id");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_integer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"ns_id");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_set_decoration_provider(arg1, &mut arg2, &mut err);
+            if let Err(e) = nvim_set_decoration_provider(arg1, &mut arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &SET_DECORATION_PROVIDER_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_set_conceal_provider(lstate: *mut lua_State) -> i32 {
@@ -18671,32 +15697,29 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_conceal_provider(lstate: *mut lua_Sta
     let arg1: Buffer;
     'exit_0: {
         if nlua_gettop(lstate) != 2 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 2 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__buf_set_conceal_provider");
         }
-        arg2 = nlua_pop_boolean(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"enabled");
-            break 'exit_0;
-        }
-        arg1 = nlua_pop_Buffer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"buf");
-            break 'exit_0;
-        }
+        arg2 = nlua_pop_boolean(lstate);
+        arg1 = match nlua_pop_Buffer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"buf");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_buf_set_conceal_provider(arg1, arg2, &mut err);
+        if let Err(e) = nvim_buf_set_conceal_provider(arg1, arg2) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_buf_debug_extmarks(lstate: *mut lua_State) -> i32 {
@@ -18706,48 +15729,43 @@ extern "C-unwind" fn nlua_api_nvim_buf_debug_extmarks(lstate: *mut lua_State) ->
     let arg2: Boolean;
     let arg1: Buffer;
     'exit_0: {
-        'exit_1: {
+        {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim__buf_debug_extmarks");
                 }
-                arg3 = nlua_pop_boolean(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"dot");
-                    break 'exit_0;
-                }
-                arg2 = nlua_pop_boolean(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"keys");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_Buffer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"buf");
-                    break 'exit_2;
-                }
+                arg3 = nlua_pop_boolean(lstate);
+                arg2 = nlua_pop_boolean(lstate);
+                arg1 = match nlua_pop_Buffer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"buf");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_buf_debug_extmarks(arg1, arg2, arg3, &mut err);
-                nlua_push_string(
-                    lstate,
-                    ret.clone(),
-                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                );
+                match nvim_buf_debug_extmarks(arg1, arg2, arg3) {
+                    Ok(ret) => {
+                        nlua_push_string(
+                            lstate,
+                            ret.clone(),
+                            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                        );
+                        api_free_string(ret);
+                    }
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
-                api_free_string(ret);
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_ns_set(lstate: *mut lua_State) -> i32 {
@@ -18758,41 +15776,41 @@ extern "C-unwind" fn nlua_api_nvim_ns_set(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__ns_set");
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_ns_opts_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_integer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"ns_id");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_integer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"ns_id");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_ns_set(arg1, &mut arg2, &mut err);
+            if let Err(e) = nvim_ns_set(arg1, &mut arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &NS_OPTS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_ns_get(lstate: *mut lua_State) -> i32 {
@@ -18801,28 +15819,29 @@ extern "C-unwind" fn nlua_api_nvim_ns_get(lstate: *mut lua_State) -> i32 {
     let arg1: Integer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__ns_get");
         }
-        arg1 = nlua_pop_integer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"ns_id");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_integer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"ns_id");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_ns_get(arg1, &mut err);
-        nlua_push_keydict(lstate, &ret, &NS_OPTS_TABLE);
+        match nvim_ns_get(arg1) {
+            Ok(ret) => nlua_push_keydict(lstate, &ret, &NS_OPTS_TABLE),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_option_to_object(lstate: *mut lua_State) -> i32 {
@@ -18833,35 +15852,39 @@ extern "C-unwind" fn nlua_api_nvim_option_to_object(lstate: *mut lua_State) -> i
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__option_to_object");
             }
-            arg2 = nlua_pop_object(lstate, true, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"value");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_object(lstate, true) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"value");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let mut ret = nvim_option_to_object(arg1, arg2.clone(), &mut err);
-            nlua_push_object(lstate, &mut ret, K_NLUA_PUSH_FREE_REFS_CONST);
+            match nvim_option_to_object(arg1, arg2.clone()) {
+                Ok(mut ret) => nlua_push_object(lstate, &mut ret, K_NLUA_PUSH_FREE_REFS_CONST),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_object(arg2);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_State) -> i32 {
@@ -18872,47 +15895,49 @@ extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_State) -> i
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_option_value");
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_option_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let mut ret = nvim_get_option_value(arg1, &mut arg2, &mut err);
-            nlua_push_object(
-                lstate,
-                &mut ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_get_option_value(arg1, &mut arg2) {
+                Ok(mut ret) => {
+                    nlua_push_object(
+                        lstate,
+                        &mut ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    );
+                    api_free_object(ret);
+                }
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
-            api_free_object(ret);
         }
         api_luarefs_free_keydict(&arg2, &OPTION_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_State) -> i32 {
@@ -18925,59 +15950,57 @@ extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_State) -> i
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) < 2 || nlua_gettop(lstate) > 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 2 to 3 arguments",
-                    );
+                    err =
+                        api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 to 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_set_option_value");
                 }
-                if nlua_gettop(lstate) == 3 {
-                    nlua_pop_keydict(
+                if nlua_gettop(lstate) == 3
+                    && let Err(e) = nlua_pop_keydict(
                         lstate,
                         &mut arg3,
                         Some(key_dict_option_get_field),
                         &mut err_param,
-                        &mut err,
-                    );
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        break 'exit_1;
-                    }
-                }
-                arg2 = nlua_pop_object(lstate, true, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"value");
+                    )
+                {
+                    err = e;
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"name");
-                    break 'exit_2;
-                }
+                arg2 = match nlua_pop_object(lstate, true) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"value");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"name");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let mut ret = nvim_set_option_value(
-                    LUA_INTERNAL_CALL,
-                    arg1,
-                    arg2.clone(),
-                    &mut arg3,
-                    &mut err,
-                );
-                nlua_push_object(
-                    lstate,
-                    &mut ret,
-                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                );
+                match nvim_set_option_value(LUA_INTERNAL_CALL, arg1, arg2.clone(), &mut arg3) {
+                    Ok(mut ret) => nlua_push_object(
+                        lstate,
+                        &mut ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    ),
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
             }
             api_luarefs_free_object(arg2);
         }
         api_luarefs_free_keydict(&arg3, &OPTION_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_State) -> i32 {
@@ -18985,11 +16008,7 @@ extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_State) 
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -18997,15 +16016,17 @@ extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_State) 
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_all_options_info(&mut err);
-        nlua_push_dict(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_get_all_options_info() {
+            Ok(ret) => nlua_push_dict(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_State) -> i32 {
@@ -19016,42 +16037,42 @@ extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_State) -> i
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_option_info2");
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_option_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_option_info2(arg1, &mut arg2, &mut err);
-            nlua_push_dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
+            match nvim_get_option_info2(arg1, &mut arg2) {
+                Ok(ret) => nlua_push_dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &OPTION_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_State) -> i32 {
@@ -19060,32 +16081,33 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_State) -> 
     let arg1: Tabpage;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_list_wins");
         }
-        arg1 = nlua_pop_Tabpage(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"tabpage");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Tabpage(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"tabpage");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_tabpage_list_wins(arg1, &mut err);
-        nlua_push_array(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_tabpage_list_wins(arg1) {
+            Ok(ret) => nlua_push_array(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State) -> i32 {
@@ -19096,38 +16118,42 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State) -> i3
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_get_var");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Tabpage(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"tabpage");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Tabpage(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"tabpage");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let mut ret = nvim_tabpage_get_var(arg1, arg2, &mut err);
-            nlua_push_object(
-                lstate,
-                &mut ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_tabpage_get_var(arg1, arg2) {
+                Ok(mut ret) => nlua_push_object(
+                    lstate,
+                    &mut ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_set_var(lstate: *mut lua_State) -> i32 {
@@ -19140,40 +16166,47 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_set_var(lstate: *mut lua_State) -> i3
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_set_var");
                 }
-                arg3 = nlua_pop_object(lstate, true, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"value");
-                    break 'exit_0;
-                }
-                arg2 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"name");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_Tabpage(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"tabpage");
-                    break 'exit_2;
-                }
+                arg3 = match nlua_pop_object(lstate, true) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"value");
+                        break 'exit_0;
+                    }
+                };
+                arg2 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"name");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_Tabpage(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"tabpage");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                nvim_tabpage_set_var(arg1, arg2, arg3.clone(), &mut err);
+                if let Err(e) = nvim_tabpage_set_var(arg1, arg2, arg3.clone()) {
+                    err = e;
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
         api_luarefs_free_object(arg3);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_del_var(lstate: *mut lua_State) -> i32 {
@@ -19184,33 +16217,37 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_del_var(lstate: *mut lua_State) -> i3
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_del_var");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Tabpage(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"tabpage");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Tabpage(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"tabpage");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_tabpage_del_var(arg1, arg2, &mut err);
+            if let Err(e) = nvim_tabpage_del_var(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_get_win(lstate: *mut lua_State) -> i32 {
@@ -19219,32 +16256,33 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_get_win(lstate: *mut lua_State) -> i3
     let arg1: Tabpage;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_get_win");
         }
-        arg1 = nlua_pop_Tabpage(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"tabpage");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Tabpage(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"tabpage");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_tabpage_get_win(arg1, &mut err);
-        nlua_push_Window(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_tabpage_get_win(arg1) {
+            Ok(ret) => nlua_push_Window(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_set_win(lstate: *mut lua_State) -> i32 {
@@ -19255,33 +16293,37 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_set_win(lstate: *mut lua_State) -> i3
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_set_win");
             }
-            arg2 = nlua_pop_Window(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"win");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Tabpage(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"tabpage");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_Window(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"win");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Tabpage(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"tabpage");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_tabpage_set_win(arg1, arg2, &mut err);
+            if let Err(e) = nvim_tabpage_set_win(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_State) -> i32 {
@@ -19290,32 +16332,33 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_State) ->
     let arg1: Tabpage;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_get_number");
         }
-        arg1 = nlua_pop_Tabpage(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"tabpage");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Tabpage(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"tabpage");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_tabpage_get_number(arg1, &mut err);
-        nlua_push_integer(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_tabpage_get_number(arg1) {
+            Ok(ret) => nlua_push_integer(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_State) -> i32 {
@@ -19324,21 +16367,20 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_State) -> i
     let arg1: Tabpage;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_tabpage_is_valid");
         }
-        arg1 = nlua_pop_Tabpage(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"tabpage");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Tabpage(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"tabpage");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         let ret = nvim_tabpage_is_valid(arg1);
@@ -19349,7 +16391,7 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_State) -> i
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -> i32 {
@@ -19362,54 +16404,46 @@ extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -> i32 {
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_open_tabpage");
                 }
                 if text_locked() {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeException,
-                        get_text_locked_msg(),
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
                     break 'exit_0;
                 }
-                nlua_pop_keydict(
+                if let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg3,
                     Some(key_dict_tabpage_config_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
+                ) {
+                    err = e;
                     break 'exit_1;
                 }
-                arg2 = nlua_pop_boolean(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"enter");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_Buffer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"buf");
-                    break 'exit_2;
-                }
+                arg2 = nlua_pop_boolean(lstate);
+                arg1 = match nlua_pop_Buffer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"buf");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_open_tabpage(arg1, arg2, &mut arg3, &mut err);
-                nlua_push_Tabpage(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
+                match nvim_open_tabpage(arg1, arg2, &mut arg3) {
+                    Ok(ret) => nlua_push_Tabpage(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST),
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
         api_luarefs_free_keydict(&arg3, &TABPAGE_CONFIG_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_ui_send(lstate: *mut lua_State) -> i32 {
@@ -19418,27 +16452,28 @@ extern "C-unwind" fn nlua_api_nvim_ui_send(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_ui_send");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"content");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"content");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_ui_send(LUA_INTERNAL_CALL, arg1, &mut err);
+        if let Err(e) = nvim_ui_send(LUA_INTERNAL_CALL, arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_State) -> i32 {
@@ -19447,32 +16482,33 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_State) -> 
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl_id_by_name");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"name");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"name");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_hl_id_by_name(arg1, &mut err);
-        nlua_push_integer(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_get_hl_id_by_name(arg1) {
+            Ok(ret) => nlua_push_integer(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> i32 {
@@ -19483,42 +16519,42 @@ extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl");
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_get_highlight_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_integer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"ns_id");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_integer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"ns_id");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_hl(arg1, &mut arg2, &mut err);
-            nlua_push_dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
+            match nvim_get_hl(arg1, &mut arg2) {
+                Ok(ret) => nlua_push_dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &GET_HIGHLIGHT_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> i32 {
@@ -19531,45 +16567,48 @@ extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> i32 {
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_set_hl");
                 }
-                nlua_pop_keydict(
+                if let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg3,
                     Some(key_dict_highlight_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
+                ) {
+                    err = e;
                     break 'exit_1;
                 }
-                arg2 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"name");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_integer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"ns_id");
-                    break 'exit_2;
-                }
+                arg2 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"name");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_integer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"ns_id");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                nvim_set_hl(LUA_INTERNAL_CALL, arg1, arg2, &mut arg3, &mut err);
+                if let Err(e) = nvim_set_hl(LUA_INTERNAL_CALL, arg1, arg2, &mut arg3) {
+                    err = e;
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
         api_luarefs_free_keydict(&arg3, &HIGHLIGHT_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> i32 {
@@ -19579,8 +16618,7 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) > 1 {
-                api_set_error_str(
-                    &mut err,
+                err = api_error_str(
                     ErrorType::ErrorTypeValidation,
                     c"Expected at most 1 argument",
                 );
@@ -19589,27 +16627,28 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_hl_ns");
             }
-            if nlua_gettop(lstate) == 1 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 1
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg1,
                     Some(key_dict_get_ns_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
+                )
+            {
+                err = e;
+                break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_hl_ns(&mut arg1, &mut err);
-            nlua_push_integer(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
+            match nvim_get_hl_ns(&mut arg1) {
+                Ok(ret) => nlua_push_integer(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg1, &GET_NS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_hl_ns(lstate: *mut lua_State) -> i32 {
@@ -19618,27 +16657,28 @@ extern "C-unwind" fn nlua_api_nvim_set_hl_ns(lstate: *mut lua_State) -> i32 {
     let arg1: Integer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_set_hl_ns");
         }
-        arg1 = nlua_pop_integer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"ns_id");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_integer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"ns_id");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_set_hl_ns(arg1, &mut err);
+        if let Err(e) = nvim_set_hl_ns(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_hl_ns_fast(lstate: *mut lua_State) -> i32 {
@@ -19647,24 +16687,25 @@ extern "C-unwind" fn nlua_api_nvim_set_hl_ns_fast(lstate: *mut lua_State) -> i32
     let arg1: Integer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
-        arg1 = nlua_pop_integer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"ns_id");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_integer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"ns_id");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_set_hl_ns_fast(arg1, &mut err);
+        if let Err(e) = nvim_set_hl_ns_fast(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> i32 {
@@ -19677,31 +16718,29 @@ extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> i32 {
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_feedkeys");
                 }
-                arg3 = nlua_pop_boolean(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"escape_ks");
-                    break 'exit_0;
-                }
-                arg2 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"mode");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"keys");
-                    break 'exit_2;
-                }
+                arg3 = nlua_pop_boolean(lstate);
+                arg2 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"mode");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"keys");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
                 nvim_feedkeys(arg1, arg2, arg3);
@@ -19709,7 +16748,7 @@ extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> i32 {
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> i32 {
@@ -19718,18 +16757,17 @@ extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"keys");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"keys");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         let ret = nvim_input(LUA_INTERNAL_CALL, arg1);
@@ -19740,7 +16778,7 @@ extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_input_mouse(lstate: *mut lua_State) -> i32 {
@@ -19759,46 +16797,65 @@ extern "C-unwind" fn nlua_api_nvim_input_mouse(lstate: *mut lua_State) -> i32 {
                     'exit_4: {
                         'exit_5: {
                             if nlua_gettop(lstate) != 6 {
-                                api_set_error_str(
-                                    &mut err,
+                                err = api_error_str(
                                     ErrorType::ErrorTypeValidation,
                                     c"Expected 6 arguments",
                                 );
                                 break 'exit_0;
                             }
-                            arg6 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"col");
-                                break 'exit_0;
-                            }
-                            arg5 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"row");
-                                break 'exit_1;
-                            }
-                            arg4 = nlua_pop_integer(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"grid");
-                                break 'exit_2;
-                            }
-                            arg3 = nlua_pop_string(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"modifier");
-                                break 'exit_3;
-                            }
-                            arg2 = nlua_pop_string(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"action");
-                                break 'exit_4;
-                            }
-                            arg1 = nlua_pop_string(lstate, &mut err);
-                            if err.err_type != ErrorType::ErrorTypeNone {
-                                err_param = Some(c"button");
-                                break 'exit_5;
-                            }
+                            arg6 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"col");
+                                    break 'exit_0;
+                                }
+                            };
+                            arg5 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"row");
+                                    break 'exit_1;
+                                }
+                            };
+                            arg4 = match nlua_pop_integer(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"grid");
+                                    break 'exit_2;
+                                }
+                            };
+                            arg3 = match nlua_pop_string(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"modifier");
+                                    break 'exit_3;
+                                }
+                            };
+                            arg2 = match nlua_pop_string(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"action");
+                                    break 'exit_4;
+                                }
+                            };
+                            arg1 = match nlua_pop_string(lstate) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    err = e;
+                                    err_param = Some(c"button");
+                                    break 'exit_5;
+                                }
+                            };
                             let save_active_lstate = active_lstate();
                             set_active_lstate(lstate);
-                            nvim_input_mouse(arg1, arg2, arg3, arg4, arg5, arg6, &mut err);
+                            if let Err(e) = nvim_input_mouse(arg1, arg2, arg3, arg4, arg5, arg6) {
+                                err = e;
+                            }
                             set_active_lstate(save_active_lstate);
                         }
                     }
@@ -19806,7 +16863,7 @@ extern "C-unwind" fn nlua_api_nvim_input_mouse(lstate: *mut lua_State) -> i32 {
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_State) -> i32 {
@@ -19817,37 +16874,25 @@ extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_State) -> 
     let arg2: Boolean;
     let arg1: NvimString;
     'exit_0: {
-        'exit_1: {
-            'exit_2: {
+        {
+            {
                 'exit_3: {
                     if nlua_gettop(lstate) != 4 {
-                        api_set_error_str(
-                            &mut err,
-                            ErrorType::ErrorTypeValidation,
-                            c"Expected 4 arguments",
-                        );
+                        err =
+                            api_error_str(ErrorType::ErrorTypeValidation, c"Expected 4 arguments");
                         break 'exit_0;
                     }
-                    arg4 = nlua_pop_boolean(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"special");
-                        break 'exit_0;
-                    }
-                    arg3 = nlua_pop_boolean(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"do_lt");
-                        break 'exit_1;
-                    }
-                    arg2 = nlua_pop_boolean(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"from_part");
-                        break 'exit_2;
-                    }
-                    arg1 = nlua_pop_string(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"str");
-                        break 'exit_3;
-                    }
+                    arg4 = nlua_pop_boolean(lstate);
+                    arg3 = nlua_pop_boolean(lstate);
+                    arg2 = nlua_pop_boolean(lstate);
+                    arg1 = match nlua_pop_string(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"str");
+                            break 'exit_3;
+                        }
+                    };
                     let save_active_lstate = active_lstate();
                     set_active_lstate(lstate);
                     let ret = nvim_replace_termcodes(arg1, arg2, arg3, arg4);
@@ -19862,7 +16907,7 @@ extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_State) -> 
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> i32 {
@@ -19871,32 +16916,33 @@ extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_strwidth");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"text");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"text");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_strwidth(arg1, &mut err);
-        nlua_push_integer(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_strwidth(arg1) {
+            Ok(ret) => nlua_push_integer(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_State) -> i32 {
@@ -19904,11 +16950,7 @@ extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_State) ->
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -19916,15 +16958,17 @@ extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_State) ->
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_list_runtime_paths(&mut err);
-        nlua_push_array(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_list_runtime_paths() {
+            Ok(ret) => nlua_push_array(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_runtime_inspect(lstate: *mut lua_State) -> i32 {
@@ -19932,11 +16976,7 @@ extern "C-unwind" fn nlua_api_nvim_runtime_inspect(lstate: *mut lua_State) -> i3
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -19952,7 +16992,7 @@ extern "C-unwind" fn nlua_api_nvim_runtime_inspect(lstate: *mut lua_State) -> i3
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_State) -> i32 {
@@ -19963,35 +17003,32 @@ extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_State) -> i
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
-            arg2 = nlua_pop_boolean(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"all");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_1;
-            }
+            arg2 = nlua_pop_boolean(lstate);
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_runtime_file(arg1, arg2, &mut err);
-            nlua_push_array(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_get_runtime_file(arg1, arg2) {
+                Ok(ret) => nlua_push_array(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_lib_dir(lstate: *mut lua_State) -> i32 {
@@ -19999,11 +17036,7 @@ extern "C-unwind" fn nlua_api_nvim_get_lib_dir(lstate: *mut lua_State) -> i32 {
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -20020,7 +17053,7 @@ extern "C-unwind" fn nlua_api_nvim_get_lib_dir(lstate: *mut lua_State) -> i32 {
         set_active_lstate(save_active_lstate);
         api_free_string(ret);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_runtime(lstate: *mut lua_State) -> i32 {
@@ -20033,49 +17066,46 @@ extern "C-unwind" fn nlua_api_nvim_get_runtime(lstate: *mut lua_State) -> i32 {
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) < 2 || nlua_gettop(lstate) > 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 2 to 3 arguments",
-                    );
+                    err =
+                        api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 to 3 arguments");
                     break 'exit_0;
                 }
-                if nlua_gettop(lstate) == 3 {
-                    nlua_pop_keydict(
+                if nlua_gettop(lstate) == 3
+                    && let Err(e) = nlua_pop_keydict(
                         lstate,
                         &mut arg3,
                         Some(key_dict_runtime_get_field),
                         &mut err_param,
-                        &mut err,
-                    );
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        break 'exit_1;
-                    }
-                }
-                arg2 = nlua_pop_boolean(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"all");
+                    )
+                {
+                    err = e;
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_array(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"pat");
-                    break 'exit_2;
-                }
+                arg2 = nlua_pop_boolean(lstate);
+                arg1 = match nlua_pop_array(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"pat");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_get_runtime(arg1, arg2, &mut arg3, &mut err);
-                nlua_push_array(
-                    lstate,
-                    ret,
-                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                );
+                match nvim_get_runtime(arg1, arg2, &mut arg3) {
+                    Ok(ret) => nlua_push_array(
+                        lstate,
+                        ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    ),
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
         api_luarefs_free_keydict(&arg3, &RUNTIME_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_current_dir(lstate: *mut lua_State) -> i32 {
@@ -20084,27 +17114,28 @@ extern "C-unwind" fn nlua_api_nvim_set_current_dir(lstate: *mut lua_State) -> i3
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_set_current_dir");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"dir");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"dir");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_set_current_dir(arg1, &mut err);
+        if let Err(e) = nvim_set_current_dir(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_State) -> i32 {
@@ -20112,11 +17143,7 @@ extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_State) -> i
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -20124,15 +17151,17 @@ extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_State) -> i
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_current_line(&mut err);
-        nlua_push_string(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_get_current_line() {
+            Ok(ret) => nlua_push_string(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_current_line(lstate: *mut lua_State) -> i32 {
@@ -20141,35 +17170,32 @@ extern "C-unwind" fn nlua_api_nvim_set_current_line(lstate: *mut lua_State) -> i
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_set_current_line");
         }
         if text_locked() {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeException,
-                get_text_locked_msg(),
-            );
+            err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
             break 'exit_0;
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"line");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"line");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_set_current_line(arg1, &mut err);
+        if let Err(e) = nvim_set_current_line(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_current_line(lstate: *mut lua_State) -> i32 {
@@ -20177,30 +17203,24 @@ extern "C-unwind" fn nlua_api_nvim_del_current_line(lstate: *mut lua_State) -> i
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_del_current_line");
         }
         if text_locked() {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeException,
-                get_text_locked_msg(),
-            );
+            err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_del_current_line(&mut err);
+        if let Err(e) = nvim_del_current_line() {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> i32 {
@@ -20209,32 +17229,33 @@ extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_var");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"name");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"name");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let mut ret = nvim_get_var(arg1, &mut err);
-        nlua_push_object(
-            lstate,
-            &mut ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_get_var(arg1) {
+            Ok(mut ret) => nlua_push_object(
+                lstate,
+                &mut ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_var(lstate: *mut lua_State) -> i32 {
@@ -20245,34 +17266,38 @@ extern "C-unwind" fn nlua_api_nvim_set_var(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_set_var");
             }
-            arg2 = nlua_pop_object(lstate, true, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"value");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_object(lstate, true) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"value");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_set_var(arg1, arg2.clone(), &mut err);
+            if let Err(e) = nvim_set_var(arg1, arg2.clone()) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_object(arg2);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_var(lstate: *mut lua_State) -> i32 {
@@ -20281,27 +17306,28 @@ extern "C-unwind" fn nlua_api_nvim_del_var(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_del_var");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"name");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"name");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_del_var(arg1, &mut err);
+        if let Err(e) = nvim_del_var(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> i32 {
@@ -20310,32 +17336,33 @@ extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_vvar");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"name");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"name");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let mut ret = nvim_get_vvar(arg1, &mut err);
-        nlua_push_object(
-            lstate,
-            &mut ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_get_vvar(arg1) {
+            Ok(mut ret) => nlua_push_object(
+                lstate,
+                &mut ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> i32 {
@@ -20346,34 +17373,38 @@ extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_set_vvar");
             }
-            arg2 = nlua_pop_object(lstate, true, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"value");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_object(lstate, true) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"value");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_set_vvar(arg1, arg2.clone(), &mut err);
+            if let Err(e) = nvim_set_vvar(arg1, arg2.clone()) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_object(arg2);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> i32 {
@@ -20386,52 +17417,49 @@ extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> i32 {
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) < 2 || nlua_gettop(lstate) > 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 2 to 3 arguments",
-                    );
+                    err =
+                        api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 to 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_echo");
                 }
-                if nlua_gettop(lstate) == 3 {
-                    nlua_pop_keydict(
+                if nlua_gettop(lstate) == 3
+                    && let Err(e) = nlua_pop_keydict(
                         lstate,
                         &mut arg3,
                         Some(key_dict_echo_opts_get_field),
                         &mut err_param,
-                        &mut err,
-                    );
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        break 'exit_1;
-                    }
-                }
-                arg2 = nlua_pop_boolean(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"history");
+                    )
+                {
+                    err = e;
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_array(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"chunks");
-                    break 'exit_2;
-                }
+                arg2 = nlua_pop_boolean(lstate);
+                arg1 = match nlua_pop_array(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"chunks");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let mut ret = nvim_echo(arg1, arg2, &mut arg3, &mut err);
-                nlua_push_object(
-                    lstate,
-                    &mut ret,
-                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                );
+                match nvim_echo(arg1, arg2, &mut arg3) {
+                    Ok(mut ret) => nlua_push_object(
+                        lstate,
+                        &mut ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    ),
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
         api_luarefs_free_keydict(&arg3, &ECHO_OPTS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> i32 {
@@ -20439,11 +17467,7 @@ extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> i32 {
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -20459,7 +17483,7 @@ extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_current_buf(lstate: *mut lua_State) -> i32 {
@@ -20467,11 +17491,7 @@ extern "C-unwind" fn nlua_api_nvim_get_current_buf(lstate: *mut lua_State) -> i3
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -20487,7 +17507,7 @@ extern "C-unwind" fn nlua_api_nvim_get_current_buf(lstate: *mut lua_State) -> i3
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_current_buf(lstate: *mut lua_State) -> i32 {
@@ -20496,35 +17516,32 @@ extern "C-unwind" fn nlua_api_nvim_set_current_buf(lstate: *mut lua_State) -> i3
     let arg1: Buffer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_set_current_buf");
         }
         if text_locked() {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeException,
-                get_text_locked_msg(),
-            );
+            err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
             break 'exit_0;
         }
-        arg1 = nlua_pop_Buffer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"buf");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Buffer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"buf");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_set_current_buf(arg1, &mut err);
+        if let Err(e) = nvim_set_current_buf(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> i32 {
@@ -20532,11 +17549,7 @@ extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> i32 {
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -20552,7 +17565,7 @@ extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_current_win(lstate: *mut lua_State) -> i32 {
@@ -20560,11 +17573,7 @@ extern "C-unwind" fn nlua_api_nvim_get_current_win(lstate: *mut lua_State) -> i3
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -20580,7 +17589,7 @@ extern "C-unwind" fn nlua_api_nvim_get_current_win(lstate: *mut lua_State) -> i3
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_current_win(lstate: *mut lua_State) -> i32 {
@@ -20589,77 +17598,64 @@ extern "C-unwind" fn nlua_api_nvim_set_current_win(lstate: *mut lua_State) -> i3
     let arg1: Window;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_set_current_win");
         }
         if text_locked() {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeException,
-                get_text_locked_msg(),
-            );
+            err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
             break 'exit_0;
         }
-        arg1 = nlua_pop_Window(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"win");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Window(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"win");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_set_current_win(arg1, &mut err);
+        if let Err(e) = nvim_set_current_win(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut err_param: Option<&'static std::ffi::CStr> = None;
+    let err_param: Option<&'static std::ffi::CStr> = None;
     let arg2: Boolean;
     let arg1: Boolean;
     'exit_0: {
-        'exit_1: {
+        {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_create_buf");
             }
-            arg2 = nlua_pop_boolean(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"scratch");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_boolean(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"listed");
-                break 'exit_1;
-            }
+            arg2 = nlua_pop_boolean(lstate);
+            arg1 = nlua_pop_boolean(lstate);
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_create_buf(arg1, arg2, &mut err);
-            nlua_push_Buffer(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_create_buf(arg1, arg2) {
+                Ok(ret) => nlua_push_Buffer(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> i32 {
@@ -20670,54 +17666,50 @@ extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_open_term");
             }
             if text_locked() {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeException,
-                    get_text_locked_msg(),
-                );
+                err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
                 break 'exit_0;
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_open_term_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_open_term(arg1, &mut arg2, &mut err);
-            nlua_push_integer(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_open_term(arg1, &mut arg2) {
+                Ok(ret) => nlua_push_integer(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &OPEN_TERM_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_chan_send(lstate: *mut lua_State) -> i32 {
@@ -20728,33 +17720,37 @@ extern "C-unwind" fn nlua_api_nvim_chan_send(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_chan_send");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"data");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_integer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"chan");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"data");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_integer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"chan");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_chan_send(arg1, arg2, &mut err);
+            if let Err(e) = nvim_chan_send(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) -> i32 {
@@ -20762,11 +17758,7 @@ extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) -> i32 
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -20782,7 +17774,7 @@ extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) -> i32 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_current_tabpage(lstate: *mut lua_State) -> i32 {
@@ -20790,11 +17782,7 @@ extern "C-unwind" fn nlua_api_nvim_get_current_tabpage(lstate: *mut lua_State) -
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -20810,7 +17798,7 @@ extern "C-unwind" fn nlua_api_nvim_get_current_tabpage(lstate: *mut lua_State) -
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_current_tabpage(lstate: *mut lua_State) -> i32 {
@@ -20819,35 +17807,32 @@ extern "C-unwind" fn nlua_api_nvim_set_current_tabpage(lstate: *mut lua_State) -
     let arg1: Tabpage;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_set_current_tabpage");
         }
         if text_locked() {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeException,
-                get_text_locked_msg(),
-            );
+            err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
             break 'exit_0;
         }
-        arg1 = nlua_pop_Tabpage(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"tabpage");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Tabpage(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"tabpage");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_set_current_tabpage(arg1, &mut err);
+        if let Err(e) = nvim_set_current_tabpage(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> i32 {
@@ -20857,55 +17842,51 @@ extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> i32 {
     let arg2: Boolean;
     let arg1: NvimString;
     'exit_0: {
-        'exit_1: {
+        {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_paste");
                 }
                 if text_locked() {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeException,
-                        get_text_locked_msg(),
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
                     break 'exit_0;
                 }
-                arg3 = nlua_pop_integer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"phase");
-                    break 'exit_0;
-                }
-                arg2 = nlua_pop_boolean(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"crlf");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"data");
-                    break 'exit_2;
-                }
+                arg3 = match nlua_pop_integer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"phase");
+                        break 'exit_0;
+                    }
+                };
+                arg2 = nlua_pop_boolean(lstate);
+                arg1 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"data");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_paste(LUA_INTERNAL_CALL, arg1, arg2, arg3, &mut err);
-                nlua_push_boolean(
-                    lstate,
-                    ret,
-                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                );
+                match nvim_paste(LUA_INTERNAL_CALL, arg1, arg2, arg3) {
+                    Ok(ret) => nlua_push_boolean(
+                        lstate,
+                        ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    ),
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_put(lstate: *mut lua_State) -> i32 {
@@ -20916,57 +17897,50 @@ extern "C-unwind" fn nlua_api_nvim_put(lstate: *mut lua_State) -> i32 {
     let arg2: NvimString;
     let arg1: Array;
     'exit_0: {
-        'exit_1: {
+        {
             'exit_2: {
                 'exit_3: {
                     if nlua_gettop(lstate) != 4 {
-                        api_set_error_str(
-                            &mut err,
-                            ErrorType::ErrorTypeValidation,
-                            c"Expected 4 arguments",
-                        );
+                        err =
+                            api_error_str(ErrorType::ErrorTypeValidation, c"Expected 4 arguments");
                         break 'exit_0;
                     }
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_put");
                     }
                     if text_locked() {
-                        api_set_error_str(
-                            &mut err,
-                            ErrorType::ErrorTypeException,
-                            get_text_locked_msg(),
-                        );
+                        err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
                         break 'exit_0;
                     }
-                    arg4 = nlua_pop_boolean(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"follow");
-                        break 'exit_0;
-                    }
-                    arg3 = nlua_pop_boolean(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"after");
-                        break 'exit_1;
-                    }
-                    arg2 = nlua_pop_string(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"type");
-                        break 'exit_2;
-                    }
-                    arg1 = nlua_pop_array(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"lines");
-                        break 'exit_3;
-                    }
+                    arg4 = nlua_pop_boolean(lstate);
+                    arg3 = nlua_pop_boolean(lstate);
+                    arg2 = match nlua_pop_string(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"type");
+                            break 'exit_2;
+                        }
+                    };
+                    arg1 = match nlua_pop_array(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"lines");
+                            break 'exit_3;
+                        }
+                    };
                     let save_active_lstate = active_lstate();
                     set_active_lstate(lstate);
-                    nvim_put(arg1, arg2, arg3, arg4, &mut err);
+                    if let Err(e) = nvim_put(arg1, arg2, arg3, arg4) {
+                        err = e;
+                    }
                     set_active_lstate(save_active_lstate);
                 }
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_State) -> i32 {
@@ -20975,21 +17949,20 @@ extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_State) -> 
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_color_by_name");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"name");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"name");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         let ret = nvim_get_color_by_name(arg1);
@@ -21000,7 +17973,7 @@ extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_State) -> 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) -> i32 {
@@ -21008,11 +17981,7 @@ extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) -> i32 
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -21028,7 +17997,7 @@ extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) -> i32 
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) -> i32 {
@@ -21038,8 +18007,7 @@ extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) > 1 {
-                api_set_error_str(
-                    &mut err,
+                err = api_error_str(
                     ErrorType::ErrorTypeValidation,
                     c"Expected at most 1 argument",
                 );
@@ -21048,31 +18016,32 @@ extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_context");
             }
-            if nlua_gettop(lstate) == 1 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 1
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg1,
                     Some(key_dict_context_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
+                )
+            {
+                err = e;
+                break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_context(&mut arg1, &mut err);
-            nlua_push_dict(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_get_context(&mut arg1) {
+                Ok(ret) => nlua_push_dict(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg1, &CONTEXT_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -> i32 {
@@ -21081,32 +18050,33 @@ extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -> i32 {
     let arg1: Dict;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_load_context");
         }
-        arg1 = nlua_pop_dict(lstate, false, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"dict");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_dict(lstate, false) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"dict");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let mut ret = nvim_load_context(arg1, &mut err);
-        nlua_push_object(
-            lstate,
-            &mut ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_load_context(arg1) {
+            Ok(mut ret) => nlua_push_object(
+                lstate,
+                &mut ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> i32 {
@@ -21114,11 +18084,7 @@ extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> i32 {
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         let save_active_lstate = active_lstate();
@@ -21131,7 +18097,7 @@ extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> i32 {
@@ -21140,21 +18106,20 @@ extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_keymap");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"mode");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"mode");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         let ret = nvim_get_keymap(arg1);
@@ -21165,7 +18130,7 @@ extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> i32 {
@@ -21180,8 +18145,7 @@ extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> i32 {
             'exit_2: {
                 'exit_3: {
                     if nlua_gettop(lstate) < 3 || nlua_gettop(lstate) > 4 {
-                        api_set_error_str(
-                            &mut err,
+                        err = api_error_str(
                             ErrorType::ErrorTypeValidation,
                             c"Expected 3 to 4 arguments",
                         );
@@ -21190,43 +18154,54 @@ extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> i32 {
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_set_keymap");
                     }
-                    if nlua_gettop(lstate) == 4 {
-                        nlua_pop_keydict(
+                    if nlua_gettop(lstate) == 4
+                        && let Err(e) = nlua_pop_keydict(
                             lstate,
                             &mut arg4,
                             Some(key_dict_keymap_get_field),
                             &mut err_param,
-                            &mut err,
-                        );
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            break 'exit_1;
-                        }
-                    }
-                    arg3 = nlua_pop_string(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"rhs");
+                        )
+                    {
+                        err = e;
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_string(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"lhs");
-                        break 'exit_2;
-                    }
-                    arg1 = nlua_pop_string(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"mode");
-                        break 'exit_3;
-                    }
+                    arg3 = match nlua_pop_string(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"rhs");
+                            break 'exit_1;
+                        }
+                    };
+                    arg2 = match nlua_pop_string(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"lhs");
+                            break 'exit_2;
+                        }
+                    };
+                    arg1 = match nlua_pop_string(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"mode");
+                            break 'exit_3;
+                        }
+                    };
                     let save_active_lstate = active_lstate();
                     set_active_lstate(lstate);
-                    nvim_set_keymap(LUA_INTERNAL_CALL, arg1, arg2, arg3, &mut arg4, &mut err);
+                    if let Err(e) = nvim_set_keymap(LUA_INTERNAL_CALL, arg1, arg2, arg3, &mut arg4)
+                    {
+                        err = e;
+                    }
                     set_active_lstate(save_active_lstate);
                 }
             }
         }
         api_luarefs_free_keydict(&arg4, &KEYMAP_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> i32 {
@@ -21239,47 +18214,51 @@ extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> i32 {
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) < 2 || nlua_gettop(lstate) > 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 2 to 3 arguments",
-                    );
+                    err =
+                        api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 to 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_del_keymap");
                 }
-                if nlua_gettop(lstate) == 3 {
-                    nlua_pop_keydict(
+                if nlua_gettop(lstate) == 3
+                    && let Err(e) = nlua_pop_keydict(
                         lstate,
                         &mut arg3,
                         Some(key_dict_keymap_del_get_field),
                         &mut err_param,
-                        &mut err,
-                    );
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        break 'exit_1;
-                    }
-                }
-                arg2 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"lhs");
+                    )
+                {
+                    err = e;
                     break 'exit_1;
                 }
-                arg1 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"mode");
-                    break 'exit_2;
-                }
+                arg2 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"lhs");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"mode");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                nvim_del_keymap(LUA_INTERNAL_CALL, arg1, arg2, &mut arg3, &mut err);
+                if let Err(e) = nvim_del_keymap(LUA_INTERNAL_CALL, arg1, arg2, &mut arg3) {
+                    err = e;
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
         api_luarefs_free_keydict(&arg3, &KEYMAP_DEL_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> i32 {
@@ -21290,36 +18269,36 @@ extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
-            nlua_pop_keydict(
+            if let Err(e) = nlua_pop_keydict(
                 lstate,
                 &mut arg2,
                 Some(key_dict_chan_set_get_field),
                 &mut err_param,
-                &mut err,
-            );
-            if err.err_type != ErrorType::ErrorTypeNone {
+            ) {
+                err = e;
                 break 'exit_1;
             }
-            arg1 = nlua_pop_integer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"chan");
-                break 'exit_1;
-            }
+            arg1 = match nlua_pop_integer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"chan");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_chan_set(LUA_INTERNAL_CALL, arg1, &mut arg2, &mut err);
+            if let Err(e) = nvim_chan_set(LUA_INTERNAL_CALL, arg1, &mut arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &CHAN_SET_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_cmdwin_set(lstate: *mut lua_State) -> i32 {
@@ -21330,33 +18309,37 @@ extern "C-unwind" fn nlua_api_nvim_cmdwin_set(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__cmdwin_set");
             }
-            arg2 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"type");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"type");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_cmdwin_set(arg1, arg2, &mut err);
+            if let Err(e) = nvim_cmdwin_set(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) -> i32 {
@@ -21365,32 +18348,33 @@ extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) -> i32 
     let arg1: Integer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_chan_info");
         }
-        arg1 = nlua_pop_integer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"chan");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_integer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"chan");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_chan_info(LUA_INTERNAL_CALL, arg1, &mut err);
-        nlua_push_dict(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_get_chan_info(LUA_INTERNAL_CALL, arg1) {
+            Ok(ret) => nlua_push_dict(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> i32 {
@@ -21398,11 +18382,7 @@ extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> i32 {
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -21418,7 +18398,7 @@ extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_id(lstate: *mut lua_State) -> i32 {
@@ -21427,21 +18407,20 @@ extern "C-unwind" fn nlua_api_nvim_id(lstate: *mut lua_State) -> i32 {
     let arg1: Object;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__id");
         }
-        arg1 = nlua_pop_object(lstate, true, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"obj");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_object(lstate, true) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"obj");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         let mut ret = nvim_id(arg1.clone());
@@ -21453,7 +18432,7 @@ extern "C-unwind" fn nlua_api_nvim_id(lstate: *mut lua_State) -> i32 {
         set_active_lstate(save_active_lstate);
         api_luarefs_free_object(arg1);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_id_array(lstate: *mut lua_State) -> i32 {
@@ -21462,21 +18441,20 @@ extern "C-unwind" fn nlua_api_nvim_id_array(lstate: *mut lua_State) -> i32 {
     let arg1: Array;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__id_array");
         }
-        arg1 = nlua_pop_array(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"arr");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_array(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"arr");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         let ret = nvim_id_array(arg1);
@@ -21487,7 +18465,7 @@ extern "C-unwind" fn nlua_api_nvim_id_array(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_id_dict(lstate: *mut lua_State) -> i32 {
@@ -21496,21 +18474,20 @@ extern "C-unwind" fn nlua_api_nvim_id_dict(lstate: *mut lua_State) -> i32 {
     let arg1: Dict;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__id_dict");
         }
-        arg1 = nlua_pop_dict(lstate, false, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"dct");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_dict(lstate, false) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"dct");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         let ret = nvim_id_dict(arg1);
@@ -21521,7 +18498,7 @@ extern "C-unwind" fn nlua_api_nvim_id_dict(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_id_float(lstate: *mut lua_State) -> i32 {
@@ -21530,21 +18507,20 @@ extern "C-unwind" fn nlua_api_nvim_id_float(lstate: *mut lua_State) -> i32 {
     let arg1: Float;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim__id_float");
         }
-        arg1 = nlua_pop_float(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"flt");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_float(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"flt");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         let ret = nvim__id_float(arg1);
@@ -21555,7 +18531,7 @@ extern "C-unwind" fn nlua_api_nvim_id_float(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_stats(lstate: *mut lua_State) -> i32 {
@@ -21563,11 +18539,7 @@ extern "C-unwind" fn nlua_api_nvim_stats(lstate: *mut lua_State) -> i32 {
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -21583,7 +18555,7 @@ extern "C-unwind" fn nlua_api_nvim_stats(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> i32 {
@@ -21591,11 +18563,7 @@ extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> i32 {
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -21611,7 +18579,7 @@ extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_State) -> i32 {
@@ -21620,32 +18588,33 @@ extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_State) -> 
     let arg1: Integer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_proc_children");
         }
-        arg1 = nlua_pop_integer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"pid");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_integer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"pid");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_get_proc_children(arg1, &mut err);
-        nlua_push_array(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_get_proc_children(arg1) {
+            Ok(ret) => nlua_push_array(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> i32 {
@@ -21654,32 +18623,33 @@ extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> i32 {
     let arg1: Integer;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_get_proc");
         }
-        arg1 = nlua_pop_integer(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"pid");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_integer(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"pid");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let mut ret = nvim_get_proc(arg1, &mut err);
-        nlua_push_object(
-            lstate,
-            &mut ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_get_proc(arg1) {
+            Ok(mut ret) => nlua_push_object(
+                lstate,
+                &mut ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua_State) -> i32 {
@@ -21691,11 +18661,10 @@ extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua_State)
     let arg1: Integer;
     'exit_0: {
         'exit_1: {
-            'exit_2: {
+            {
                 'exit_3: {
                     if nlua_gettop(lstate) < 3 || nlua_gettop(lstate) > 4 {
-                        api_set_error_str(
-                            &mut err,
+                        err = api_error_str(
                             ErrorType::ErrorTypeValidation,
                             c"Expected 3 to 4 arguments",
                         );
@@ -21704,43 +18673,39 @@ extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua_State)
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_select_popupmenu_item");
                     }
-                    if nlua_gettop(lstate) == 4 {
-                        nlua_pop_keydict(
+                    if nlua_gettop(lstate) == 4
+                        && let Err(e) = nlua_pop_keydict(
                             lstate,
                             &mut arg4,
                             Some(key_dict_empty_get_field),
                             &mut err_param,
-                            &mut err,
-                        );
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            break 'exit_1;
-                        }
-                    }
-                    arg3 = nlua_pop_boolean(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"finish");
+                        )
+                    {
+                        err = e;
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_boolean(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"insert");
-                        break 'exit_2;
-                    }
-                    arg1 = nlua_pop_integer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"item");
-                        break 'exit_3;
-                    }
+                    arg3 = nlua_pop_boolean(lstate);
+                    arg2 = nlua_pop_boolean(lstate);
+                    arg1 = match nlua_pop_integer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"item");
+                            break 'exit_3;
+                        }
+                    };
                     let save_active_lstate = active_lstate();
                     set_active_lstate(lstate);
-                    nvim_select_popupmenu_item(arg1, arg2, arg3, &mut arg4, &mut err);
+                    if let Err(e) = nvim_select_popupmenu_item(arg1, arg2, arg3, &mut arg4) {
+                        err = e;
+                    }
                     set_active_lstate(save_active_lstate);
                 }
             }
         }
         api_luarefs_free_keydict(&arg4, &EMPTY_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_inspect_cell(lstate: *mut lua_State) -> i32 {
@@ -21753,44 +18718,51 @@ extern "C-unwind" fn nlua_api_nvim_inspect_cell(lstate: *mut lua_State) -> i32 {
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim__inspect_cell");
                 }
-                arg3 = nlua_pop_integer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"col");
-                    break 'exit_0;
-                }
-                arg2 = nlua_pop_integer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"row");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_integer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"grid");
-                    break 'exit_2;
-                }
+                arg3 = match nlua_pop_integer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"col");
+                        break 'exit_0;
+                    }
+                };
+                arg2 = match nlua_pop_integer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"row");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_integer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"grid");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_inspect_cell(arg1, arg2, arg3, &mut err);
-                nlua_push_array(
-                    lstate,
-                    ret,
-                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                );
+                match nvim_inspect_cell(arg1, arg2, arg3) {
+                    Ok(ret) => nlua_push_array(
+                        lstate,
+                        ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    ),
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_screenshot(lstate: *mut lua_State) -> i32 {
@@ -21799,24 +18771,23 @@ extern "C-unwind" fn nlua_api_nvim_screenshot(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"path");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"path");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         nvim_screenshot(arg1);
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_invalidate_glyph_cache(lstate: *mut lua_State) -> i32 {
@@ -21824,11 +18795,7 @@ extern "C-unwind" fn nlua_api_nvim_invalidate_glyph_cache(lstate: *mut lua_State
     let err_param: Option<&'static std::ffi::CStr> = None;
     'exit_0: {
         if nlua_gettop(lstate) != 0 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 0 arguments",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 0 arguments");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
@@ -21839,7 +18806,7 @@ extern "C-unwind" fn nlua_api_nvim_invalidate_glyph_cache(lstate: *mut lua_State
         nvim_invalidate_glyph_cache();
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_unpack(lstate: *mut lua_State) -> i32 {
@@ -21848,29 +18815,30 @@ extern "C-unwind" fn nlua_api_nvim_unpack(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"str");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"str");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let mut ret = nvim_unpack(arg1, &mut err);
-        nlua_push_object(
-            lstate,
-            &mut ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_unpack(arg1) {
+            Ok(mut ret) => nlua_push_object(
+                lstate,
+                &mut ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> i32 {
@@ -21879,32 +18847,33 @@ extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_del_mark");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"name");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"name");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_del_mark(arg1, &mut err);
-        nlua_push_boolean(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_del_mark(arg1) {
+            Ok(ret) => nlua_push_boolean(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> i32 {
@@ -21915,46 +18884,46 @@ extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_get_mark");
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_empty_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_get_mark(arg1, &mut arg2, &mut err);
-            nlua_push_array(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_get_mark(arg1, &mut arg2) {
+                Ok(ret) => nlua_push_array(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &EMPTY_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State) -> i32 {
@@ -21965,43 +18934,43 @@ extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State) -> i3
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_eval_statusline_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"str");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"str");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_eval_statusline(arg1, &mut arg2, &mut err);
-            nlua_push_dict(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_eval_statusline(arg1, &mut arg2) {
+                Ok(ret) => nlua_push_dict(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &EVAL_STATUSLINE_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_complete_set(lstate: *mut lua_State) -> i32 {
@@ -22012,46 +18981,46 @@ extern "C-unwind" fn nlua_api_nvim_complete_set(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__complete_set");
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_complete_set_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_integer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"index");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_integer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"index");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_complete_set(arg1, &mut arg2, &mut err);
-            nlua_push_dict(
-                lstate,
-                ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_complete_set(arg1, &mut arg2) {
+                Ok(ret) => nlua_push_dict(
+                    lstate,
+                    ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &COMPLETE_SET_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_redraw(lstate: *mut lua_State) -> i32 {
@@ -22061,8 +19030,7 @@ extern "C-unwind" fn nlua_api_nvim_redraw(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) > 1 {
-                api_set_error_str(
-                    &mut err,
+                err = api_error_str(
                     ErrorType::ErrorTypeValidation,
                     c"Expected at most 1 argument",
                 );
@@ -22071,26 +19039,27 @@ extern "C-unwind" fn nlua_api_nvim_redraw(lstate: *mut lua_State) -> i32 {
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__redraw");
             }
-            if nlua_gettop(lstate) == 1 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 1
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg1,
                     Some(key_dict_redraw_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
+                )
+            {
+                err = e;
+                break 'exit_1;
             }
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_redraw(&mut arg1, &mut err);
+            if let Err(e) = nvim_redraw(&mut arg1) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg1, &REDRAW_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_set_restart_on_crash(lstate: *mut lua_State) -> i32 {
@@ -22101,33 +19070,35 @@ extern "C-unwind" fn nlua_api_nvim_set_restart_on_crash(lstate: *mut lua_State) 
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim__set_restart_on_crash");
             }
-            arg2 = nlua_pop_array(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"argv");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"progpath");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_array(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"argv");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"progpath");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
             nvim_set_restart_on_crash(arg1, arg2);
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> i32 {
@@ -22138,43 +19109,45 @@ extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_exec2");
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_exec_opts_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"src");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"src");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_exec2(LUA_INTERNAL_CALL, arg1, &mut arg2, &mut err);
-            nlua_push_dict(lstate, ret.clone(), K_NLUA_PUSH_FREE_REFS_CONST);
+            match nvim_exec2(LUA_INTERNAL_CALL, arg1, &mut arg2) {
+                Ok(ret) => {
+                    nlua_push_dict(lstate, ret.clone(), K_NLUA_PUSH_FREE_REFS_CONST);
+                    api_free_dict(ret);
+                }
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
-            api_free_dict(ret);
         }
         api_luarefs_free_keydict(&arg2, &EXEC_OPTS_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_command(lstate: *mut lua_State) -> i32 {
@@ -22183,27 +19156,28 @@ extern "C-unwind" fn nlua_api_nvim_command(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_command");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"cmd");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"cmd");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_command(arg1, &mut err);
+        if let Err(e) = nvim_command(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> i32 {
@@ -22212,32 +19186,33 @@ extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> i32 {
     let arg1: NvimString;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_eval");
         }
-        arg1 = nlua_pop_string(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"expr");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_string(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"expr");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let mut ret = nvim_eval(arg1, &mut err);
-        nlua_push_object(
-            lstate,
-            &mut ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_eval(arg1) {
+            Ok(mut ret) => nlua_push_object(
+                lstate,
+                &mut ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) -> i32 {
@@ -22248,38 +19223,42 @@ extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) -> i32 
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_call_function");
             }
-            arg2 = nlua_pop_array(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"args");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"fn");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_array(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"args");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"fn");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let mut ret = nvim_call_function(LUA_INTERNAL_CALL, arg1, arg2, &mut err);
-            nlua_push_object(
-                lstate,
-                &mut ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_call_function(LUA_INTERNAL_CALL, arg1, arg2) {
+                Ok(mut ret) => nlua_push_object(
+                    lstate,
+                    &mut ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_State) -> i32 {
@@ -22292,46 +19271,52 @@ extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_State) ->
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_call_dict_function");
                 }
-                arg3 = nlua_pop_array(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"args");
-                    break 'exit_0;
-                }
-                arg2 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"fn");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_object(lstate, true, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"dict");
-                    break 'exit_2;
-                }
+                arg3 = match nlua_pop_array(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"args");
+                        break 'exit_0;
+                    }
+                };
+                arg2 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"fn");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_object(lstate, true) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"dict");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let mut ret =
-                    nvim_call_dict_function(LUA_INTERNAL_CALL, arg1.clone(), arg2, arg3, &mut err);
-                nlua_push_object(
-                    lstate,
-                    &mut ret,
-                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                );
+                match nvim_call_dict_function(LUA_INTERNAL_CALL, arg1.clone(), arg2, arg3) {
+                    Ok(mut ret) => nlua_push_object(
+                        lstate,
+                        &mut ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    ),
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
                 api_luarefs_free_object(arg1);
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_State) -> i32 {
@@ -22344,41 +19329,41 @@ extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_State) -> i
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
-                arg3 = nlua_pop_boolean(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"hl");
-                    break 'exit_0;
-                }
-                arg2 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"flags");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"expr");
-                    break 'exit_2;
-                }
+                arg3 = nlua_pop_boolean(lstate);
+                arg2 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"flags");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"expr");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_parse_expression(arg1, arg2, arg3, &mut err);
-                nlua_push_dict(
-                    lstate,
-                    ret,
-                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                );
+                match nvim_parse_expression(arg1, arg2, arg3) {
+                    Ok(ret) => nlua_push_dict(
+                        lstate,
+                        ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    ),
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> i32 {
@@ -22391,58 +19376,50 @@ extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> i32 {
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_open_win");
                 }
                 if text_locked() {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeException,
-                        get_text_locked_msg(),
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
                     break 'exit_0;
                 }
-                nlua_pop_keydict(
+                if let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg3,
                     Some(key_dict_win_config_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
+                ) {
+                    err = e;
                     break 'exit_1;
                 }
-                arg2 = nlua_pop_boolean(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"enter");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_Buffer(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"buf");
-                    break 'exit_2;
-                }
+                arg2 = nlua_pop_boolean(lstate);
+                arg1 = match nlua_pop_Buffer(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"buf");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                let ret = nvim_open_win(arg1, arg2, &mut arg3, &mut err);
-                nlua_push_Window(
-                    lstate,
-                    ret,
-                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-                );
+                match nvim_open_win(arg1, arg2, &mut arg3) {
+                    Ok(ret) => nlua_push_Window(
+                        lstate,
+                        ret,
+                        K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                    ),
+                    Err(e) => err = e,
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
         api_luarefs_free_keydict(&arg3, &WIN_CONFIG_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State) -> i32 {
@@ -22453,39 +19430,39 @@ extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State) -> i32
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_config");
             }
-            nlua_pop_keydict(
+            if let Err(e) = nlua_pop_keydict(
                 lstate,
                 &mut arg2,
                 Some(key_dict_win_config_get_field),
                 &mut err_param,
-                &mut err,
-            );
-            if err.err_type != ErrorType::ErrorTypeNone {
+            ) {
+                err = e;
                 break 'exit_1;
             }
-            arg1 = nlua_pop_Window(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"win");
-                break 'exit_1;
-            }
+            arg1 = match nlua_pop_Window(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"win");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_win_set_config(arg1, &mut arg2, &mut err);
+            if let Err(e) = nvim_win_set_config(arg1, &mut arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &WIN_CONFIG_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_config(lstate: *mut lua_State) -> i32 {
@@ -22494,28 +19471,29 @@ extern "C-unwind" fn nlua_api_nvim_win_get_config(lstate: *mut lua_State) -> i32
     let arg1: Window;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_config");
         }
-        arg1 = nlua_pop_Window(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"win");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Window(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"win");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_win_get_config(arg1, &mut err);
-        nlua_push_keydict(lstate, &ret, &WIN_CONFIG_TABLE);
+        match nvim_win_get_config(arg1) {
+            Ok(ret) => nlua_push_keydict(lstate, &ret, &WIN_CONFIG_TABLE),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_buf(lstate: *mut lua_State) -> i32 {
@@ -22524,32 +19502,33 @@ extern "C-unwind" fn nlua_api_nvim_win_get_buf(lstate: *mut lua_State) -> i32 {
     let arg1: Window;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_buf");
         }
-        arg1 = nlua_pop_Window(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"win");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Window(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"win");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_win_get_buf(arg1, &mut err);
-        nlua_push_Buffer(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_win_get_buf(arg1) {
+            Ok(ret) => nlua_push_Buffer(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_buf(lstate: *mut lua_State) -> i32 {
@@ -22560,41 +19539,41 @@ extern "C-unwind" fn nlua_api_nvim_win_set_buf(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_buf");
             }
             if text_locked() {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeException,
-                    get_text_locked_msg(),
-                );
+                err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
                 break 'exit_0;
             }
-            arg2 = nlua_pop_Buffer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"buf");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Window(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"win");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_Buffer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"buf");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Window(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"win");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_win_set_buf(arg1, arg2, &mut err);
+            if let Err(e) = nvim_win_set_buf(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State) -> i32 {
@@ -22603,32 +19582,33 @@ extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State) -> i32
     let arg1: Window;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_cursor");
         }
-        arg1 = nlua_pop_Window(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"win");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Window(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"win");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_win_get_cursor(arg1, &mut err);
-        nlua_push_array(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_win_get_cursor(arg1) {
+            Ok(ret) => nlua_push_array(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_cursor(lstate: *mut lua_State) -> i32 {
@@ -22639,33 +19619,37 @@ extern "C-unwind" fn nlua_api_nvim_win_set_cursor(lstate: *mut lua_State) -> i32
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_cursor");
             }
-            arg2 = nlua_pop_array(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"pos");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Window(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"win");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_array(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"pos");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Window(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"win");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_win_set_cursor(arg1, arg2, &mut err);
+            if let Err(e) = nvim_win_set_cursor(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State) -> i32 {
@@ -22674,32 +19658,33 @@ extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State) -> i32
     let arg1: Window;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_height");
         }
-        arg1 = nlua_pop_Window(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"win");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Window(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"win");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_win_get_height(arg1, &mut err);
-        nlua_push_integer(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_win_get_height(arg1) {
+            Ok(ret) => nlua_push_integer(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) -> i32 {
@@ -22708,32 +19693,33 @@ extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) -> i32 
     let arg1: Window;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_width");
         }
-        arg1 = nlua_pop_Window(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"win");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Window(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"win");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_win_get_width(arg1, &mut err);
-        nlua_push_integer(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_win_get_width(arg1) {
+            Ok(ret) => nlua_push_integer(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) -> i32 {
@@ -22744,38 +19730,42 @@ extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_var");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Window(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"win");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Window(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"win");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let mut ret = nvim_win_get_var(arg1, arg2, &mut err);
-            nlua_push_object(
-                lstate,
-                &mut ret,
-                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-            );
+            match nvim_win_get_var(arg1, arg2) {
+                Ok(mut ret) => nlua_push_object(
+                    lstate,
+                    &mut ret,
+                    K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+                ),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_var(lstate: *mut lua_State) -> i32 {
@@ -22788,40 +19778,47 @@ extern "C-unwind" fn nlua_api_nvim_win_set_var(lstate: *mut lua_State) -> i32 {
         'exit_1: {
             'exit_2: {
                 if nlua_gettop(lstate) != 3 {
-                    api_set_error_str(
-                        &mut err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Expected 3 arguments",
-                    );
+                    err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 3 arguments");
                     break 'exit_0;
                 }
                 if !nlua_is_deferred_safe() {
                     return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_var");
                 }
-                arg3 = nlua_pop_object(lstate, true, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"value");
-                    break 'exit_0;
-                }
-                arg2 = nlua_pop_string(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"name");
-                    break 'exit_1;
-                }
-                arg1 = nlua_pop_Window(lstate, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    err_param = Some(c"win");
-                    break 'exit_2;
-                }
+                arg3 = match nlua_pop_object(lstate, true) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"value");
+                        break 'exit_0;
+                    }
+                };
+                arg2 = match nlua_pop_string(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"name");
+                        break 'exit_1;
+                    }
+                };
+                arg1 = match nlua_pop_Window(lstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        err = e;
+                        err_param = Some(c"win");
+                        break 'exit_2;
+                    }
+                };
                 let save_active_lstate = active_lstate();
                 set_active_lstate(lstate);
-                nvim_win_set_var(arg1, arg2, arg3.clone(), &mut err);
+                if let Err(e) = nvim_win_set_var(arg1, arg2, arg3.clone()) {
+                    err = e;
+                }
                 set_active_lstate(save_active_lstate);
             }
         }
         api_luarefs_free_object(arg3);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_del_var(lstate: *mut lua_State) -> i32 {
@@ -22832,33 +19829,37 @@ extern "C-unwind" fn nlua_api_nvim_win_del_var(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_del_var");
             }
-            arg2 = nlua_pop_string(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"name");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Window(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"win");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_string(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"name");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Window(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"win");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_win_del_var(arg1, arg2, &mut err);
+            if let Err(e) = nvim_win_del_var(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_State) -> i32 {
@@ -22867,32 +19868,33 @@ extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_State) -> i
     let arg1: Window;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_position");
         }
-        arg1 = nlua_pop_Window(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"win");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Window(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"win");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_win_get_position(arg1, &mut err);
-        nlua_push_array(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_win_get_position(arg1) {
+            Ok(ret) => nlua_push_array(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_tabpage(lstate: *mut lua_State) -> i32 {
@@ -22901,32 +19903,33 @@ extern "C-unwind" fn nlua_api_nvim_win_get_tabpage(lstate: *mut lua_State) -> i3
     let arg1: Window;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_tabpage");
         }
-        arg1 = nlua_pop_Window(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"win");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Window(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"win");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_win_get_tabpage(arg1, &mut err);
-        nlua_push_Tabpage(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_win_get_tabpage(arg1) {
+            Ok(ret) => nlua_push_Tabpage(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State) -> i32 {
@@ -22935,32 +19938,33 @@ extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State) -> i32
     let arg1: Window;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_get_number");
         }
-        arg1 = nlua_pop_Window(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"win");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Window(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"win");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        let ret = nvim_win_get_number(arg1, &mut err);
-        nlua_push_integer(
-            lstate,
-            ret,
-            K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
-        );
+        match nvim_win_get_number(arg1) {
+            Ok(ret) => nlua_push_integer(
+                lstate,
+                ret,
+                K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
+            ),
+            Err(e) => err = e,
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -> i32 {
@@ -22969,21 +19973,20 @@ extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -> i32 {
     let arg1: Window;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_is_valid");
         }
-        arg1 = nlua_pop_Window(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"win");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Window(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"win");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
         let ret = nvim_win_is_valid(arg1);
@@ -22994,7 +19997,7 @@ extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -> i32 {
         );
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_hide(lstate: *mut lua_State) -> i32 {
@@ -23003,35 +20006,32 @@ extern "C-unwind" fn nlua_api_nvim_win_hide(lstate: *mut lua_State) -> i32 {
     let arg1: Window;
     'exit_0: {
         if nlua_gettop(lstate) != 1 {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected 1 argument",
-            );
+            err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 argument");
             break 'exit_0;
         }
         if !nlua_is_deferred_safe() {
             return nlua_fast_api_disabled_error(lstate, c"nvim_win_hide");
         }
         if text_locked() {
-            api_set_error_str(
-                &mut err,
-                ErrorType::ErrorTypeException,
-                get_text_locked_msg(),
-            );
+            err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
             break 'exit_0;
         }
-        arg1 = nlua_pop_Window(lstate, &mut err);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            err_param = Some(c"win");
-            break 'exit_0;
-        }
+        arg1 = match nlua_pop_Window(lstate) {
+            Ok(v) => v,
+            Err(e) => {
+                err = e;
+                err_param = Some(c"win");
+                break 'exit_0;
+            }
+        };
         let save_active_lstate = active_lstate();
         set_active_lstate(lstate);
-        nvim_win_hide(arg1, &mut err);
+        if let Err(e) = nvim_win_hide(arg1) {
+            err = e;
+        }
         set_active_lstate(save_active_lstate);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_close(lstate: *mut lua_State) -> i32 {
@@ -23042,41 +20042,34 @@ extern "C-unwind" fn nlua_api_nvim_win_close(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_close");
             }
             if text_locked() {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeException,
-                    get_text_locked_msg(),
-                );
+                err = api_error_str(ErrorType::ErrorTypeException, get_text_locked_msg());
                 break 'exit_0;
             }
-            arg2 = nlua_pop_boolean(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"force");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Window(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"win");
-                break 'exit_1;
-            }
+            arg2 = nlua_pop_boolean(lstate);
+            arg1 = match nlua_pop_Window(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"win");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_win_close(arg1, arg2, &mut err);
+            if let Err(e) = nvim_win_close(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> i32 {
@@ -23087,35 +20080,31 @@ extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> i32 {
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_call");
             }
-            arg2 = nlua_pop_lua_ref(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"fn");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Window(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"win");
-                break 'exit_1;
-            }
+            arg2 = nlua_pop_lua_ref(lstate);
+            arg1 = match nlua_pop_Window(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"win");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_win_call(arg1, arg2, &mut err);
-            let _ = ret;
+            if let Err(e) = nvim_win_call(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
         api_free_luaref(arg2);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, -1)
+    nlua_finish_api_call(lstate, err, err_param, -1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) -> i32 {
@@ -23126,33 +20115,37 @@ extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) -> i32 
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) != 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_set_hl_ns");
             }
-            arg2 = nlua_pop_integer(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"ns_id");
-                break 'exit_0;
-            }
-            arg1 = nlua_pop_Window(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"win");
-                break 'exit_1;
-            }
+            arg2 = match nlua_pop_integer(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"ns_id");
+                    break 'exit_0;
+                }
+            };
+            arg1 = match nlua_pop_Window(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"win");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            nvim_win_set_hl_ns(arg1, arg2, &mut err);
+            if let Err(e) = nvim_win_set_hl_ns(arg1, arg2) {
+                err = e;
+            }
             set_active_lstate(save_active_lstate);
         }
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State) -> i32 {
@@ -23163,42 +20156,42 @@ extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State) -> i3
     'exit_0: {
         'exit_1: {
             if nlua_gettop(lstate) < 1 || nlua_gettop(lstate) > 2 {
-                api_set_error_str(
-                    &mut err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Expected 1 to 2 arguments",
-                );
+                err = api_error_str(ErrorType::ErrorTypeValidation, c"Expected 1 to 2 arguments");
                 break 'exit_0;
             }
             if !nlua_is_deferred_safe() {
                 return nlua_fast_api_disabled_error(lstate, c"nvim_win_text_height");
             }
-            if nlua_gettop(lstate) == 2 {
-                nlua_pop_keydict(
+            if nlua_gettop(lstate) == 2
+                && let Err(e) = nlua_pop_keydict(
                     lstate,
                     &mut arg2,
                     Some(key_dict_win_text_height_get_field),
                     &mut err_param,
-                    &mut err,
-                );
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    break 'exit_1;
-                }
-            }
-            arg1 = nlua_pop_Window(lstate, &mut err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                err_param = Some(c"win");
+                )
+            {
+                err = e;
                 break 'exit_1;
             }
+            arg1 = match nlua_pop_Window(lstate) {
+                Ok(v) => v,
+                Err(e) => {
+                    err = e;
+                    err_param = Some(c"win");
+                    break 'exit_1;
+                }
+            };
             let save_active_lstate = active_lstate();
             set_active_lstate(lstate);
-            let ret = nvim_win_text_height(arg1, &mut arg2, &mut err);
-            nlua_push_dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST);
+            match nvim_win_text_height(arg1, &mut arg2) {
+                Ok(ret) => nlua_push_dict(lstate, ret, K_NLUA_PUSH_FREE_REFS_CONST),
+                Err(e) => err = e,
+            }
             set_active_lstate(save_active_lstate);
         }
         api_luarefs_free_keydict(&arg2, &WIN_TEXT_HEIGHT_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 1)
+    nlua_finish_api_call(lstate, err, err_param, 1)
 }
 
 extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> i32 {
@@ -23213,8 +20206,7 @@ extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> i32 {
             'exit_2: {
                 'exit_3: {
                     if nlua_gettop(lstate) < 3 || nlua_gettop(lstate) > 4 {
-                        api_set_error_str(
-                            &mut err,
+                        err = api_error_str(
                             ErrorType::ErrorTypeValidation,
                             c"Expected 3 to 4 arguments",
                         );
@@ -23223,43 +20215,53 @@ extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> i32 {
                     if !nlua_is_deferred_safe() {
                         return nlua_fast_api_disabled_error(lstate, c"nvim_win_resize");
                     }
-                    if nlua_gettop(lstate) == 4 {
-                        nlua_pop_keydict(
+                    if nlua_gettop(lstate) == 4
+                        && let Err(e) = nlua_pop_keydict(
                             lstate,
                             &mut arg4,
                             Some(key_dict_win_resize_get_field),
                             &mut err_param,
-                            &mut err,
-                        );
-                        if err.err_type != ErrorType::ErrorTypeNone {
-                            break 'exit_1;
-                        }
-                    }
-                    arg3 = nlua_pop_integer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"height");
+                        )
+                    {
+                        err = e;
                         break 'exit_1;
                     }
-                    arg2 = nlua_pop_integer(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"width");
-                        break 'exit_2;
-                    }
-                    arg1 = nlua_pop_Window(lstate, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        err_param = Some(c"win");
-                        break 'exit_3;
-                    }
+                    arg3 = match nlua_pop_integer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"height");
+                            break 'exit_1;
+                        }
+                    };
+                    arg2 = match nlua_pop_integer(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"width");
+                            break 'exit_2;
+                        }
+                    };
+                    arg1 = match nlua_pop_Window(lstate) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            err = e;
+                            err_param = Some(c"win");
+                            break 'exit_3;
+                        }
+                    };
                     let save_active_lstate = active_lstate();
                     set_active_lstate(lstate);
-                    nvim_win_resize(arg1, arg2, arg3, &mut arg4, &mut err);
+                    if let Err(e) = nvim_win_resize(arg1, arg2, arg3, &mut arg4) {
+                        err = e;
+                    }
                     set_active_lstate(save_active_lstate);
                 }
             }
         }
         api_luarefs_free_keydict(&arg4, &WIN_RESIZE_TABLE);
     }
-    nlua_finish_api_call(lstate, &mut err, err_param, 0)
+    nlua_finish_api_call(lstate, err, err_param, 0)
 }
 
 pub extern "C-unwind" fn nlua_add_api_functions(lstate: *mut lua_State) {

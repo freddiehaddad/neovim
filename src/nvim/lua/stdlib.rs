@@ -2,10 +2,9 @@
 //! Lua standard library and internal `vim.*` C bindings (`src/nvim/lua/stdlib.c`).
 
 use crate::api::private::helpers::{
-    TryState, api_clear_error, dict_check_writable, find_buffer_by_handle, find_tab_by_handle,
+    TryState, dict_check_writable, find_buffer_by_handle, find_tab_by_handle,
     find_window_by_handle, try_enter, try_leave, tv_dict_is_watched,
 };
-use crate::api::private::validate::{Error, ErrorType};
 use crate::api::win_config::K_CTX_NO_DISPLAY;
 use crate::api::window::{K_CTX_KEEP_CWD, K_CTX_VALIDATE};
 use crate::charset::NUL;
@@ -281,20 +280,16 @@ pub extern "C-unwind" fn nlua_str_byteindex(lstate: *mut lua_State) -> i32 {
 }
 
 pub extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
-    let mut err = Error::new();
     let text = luaL_checkstring(lstate, 1);
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     let prog = vim_regcomp(text, RE_AUTO | RE_MAGIC | RE_STRICT | RE_NOBREAK);
-    try_leave(&tstate, &mut err);
-
-    if err.err_type != ErrorType::ErrorTypeNone {
+    if let Err(err) = try_leave(&tstate) {
         luaL_where_safe(lstate, 1);
         lua_push_bytes(lstate, b"couldn't parse regex: ");
         crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
         lua_concat_safe(lstate, 3);
-        api_clear_error(&mut err);
         return lua_error_safe(lstate);
     } else if prog.is_none() {
         luaL_where_safe(lstate, 1);
@@ -318,43 +313,30 @@ pub extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
 fn nlua_get_var_scope(lstate: *mut lua_State) -> Option<crate::eval::typval::DictId> {
     let scope = luaL_checkstring(lstate, 1);
     let handle = luaL_checkinteger_safe(lstate, 2) as ObjHandle;
-    let mut dict = crate::eval::typval::DictId::NULL;
-    let mut err = Error::new();
 
-    match scope.to_bytes() {
-        b"g" => dict = get_globvar_dict(),
-        b"v" => dict = get_vimvar_dict(),
-        b"b" => {
-            if let Some(buf) = find_buffer_by_handle(handle, &mut err) {
-                dict = buf.b_vars();
-            }
-        }
-        b"w" => {
-            if let Some(win) = find_window_by_handle(handle, &mut err) {
-                dict = win.w_vars();
-            }
-        }
-        b"t" => {
-            if let Some(tabpage) = find_tab_by_handle(handle, &mut err) {
-                dict = tabpage.tp_vars();
-            }
-        }
+    let res = match scope.to_bytes() {
+        b"g" => Ok(get_globvar_dict()),
+        b"v" => Ok(get_vimvar_dict()),
+        b"b" => find_buffer_by_handle(handle).map(|buf| buf.b_vars()),
+        b"w" => find_window_by_handle(handle).map(|win| win.w_vars()),
+        b"t" => find_tab_by_handle(handle).map(|tabpage| tabpage.tp_vars()),
         _ => {
             luaL_error_cstr(lstate, c"invalid scope");
             return None;
         }
-    }
+    };
 
-    if err.err_type != ErrorType::ErrorTypeNone {
-        luaL_where_safe(lstate, 1);
-        lua_push_bytes(lstate, b"scoped variable: ");
-        crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
-        lua_concat_safe(lstate, 3);
-        api_clear_error(&mut err);
-        lua_error_safe(lstate);
-        return None;
+    match res {
+        Ok(dict) => (!dict.is_null()).then_some(dict),
+        Err(err) => {
+            luaL_where_safe(lstate, 1);
+            lua_push_bytes(lstate, b"scoped variable: ");
+            crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
+            lua_concat_safe(lstate, 3);
+            lua_error_safe(lstate);
+            None
+        }
     }
-    (!dict.is_null()).then_some(dict)
 }
 
 pub extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
@@ -365,16 +347,16 @@ pub extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
 
     let del = nlua_gettop(lstate) < 4 || lua_isnil(lstate, 4);
 
-    let mut err = Error::new();
-    let di_opt = dict_check_writable(&dict, &key, del, &mut err);
-    if err.err_type != ErrorType::ErrorTypeNone {
-        luaL_where_safe(lstate, 1);
-        crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
-        lua_concat_safe(lstate, 2);
-        api_clear_error(&mut err);
-        lua_error_safe(lstate);
-        return 0;
-    }
+    let di_opt = match dict_check_writable(&dict, &key, del) {
+        Ok(di_opt) => di_opt,
+        Err(err) => {
+            luaL_where_safe(lstate, 1);
+            crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
+            lua_concat_safe(lstate, 2);
+            lua_error_safe(lstate);
+            return 0;
+        }
+    };
 
     let watched = tv_dict_is_watched(Some(&dict));
 
@@ -623,7 +605,6 @@ extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
     apply_cmdmod(&mut cur_cmod);
     *g_st().cmdmod.borrow_mut() = cur_cmod;
 
-    let mut err = Error::new();
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     {
@@ -663,7 +644,7 @@ extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
 
         ctx_restore(&mut cs);
     }
-    try_leave(&tstate, &mut err);
+    let leave_res = try_leave(&tstate);
 
     let mut cur_cmod = g_st().cmdmod.take();
     undo_cmdmod(&mut cur_cmod);
@@ -674,11 +655,10 @@ extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
 
     if status != 0 {
         return lua_error_safe(lstate);
-    } else if err.err_type != ErrorType::ErrorTypeNone {
+    } else if let Err(err) = leave_res {
         luaL_where_safe(lstate, 1);
         crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
         lua_concat_safe(lstate, 2);
-        api_clear_error(&mut err);
         return lua_error_safe(lstate);
     }
 

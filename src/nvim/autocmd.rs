@@ -4,13 +4,10 @@
 
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{
-    HLF_E, api_clear_error, api_free_object, api_free_string, boolean_obj, copy_object,
-    cstr_as_obj, cstr_to_string, dict_obj, find_buffer_by_handle, integer_obj,
-    static_cstr_as_string, string_obj,
+    HLF_E, api_free_object, api_free_string, boolean_obj, copy_object, cstr_as_obj, cstr_to_string,
+    dict_obj, find_buffer_by_handle, integer_obj, static_cstr_as_string, string_obj,
 };
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType,
-};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, NvimString, Object, ObjectType};
 use crate::api::tabpage::Buffer;
 use crate::api::ui::NO_SCREEN;
 use crate::buffer::{
@@ -41,7 +38,7 @@ use crate::fileio::{check_timestamps, file_pat_to_reg_pat, match_file_pat};
 use crate::globals::*;
 use crate::input::{RedoState, restore_redobuff, save_redobuff};
 use crate::insexpand::ins_compl_active;
-use crate::lua::executor::{K_RET_NIL_BOOL, nlua_call_ref, nlua_set_sctx};
+use crate::lua::executor::{K_RET_NIL_BOOL, nlua_call_ref_log_err, nlua_set_sctx};
 use crate::mbyte::mb_strcmp_ic;
 
 use crate::message::{
@@ -2663,8 +2660,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
     let group = e.group;
     let data = e.data.take();
 
-    let mut err = Error::new();
-    if let Some(buf) = find_buffer_by_handle(e.buf, &mut err) {
+    if let Ok(buf) = find_buffer_by_handle(e.buf) {
         let buf_ptr = buf.clone();
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
@@ -2673,11 +2669,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
         {
             for item in data_obj.data.dict_slice() {
                 let mut tv: TypVal = TypVal::new();
-                object_to_vim(item.value.clone(), &mut tv, &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    api_clear_error(&mut err);
-                    continue;
-                }
+                object_to_vim(item.value.clone(), &mut tv);
                 tv_dict_add_tv(&v_event, item.key.as_bytes(), &mut tv);
                 tv_clear(&mut tv);
             }
@@ -2711,10 +2703,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
 }
 
 pub fn deferred_optionset_modified(bufnr: i32, new_val: bool) {
-    let mut err = Error::new();
-    let buf = find_buffer_by_handle(bufnr, &mut err);
-    api_clear_error(&mut err);
-    if let Some(buf) = buf {
+    if let Ok(buf) = find_buffer_by_handle(bufnr) {
         let old = boolean_obj(!new_val);
         let new = boolean_obj(new_val);
         let mut aco: CtxSwitch = CtxSwitch::new();
@@ -3454,7 +3443,7 @@ fn au_callback(callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) -> boo
         let args = Array::from_slice(&mut args_items[..1]);
 
         let luaref = callback.data.as_luaref();
-        let result = nlua_call_ref(luaref, None, args, K_RET_NIL_BOOL, None);
+        let result = nlua_call_ref_log_err(luaref, None, args, K_RET_NIL_BOOL);
         result.obj_type == ObjectType::ObjectTypeBoolean && result.data.boolean()
     } else {
         let mut argsin: [TypVal; 1] = [TypVal::new()];

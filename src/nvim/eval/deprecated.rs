@@ -2,8 +2,7 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::converter::{K_BOOL_VAR_TRUE, object_to_vim, vim_to_object};
-use crate::api::private::helpers::api_clear_error;
-use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::channel::{CallbackReader, channel_close, channel_create_event, channel_job_start};
 use crate::errors::{E_API_SPAWN_FAILED, E_INVARG, E_INVARG2};
 use crate::eval::find_job;
@@ -144,10 +143,9 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         set_current_funccal(g_st().provider_caller_scope.borrow().funccalp);
     }
 
-    let mut err = Error::new();
     let chan_id = argvars[0].vval.v_number() as u64;
     let method = tv_get_string(&argvars[1]);
-    let result = rpc_send_call(chan_id, &method, args, -1, &mut err);
+    let res = rpc_send_call(chan_id, &method, args, -1);
     if l_provider_call_nesting != 0 {
         g_st().current_sctx.set(save_current_sctx);
         crate::runtime::estack_pop_raw();
@@ -158,33 +156,35 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         restore_funccal();
     }
 
-    if err.err_type != ErrorType::ErrorTypeNone {
-        let mut name: Option<&std::ffi::CStr> = None;
-        if let Some(chan) = find_channel(chan_id) {
-            name = get_client_info(chan, c"name");
+    match res {
+        Err(err) => {
+            let mut name: Option<&std::ffi::CStr> = None;
+            if let Some(chan) = find_channel(chan_id) {
+                name = get_client_info(chan, c"name");
+            }
+            if let Some(name) = name {
+                semsg_multiline!(
+                    c"rpc_error",
+                    c"Invoking '%s' on channel %llu (%s):\n%s",
+                    method,
+                    chan_id,
+                    name,
+                    err.msg_cstr(),
+                );
+            } else {
+                semsg_multiline!(
+                    c"rpc_error",
+                    c"Invoking '%s' on channel %llu:\n%s",
+                    method,
+                    chan_id,
+                    err.msg_cstr(),
+                );
+            }
         }
-        if let Some(name) = name {
-            semsg_multiline!(
-                c"rpc_error",
-                c"Invoking '%s' on channel %llu (%s):\n%s",
-                method,
-                chan_id,
-                name,
-                err.msg_cstr(),
-            );
-        } else {
-            semsg_multiline!(
-                c"rpc_error",
-                c"Invoking '%s' on channel %llu:\n%s",
-                method,
-                chan_id,
-                err.msg_cstr(),
-            );
+        Ok(result) => {
+            object_to_vim(result, &mut *rettv);
         }
-    } else {
-        object_to_vim(result, &mut *rettv, &mut err);
     }
-    api_clear_error(&mut err);
 }
 
 /// `"rpcstart()"` function (`f_rpcstart`).

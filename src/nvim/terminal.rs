@@ -7,10 +7,10 @@ use crate::vterm::state::VTERM_SELECTION_CLIPBOARD;
 use crate::vterm::state::VTERM_SELECTION_PRIMARY;
 
 use crate::api::private::helpers::{
-    api_clear_error, api_free_object, dict_get_value, dict_set_var, integer_obj, string_obj,
+    api_free_object, dict_get_value, dict_set_var, integer_obj, string_obj,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
+    Array, Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::api::tabpage::Buffer;
 use crate::autocmd::{
@@ -1933,18 +1933,15 @@ fn buf_set_term_title(buf: Option<&FileBuf>, title: &[u8]) {
         return;
     };
 
-    let mut err = Error::new();
     buf_ref.b_locked.set(buf_ref.b_locked.get() + (1));
-    dict_set_var(
+    let _ = dict_set_var(
         &buf_ref.b_vars(),
         cstr_slice_as_string(b"term_title\0"),
         string_obj(NvimString::from_bytes(title)),
         false,
         false,
-        &mut err,
     );
     buf_ref.b_locked.set(buf_ref.b_locked.get() - (1));
-    api_clear_error(&mut err);
     status_redraw_buf(buf_ref);
 }
 
@@ -2765,13 +2762,11 @@ fn is_focused(term_id: TermId) -> bool {
 }
 
 fn get_config_string(buf: &FileBuf, key: &[u8]) -> Option<std::ffi::CString> {
-    let mut err = Error::new();
     let key_str = NvimString::from_bytes(key);
-    let mut obj = dict_get_value(Some(&*buf.b_vars()), key_str.clone(), &mut err);
-    api_clear_error(&mut err);
+    let mut obj =
+        dict_get_value(Some(&*buf.b_vars()), key_str.clone()).unwrap_or_else(|_| Object::new());
     if obj.obj_type == ObjectType::ObjectTypeNil {
-        obj = dict_get_value(Some(&*get_globvar_dict()), key_str, &mut err);
-        api_clear_error(&mut err);
+        obj = dict_get_value(Some(&*get_globvar_dict()), key_str).unwrap_or_else(|_| Object::new());
     }
     if obj.obj_type == ObjectType::ObjectTypeString {
         return Some(crate::memory::bytes_to_cstring(

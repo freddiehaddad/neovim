@@ -4,8 +4,8 @@
 
 use crate::api::private::dispatch::key_dict_highlight_get_field as highlight_get_field_cb;
 use crate::api::private::helpers::{
-    OBJECT_NIL, api_dict_to_keydict, api_free_array, api_metadata, api_set_error, boolean_obj,
-    copy_array, cstr_as_obj, cstr_as_string, integer_obj,
+    api_dict_to_keydict, api_error, api_free_array, api_metadata, boolean_obj, copy_array,
+    cstr_as_obj, cstr_as_string, integer_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
@@ -345,23 +345,20 @@ pub fn ui_client_set_size(width: i32, height: i32) {
     UIC_STATE.with(|s| s.tui_height.set(height));
 }
 
-pub fn handle_ui_client_redraw(_channel_id: u64, _args: Array, error: &mut Error) -> Object {
-    api_set_error!(
-        error,
+pub fn handle_ui_client_redraw(_channel_id: u64, _args: Array) -> Result<Object, Error> {
+    Err(api_error!(
         ErrorType::ErrorTypeValidation,
         c"'redraw' cannot be sent as a request",
-    );
-    OBJECT_NIL
+    ))
 }
 
 pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
-    let mut err = Error::new();
     let mut dict = KeyDictHighlight::default();
-    if !api_dict_to_keydict(&mut dict, Some(highlight_get_field_cb), d, &mut err) {
+    if api_dict_to_keydict(&mut dict, Some(highlight_get_field_cb), d).is_err() {
         return HLATTRS_INIT;
     }
 
-    let mut attrs = dict2hlattrs(&mut dict, rgb, None, None, &mut err);
+    let mut attrs = dict2hlattrs(&mut dict, rgb, None, None).unwrap_or(HLATTRS_INIT);
     if (dict.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_URL)) != 0 {
         attrs.url = with_tui_mut(|tui| tui_add_url(tui, dict.url));
     }

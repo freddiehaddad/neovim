@@ -668,7 +668,7 @@ pub fn nlua_fast_api_disabled_error(lstate: *mut lua_State, fn_name: &std::ffi::
 #[inline]
 pub fn nlua_finish_api_call(
     lstate: *mut lua_State,
-    err: &mut crate::api::private::validate::Error,
+    err: crate::api::private::validate::Error,
     err_param: Option<&'static std::ffi::CStr>,
     nret: i32,
 ) -> i32 {
@@ -681,7 +681,7 @@ pub fn nlua_finish_api_call(
             lua_pushstring(lstate, c"': ");
         }
         lua_pushstring_opt(lstate, err.msg_cstr());
-        crate::api::private::helpers::api_clear_error(err);
+        drop(err);
 
         lua_concat_safe(lstate, if err_param.is_some() { 5 } else { 2 });
 

@@ -984,12 +984,11 @@ pub fn channel_term_write(buf: &[u8], chan: &mut Channel) {
         ];
         let args = Array::from_slice(&mut args_items[..3]);
         g_st().textlock.set(g_st().textlock.get() + (1));
-        crate::lua::executor::nlua_call_ref(
+        crate::lua::executor::nlua_call_ref_log_err(
             cb,
             Some(c"input"),
             args,
             crate::lua::executor::K_RET_NIL_BOOL,
-            None,
         );
         g_st().textlock.set(g_st().textlock.get() - (1));
         return;
@@ -1067,7 +1066,6 @@ pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
             data: ObjectData::Dict(info),
         },
         &mut retval,
-        &mut crate::api::private::validate::Error::new(),
     );
     assert_eq!(retval.v_type, VarType::VarDict);
     let _ = tv_dict_add_dict(&dict, c"info", retval.vval.v_dict_opt());

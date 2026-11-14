@@ -1,8 +1,8 @@
 //! String option validation, handling, and completion (`src/nvim/optionstr.c`).
 #![forbid(unsafe_code)]
 
-use crate::api::private::helpers::{TryState, api_clear_error, try_enter, try_leave};
-use crate::api::private::validate::{Error, ErrorType, NvimString, Object, ObjectData, ObjectType};
+use crate::api::private::helpers::{TryState, try_enter, try_leave};
+use crate::api::private::validate::{NvimString, Object, ObjectData, ObjectType};
 use crate::api::win_config::{WIN_CONFIG_INIT, parse_winborder};
 use crate::autocmd::{check_ei, get_event_name_no_group};
 use crate::buffer::{FileBuf, K_UIMESSAGES, MAXLNUM, STL_IN_ICON, STL_IN_TITLE, modifiable};
@@ -2680,7 +2680,6 @@ pub fn did_set_signcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Validate 'spellcapcheck' and prepare its regexp program.
 pub fn validate_spellcapcheck<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut prog: Option<Box<Regprog>> = None;
-    let mut err = Error::new();
     let save_emsg_silent = g_st().emsg_silent.get();
     let save_suppress_errthrow = g_st().suppress_errthrow.get();
     g_st().emsg_silent.set(0);
@@ -2689,21 +2688,19 @@ pub fn validate_spellcapcheck<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     let errmsg = compile_cap_prog(args.os_newval.data.string().as_cstr(), &mut prog);
-    try_leave(&tstate, &mut err);
+    let leave_res = try_leave(&tstate);
 
     g_st().emsg_silent.set(save_emsg_silent);
     g_st().suppress_errthrow.set(save_suppress_errthrow);
     args.os_prep = OptSetPrep::SpellcapProg(prog);
-    if err.err_type != ErrorType::ErrorTypeNone {
+    if let Err(err) = leave_res {
         let msg_cstr = err.msg_cstr().unwrap_or(c"");
         let msg = if msg_cstr.to_bytes().starts_with(b"Vim:") {
             crate::memory::CStrSubslice::advance(msg_cstr, 4)
         } else {
             msg_cstr
         };
-        let err_out = opt_error(args.os_errbuf.take(), c"%s", msg);
-        api_clear_error(&mut err);
-        return err_out;
+        return opt_error(args.os_errbuf.take(), c"%s", msg);
     }
     errmsg
 }
@@ -3064,13 +3061,11 @@ pub fn did_set_winbar<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Validate the 'winborder' or 'pumborder' option.
 pub fn validate_border<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut fconfig = WIN_CONFIG_INIT;
-    let mut err = Error::new();
     let ok = parse_winborder(
         Some(&mut fconfig),
         args.os_newval.data.string().cstr_bytes(),
-        &mut err,
-    );
-    api_clear_error(&mut err);
+    )
+    .is_ok();
     if ok { None } else { Some(E_INVARG) }
 }
 

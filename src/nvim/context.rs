@@ -5,8 +5,8 @@ use crate::api::extmark::nvim_create_namespace;
 
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{
-    api_clear_error, api_free_array, api_set_error, array_obj, copy_array, copy_object, error_set,
-    put_c, static_cstr_as_string, string_obj, string_to_array,
+    api_error, api_free_array, array_obj, copy_array, copy_object, put_c, static_cstr_as_string,
+    string_obj, string_to_array,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
 use crate::api::vimscript::{KeyDictExecOpts, exec_impl};
@@ -386,7 +386,6 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
     if (flags & (K_CTX_FUNCS | K_CTX_SFUNCS)) != 0 {
         let scriptonly = (flags & K_CTX_FUNCS) == 0;
         ctx.funcs = Array::new();
-        let mut err = Error::new();
 
         for name_bytes in &func_tbl_keys() {
             let islambda = name_bytes.starts_with(b"<lambda>");
@@ -399,16 +398,13 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
                 let cmd_len = cmd_vec.len();
                 cmd_vec.push(0);
                 let mut opts = KeyDictExecOpts { output: true };
-                let func_body = exec_impl(
+                if let Ok(func_body) = exec_impl(
                     VIML_INTERNAL_CALL,
                     NvimString::from_bytes(&cmd_vec[..cmd_len]),
                     &mut opts,
-                    &mut err,
-                );
-                if !error_set(&err) {
+                ) {
                     ctx.funcs.push(string_obj(func_body));
                 }
-                api_clear_error(&mut err);
             }
         }
     }
@@ -498,25 +494,21 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
     }
 }
 
-fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
-    let mut sbuf = Vec::new();
+fn array_to_string(array: Array) -> Result<Vec<u8>, Error> {
     let mut list_tv: TypVal = TypVal::new();
-    object_to_vim(array_obj(array), &mut list_tv, err);
+    object_to_vim(array_obj(array), &mut list_tv);
 
     assert_eq!(list_tv.v_type, VarType::VarList);
-    if let Some(buf) = encode_vim_list_to_buf(list_tv.vval.v_list_opt()) {
-        sbuf = buf;
-    } else {
-        api_set_error!(
-            err,
+    let res = encode_vim_list_to_buf(list_tv.vval.v_list_opt()).ok_or_else(|| {
+        api_error!(
             ErrorType::ErrorTypeException,
             c"%s",
             c"E474: Failed to convert list to msgpack string buffer",
-        );
-    }
+        )
+    });
 
     tv_clear(&mut list_tv);
-    sbuf
+    res
 }
 
 pub fn ctx_to_dict(ctx: &mut Context) -> Dict {
@@ -546,33 +538,31 @@ pub fn ctx_to_dict(ctx: &mut Context) -> Dict {
     rv
 }
 
-pub fn ctx_from_dict(dict: Dict, ctx: &mut Context, err: &mut Error) -> CtxStateFlags {
+pub fn ctx_from_dict(dict: Dict, ctx: &mut Context) -> Result<CtxStateFlags, Error> {
     let mut types: CtxStateFlags = 0;
-    let mut i = 0usize;
-    while i < dict.size && !error_set(err) {
+    for i in 0..dict.size {
         let item = &dict[i];
-        i += 1;
         if item.value.obj_type != ObjectType::ObjectTypeArray {
             continue;
         }
         if item.key.opt_bytes() == Some(b"regs") {
             types |= K_CTX_REGS;
-            ctx.regs = array_to_string(item.value.data.array(), err);
+            ctx.regs = array_to_string(item.value.data.array())?;
         } else if item.key.opt_bytes() == Some(b"jumps") {
             types |= K_CTX_JUMPS;
-            ctx.jumps = array_to_string(item.value.data.array(), err);
+            ctx.jumps = array_to_string(item.value.data.array())?;
         } else if item.key.opt_bytes() == Some(b"bufs") {
             types |= K_CTX_BUFS;
-            ctx.bufs = array_to_string(item.value.data.array(), err);
+            ctx.bufs = array_to_string(item.value.data.array())?;
         } else if item.key.opt_bytes() == Some(b"gvars") {
             types |= K_CTX_GVARS;
-            ctx.gvars = array_to_string(item.value.data.array(), err);
+            ctx.gvars = array_to_string(item.value.data.array())?;
         } else if item.key.opt_bytes() == Some(b"funcs") {
             types |= K_CTX_FUNCS;
             ctx.funcs = copy_object(item.value.clone()).data.array();
         }
     }
-    types
+    Ok(types)
 }
 
 fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &WinInfoInfo, buf: &FileBuf) {

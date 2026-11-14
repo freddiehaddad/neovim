@@ -2,9 +2,9 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    ArrayBuilder, TryState, add_c, api_set_error, api_set_sctx, api_typename, boolean_obj,
-    cstr_as_string, dict_obj, error_set, find_buffer_by_handle, has_key, integer_obj, luaref_obj,
-    put_c, string_obj, try_enter, try_leave,
+    ArrayBuilder, TryState, add_c, api_error, api_set_sctx, api_typename, boolean_obj,
+    cstr_as_string, dict_obj, find_buffer_by_handle, has_key, integer_obj, luaref_obj, put_c,
+    string_obj, try_enter, try_leave,
 };
 use crate::api::private::validate::Dict;
 use crate::api::private::validate::{
@@ -117,23 +117,23 @@ std::thread_local! {
 }
 
 #[inline]
-fn api_err_con(err: &mut Error, name: &std::ffi::CStr, name2: &std::ffi::CStr) {
-    api_err_conflict(err, name, name2);
+fn api_err_con(name: &std::ffi::CStr, name2: &std::ffi::CStr) -> Error {
+    api_err_conflict(name, name2)
 }
 
 #[inline]
-fn api_err_inv(err: &mut Error, name: &std::ffi::CStr, val_s: &std::ffi::CStr) {
-    api_err_invalid(err, name, Some(val_s), 0, true);
+fn api_err_inv(name: &std::ffi::CStr, val_s: &std::ffi::CStr) -> Error {
+    api_err_invalid(name, Some(val_s), 0, true)
 }
 
 #[inline]
-fn api_err_int(err: &mut Error, name: &std::ffi::CStr, val_n: i64) {
-    api_err_invalid(err, name, None, val_n, false);
+fn api_err_int(name: &std::ffi::CStr, val_n: i64) -> Error {
+    api_err_invalid(name, None, val_n, false)
 }
 
 #[inline]
-fn api_err_req(err: &mut Error, name: &std::ffi::CStr) {
-    api_err_required(err, name);
+fn api_err_req(name: &std::ffi::CStr) -> Error {
+    api_err_required(name)
 }
 
 #[inline]
@@ -142,35 +142,36 @@ fn format_buflocal_arena(handle: i32) -> NvimString {
     NvimString::from_bytes(s.as_bytes())
 }
 
-fn unpack_string_or_array(v: Object, k: &std::ffi::CStr, required: bool, err: &mut Error) -> Array {
+fn unpack_string_or_array(v: Object, k: &std::ffi::CStr, required: bool) -> Result<Array, Error> {
     if v.obj_type == ObjectType::ObjectTypeString {
         let mut arr = Array::with_capacity(1);
         add_c(&mut arr, v);
-        arr
+        Ok(arr)
     } else if v.obj_type == ObjectType::ObjectTypeArray {
-        if !check_string_array(v.data.array(), k, true, err) {
-            return Array::new();
-        }
-        v.data.array()
+        check_string_array(v.data.array(), k, true)?;
+        Ok(v.data.array())
     } else {
         if !(!required && v.obj_type == ObjectType::ObjectTypeNil) {
-            api_err_exp(err, k, c"Array or String", Some(api_typename(v.obj_type)));
+            return Err(api_err_exp(
+                k,
+                c"Array or String",
+                Some(api_typename(v.obj_type)),
+            ));
         }
-        Array::new()
+        Ok(Array::new())
     }
 }
 
-fn get_augroup_from_object(group: Object, err: &mut Error) -> i32 {
+fn get_augroup_from_object(group: Object) -> Result<i32, Error> {
     match group.obj_type {
-        ObjectType::ObjectTypeNil => AUGROUP_DEFAULT,
+        ObjectType::ObjectTypeNil => Ok(AUGROUP_DEFAULT),
         ObjectType::ObjectTypeString => {
             let group_cstr = group.data.as_cstr();
             let au_group = augroup_find(group_cstr);
             if au_group == AUGROUP_ERROR {
-                api_err_inv(err, c"group", group_cstr);
-                return AUGROUP_ERROR;
+                return Err(api_err_inv(c"group", group_cstr));
             }
-            au_group
+            Ok(au_group)
         }
         ObjectType::ObjectTypeInteger => {
             let au_group = group.data.integer() as i32;
@@ -180,20 +181,15 @@ fn get_augroup_from_object(group: Object, err: &mut Error) -> i32 {
                 augroup_name(au_group)
             };
             if !augroup_exists(name.as_deref()) {
-                api_err_int(err, c"group", i64::from(au_group));
-                return AUGROUP_ERROR;
+                return Err(api_err_int(c"group", i64::from(au_group)));
             }
-            au_group
+            Ok(au_group)
         }
-        _ => {
-            api_err_exp(
-                err,
-                c"group",
-                c"String or Integer",
-                Some(api_typename(group.obj_type)),
-            );
-            AUGROUP_ERROR
-        }
+        _ => Err(api_err_exp(
+            c"group",
+            c"String or Integer",
+            Some(api_typename(group.obj_type)),
+        )),
     }
 }
 
@@ -202,8 +198,7 @@ fn get_patterns_from_pattern_or_buf(
     has_buf: bool,
     buf: Buffer,
     fallback: &std::ffi::CStr,
-    err: &mut Error,
-) -> Array {
+) -> Result<Array, Error> {
     let mut patterns = ArrayBuilder::new();
 
     if pattern.obj_type != ObjectType::ObjectTypeNil {
@@ -215,9 +210,7 @@ fn get_patterns_from_pattern_or_buf(
                 rem = rest;
             }
         } else if pattern.obj_type == ObjectType::ObjectTypeArray {
-            if !check_string_array(pattern.data.array(), c"pattern", true, err) {
-                return Array::new();
-            }
+            check_string_array(pattern.data.array(), c"pattern", true)?;
             let array = pattern.data.array();
             for i in 0..array.size {
                 let entry_str = array[i].data.string();
@@ -228,36 +221,32 @@ fn get_patterns_from_pattern_or_buf(
                 }
             }
         } else {
-            api_err_exp(
-                err,
+            return Err(api_err_exp(
                 c"pattern",
                 c"String or Table",
                 Some(api_typename(pattern.obj_type)),
-            );
-            return Array::new();
+            ));
         }
     } else if has_buf {
-        let Some(b) = crate::api::private::helpers::find_buffer_by_handle(buf, err) else {
-            return Array::new();
-        };
+        let b = crate::api::private::helpers::find_buffer_by_handle(buf)?;
         patterns.push(string_obj(format_buflocal_arena(b.b_fnum.get())));
     } else {
         patterns.push(string_obj(cstr_as_string(Some(fallback))));
     }
 
-    crate::api::private::helpers::take_arraybuilder(&mut patterns)
+    Ok(crate::api::private::helpers::take_arraybuilder(
+        &mut patterns,
+    ))
 }
 
-fn clear_autocmd(event: AuEvent, pat: &std::ffi::CStr, au_group: i32, err: &mut Error) -> bool {
+fn clear_autocmd(event: AuEvent, pat: &std::ffi::CStr, au_group: i32) -> Result<(), Error> {
     if !do_autocmd_event(event, pat, false, 0, c"", true, au_group) {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Failed to clear autocmd",
-        );
-        return false;
+        ));
     }
-    true
+    Ok(())
 }
 
 /// Gets all autocommands matching ALL criteria in the {opts} query.
@@ -303,7 +292,7 @@ fn clear_autocmd(event: AuEvent, pat: &std::ffi::CStr, au_group: i32, err: &mut 
 // DLLEXPORT ArrayOf(DictAs(get_autocmds__ret)) nvim_get_autocmds(Dict(get_autocmds) *opts,
 //                                                                Arena *arena,
 //                                                                Error *err) FUNC_API_SINCE(9);
-pub fn nvim_get_autocmds(opts: &mut KeyDictGetAutocmds, err: &mut Error) -> Array {
+pub fn nvim_get_autocmds(opts: &mut KeyDictGetAutocmds) -> Result<Array, Error> {
     let mut autocmd_list = ArrayBuilder::new();
     let mut pattern_filters: [Option<&CStr>; AUCMD_MAX_PATTERNS] = [None; AUCMD_MAX_PATTERNS];
     let mut buffers = Array::new();
@@ -311,354 +300,317 @@ pub fn nvim_get_autocmds(opts: &mut KeyDictGetAutocmds, err: &mut Error) -> Arra
     let mut check_event = false;
     let mut group: i32 = 0;
 
-    'body: {
-        match opts.group.obj_type {
-            ObjectType::ObjectTypeNil => {}
-            ObjectType::ObjectTypeString => {
-                let group_cstr = opts.group.data.as_cstr();
-                group = augroup_find(group_cstr);
-                if group < 0 {
-                    api_err_inv(err, c"group", group_cstr);
-                    break 'body;
-                }
-            }
-            ObjectType::ObjectTypeInteger => {
-                group = opts.group.data.integer() as i32;
-                let name = if group == 0 {
-                    None
-                } else {
-                    augroup_name(group)
-                };
-                if !augroup_exists(name.as_deref()) {
-                    api_err_int(err, c"group", opts.group.data.integer());
-                    break 'body;
-                }
-            }
-            _ => {
-                api_err_exp(
-                    err,
-                    c"group",
-                    c"String or Integer",
-                    Some(api_typename(opts.group.obj_type)),
-                );
-                break 'body;
+    match opts.group.obj_type {
+        ObjectType::ObjectTypeNil => {}
+        ObjectType::ObjectTypeString => {
+            let group_cstr = opts.group.data.as_cstr();
+            group = augroup_find(group_cstr);
+            if group < 0 {
+                return Err(api_err_inv(c"group", group_cstr));
             }
         }
-
-        let mask = opts.is_set_get_autocmds;
-        let id: i32 = if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_ID) {
-            opts.id as i32
-        } else {
-            -1
-        };
-
-        if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_EVENT) {
-            check_event = true;
-            let v = &opts.event;
-            if v.obj_type == ObjectType::ObjectTypeString {
-                let event_nr = event_name2nr_str(v.data.string());
-                if (event_nr as usize) >= NUM_EVENTS {
-                    api_err_inv(err, c"event", v.data.as_cstr());
-                    break 'body;
-                }
-                event_set[event_nr as usize] = true;
-            } else if v.obj_type == ObjectType::ObjectTypeArray {
-                for event_v in v.data.array_slice() {
-                    if event_v.obj_type != ObjectType::ObjectTypeString {
-                        api_err_exp(
-                            err,
-                            c"event item",
-                            api_typename(ObjectType::ObjectTypeString),
-                            Some(api_typename(event_v.obj_type)),
-                        );
-                        break 'body;
-                    }
-                    let event_nr = event_name2nr_str(event_v.data.string());
-                    if (event_nr as usize) >= NUM_EVENTS {
-                        api_err_inv(err, c"event", event_v.data.as_cstr());
-                        break 'body;
-                    }
-                    event_set[event_nr as usize] = true;
-                }
+        ObjectType::ObjectTypeInteger => {
+            group = opts.group.data.integer() as i32;
+            let name = if group == 0 {
+                None
             } else {
-                api_err_exp(err, c"event", c"String or Array", None);
-                break 'body;
-            }
-        }
-
-        let has_buf_key = has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_BUF);
-        let has_buffer_key = has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_BUFFER);
-        let has_buf = has_buf_key || has_buffer_key;
-        let buf = if has_buf_key { &opts.buf } else { &opts.buffer };
-
-        if has_buf_key && has_buffer_key {
-            api_err_con(err, c"buf", c"buffer");
-            break 'body;
-        }
-        if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_PATTERN) && has_buf {
-            api_err_con(err, c"pattern", c"buf");
-            break 'body;
-        }
-
-        let mut pattern_filter_count = 0usize;
-        if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_PATTERN) {
-            let v = &opts.pattern;
-            if v.obj_type == ObjectType::ObjectTypeString {
-                pattern_filters[pattern_filter_count] = v.data.as_opt_cstr();
-                pattern_filter_count += 1;
-            } else if v.obj_type == ObjectType::ObjectTypeArray {
-                let arr_slice = v.data.array_slice();
-                if arr_slice.len() > AUCMD_MAX_PATTERNS {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Too many patterns (maximum of %d)",
-                        AUCMD_MAX_PATTERNS as i32,
-                    );
-                    break 'body;
-                }
-                for item in arr_slice {
-                    if item.obj_type != ObjectType::ObjectTypeString {
-                        api_err_exp(
-                            err,
-                            c"pattern",
-                            api_typename(ObjectType::ObjectTypeString),
-                            Some(api_typename(item.obj_type)),
-                        );
-                        break 'body;
-                    }
-                    pattern_filters[pattern_filter_count] = item.data.as_opt_cstr();
-                    pattern_filter_count += 1;
-                }
-            } else {
-                api_err_exp(
-                    err,
-                    c"pattern",
-                    c"String or Array",
-                    Some(api_typename(v.obj_type)),
-                );
-                break 'body;
-            }
-        }
-
-        if buf.obj_type == ObjectType::ObjectTypeInteger
-            || buf.obj_type == ObjectType::ObjectTypeBuffer
-        {
-            let Some(b) = crate::api::private::helpers::find_buffer_by_handle(
-                buf.data.integer() as Buffer,
-                err,
-            ) else {
-                break 'body;
+                augroup_name(group)
             };
-            let pat = format_buflocal_arena(b.b_fnum.get());
-            buffers = Array::with_capacity(1);
-            add_c(&mut buffers, string_obj(pat));
-        } else if buf.obj_type == ObjectType::ObjectTypeArray {
-            let buf_slice = buf.data.array_slice();
-            if buf_slice.len() > AUCMD_MAX_PATTERNS {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Too many buffers (maximum of %d)",
-                    AUCMD_MAX_PATTERNS as i32,
-                );
-                break 'body;
+            if !augroup_exists(name.as_deref()) {
+                return Err(api_err_int(c"group", opts.group.data.integer()));
             }
-            buffers = Array::with_capacity(buf_slice.len());
-            for bufnr in buf_slice {
-                if bufnr.obj_type != ObjectType::ObjectTypeInteger
-                    && bufnr.obj_type != ObjectType::ObjectTypeBuffer
-                {
-                    api_err_exp(
-                        err,
-                        c"buffer",
-                        c"Integer",
-                        Some(api_typename(bufnr.obj_type)),
-                    );
-                    break 'body;
-                }
-                let Some(b) = crate::api::private::helpers::find_buffer_by_handle(
-                    bufnr.data.integer() as Buffer,
-                    err,
-                ) else {
-                    break 'body;
-                };
-                add_c(
-                    &mut buffers,
-                    string_obj(format_buflocal_arena(b.b_fnum.get())),
-                );
-            }
-        } else if has_buf {
-            api_err_exp(
-                err,
-                c"buffer",
-                c"Integer or Array",
-                Some(api_typename(buf.obj_type)),
-            );
-            break 'body;
         }
-
-        for bufnr in buffers.as_slice() {
-            pattern_filters[pattern_filter_count] = bufnr.data.as_opt_cstr();
-            pattern_filter_count += 1;
-        }
-
-        for (event, &has_ev) in event_set.iter().enumerate().take(NUM_EVENTS) {
-            if check_event && !has_ev {
-                continue;
-            }
-
-            with_autocmds_for_event(event as AuEvent, |acs| {
-                for ac in acs {
-                    let Some(ref ap) = ac.pat else {
-                        continue;
-                    };
-                    if id != -1 && ac.id != i64::from(id) {
-                        continue;
-                    }
-                    if group != 0 && ap.group != group {
-                        continue;
-                    }
-
-                    if pattern_filter_count > 0 {
-                        let mut passed = false;
-                        for &raw_pat in &pattern_filters[..pattern_filter_count] {
-                            let Some(raw_cstr) = raw_pat else {
-                                continue;
-                            };
-                            let mut pat_cstr = raw_cstr;
-                            let mut pattern_buflocal = [0u8; BUFLOCAL_PAT_LEN];
-                            let pat_bytes = pat_cstr.to_bytes();
-                            if aupat_is_buflocal(pat_bytes) {
-                                aupat_normalize_buflocal_pat(
-                                    &mut pattern_buflocal,
-                                    pat_bytes,
-                                    aupat_get_buflocal_nr(pat_bytes),
-                                );
-                                pat_cstr =
-                                    CStr::from_bytes_until_nul(&pattern_buflocal).unwrap_or(c"");
-                            }
-                            if ap.pat.as_bytes() == pat_cstr.to_bytes() {
-                                passed = true;
-                                break;
-                            }
-                        }
-                        if !passed {
-                            continue;
-                        }
-                    }
-
-                    let mut autocmd_info = Dict::with_capacity(12);
-
-                    if ap.group != AUGROUP_DEFAULT {
-                        put_c(
-                            &mut autocmd_info,
-                            c"group",
-                            integer_obj(i64::from(ap.group)),
-                        );
-                        let gname = augroup_name(ap.group);
-                        put_c(
-                            &mut autocmd_info,
-                            c"group_name",
-                            crate::api::private::helpers::cstr_to_nonnull_obj(gname.as_deref()),
-                        );
-                    }
-
-                    if ac.id > 0 {
-                        put_c(&mut autocmd_info, c"id", integer_obj(ac.id));
-                    }
-
-                    if let Some(desc) = &ac.desc {
-                        put_c(
-                            &mut autocmd_info,
-                            c"desc",
-                            crate::api::private::helpers::cstr_to_nonnull_obj(Some(desc)),
-                        );
-                    }
-
-                    match &mut ac.handler {
-                        crate::autocmd::AutoCmdHandler::Cmd(cmd) => {
-                            put_c(
-                                &mut autocmd_info,
-                                c"command",
-                                crate::api::private::helpers::cstr_to_nonnull_obj(Some(
-                                    cmd.as_c_str(),
-                                )),
-                            );
-                        }
-                        crate::autocmd::AutoCmdHandler::Fn(cb) => {
-                            put_c(&mut autocmd_info, c"command", string_obj(NvimString::new()));
-
-                            match cb.cb_type() {
-                                K_CALLBACK_LUA => {
-                                    let luaref = cb.data.as_luaref();
-                                    if nlua_ref_is_function(luaref) {
-                                        put_c(
-                                            &mut autocmd_info,
-                                            c"callback",
-                                            luaref_obj(api_new_luaref(luaref)),
-                                        );
-                                    }
-                                }
-                                K_CALLBACK_FUNCREF | K_CALLBACK_PARTIAL => {
-                                    let cb_str = callback_to_string(cb);
-                                    put_c(
-                                        &mut autocmd_info,
-                                        c"callback",
-                                        string_obj(
-                                            crate::api::private::helpers::ensure_nul_string(
-                                                cstr_as_string(Some(&*cb_str)),
-                                            ),
-                                        ),
-                                    );
-                                }
-                                _ => {
-                                    std::process::abort();
-                                }
-                            }
-                        }
-                        crate::autocmd::AutoCmdHandler::None => {
-                            std::process::abort();
-                        }
-                    }
-
-                    put_c(
-                        &mut autocmd_info,
-                        c"pattern",
-                        crate::api::private::helpers::cstr_to_nonnull_obj(Some(&*ap.pat)),
-                    );
-                    put_c(
-                        &mut autocmd_info,
-                        c"event",
-                        crate::api::private::helpers::cstr_to_nonnull_obj(Some(event_nr2name(
-                            event as AuEvent,
-                        ))),
-                    );
-                    put_c(&mut autocmd_info, c"once", boolean_obj(ac.once));
-
-                    if ap.buflocal_nr != 0 {
-                        put_c(&mut autocmd_info, c"buflocal", boolean_obj(true));
-                        put_c(
-                            &mut autocmd_info,
-                            c"buf",
-                            integer_obj(i64::from(ap.buflocal_nr)),
-                        );
-                        put_c(
-                            &mut autocmd_info,
-                            c"buffer",
-                            integer_obj(i64::from(ap.buflocal_nr)),
-                        );
-                    } else {
-                        put_c(&mut autocmd_info, c"buflocal", boolean_obj(false));
-                    }
-
-                    autocmd_list.push(dict_obj(autocmd_info));
-                }
-            });
+        _ => {
+            return Err(api_err_exp(
+                c"group",
+                c"String or Integer",
+                Some(api_typename(opts.group.obj_type)),
+            ));
         }
     }
 
-    crate::api::private::helpers::take_arraybuilder(&mut autocmd_list)
+    let mask = opts.is_set_get_autocmds;
+    let id: i32 = if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_ID) {
+        opts.id as i32
+    } else {
+        -1
+    };
+
+    if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_EVENT) {
+        check_event = true;
+        let v = &opts.event;
+        if v.obj_type == ObjectType::ObjectTypeString {
+            let event_nr = event_name2nr_str(v.data.string());
+            if (event_nr as usize) >= NUM_EVENTS {
+                return Err(api_err_inv(c"event", v.data.as_cstr()));
+            }
+            event_set[event_nr as usize] = true;
+        } else if v.obj_type == ObjectType::ObjectTypeArray {
+            for event_v in v.data.array_slice() {
+                if event_v.obj_type != ObjectType::ObjectTypeString {
+                    return Err(api_err_exp(
+                        c"event item",
+                        api_typename(ObjectType::ObjectTypeString),
+                        Some(api_typename(event_v.obj_type)),
+                    ));
+                }
+                let event_nr = event_name2nr_str(event_v.data.string());
+                if (event_nr as usize) >= NUM_EVENTS {
+                    return Err(api_err_inv(c"event", event_v.data.as_cstr()));
+                }
+                event_set[event_nr as usize] = true;
+            }
+        } else {
+            return Err(api_err_exp(c"event", c"String or Array", None));
+        }
+    }
+
+    let has_buf_key = has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_BUF);
+    let has_buffer_key = has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_BUFFER);
+    let has_buf = has_buf_key || has_buffer_key;
+    let buf = if has_buf_key { &opts.buf } else { &opts.buffer };
+
+    if has_buf_key && has_buffer_key {
+        return Err(api_err_con(c"buf", c"buffer"));
+    }
+    if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_PATTERN) && has_buf {
+        return Err(api_err_con(c"pattern", c"buf"));
+    }
+
+    let mut pattern_filter_count = 0usize;
+    if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_PATTERN) {
+        let v = &opts.pattern;
+        if v.obj_type == ObjectType::ObjectTypeString {
+            pattern_filters[pattern_filter_count] = v.data.as_opt_cstr();
+            pattern_filter_count += 1;
+        } else if v.obj_type == ObjectType::ObjectTypeArray {
+            let arr_slice = v.data.array_slice();
+            if arr_slice.len() > AUCMD_MAX_PATTERNS {
+                return Err(api_error!(
+                    ErrorType::ErrorTypeValidation,
+                    c"Too many patterns (maximum of %d)",
+                    AUCMD_MAX_PATTERNS as i32,
+                ));
+            }
+            for item in arr_slice {
+                if item.obj_type != ObjectType::ObjectTypeString {
+                    return Err(api_err_exp(
+                        c"pattern",
+                        api_typename(ObjectType::ObjectTypeString),
+                        Some(api_typename(item.obj_type)),
+                    ));
+                }
+                pattern_filters[pattern_filter_count] = item.data.as_opt_cstr();
+                pattern_filter_count += 1;
+            }
+        } else {
+            return Err(api_err_exp(
+                c"pattern",
+                c"String or Array",
+                Some(api_typename(v.obj_type)),
+            ));
+        }
+    }
+
+    if buf.obj_type == ObjectType::ObjectTypeInteger || buf.obj_type == ObjectType::ObjectTypeBuffer
+    {
+        let b = crate::api::private::helpers::find_buffer_by_handle(buf.data.integer() as Buffer)?;
+        let pat = format_buflocal_arena(b.b_fnum.get());
+        buffers = Array::with_capacity(1);
+        add_c(&mut buffers, string_obj(pat));
+    } else if buf.obj_type == ObjectType::ObjectTypeArray {
+        let buf_slice = buf.data.array_slice();
+        if buf_slice.len() > AUCMD_MAX_PATTERNS {
+            return Err(api_error!(
+                ErrorType::ErrorTypeValidation,
+                c"Too many buffers (maximum of %d)",
+                AUCMD_MAX_PATTERNS as i32,
+            ));
+        }
+        buffers = Array::with_capacity(buf_slice.len());
+        for bufnr in buf_slice {
+            if bufnr.obj_type != ObjectType::ObjectTypeInteger
+                && bufnr.obj_type != ObjectType::ObjectTypeBuffer
+            {
+                return Err(api_err_exp(
+                    c"buffer",
+                    c"Integer",
+                    Some(api_typename(bufnr.obj_type)),
+                ));
+            }
+            let b = crate::api::private::helpers::find_buffer_by_handle(
+                bufnr.data.integer() as Buffer
+            )?;
+            add_c(
+                &mut buffers,
+                string_obj(format_buflocal_arena(b.b_fnum.get())),
+            );
+        }
+    } else if has_buf {
+        return Err(api_err_exp(
+            c"buffer",
+            c"Integer or Array",
+            Some(api_typename(buf.obj_type)),
+        ));
+    }
+
+    for bufnr in buffers.as_slice() {
+        pattern_filters[pattern_filter_count] = bufnr.data.as_opt_cstr();
+        pattern_filter_count += 1;
+    }
+
+    for (event, &has_ev) in event_set.iter().enumerate().take(NUM_EVENTS) {
+        if check_event && !has_ev {
+            continue;
+        }
+
+        with_autocmds_for_event(event as AuEvent, |acs| {
+            for ac in acs {
+                let Some(ref ap) = ac.pat else {
+                    continue;
+                };
+                if id != -1 && ac.id != i64::from(id) {
+                    continue;
+                }
+                if group != 0 && ap.group != group {
+                    continue;
+                }
+
+                if pattern_filter_count > 0 {
+                    let mut passed = false;
+                    for &raw_pat in &pattern_filters[..pattern_filter_count] {
+                        let Some(raw_cstr) = raw_pat else {
+                            continue;
+                        };
+                        let mut pat_cstr = raw_cstr;
+                        let mut pattern_buflocal = [0u8; BUFLOCAL_PAT_LEN];
+                        let pat_bytes = pat_cstr.to_bytes();
+                        if aupat_is_buflocal(pat_bytes) {
+                            aupat_normalize_buflocal_pat(
+                                &mut pattern_buflocal,
+                                pat_bytes,
+                                aupat_get_buflocal_nr(pat_bytes),
+                            );
+                            pat_cstr = CStr::from_bytes_until_nul(&pattern_buflocal).unwrap_or(c"");
+                        }
+                        if ap.pat.as_bytes() == pat_cstr.to_bytes() {
+                            passed = true;
+                            break;
+                        }
+                    }
+                    if !passed {
+                        continue;
+                    }
+                }
+
+                let mut autocmd_info = Dict::with_capacity(12);
+
+                if ap.group != AUGROUP_DEFAULT {
+                    put_c(
+                        &mut autocmd_info,
+                        c"group",
+                        integer_obj(i64::from(ap.group)),
+                    );
+                    let gname = augroup_name(ap.group);
+                    put_c(
+                        &mut autocmd_info,
+                        c"group_name",
+                        crate::api::private::helpers::cstr_to_nonnull_obj(gname.as_deref()),
+                    );
+                }
+
+                if ac.id > 0 {
+                    put_c(&mut autocmd_info, c"id", integer_obj(ac.id));
+                }
+
+                if let Some(desc) = &ac.desc {
+                    put_c(
+                        &mut autocmd_info,
+                        c"desc",
+                        crate::api::private::helpers::cstr_to_nonnull_obj(Some(desc)),
+                    );
+                }
+
+                match &mut ac.handler {
+                    crate::autocmd::AutoCmdHandler::Cmd(cmd) => {
+                        put_c(
+                            &mut autocmd_info,
+                            c"command",
+                            crate::api::private::helpers::cstr_to_nonnull_obj(Some(cmd.as_c_str())),
+                        );
+                    }
+                    crate::autocmd::AutoCmdHandler::Fn(cb) => {
+                        put_c(&mut autocmd_info, c"command", string_obj(NvimString::new()));
+
+                        match cb.cb_type() {
+                            K_CALLBACK_LUA => {
+                                let luaref = cb.data.as_luaref();
+                                if nlua_ref_is_function(luaref) {
+                                    put_c(
+                                        &mut autocmd_info,
+                                        c"callback",
+                                        luaref_obj(api_new_luaref(luaref)),
+                                    );
+                                }
+                            }
+                            K_CALLBACK_FUNCREF | K_CALLBACK_PARTIAL => {
+                                let cb_str = callback_to_string(cb);
+                                put_c(
+                                    &mut autocmd_info,
+                                    c"callback",
+                                    string_obj(crate::api::private::helpers::ensure_nul_string(
+                                        cstr_as_string(Some(&*cb_str)),
+                                    )),
+                                );
+                            }
+                            _ => {
+                                std::process::abort();
+                            }
+                        }
+                    }
+                    crate::autocmd::AutoCmdHandler::None => {
+                        std::process::abort();
+                    }
+                }
+
+                put_c(
+                    &mut autocmd_info,
+                    c"pattern",
+                    crate::api::private::helpers::cstr_to_nonnull_obj(Some(&*ap.pat)),
+                );
+                put_c(
+                    &mut autocmd_info,
+                    c"event",
+                    crate::api::private::helpers::cstr_to_nonnull_obj(Some(event_nr2name(
+                        event as AuEvent,
+                    ))),
+                );
+                put_c(&mut autocmd_info, c"once", boolean_obj(ac.once));
+
+                if ap.buflocal_nr != 0 {
+                    put_c(&mut autocmd_info, c"buflocal", boolean_obj(true));
+                    put_c(
+                        &mut autocmd_info,
+                        c"buf",
+                        integer_obj(i64::from(ap.buflocal_nr)),
+                    );
+                    put_c(
+                        &mut autocmd_info,
+                        c"buffer",
+                        integer_obj(i64::from(ap.buflocal_nr)),
+                    );
+                } else {
+                    put_c(&mut autocmd_info, c"buflocal", boolean_obj(false));
+                }
+
+                autocmd_list.push(dict_obj(autocmd_info));
+            }
+        });
+    }
+
+    Ok(crate::api::private::helpers::take_arraybuilder(
+        &mut autocmd_list,
+    ))
 }
 
 /// Creates an |autocommand| event handler, defined by `callback` (Lua function or Vimscript
@@ -725,26 +677,20 @@ pub fn nvim_create_autocmd(
     channel_id: u64,
     event: Object,
     opts: &mut KeyDictCreateAutocmd,
-    err: &mut Error,
-) -> Integer {
-    let mut autocmd_id: i64 = -1;
+) -> Result<Integer, Error> {
     let mut desc: Option<&CStr> = None;
     let mut handler_cmd: Option<CString> = None;
     let mut handler_fn = Callback::NONE;
 
-    'body: {
-        let event_array = unpack_string_or_array(event, c"event", true, err);
-        if error_set(err) {
-            break 'body;
-        }
+    let res = (|| -> Result<Integer, Error> {
+        let event_array = unpack_string_or_array(event, c"event", true)?;
 
         let mask = opts.is_set_create_autocmd;
         let has_callback = has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_CALLBACK);
         let has_command = has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_COMMAND);
 
         if has_callback && has_command {
-            api_err_con(err, c"callback", c"command");
-            break 'body;
+            return Err(api_err_con(c"callback", c"command"));
         }
 
         if has_callback {
@@ -752,12 +698,10 @@ pub fn nvim_create_autocmd(
             match callback.obj_type {
                 ObjectType::ObjectTypeLuaRef => {
                     if callback.data.luaref() == LUA_NOREF {
-                        api_err_inv(err, c"callback", c"<no value>");
-                        break 'body;
+                        return Err(api_err_inv(c"callback", c"<no value>"));
                     }
                     if !nlua_ref_is_function(callback.data.luaref()) {
-                        api_err_inv(err, c"callback", c"<not a function>");
-                        break 'body;
+                        return Err(api_err_inv(c"callback", c"<not a function>"));
                     }
                     handler_fn.data.set(crate::eval::typval::CallbackData::lua(
                         callback.data.luaref(),
@@ -771,26 +715,20 @@ pub fn nvim_create_autocmd(
                         .set(crate::eval::typval::CallbackData::funcref(s));
                 }
                 _ => {
-                    api_err_exp(
-                        err,
+                    return Err(api_err_exp(
                         c"callback",
                         c"Lua function or Vim function name",
                         Some(api_typename(callback.obj_type)),
-                    );
-                    break 'body;
+                    ));
                 }
             }
         } else if has_command {
             handler_cmd = Some(bytes_to_cstring(opts.command.as_bytes()));
         } else {
-            api_err_req(err, c"'command' or 'callback'");
-            break 'body;
+            return Err(api_err_req(c"'command' or 'callback'"));
         }
 
-        let au_group = get_augroup_from_object(opts.group.clone(), err);
-        if au_group == AUGROUP_ERROR {
-            break 'body;
-        }
+        let au_group = get_augroup_from_object(opts.group.clone())?;
 
         let has_buf_key = has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_BUF);
         let has_buffer_key = has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_BUFFER);
@@ -798,27 +736,19 @@ pub fn nvim_create_autocmd(
         let buf = if has_buf_key { opts.buf } else { opts.buffer };
 
         if has_buf_key && has_buffer_key {
-            api_err_con(err, c"buf", c"buffer");
-            break 'body;
+            return Err(api_err_con(c"buf", c"buffer"));
         }
         if has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_PATTERN) && has_buf {
-            api_err_con(err, c"pattern", c"buf");
-            break 'body;
+            return Err(api_err_con(c"pattern", c"buf"));
         }
 
-        let patterns =
-            get_patterns_from_pattern_or_buf(opts.pattern.clone(), has_buf, buf, c"*", err);
-        if error_set(err) {
-            break 'body;
-        }
+        let patterns = get_patterns_from_pattern_or_buf(opts.pattern.clone(), has_buf, buf, c"*")?;
         if patterns.size == 0 {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"No non-empty patterns specified",
-            );
-            break 'body;
+            ));
         }
 
         if has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_DESC) {
@@ -826,18 +756,16 @@ pub fn nvim_create_autocmd(
         }
 
         if event_array.size == 0 {
-            api_err_req(err, c"event");
-            break 'body;
+            return Err(api_err_req(c"event"));
         }
 
-        autocmd_id = NEXT_AUTOCMD_ID.get();
+        let autocmd_id = NEXT_AUTOCMD_ID.get();
         NEXT_AUTOCMD_ID.set(autocmd_id + 1);
 
         for event_str in event_array.as_slice() {
             let event_nr = event_name2nr_str(event_str.data.string());
             if (event_nr as usize) >= NUM_EVENTS {
-                api_err_inv(err, c"event", event_str.data.as_cstr());
-                break 'body;
+                return Err(api_err_inv(c"event", event_str.data.as_cstr()));
             }
 
             for pat in patterns.as_slice() {
@@ -856,36 +784,39 @@ pub fn nvim_create_autocmd(
                 g_st().current_sctx.set(save_current_sctx);
 
                 if !retval {
-                    api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to set autocmd",);
-                    break 'body;
+                    return Err(api_error!(
+                        ErrorType::ErrorTypeException,
+                        c"Failed to set autocmd",
+                    ));
                 }
             }
         }
-    }
+
+        Ok(autocmd_id)
+    })();
 
     if handler_fn.cb_type() == K_CALLBACK_LUA {
         callback_free(&handler_fn);
     }
 
-    autocmd_id
+    res
 }
 
 /// Deletes an autocommand by id.
 ///
 /// @param id Autocommand id returned by |nvim_create_autocmd()|
 // DLLEXPORT void nvim_del_autocmd(Integer id, Error *err) FUNC_API_SINCE(9);
-pub fn nvim_del_autocmd(id: Integer, err: &mut Error) {
+pub fn nvim_del_autocmd(id: Integer) -> Result<(), Error> {
     if id <= 0 {
-        api_err_int(err, c"autocmd id", id);
-        return;
+        return Err(api_err_int(c"autocmd id", id));
     }
     if !autocmd_delete_id(id) {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Failed to delete autocmd",
-        );
+        ));
     }
+    Ok(())
 }
 
 /// Clears all autocommands matching the {opts} query. To delete autocmds see |nvim_del_autocmd()|.
@@ -905,11 +836,8 @@ pub fn nvim_del_autocmd(id: Integer, err: &mut Error) {
 ///
 // DLLEXPORT void nvim_clear_autocmds(Dict(clear_autocmds) *opts, Arena *arena,
 //                                    Error *err) FUNC_API_SINCE(9);
-pub fn nvim_clear_autocmds(opts: &mut KeyDictClearAutocmds, err: &mut Error) {
-    let event_array = unpack_string_or_array(opts.event.clone(), c"event", false, err);
-    if error_set(err) {
-        return;
-    }
+pub fn nvim_clear_autocmds(opts: &mut KeyDictClearAutocmds) -> Result<(), Error> {
+    let event_array = unpack_string_or_array(opts.event.clone(), c"event", false)?;
 
     let mask = opts.is_set_clear_autocmds;
     let has_buf_key = has_key(mask, KEYSET_OPTIDX_CLEAR_AUTOCMDS_BUF);
@@ -918,46 +846,34 @@ pub fn nvim_clear_autocmds(opts: &mut KeyDictClearAutocmds, err: &mut Error) {
     let buf = if has_buf_key { opts.buf } else { opts.buffer };
 
     if has_buf_key && has_buffer_key {
-        api_err_con(err, c"buf", c"buffer");
-        return;
+        return Err(api_err_con(c"buf", c"buffer"));
     }
     if has_key(mask, KEYSET_OPTIDX_CLEAR_AUTOCMDS_PATTERN) && has_buf {
-        api_err_con(err, c"pattern", c"buf");
-        return;
+        return Err(api_err_con(c"pattern", c"buf"));
     }
 
-    let au_group = get_augroup_from_object(opts.group.clone(), err);
-    if au_group == AUGROUP_ERROR {
-        return;
-    }
+    let au_group = get_augroup_from_object(opts.group.clone())?;
 
-    let patterns = get_patterns_from_pattern_or_buf(opts.pattern.clone(), has_buf, buf, c"", err);
-    if error_set(err) {
-        return;
-    }
+    let patterns = get_patterns_from_pattern_or_buf(opts.pattern.clone(), has_buf, buf, c"")?;
 
     if opts.event.obj_type == ObjectType::ObjectTypeNil {
         for event in 0..NUM_EVENTS {
             for pat_object in patterns.as_slice() {
-                if !clear_autocmd(event as AuEvent, pat_object.data.as_cstr(), au_group, err) {
-                    return;
-                }
+                clear_autocmd(event as AuEvent, pat_object.data.as_cstr(), au_group)?;
             }
         }
     } else {
         for event_str in event_array.as_slice() {
             let event_nr = event_name2nr_str(event_str.data.string());
             if (event_nr as usize) >= NUM_EVENTS {
-                api_err_inv(err, c"event", event_str.data.as_cstr());
-                return;
+                return Err(api_err_inv(c"event", event_str.data.as_cstr()));
             }
             for pat_object in patterns.as_slice() {
-                if !clear_autocmd(event_nr, pat_object.data.as_cstr(), au_group, err) {
-                    return;
-                }
+                clear_autocmd(event_nr, pat_object.data.as_cstr(), au_group)?;
             }
         }
     }
+    Ok(())
 }
 
 /// Create or get an autocommand group |autocmd-groups|.
@@ -981,8 +897,7 @@ pub fn nvim_create_augroup(
     channel_id: u64,
     name: NvimString,
     opts: &mut KeyDictCreateAugroup,
-    err: &mut Error,
-) -> Integer {
+) -> Result<Integer, Error> {
     let augroup_name = name;
     let clear_autocmds = if has_key(
         opts.is_set_create_augroup,
@@ -996,9 +911,11 @@ pub fn nvim_create_augroup(
     let save_current_sctx = api_set_sctx(channel_id);
     let augroup = augroup_add(augroup_name.as_cstr());
     if augroup == AUGROUP_ERROR {
-        api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to set augroup",);
         g_st().current_sctx.set(save_current_sctx);
-        return -1;
+        return Err(api_error!(
+            ErrorType::ErrorTypeException,
+            c"Failed to set augroup",
+        ));
     }
 
     if clear_autocmds {
@@ -1008,7 +925,7 @@ pub fn nvim_create_augroup(
     }
     g_st().current_sctx.set(save_current_sctx);
 
-    i64::from(augroup)
+    Ok(i64::from(augroup))
 }
 
 /// Delete an autocommand group by id.
@@ -1021,11 +938,11 @@ pub fn nvim_create_augroup(
 /// @see |nvim_del_augroup_by_name()|
 /// @see |nvim_create_augroup()|
 // DLLEXPORT void nvim_del_augroup_by_id(Integer id, Error *err) FUNC_API_SINCE(9);
-pub fn nvim_del_augroup_by_id(id: Integer, err: &mut Error) {
+pub fn nvim_del_augroup_by_id(id: Integer) -> Result<(), Error> {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     augroup_del_by_id(id as i32);
-    try_leave(&tstate, err);
+    try_leave(&tstate)
 }
 
 /// Delete an autocommand group by name.
@@ -1035,11 +952,11 @@ pub fn nvim_del_augroup_by_id(id: Integer, err: &mut Error) {
 /// @param name Group name.
 /// @see |autocmd-groups|
 // DLLEXPORT void nvim_del_augroup_by_name(String name, Error *err) FUNC_API_SINCE(9);
-pub fn nvim_del_augroup_by_name(name: NvimString, err: &mut Error) {
+pub fn nvim_del_augroup_by_name(name: NvimString) -> Result<(), Error> {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     augroup_del(name.as_cstr(), -1, false);
-    try_leave(&tstate, err);
+    try_leave(&tstate)
 }
 
 /// Executes {event} handlers matching the {opts} query, in the context of {buf} (if given). |autocmd-execute|
@@ -1055,14 +972,11 @@ pub fn nvim_del_augroup_by_name(name: NvimString, err: &mut Error) {
 /// @see |:doautocmd|
 // DLLEXPORT void nvim_exec_autocmds(Object event, Dict(exec_autocmds) *opts, Arena *arena,
 //                                   Error *err) FUNC_API_SINCE(9);
-pub fn nvim_exec_autocmds(event: Object, opts: &mut KeyDictExecAutocmds, err: &mut Error) {
+pub fn nvim_exec_autocmds(event: Object, opts: &mut KeyDictExecAutocmds) -> Result<(), Error> {
     let mut au_group = AUGROUP_ALL;
     let mut b = g_st().curbuf.get();
 
-    let event_array = unpack_string_or_array(event, c"event", true, err);
-    if error_set(err) {
-        return;
-    }
+    let event_array = unpack_string_or_array(event, c"event", true)?;
 
     match opts.group.obj_type {
         ObjectType::ObjectTypeNil => {}
@@ -1070,8 +984,7 @@ pub fn nvim_exec_autocmds(event: Object, opts: &mut KeyDictExecAutocmds, err: &m
             let group_cstr = opts.group.data.as_cstr();
             au_group = augroup_find(group_cstr);
             if au_group == AUGROUP_ERROR {
-                api_err_inv(err, c"group", group_cstr);
-                return;
+                return Err(api_err_inv(c"group", group_cstr));
             }
         }
         ObjectType::ObjectTypeInteger => {
@@ -1082,18 +995,15 @@ pub fn nvim_exec_autocmds(event: Object, opts: &mut KeyDictExecAutocmds, err: &m
                 augroup_name(au_group)
             };
             if !augroup_exists(name.as_deref()) {
-                api_err_int(err, c"group", i64::from(au_group));
-                return;
+                return Err(api_err_int(c"group", i64::from(au_group)));
             }
         }
         _ => {
-            api_err_exp(
-                err,
+            return Err(api_err_exp(
                 c"group",
                 c"String or Integer",
                 Some(api_typename(opts.group.obj_type)),
-            );
-            return;
+            ));
         }
     }
 
@@ -1104,25 +1014,17 @@ pub fn nvim_exec_autocmds(event: Object, opts: &mut KeyDictExecAutocmds, err: &m
     let buf = if has_buf_key { opts.buf } else { opts.buffer };
 
     if has_buf_key && has_buffer_key {
-        api_err_con(err, c"buf", c"buffer");
-        return;
+        return Err(api_err_con(c"buf", c"buffer"));
     }
 
     if has_buf {
         if has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_PATTERN) {
-            api_err_con(err, c"pattern", c"buf");
-            return;
+            return Err(api_err_con(c"pattern", c"buf"));
         }
-        b = crate::globals::BufPtr::from(find_buffer_by_handle(buf, err));
-        if error_set(err) {
-            return;
-        }
+        b = find_buffer_by_handle(buf)?;
     }
 
-    let patterns = get_patterns_from_pattern_or_buf(opts.pattern.clone(), has_buf, buf, c"", err);
-    if error_set(err) {
-        return;
-    }
+    let patterns = get_patterns_from_pattern_or_buf(opts.pattern.clone(), has_buf, buf, c"")?;
 
     let data = has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_DATA).then_some(&opts.data);
 
@@ -1136,8 +1038,7 @@ pub fn nvim_exec_autocmds(event: Object, opts: &mut KeyDictExecAutocmds, err: &m
     for event_str in event_array.as_slice() {
         let event_nr = event_name2nr_str(event_str.data.string());
         if (event_nr as usize) >= NUM_EVENTS {
-            api_err_inv(err, c"event", event_str.data.as_cstr());
-            return;
+            return Err(api_err_inv(c"event", event_str.data.as_cstr()));
         }
         for pat in patterns.as_slice() {
             let fname = (!has_buf).then(|| pat.data.as_opt_cstr()).flatten();
@@ -1159,6 +1060,8 @@ pub fn nvim_exec_autocmds(event: Object, opts: &mut KeyDictExecAutocmds, err: &m
     if did_aucmd && modeline && !has_buf {
         do_modelines(0);
     }
+
+    Ok(())
 }
 
 #[cfg(test)]

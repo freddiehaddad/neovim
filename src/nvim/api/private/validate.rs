@@ -336,6 +336,11 @@ impl Error {
     }
 
     #[inline]
+    pub fn clear(&mut self) {
+        *self = Self::new();
+    }
+
+    #[inline]
     pub fn msg_cstr(&self) -> Option<&std::ffi::CStr> {
         self.msg.as_deref()
     }
@@ -1032,22 +1037,23 @@ pub const fn object_typename(t: ObjectType) -> &'static str {
     }
 }
 
-fn set_error_str(err: &mut Error, err_type: ErrorType, msg: &str) {
+pub fn error_str(err_type: ErrorType, msg: &str) -> Error {
     let bytes = msg.as_bytes();
     let len = bytes.len().min((1024 * 1024) - 1);
-    err.msg = Some(crate::memory::bytes_to_cstring(&bytes[..len]));
-    err.err_type = err_type;
+    Error {
+        err_type,
+        msg: Some(crate::memory::bytes_to_cstring(&bytes[..len])),
+    }
 }
 
 #[inline]
-/// Create `"Invalid …"` validation message on `err` (`api_err_invalid`).
+/// Create `"Invalid …"` validation message (`api_err_invalid`).
 pub fn api_err_invalid(
-    err: &mut Error,
     name: &std::ffi::CStr,
     val_s: Option<&std::ffi::CStr>,
     val_n: i64,
     quote_val: bool,
-) {
+) -> Error {
     let name_str = name.to_string_lossy();
     let has_space = name_str.as_bytes().contains(&b' ');
 
@@ -1077,16 +1083,15 @@ pub fn api_err_invalid(
         }
     };
 
-    set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
+    error_str(ErrorType::ErrorTypeValidation, &msg)
 }
 
-/// Create `"Invalid …: expected …"` validation message on `err` (`api_err_exp`).
+/// Create `"Invalid …: expected …"` validation message (`api_err_exp`).
 pub fn api_err_exp(
-    err: &mut Error,
     name: &std::ffi::CStr,
     expected: &std::ffi::CStr,
     actual: Option<&std::ffi::CStr>,
-) {
+) -> Error {
     let name_str = name.to_string_lossy();
     let exp_str = expected.to_string_lossy();
     let has_space = name_str.as_bytes().contains(&b' ');
@@ -1109,11 +1114,11 @@ pub fn api_err_exp(
         }
     };
 
-    set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
+    error_str(ErrorType::ErrorTypeValidation, &msg)
 }
 
-/// Create `"Required: …"` validation message on `err` (`api_err_required`).
-pub fn api_err_required(err: &mut Error, name: &std::ffi::CStr) {
+/// Create `"Required: …"` validation message (`api_err_required`).
+pub fn api_err_required(name: &std::ffi::CStr) -> Error {
     let name_str = name.to_string_lossy();
     let has_space = name_str.as_bytes().contains(&b' ');
     let msg = if has_space {
@@ -1121,11 +1126,11 @@ pub fn api_err_required(err: &mut Error, name: &std::ffi::CStr) {
     } else {
         format!("Required: '{name_str}'")
     };
-    set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
+    error_str(ErrorType::ErrorTypeValidation, &msg)
 }
 
-/// Create `"Conflict: … not allowed with …"` validation message on `err` (`api_err_conflict`).
-pub fn api_err_conflict(err: &mut Error, name: &std::ffi::CStr, name2: &std::ffi::CStr) {
+/// Create `"Conflict: … not allowed with …"` validation message (`api_err_conflict`).
+pub fn api_err_conflict(name: &std::ffi::CStr, name2: &std::ffi::CStr) -> Error {
     let name_str = name.to_string_lossy();
     let name2_str = name2.to_string_lossy();
     let has_space2 = name2_str.as_bytes().contains(&b' ');
@@ -1134,7 +1139,7 @@ pub fn api_err_conflict(err: &mut Error, name: &std::ffi::CStr, name2: &std::ffi
     } else {
         format!("Conflict: '{name_str}' not allowed with '{name2_str}'")
     };
-    set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
+    error_str(ErrorType::ErrorTypeValidation, &msg)
 }
 
 /// Validate that `arr` contains only `String` items (and optionally no embedded newlines)
@@ -1143,8 +1148,7 @@ pub fn check_string_array(
     arr: impl std::borrow::Borrow<Array>,
     name: &std::ffi::CStr,
     disallow_nl: bool,
-    err: &mut Error,
-) -> bool {
+) -> Result<(), Error> {
     let arr = arr.borrow().as_slice();
     for item in arr {
         if item.obj_type != ObjectType::ObjectTypeString {
@@ -1153,61 +1157,52 @@ pub fn check_string_array(
                 "Invalid '{name_str}' item: expected String, got {}",
                 object_typename(item.obj_type)
             );
-            set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
-            return false;
+            return Err(error_str(ErrorType::ErrorTypeValidation, &msg));
         }
         if disallow_nl && item.data.as_bytes().contains(&b'\n') {
             let name_str = name.to_string_lossy();
             let msg = format!("'{name_str}' item contains newlines");
-            set_error_str(err, ErrorType::ErrorTypeValidation, &msg);
-            return false;
+            return Err(error_str(ErrorType::ErrorTypeValidation, &msg));
         }
     }
-    true
+    Ok(())
 }
 
 #[inline]
-pub fn api_err_range(err: &mut Error, name: &std::ffi::CStr) {
-    api_err_invalid(err, name, Some(c"out of range"), 0, false);
+pub fn api_err_range(name: &std::ffi::CStr) -> Error {
+    api_err_invalid(name, Some(c"out of range"), 0, false)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::private::helpers::api_clear_error;
 
     #[test]
     fn formats_validation_error_messages() {
-        let mut err = Error::new();
-
-        api_err_invalid(&mut err, c"col", None, -1, false);
+        let err = api_err_invalid(c"col", None, -1, false);
         assert_eq!(err.err_type, ErrorType::ErrorTypeValidation);
         assert_eq!(
             err.msg.as_ref().unwrap().to_str().unwrap(),
             "Invalid 'col': -1"
         );
-        api_clear_error(&mut err);
 
-        api_err_exp(&mut err, c"buffer id", c"Integer", Some(c"String"));
+        let err = api_err_exp(c"buffer id", c"Integer", Some(c"String"));
         assert_eq!(
             err.msg.as_ref().unwrap().to_str().unwrap(),
             "Invalid buffer id: expected Integer, got String"
         );
-        api_clear_error(&mut err);
 
-        api_err_required(&mut err, c"width");
+        let err = api_err_required(c"width");
         assert_eq!(
             err.msg.as_ref().unwrap().to_str().unwrap(),
             "Required: 'width'"
         );
-        api_clear_error(&mut err);
 
-        api_err_conflict(&mut err, c"row", c"win");
+        let err = api_err_conflict(c"row", c"win");
         assert_eq!(
             err.msg.as_ref().unwrap().to_str().unwrap(),
             "Conflict: 'row' not allowed with 'win'"
         );
-        api_clear_error(&mut err);
     }
 
     #[test]

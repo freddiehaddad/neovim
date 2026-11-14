@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::api_free_object;
-use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
+use crate::api::private::validate::{Array, NvimString, ObjectType};
 use crate::api::win_config::K_UIMULTIGRID;
 use crate::buffer::{K_UIMESSAGES, buf_is_empty};
 use crate::charset::vim_strsize;
@@ -4117,16 +4117,14 @@ pub fn list_in_columns(items: &[&CStr], current: i32) {
 
 pub fn list_lua_version() {
     const CODE: &[u8] = b"return ((jit and jit.version) and jit.version or _VERSION)\0";
-    let mut err = Error::new();
     let args = Array::new();
     let ret = nlua_exec(
         NvimString::from_bytes_len(CODE, CODE.len() - 1),
         None,
         args,
         K_RET_OBJECT,
-        &mut err,
-    );
-    debug_assert!(err.err_type == ErrorType::ErrorTypeNone);
+    )
+    .expect("list_lua_version failed");
     debug_assert!(ret.obj_type == ObjectType::ObjectTypeString);
     msg_puts(ret.data.string().as_cstr());
     api_free_object(ret);

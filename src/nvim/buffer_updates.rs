@@ -10,7 +10,7 @@ use crate::extmark::Bcount;
 use crate::globals::*;
 use crate::log::logmsg;
 use crate::lua::converter::LUA_NOREF;
-use crate::lua::executor::{K_RET_NIL_BOOL, nlua_call_ref};
+use crate::lua::executor::{K_RET_NIL_BOOL, nlua_call_ref_log_err};
 use crate::memline::ml_flush_deleted_bytes;
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::msgpack_rpc::packer::Integer;
@@ -146,12 +146,11 @@ pub fn buf_updates_unload(buf: &FileBuf, can_reload: bool) {
             let args = Array::from_slice(&mut items[..1]);
 
             textlock_wrap(|| {
-                nlua_call_ref(
+                nlua_call_ref_log_err(
                     thecb,
                     Some(if keep { c"reload" } else { c"detach" }),
                     args,
                     0,
-                    None,
                 );
             });
         }
@@ -256,7 +255,7 @@ pub fn buf_updates_send_changes(
 
             let mut res = OBJECT_NIL;
             textlock_wrap(|| {
-                res = nlua_call_ref(on_lines, Some(c"lines"), args, K_RET_NIL_BOOL, None);
+                res = nlua_call_ref_log_err(on_lines, Some(c"lines"), args, K_RET_NIL_BOOL);
             });
 
             if luaret_truthy(res) {
@@ -310,7 +309,7 @@ pub fn buf_updates_send_splice(
 
             let mut res = OBJECT_NIL;
             textlock_wrap(|| {
-                res = nlua_call_ref(on_bytes, Some(c"bytes"), args, K_RET_NIL_BOOL, None);
+                res = nlua_call_ref_log_err(on_bytes, Some(c"bytes"), args, K_RET_NIL_BOOL);
             });
 
             if luaret_truthy(res) {
@@ -345,12 +344,11 @@ pub fn buf_updates_changedtick(buf: &FileBuf) {
 
             let mut res = OBJECT_NIL;
             textlock_wrap(|| {
-                res = nlua_call_ref(
+                res = nlua_call_ref_log_err(
                     on_changedtick,
                     Some(c"changedtick"),
                     args,
                     K_RET_NIL_BOOL,
-                    None,
                 );
             });
 

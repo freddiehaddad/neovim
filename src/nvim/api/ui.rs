@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, api_typename, array_obj, boolean_obj, cstr_as_obj,
-    cstr_as_string, dict_obj, error_set, integer_obj, string_obj, window_obj,
+    api_error, api_typename, array_obj, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj,
+    integer_obj, string_obj, window_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -76,20 +76,16 @@ fn buf_pos(ui: &RemoteUI) -> usize {
     ui.packer.pos
 }
 
-fn get_ui_or_err(
-    chan_id: u64,
-    err: &mut Error,
-) -> Option<std::rc::Rc<std::cell::RefCell<RemoteUI>>> {
-    let ui_rc = CONNECTED_UIS.with(|cell| cell.borrow().get(&chan_id).cloned());
-    if ui_rc.is_none() {
-        api_set_error!(
-            err,
-            ErrorType::ErrorTypeException,
-            c"UI not attached to channel: %lld",
-            chan_id as i64,
-        );
-    }
-    ui_rc
+fn get_ui_or_err(channel_id: u64) -> Result<std::rc::Rc<std::cell::RefCell<RemoteUI>>, Error> {
+    CONNECTED_UIS
+        .with(|cell| cell.borrow().get(&channel_id).cloned())
+        .ok_or_else(|| {
+            api_error!(
+                ErrorType::ErrorTypeException,
+                c"UI not attached to channel: %lld",
+                channel_id as i64,
+            )
+        })
 }
 
 fn mpack_array_dyn16(buf: &mut PackerBuffer) -> usize {
@@ -112,10 +108,8 @@ fn mpack_str_small(buf: &mut PackerBuffer, str_: &[u8]) {
 /// @param err  if non-NULL and there is no UI on the channel, set an error
 /// @param send_error_exit  send an "error_exit" event with 0 status first
 // DLLEXPORT void remote_ui_disconnect(uint64_t channel_id, Error *err, bool send_error_exit);
-pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: bool) {
-    let Some(ui_rc) = get_ui_or_err(channel_id, err) else {
-        return;
-    };
+pub fn remote_ui_disconnect(channel_id: u64, send_error_exit: bool) -> Result<(), Error> {
+    let ui_rc = get_ui_or_err(channel_id)?;
     if send_error_exit {
         let send_srv = crate::eval::vars::get_vim_var_str(crate::eval::vars::VV_SEND_SERVER);
         let chan_opt = find_channel_opt(channel_id);
@@ -134,6 +128,7 @@ pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: b
     if let Some(chan) = find_channel_opt(channel_id) {
         chan.rpc.has_ui = false;
     }
+    Ok(())
 }
 
 /// Detaches the UI on channel `chan` (server keeps running). Sets `channel.detach`, sends an
@@ -142,23 +137,20 @@ pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: b
 /// @param chan  UI channel to disconnect.
 /// @param[out] err Error details, if any.
 // DLLEXPORT void ui_detach_channel(uint64_t chan, Error *err);
-pub fn ui_detach_channel(chan: u64, err: &mut Error) {
+pub fn ui_detach_channel(chan: u64) -> Result<(), Error> {
     let Some(c) = find_channel_opt(chan) else {
-        api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", E_INVCHAN);
-        return;
+        return Err(api_error!(ErrorType::ErrorTypeValidation, c"%s", E_INVCHAN));
     };
     #[cfg(windows)]
     let detach_stdio = c.streamtype == K_CHANNEL_STREAM_STDIO;
     c.detach = true;
-    remote_ui_disconnect(chan, err, true);
-    if error_set(err) {
-        return;
-    }
+    remote_ui_disconnect(chan, true)?;
     channel_close(chan, K_CHANNEL_PART_ALL, None);
     #[cfg(windows)]
     {
         os_detach_ui_console(detach_stdio);
     }
+    Ok(())
 }
 
 /// Detaches every UI except `keep_chan` (server keeps running).
@@ -178,11 +170,7 @@ pub fn ui_detach_others(keep_chan: u64) -> usize {
 
     let mut detached: usize = 0;
     for chan in chans {
-        let mut err = Error::new();
-        ui_detach_channel(chan, &mut err);
-        if error_set(&err) {
-            api_clear_error(&mut err);
-        } else {
+        if ui_detach_channel(chan).is_ok() {
             detached += 1;
         }
     }
@@ -232,32 +220,25 @@ pub fn nvim_ui_attach(
     width: Integer,
     height: Integer,
     options: Dict,
-    err: &mut Error,
-) {
+) -> Result<(), Error> {
     if CONNECTED_UIS.with(|cell| cell.borrow().contains_key(&channel_id)) {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"UI already attached to channel: %lld",
             channel_id as i64,
-        );
-        return;
+        ));
     }
     if !ui_can_attach_more() {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Maximum UI count reached",
-        );
-        return;
+        ));
     }
     if width <= 0 || height <= 0 {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"Expected width > 0 and height > 0",
-        );
-        return;
+        ));
     }
 
     let mut ui_box = Box::new(RemoteUI {
@@ -289,10 +270,7 @@ pub fn nvim_ui_attach(
     let ui: &mut RemoteUI = &mut ui_box;
 
     for item in options.as_slice() {
-        ui_set_option(ui, true, item.key.clone(), item.value.clone(), err);
-        if error_set(err) {
-            return;
-        }
+        ui_set_option(ui, true, item.key.clone(), item.value.clone())?;
     }
 
     if ui.ui_ext[K_UIHL_STATE] || ui.ui_ext[K_UIMULTIGRID] {
@@ -324,6 +302,7 @@ pub fn nvim_ui_attach(
     }
 
     may_trigger_vim_suspend_resume(false);
+    Ok(())
 }
 
 /// @deprecated
@@ -334,28 +313,26 @@ pub fn ui_attach(
     width: Integer,
     height: Integer,
     enable_rgb: Boolean,
-    err: &mut Error,
-) {
+) -> Result<(), Error> {
     let mut opts_items: [KeyValuePair; 1] = [KeyValuePair {
         key: cstr_as_string(Some(c"rgb")),
         value: boolean_obj(enable_rgb),
     }];
     let opts = Dict::from_slice(&mut opts_items[..1]);
-    nvim_ui_attach(channel_id, width, height, opts, err);
+    nvim_ui_attach(channel_id, width, height, opts)
 }
 
 /// Tells the nvim server if focus was gained or lost by the GUI
 // DLLEXPORT void nvim_ui_set_focus(uint64_t channel_id, Boolean gained, Error *error)
 //   FUNC_API_SINCE(11) FUNC_API_REMOTE_ONLY;
-pub fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, error: &mut Error) {
-    if get_ui_or_err(channel_id, error).is_none() {
-        return;
-    }
+pub fn nvim_ui_set_focus(channel_id: u64, gained: Boolean) -> Result<(), Error> {
+    get_ui_or_err(channel_id)?;
     if gained {
         g_st().current_ui.set(channel_id);
         may_trigger_vim_suspend_resume(false);
     }
     do_autocmd_focusgained(gained);
+    Ok(())
 }
 
 /// Deactivates UI events on the channel.
@@ -366,8 +343,8 @@ pub fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, error: &mut Error) {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_ui_detach(uint64_t channel_id, Error *err)
 //   FUNC_API_SINCE(1) FUNC_API_REMOTE_ONLY;
-pub fn nvim_ui_detach(channel_id: u64, err: &mut Error) {
-    remote_ui_disconnect(channel_id, err, false);
+pub fn nvim_ui_detach(channel_id: u64) -> Result<(), Error> {
+    remote_ui_disconnect(channel_id, false)
 }
 
 /// Checks that a UI is attached on channel `channel_id`.
@@ -376,13 +353,12 @@ pub fn remote_ui_attached(channel_id: u64) -> bool {
 }
 
 // DLLEXPORT void remote_ui_connect(uint64_t channel_id, char *server_addr, Error *err);
-pub fn remote_ui_connect(channel_id: u64, server_addr: &[u8], err: &mut Error) {
-    let Some(ui_rc) = get_ui_or_err(channel_id, err) else {
-        return;
-    };
+pub fn remote_ui_connect(channel_id: u64, server_addr: &[u8]) -> Result<(), Error> {
+    let ui_rc = get_ui_or_err(channel_id)?;
     let mut args_items: [Object; 1] = [string_obj(NvimString::from_bytes(server_addr))];
     let args = Array::from_slice(&mut args_items[..1]);
     push_call(&mut ui_rc.borrow_mut(), c"connect", args);
+    Ok(())
 }
 
 /// Sends a "restart" event to all UIs. (Not autogenerated because of per-channel decisions.)
@@ -429,17 +405,13 @@ pub fn remote_ui_restart(listen_addr: NvimString, reuse_addr: bool) {
 
 // DLLEXPORT void nvim_ui_try_resize(uint64_t channel_id, Integer width, Integer height, Error *err)
 //   FUNC_API_SINCE(1) FUNC_API_REMOTE_ONLY;
-pub fn nvim_ui_try_resize(channel_id: u64, width: Integer, height: Integer, err: &mut Error) {
-    let Some(ui_rc) = get_ui_or_err(channel_id, err) else {
-        return;
-    };
+pub fn nvim_ui_try_resize(channel_id: u64, width: Integer, height: Integer) -> Result<(), Error> {
+    let ui_rc = get_ui_or_err(channel_id)?;
     if width <= 0 || height <= 0 {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"Expected width > 0 and height > 0",
-        );
-        return;
+        ));
     }
     {
         let mut ui = ui_rc.borrow_mut();
@@ -447,37 +419,34 @@ pub fn nvim_ui_try_resize(channel_id: u64, width: Integer, height: Integer, err:
         ui.height = height as i32;
     }
     ui_refresh();
+    Ok(())
 }
 
 // DLLEXPORT void nvim_ui_set_option(uint64_t channel_id, String name, Object value, Error *error)
 //   FUNC_API_SINCE(1) FUNC_API_REMOTE_ONLY;
-pub fn nvim_ui_set_option(channel_id: u64, name: NvimString, value: Object, error: &mut Error) {
-    let Some(ui_rc) = get_ui_or_err(channel_id, error) else {
-        return;
-    };
-    ui_set_option_rc(&ui_rc, name, value, error);
+pub fn nvim_ui_set_option(channel_id: u64, name: NvimString, value: Object) -> Result<(), Error> {
+    let ui_rc = get_ui_or_err(channel_id)?;
+    ui_set_option_rc(&ui_rc, name, value)
 }
 
 fn ui_set_option_rc(
     ui_rc: &std::rc::Rc<std::cell::RefCell<RemoteUI>>,
     name: NvimString,
     value: Object,
-    err: &mut Error,
-) {
+) -> Result<(), Error> {
     let mut need_refresh = false;
     let mut need_ext: Option<(UIExtension, bool)> = None;
+    let mut res = Ok(());
     {
         let mut ui = ui_rc.borrow_mut();
         let name_bytes = name.cstr_bytes();
         if name_bytes == b"rgb" {
             if value.obj_type != ObjectType::ObjectTypeBoolean {
-                api_err_exp(
-                    err,
+                return Err(api_err_exp(
                     c"rgb",
                     api_typename(ObjectType::ObjectTypeBoolean),
                     Some(api_typename(value.obj_type)),
-                );
-                return;
+                ));
             }
             ui.rgb = value.data.boolean();
             if !ui.ui_ext[K_UILINEGRID] {
@@ -496,26 +465,23 @@ fn ui_set_option_rc(
             }
             if let Some(i) = matched_ext {
                 if value.obj_type != ObjectType::ObjectTypeBoolean {
-                    api_err_exp(
-                        err,
+                    return Err(api_err_exp(
                         name.as_cstr(),
                         c"Boolean",
                         Some(api_typename(value.obj_type)),
-                    );
-                    return;
+                    ));
                 }
                 let boolval = value.data.boolean();
                 if i == K_UILINEGRID && boolval != ui.ui_ext[i] {
-                    api_set_error!(
-                        err,
+                    res = Err(api_error!(
                         ErrorType::ErrorTypeValidation,
                         c"ext_linegrid option cannot be changed",
-                    );
+                    ));
                 }
                 ui.ui_ext[i] = boolval;
                 need_ext = Some((i as UIExtension, boolval));
             } else {
-                ui_set_option(&mut ui, false, name, value, err);
+                ui_set_option(&mut ui, false, name, value)?;
             }
         }
     }
@@ -524,137 +490,125 @@ fn ui_set_option_rc(
     } else if let Some((ext, boolval)) = need_ext {
         ui_set_ext_option(ui_rc, ext, boolval);
     }
+    res
 }
 
-fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object, err: &mut Error) {
+fn ui_set_option(
+    ui: &mut RemoteUI,
+    init: bool,
+    name: NvimString,
+    value: Object,
+) -> Result<(), Error> {
     let name_bytes = name.cstr_bytes();
     if name_bytes == b"override" {
         if value.obj_type != ObjectType::ObjectTypeBoolean {
-            api_err_exp(
-                err,
+            return Err(api_err_exp(
                 c"override",
                 api_typename(ObjectType::ObjectTypeBoolean),
                 Some(api_typename(value.obj_type)),
-            );
-            return;
+            ));
         }
         ui.r#override = value.data.boolean();
-        return;
+        return Ok(());
     }
 
     if name_bytes == b"rgb" {
         if value.obj_type != ObjectType::ObjectTypeBoolean {
-            api_err_exp(
-                err,
+            return Err(api_err_exp(
                 c"rgb",
                 api_typename(ObjectType::ObjectTypeBoolean),
                 Some(api_typename(value.obj_type)),
-            );
-            return;
+            ));
         }
         ui.rgb = value.data.boolean();
         if !init && !ui.ui_ext[K_UILINEGRID] {
             ui_refresh();
         }
-        return;
+        return Ok(());
     }
 
     if name_bytes == b"term_name" {
         if value.obj_type != ObjectType::ObjectTypeString {
-            api_err_exp(
-                err,
+            return Err(api_err_exp(
                 c"term_name",
                 api_typename(ObjectType::ObjectTypeString),
                 Some(api_typename(value.obj_type)),
-            );
-            return;
+            ));
         }
         let s = value.data.string();
         let term_cstr = std::ffi::CString::new(s.as_bytes()).unwrap();
         set_tty_option(c"term", Some(term_cstr.clone()));
         ui.term_name = Some(term_cstr);
-        return;
+        return Ok(());
     }
 
     if name_bytes == b"term_colors" {
         if value.obj_type != ObjectType::ObjectTypeInteger {
-            api_err_exp(
-                err,
+            return Err(api_err_exp(
                 c"term_colors",
                 api_typename(ObjectType::ObjectTypeInteger),
                 Some(api_typename(value.obj_type)),
-            );
-            return;
+            ));
         }
         g_st().t_colors.set(value.data.integer() as i32);
         ui.term_colors = value.data.integer() as i32;
-        return;
+        return Ok(());
     }
 
     if name_bytes == b"stdin_fd" {
         if value.obj_type != ObjectType::ObjectTypeInteger {
-            api_err_exp(
-                err,
+            return Err(api_err_exp(
                 c"stdin_fd",
                 api_typename(ObjectType::ObjectTypeInteger),
                 Some(api_typename(value.obj_type)),
-            );
-            return;
+            ));
         }
         if value.data.integer() < 0 {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"Invalid stdin_fd: %lld",
                 value.data.integer(),
-            );
-            return;
+            ));
         }
         if starting_val() != NO_SCREEN {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"%s",
                 c"stdin_fd can only be used with first attached UI",
-            );
-            return;
+            ));
         }
         g_st().stdin_fd.set(value.data.integer() as i32);
-        return;
+        return Ok(());
     }
 
     if name_bytes == b"stdin_tty" {
         if value.obj_type != ObjectType::ObjectTypeBoolean {
-            api_err_exp(
-                err,
+            return Err(api_err_exp(
                 c"stdin_tty",
                 api_typename(ObjectType::ObjectTypeBoolean),
                 Some(api_typename(value.obj_type)),
-            );
-            return;
+            ));
         }
         if ui.channel_id == CHAN_STDIO {
             g_st().stdin_isatty.set(value.data.boolean());
         }
         ui.stdin_tty = value.data.boolean();
-        return;
+        return Ok(());
     }
 
     if name_bytes == b"stdout_tty" {
         if value.obj_type != ObjectType::ObjectTypeBoolean {
-            api_err_exp(
-                err,
+            return Err(api_err_exp(
                 c"stdout_tty",
                 api_typename(ObjectType::ObjectTypeBoolean),
                 Some(api_typename(value.obj_type)),
-            );
-            return;
+            ));
         }
         if ui.channel_id == CHAN_STDIO {
             g_st().stdout_isatty.set(value.data.boolean());
         }
         ui.stdout_tty = value.data.boolean();
-        return;
+        return Ok(());
     }
 
     let is_popupmenu = name_bytes == b"popupmenu_external";
@@ -663,33 +617,30 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
             || (i == K_UIPOPUPMENU && is_popupmenu)
         {
             if value.obj_type != ObjectType::ObjectTypeBoolean {
-                api_err_exp(
-                    err,
+                return Err(api_err_exp(
                     name.as_cstr(),
                     c"Boolean",
                     Some(api_typename(value.obj_type)),
-                );
-                return;
+                ));
             }
             let boolval = value.data.boolean();
+            let mut res = Ok(());
             if !init && i == K_UILINEGRID && boolval != ui.ui_ext[i] {
-                api_set_error!(
-                    err,
+                res = Err(api_error!(
                     ErrorType::ErrorTypeValidation,
                     c"ext_linegrid option cannot be changed",
-                );
+                ));
             }
             ui.ui_ext[i] = boolval;
-            return;
+            return res;
         }
     }
 
-    api_set_error!(
-        err,
+    Err(api_error!(
         ErrorType::ErrorTypeValidation,
         c"Invalid UI option: '%s'",
         name,
-    );
+    ))
 }
 
 /// Tell Nvim to resize a grid. Triggers a grid_resize event with the requested
@@ -710,15 +661,12 @@ pub fn nvim_ui_try_resize_grid(
     grid: Integer,
     width: Integer,
     height: Integer,
-    err: &mut Error,
-) {
-    if get_ui_or_err(channel_id, err).is_none() {
-        return;
-    }
+) -> Result<(), Error> {
+    get_ui_or_err(channel_id)?;
     if grid == Integer::from(crate::drawscreen::DEFAULT_GRID_HANDLE) {
-        nvim_ui_try_resize(channel_id, width, height, err);
+        nvim_ui_try_resize(channel_id, width, height)
     } else {
-        ui_grid_resize(grid as ObjHandle, width as i32, height as i32, err);
+        ui_grid_resize(grid as ObjHandle, width as i32, height as i32)
     }
 }
 
@@ -730,28 +678,23 @@ pub fn nvim_ui_try_resize_grid(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_ui_pum_set_height(uint64_t channel_id, Integer height, Error *err)
 //   FUNC_API_SINCE(6) FUNC_API_REMOTE_ONLY;
-pub fn nvim_ui_pum_set_height(channel_id: u64, height: Integer, err: &mut Error) {
-    let Some(ui_rc) = get_ui_or_err(channel_id, err) else {
-        return;
-    };
+pub fn nvim_ui_pum_set_height(channel_id: u64, height: Integer) -> Result<(), Error> {
+    let ui_rc = get_ui_or_err(channel_id)?;
     let mut ui = ui_rc.borrow_mut();
     if height <= 0 {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"Expected pum height > 0",
-        );
-        return;
+        ));
     }
     if !ui.ui_ext[K_UIPOPUPMENU] {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"UI must support the ext_popupmenu option",
-        );
-        return;
+        ));
     }
     ui.pum_nlines = height as i32;
+    Ok(())
 }
 
 /// Tells Nvim the geometry of the popupmenu, to align floating windows with an
@@ -779,32 +722,32 @@ pub fn nvim_ui_pum_set_bounds(
     height: Float,
     row: Float,
     col: Float,
-    err: &mut Error,
-) {
-    let Some(ui_rc) = get_ui_or_err(channel_id, err) else {
-        return;
-    };
+) -> Result<(), Error> {
+    let ui_rc = get_ui_or_err(channel_id)?;
     let mut ui = ui_rc.borrow_mut();
     if !ui.ui_ext[K_UIPOPUPMENU] {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"UI must support the ext_popupmenu option",
-        );
-        return;
+        ));
     }
     if width <= 0.0 {
-        api_set_error!(err, ErrorType::ErrorTypeValidation, c"Expected width > 0",);
-        return;
+        return Err(api_error!(
+            ErrorType::ErrorTypeValidation,
+            c"Expected width > 0",
+        ));
     } else if height <= 0.0 {
-        api_set_error!(err, ErrorType::ErrorTypeValidation, c"Expected height > 0",);
-        return;
+        return Err(api_error!(
+            ErrorType::ErrorTypeValidation,
+            c"Expected height > 0",
+        ));
     }
     ui.pum_row = row;
     ui.pum_col = col;
     ui.pum_width = width;
     ui.pum_height = height;
     ui.pum_pos = true;
+    Ok(())
 }
 
 fn flush_event(ui: &mut RemoteUI) {
@@ -1281,7 +1224,7 @@ fn ui_flush_buf(ui: &mut RemoteUI, incomplete_event: bool) {
 }
 
 pub(crate) fn remote_ui_flush_if_incomplete(channel_id: u64) {
-    if let Some(ui_rc) = get_ui_or_err(channel_id, &mut Error::new()) {
+    if let Ok(ui_rc) = get_ui_or_err(channel_id) {
         let mut ui = ui_rc.borrow_mut();
         if ui.packer.incomplete_event {
             remote_ui_flush_pending_data(&mut ui);
@@ -1425,8 +1368,9 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
 /// @param content Content to write to the TTY
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_ui_send(uint64_t channel_id, String content, Error *err) FUNC_API_SINCE(14);
-pub fn nvim_ui_send(_channel_id: u64, content: NvimString, _err: &mut Error) {
+pub fn nvim_ui_send(_channel_id: u64, content: NvimString) -> Result<(), Error> {
     ui_call_ui_send(content);
+    Ok(())
 }
 
 pub fn remote_ui_mode_info_set(ui: &mut RemoteUI, enabled: Boolean, cursor_styles: Array) {

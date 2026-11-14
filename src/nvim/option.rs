@@ -4,8 +4,8 @@
 
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
-    api_free_string, api_set_error, boolean_obj, copy_object, cstr_as_obj, cstr_as_string,
-    cstr_to_obj, dict_obj, error_set, integer_obj, luaref_obj, nil_obj, put_c, string_obj,
+    api_error, api_free_string, boolean_obj, copy_object, cstr_as_obj, cstr_as_string, cstr_to_obj,
+    dict_obj, integer_obj, luaref_obj, nil_obj, put_c, string_obj,
 };
 use crate::api::private::validate::{
     Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
@@ -5976,56 +5976,51 @@ fn switch_option_context(
     ctx: &mut OptSavedCtx,
     scope: OptScope,
     from: OptTarget,
-    err: &mut Error,
-) -> bool {
+) -> Result<bool, Error> {
     match scope {
-        K_OPT_SCOPE_GLOBAL => false,
+        K_OPT_SCOPE_GLOBAL => Ok(false),
         K_OPT_SCOPE_WIN => {
             let OptTarget::Win(win) = from else {
-                return false;
+                return Ok(false);
             };
             if win == curwin() {
-                return false;
+                return Ok(false);
             }
             let mut cs = CtxSwitch::new();
             let tab = win.opt().and_then(win_find_tabpage);
             if !ctx_switch(&mut cs, win.opt(), tab.as_deref(), None, K_CTX_NO_DISPLAY) {
                 ctx_restore(&mut cs);
-                if !error_set(err) {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeException,
-                        c"Problem while switching windows",
-                    );
-                }
-                return false;
+                return Err(api_error!(
+                    ErrorType::ErrorTypeException,
+                    c"Problem while switching windows",
+                ));
             }
             *ctx = OptSavedCtx::Switch(cs);
-            true
+            Ok(true)
         }
         K_OPT_SCOPE_BUF => {
             let OptTarget::Buf(buf) = from else {
-                return false;
+                return Ok(false);
             };
             if buf == g_st().curbuf.get().as_ptr() {
-                return false;
+                return Ok(false);
             }
             let mut cs = CtxSwitch::new();
             ctx_switch(&mut cs, None, None, buf.opt(), 0);
             *ctx = OptSavedCtx::Switch(cs);
-            true
+            Ok(true)
         }
         K_OPT_SCOPE_TAB => {
             let OptTarget::Tab(tab) = from else {
-                return false;
+                return Ok(false);
             };
             if tab == g_st().curtab.get() {
-                return false;
+                return Ok(false);
             }
             *ctx = OptSavedCtx::Tab(g_st().curtab.get().clone());
             unuse_tabpage(&curtab());
             use_tabpage(tab.borrow());
-            true
+            Ok(true)
         }
         _ => unreachable!(),
     }
@@ -6051,14 +6046,10 @@ pub fn get_option_value_for(
     opt_flags: i32,
     scope: OptScope,
     from: OptTarget,
-    err: &mut Error,
-) -> Object {
+) -> Result<Object, Error> {
     let mut ctx = OptSavedCtx::None;
 
-    let switched = switch_option_context(&mut ctx, scope, from, err);
-    if error_set(err) {
-        return nil_obj();
-    }
+    let switched = switch_option_context(&mut ctx, scope, from)?;
 
     let retv = get_option_value(opt_idx, opt_flags);
 
@@ -6066,7 +6057,7 @@ pub fn get_option_value_for(
         restore_option_context(&mut ctx, scope);
     }
 
-    retv
+    Ok(retv)
 }
 
 /// Set option value for buffer / window.
@@ -6077,32 +6068,26 @@ pub fn set_option_value_for(
     scope: OptScope,
     from: OptTarget,
     value_replaced: bool,
-    err: &mut Error,
-) {
+) -> Result<(), Error> {
     if let (K_OPT_SCOPE_TAB, OptTarget::Tab(tab)) = (scope, &from)
         && *tab != g_st().curtab.get()
     {
         assert!(opt_idx == K_OPT_CMDHEIGHT);
         if value.obj_type != ObjectType::ObjectTypeInteger {
-            api_set_error!(
-                err,
+            return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"'cmdheight' requires a Number",
-            );
-            return;
+            ));
         }
 
         tab.tp_ch_used.set(value.data.integer());
 
-        return;
+        return Ok(());
     }
 
     let mut ctx = OptSavedCtx::None;
 
-    let switched = switch_option_context(&mut ctx, scope, from, err);
-    if error_set(err) {
-        return;
-    }
+    let switched = switch_option_context(&mut ctx, scope, from)?;
 
     let mut errbuf_storage = [0u8; IOSIZE];
     let errmsg = set_option_value(
@@ -6112,13 +6097,15 @@ pub fn set_option_value_for(
         value_replaced,
         Some(&mut errbuf_storage),
     );
-    if let Some(errmsg) = errmsg {
-        api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg);
-    }
+    let res = match errmsg {
+        Some(errmsg) => Err(api_error!(ErrorType::ErrorTypeException, c"%s", errmsg)),
+        None => Ok(()),
+    };
 
     if switched {
         restore_option_context(&mut ctx, scope);
     }
+    res
 }
 
 fn showoptions(all: bool, opt_flags: i32) {
@@ -8444,20 +8431,17 @@ pub fn get_option_info(
     opt_flags: i32,
     buf: &FileBuf,
     win: &WinInfoInfo,
-    err: &mut Error,
-) -> Dict {
+) -> Result<Dict, Error> {
     let opt_idx = find_option_len(name.as_bytes(), name.size);
     if opt_idx == K_OPT_INVALID {
-        api_set_error!(
-            err,
+        return Err(api_error!(
             ErrorType::ErrorTypeValidation,
             c"Invalid option (not found): '%s'",
             name,
-        );
-        return Dict::new();
+        ));
     }
 
-    option_info_dict(get_option(opt_idx), opt_flags, buf, win)
+    Ok(option_info_dict(get_option(opt_idx), opt_flags, buf, win))
 }
 
 /// Metadata Dict for every option, keyed by full name.

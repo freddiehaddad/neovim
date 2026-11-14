@@ -3,8 +3,7 @@
 
 use crate::api::extmark::describe_ns;
 use crate::api::private::helpers::{
-    api_clear_error, api_free_array, api_free_object, api_object_to_bool, buffer_obj, error_init,
-    error_set, integer_obj, window_obj,
+    api_free_array, api_free_object, api_object_to_bool, buffer_obj, integer_obj, window_obj,
 };
 use crate::api::private::validate::{Array, ObjectType};
 use crate::buffer::FileBuf;
@@ -123,10 +122,8 @@ fn decor_provider_invoke(
     default_true: bool,
     res: Option<&mut Array>,
 ) -> bool {
-    let mut err = error_init();
-
     g_st().textlock.set(g_st().textlock.get() + (1));
-    let ret = nlua_call_ref(
+    let call_res = nlua_call_ref(
         ref_,
         Some(name),
         args,
@@ -135,25 +132,41 @@ fn decor_provider_invoke(
         } else {
             K_RET_NIL_BOOL
         },
-        Some(&mut err),
     );
     g_st().textlock.set(g_st().textlock.get() - (1));
 
+    let mut ret_obj = None;
     let ret_ok = with_providers_mut(|providers| {
         let provider = &mut providers[provider_idx as usize];
-        if !error_set(&err) {
-            provider.error_count = 0;
-            if let Some(res) = res {
-                debug_assert!(matches!(ret.obj_type, ObjectType::ObjectTypeArray));
-                *res = ret.data.array();
-                return true;
-            } else if api_object_to_bool(ret.clone(), c"provider %s retval", default_true, &mut err)
-            {
-                return true;
+        let err = match call_res {
+            Ok(ret) => {
+                if let Some(res) = res {
+                    debug_assert!(matches!(ret.obj_type, ObjectType::ObjectTypeArray));
+                    *res = ret.data.array();
+                    provider.error_count = 0;
+                    return true;
+                }
+                match api_object_to_bool(ret.clone(), c"provider %s retval", default_true) {
+                    Ok(true) => {
+                        ret_obj = Some(ret);
+                        provider.error_count = 0;
+                        return true;
+                    }
+                    Ok(false) => {
+                        ret_obj = Some(ret);
+                        provider.error_count = 0;
+                        return false;
+                    }
+                    Err(e) => {
+                        ret_obj = Some(ret);
+                        e
+                    }
+                }
             }
-        }
+            Err(e) => e,
+        };
 
-        if error_set(&err) && provider.error_count < CB_MAX_ERROR {
+        if provider.error_count < CB_MAX_ERROR {
             decor_provider_error(&mut *provider, name, err.msg.as_deref());
             provider.error_count += 1;
 
@@ -163,13 +176,12 @@ fn decor_provider_invoke(
         }
         false
     });
-    if ret_ok {
-        return true;
+
+    if let Some(ret) = ret_obj {
+        api_free_object(ret);
     }
 
-    api_clear_error(&mut err);
-    api_free_object(ret);
-    false
+    ret_ok
 }
 
 pub fn decor_providers_invoke_spell(

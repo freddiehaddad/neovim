@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 
 use crate::api::extmark::parse_virt_text;
-use crate::api::private::helpers::{api_clear_error, api_free_object};
-use crate::api::private::validate::{Error, ErrorType, ObjectType};
+use crate::api::private::helpers::api_free_object;
+use crate::api::private::validate::ObjectType;
 use crate::buffer::{FileBuf, MAXLNUM};
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::change::{TAB, changed_lines};
@@ -1526,12 +1526,12 @@ pub fn get_foldtext(
 
             let obj = eval_foldtext(wp);
             if obj.obj_type == ObjectType::ObjectTypeArray {
-                let mut err = Error::new();
-                *vt = parse_virt_text(obj.data.array(), &mut err, None, false);
-                if err.err_type == ErrorType::ErrorTypeNone {
+                if let Ok(parsed_vt) = parse_virt_text(obj.data.array(), None, false) {
+                    *vt = parsed_vt;
                     text = Some(std::ffi::CString::default());
+                } else {
+                    *vt = Vec::new();
                 }
-                api_clear_error(&mut err);
             } else if obj.obj_type == ObjectType::ObjectTypeString {
                 text = (!obj.data.string().data.is_null()).then(|| obj.data.string().to_cstring());
             }

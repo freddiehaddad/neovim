@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 //! Lua `vim.diff` bindings (`src/nvim/lua/xdiff.c`).
 
-use crate::api::private::helpers::{api_clear_error, api_free_string, api_set_error};
+use crate::api::private::helpers::{api_error, api_free_string};
 use crate::api::private::validate::{Error, ErrorType, NvimString, Object, ObjectData, ObjectType};
 use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers};
 use crate::lua::converter::{
@@ -245,7 +245,7 @@ pub(crate) fn call_on_hunk_cb(
 
     if lua_pcall_safe(lstate, 4, 1, 0) != 0 {
         let msg = lua_tolstring_cstr(lstate, -1);
-        api_set_error!(err, ErrorType::ErrorTypeException, c"on_hunk: %s", msg);
+        *err = api_error!(ErrorType::ErrorTypeException, c"on_hunk: %s", msg);
         return -1;
     }
 
@@ -273,127 +273,116 @@ fn process_xdl_diff_opts(
     cfg: &mut Xdemitconf,
     params: &mut Xpparam,
     linematch: &mut i64,
-    err: &mut Error,
-) -> NluaXdiffMode {
+) -> Result<NluaXdiffMode, Error> {
     let mut opts = KeyDictXdlDiff::init();
     let mut err_param: Option<&'static std::ffi::CStr> = None;
 
-    {
-        nlua_pop_keydict(
-            lstate,
-            &mut opts,
-            Some(key_dict_xdl_diff_get_field),
-            &mut err_param,
-            err,
-        );
-        if err.err_type != ErrorType::ErrorTypeNone {
-            api_free_string(opts.result_type);
-            api_free_string(opts.algorithm);
-            api_free_luaref(opts.on_hunk);
-            return NluaXdiffMode::Unified;
-        }
-
-        let mut mode = NluaXdiffMode::Unified;
-        let mut had_result_type_indices = false;
-
-        'validate: {
-            if opts.has_key(KEYSET_OPTIDX_RESULT_TYPE) {
-                match opts.result_type.cstr_bytes() {
-                    b"unified" => {}
-                    b"indices" => had_result_type_indices = true,
-                    _ => {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeValidation,
-                            c"not a valid result_type",
-                        );
-                        break 'validate;
-                    }
-                }
-            }
-
-            if opts.has_key(KEYSET_OPTIDX_ALGORITHM) {
-                match opts.algorithm.cstr_bytes() {
-                    b"myers" => {}
-                    b"minimal" => params.flags |= XDF_NEED_MINIMAL,
-                    b"patience" => params.flags |= XDF_PATIENCE_DIFF,
-                    b"histogram" => params.flags |= XDF_HISTOGRAM_DIFF,
-                    _ => {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeValidation,
-                            c"not a valid algorithm",
-                        );
-                        break 'validate;
-                    }
-                }
-            }
-
-            if opts.has_key(KEYSET_OPTIDX_CTXLEN) {
-                cfg.ctxlen = opts.ctxlen;
-            }
-            if opts.has_key(KEYSET_OPTIDX_INTERHUNKCTXLEN) {
-                cfg.interhunkctxlen = opts.interhunkctxlen;
-            }
-
-            if opts.has_key(KEYSET_OPTIDX_LINEMATCH) {
-                if opts.linematch.obj_type == ObjectType::ObjectTypeBoolean {
-                    *linematch = if opts.linematch.data.boolean() {
-                        i64::MAX
-                    } else {
-                        0
-                    };
-                } else if opts.linematch.obj_type == ObjectType::ObjectTypeInteger {
-                    *linematch = opts.linematch.data.integer();
-                } else {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"linematch must be a boolean or integer",
-                    );
-                    break 'validate;
-                }
-            }
-
-            if opts.ignore_whitespace {
-                params.flags |= XDF_IGNORE_WHITESPACE;
-            }
-            if opts.ignore_whitespace_change {
-                params.flags |= XDF_IGNORE_WHITESPACE_CHANGE;
-            }
-            if opts.ignore_whitespace_change_at_eol {
-                params.flags |= XDF_IGNORE_WHITESPACE_AT_EOL;
-            }
-            if opts.ignore_cr_at_eol {
-                params.flags |= XDF_IGNORE_CR_AT_EOL;
-            }
-            if opts.ignore_blank_lines {
-                params.flags |= XDF_IGNORE_BLANK_LINES;
-            }
-            if opts.indent_heuristic {
-                params.flags |= XDF_INDENT_HEURISTIC;
-            }
-
-            if opts.has_key(KEYSET_OPTIDX_ON_HUNK) {
-                mode = NluaXdiffMode::OnHunkCb;
-                nlua_pushref(lstate, opts.on_hunk);
-                if lua_type_safe(lstate, -1) != LUA_TFUNCTION {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"on_hunk is not a function",
-                    );
-                }
-            } else if had_result_type_indices {
-                mode = NluaXdiffMode::Locations;
-            }
-        }
-
+    if let Err(err) = nlua_pop_keydict(
+        lstate,
+        &mut opts,
+        Some(key_dict_xdl_diff_get_field),
+        &mut err_param,
+    ) {
         api_free_string(opts.result_type);
         api_free_string(opts.algorithm);
         api_free_luaref(opts.on_hunk);
-        mode
+        return Err(err);
     }
+
+    let mut mode = NluaXdiffMode::Unified;
+    let mut had_result_type_indices = false;
+
+    let res = 'validate: {
+        if opts.has_key(KEYSET_OPTIDX_RESULT_TYPE) {
+            match opts.result_type.cstr_bytes() {
+                b"unified" => {}
+                b"indices" => had_result_type_indices = true,
+                _ => {
+                    break 'validate Err(api_error!(
+                        ErrorType::ErrorTypeValidation,
+                        c"not a valid result_type",
+                    ));
+                }
+            }
+        }
+
+        if opts.has_key(KEYSET_OPTIDX_ALGORITHM) {
+            match opts.algorithm.cstr_bytes() {
+                b"myers" => {}
+                b"minimal" => params.flags |= XDF_NEED_MINIMAL,
+                b"patience" => params.flags |= XDF_PATIENCE_DIFF,
+                b"histogram" => params.flags |= XDF_HISTOGRAM_DIFF,
+                _ => {
+                    break 'validate Err(api_error!(
+                        ErrorType::ErrorTypeValidation,
+                        c"not a valid algorithm",
+                    ));
+                }
+            }
+        }
+
+        if opts.has_key(KEYSET_OPTIDX_CTXLEN) {
+            cfg.ctxlen = opts.ctxlen;
+        }
+        if opts.has_key(KEYSET_OPTIDX_INTERHUNKCTXLEN) {
+            cfg.interhunkctxlen = opts.interhunkctxlen;
+        }
+
+        if opts.has_key(KEYSET_OPTIDX_LINEMATCH) {
+            if opts.linematch.obj_type == ObjectType::ObjectTypeBoolean {
+                *linematch = if opts.linematch.data.boolean() {
+                    i64::MAX
+                } else {
+                    0
+                };
+            } else if opts.linematch.obj_type == ObjectType::ObjectTypeInteger {
+                *linematch = opts.linematch.data.integer();
+            } else {
+                break 'validate Err(api_error!(
+                    ErrorType::ErrorTypeValidation,
+                    c"linematch must be a boolean or integer",
+                ));
+            }
+        }
+
+        if opts.ignore_whitespace {
+            params.flags |= XDF_IGNORE_WHITESPACE;
+        }
+        if opts.ignore_whitespace_change {
+            params.flags |= XDF_IGNORE_WHITESPACE_CHANGE;
+        }
+        if opts.ignore_whitespace_change_at_eol {
+            params.flags |= XDF_IGNORE_WHITESPACE_AT_EOL;
+        }
+        if opts.ignore_cr_at_eol {
+            params.flags |= XDF_IGNORE_CR_AT_EOL;
+        }
+        if opts.ignore_blank_lines {
+            params.flags |= XDF_IGNORE_BLANK_LINES;
+        }
+        if opts.indent_heuristic {
+            params.flags |= XDF_INDENT_HEURISTIC;
+        }
+
+        if opts.has_key(KEYSET_OPTIDX_ON_HUNK) {
+            mode = NluaXdiffMode::OnHunkCb;
+            nlua_pushref(lstate, opts.on_hunk);
+            if lua_type_safe(lstate, -1) != LUA_TFUNCTION {
+                break 'validate Err(api_error!(
+                    ErrorType::ErrorTypeValidation,
+                    c"on_hunk is not a function",
+                ));
+            }
+        } else if had_result_type_indices {
+            mode = NluaXdiffMode::Locations;
+        }
+        Ok(mode)
+    };
+
+    api_free_string(opts.result_type);
+    api_free_string(opts.algorithm);
+    api_free_luaref(opts.on_hunk);
+    res
 }
 
 /// Lua `vim.diff(a, b, opts)` implementation (`nlua_xdl_diff`).
@@ -404,8 +393,6 @@ pub extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
     let mut ma = get_string_arg(lstate, 1);
     let mut mb = get_string_arg(lstate, 2);
 
-    let mut err = Error::new();
-
     let mut cfg = Xdemitconf::default();
     let mut params = Xpparam::default();
     let mut linematch: i64 = 0;
@@ -415,20 +402,28 @@ pub extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
         if lua_type_safe(lstate, 3) != LUA_TTABLE {
             return luaL_argerror(lstate, 3, c"expected table");
         }
-        mode = process_xdl_diff_opts(lstate, &mut cfg, &mut params, &mut linematch, &mut err);
+        match process_xdl_diff_opts(lstate, &mut cfg, &mut params, &mut linematch) {
+            Ok(m) => mode = m,
+            Err(err) => {
+                luaL_where_safe(lstate, 1);
+                crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
+                lua_concat_safe(lstate, 2);
+                return lua_error_safe(lstate);
+            }
+        }
     }
 
     let mut unified_buf: Vec<u8> = Vec::new();
     let mut priv_state = HunkPriv {
         lstate,
-        err,
+        err: Error::new(),
         ma,
         mb,
         linematch,
         iwhite: (params.flags & XDF_IGNORE_WHITESPACE) != 0,
     };
 
-    if priv_state.err.err_type == ErrorType::ErrorTypeNone {
+    {
         let mut ecb = match mode {
             NluaXdiffMode::Unified => Xdemitcb::Unified(&mut unified_buf),
             NluaXdiffMode::OnHunkCb => Xdemitcb::OnHunk(&mut priv_state),
@@ -441,18 +436,13 @@ pub extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
         if xdl_diff(&mut ma, &mut mb, &params, &cfg, &mut ecb) == -1
             && priv_state.err.err_type == ErrorType::ErrorTypeNone
         {
-            api_set_error!(
-                &mut priv_state.err,
-                ErrorType::ErrorTypeException,
-                c"diff operation failed",
-            );
+            priv_state.err = api_error!(ErrorType::ErrorTypeException, c"diff operation failed");
         }
     }
 
     if priv_state.err.err_type != ErrorType::ErrorTypeNone {
         luaL_where_safe(lstate, 1);
         crate::lua::converter::lua_pushstring_opt(lstate, priv_state.err.msg_cstr());
-        api_clear_error(&mut priv_state.err);
         lua_concat_safe(lstate, 2);
         return lua_error_safe(lstate);
     } else if mode == NluaXdiffMode::Unified {

@@ -3,10 +3,9 @@
 
 use crate::api::buffer::nvim_buf_set_lines;
 use crate::api::private::helpers::{
-    add_c, api_clear_error, api_free_array, array_obj, boolean_obj, cstr_as_obj, cstr_as_string,
-    string_obj,
+    add_c, api_free_array, array_obj, boolean_obj, cstr_as_obj, cstr_as_string, string_obj,
 };
-use crate::api::private::validate::{Array, Error, ErrorType, NvimString};
+use crate::api::private::validate::{Array, ErrorType, NvimString};
 use crate::api::win_config::{K_UIMULTIGRID, WIN_CONFIG_INIT, parse_winborder};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{bt_nofile, buf_clear, first_win_in_tab};
@@ -866,16 +865,10 @@ pub fn pum_redraw() {
     let has_border = border_width > 0;
 
     if border_width > 0 {
-        let mut err = Error::new();
-        if !parse_winborder(
-            Some(&mut fconfig),
-            &opt_vars().p_pumborder.as_bytes(),
-            &mut err,
-        ) {
+        if let Err(err) = parse_winborder(Some(&mut fconfig), &opt_vars().p_pumborder.as_bytes()) {
             if err.err_type != ErrorType::ErrorTypeNone {
                 emsg(err.msg_cstr().unwrap_or(c""));
             }
-            api_clear_error(&mut err);
             return;
         }
 
@@ -897,7 +890,6 @@ pub fn pum_redraw() {
             }
             fconfig.border_attr[i] = attr;
         }
-        api_clear_error(&mut err);
         if PUM.with(|s| s.scrollbar.get()) != 0 {
             let bchars = &fconfig.border_chars[3];
             let blen = bchars.iter().position(|&b| b == 0).unwrap_or(bchars.len());
@@ -1255,7 +1247,6 @@ fn pum_preview_set_text(
     lnum: &mut Linenr,
     max_width: &mut i32,
 ) {
-    let mut err = Error::new();
     let mut replacement = Array::new();
     let buf = win.w_buffer.get();
     buf.b_p_ma.set(true);
@@ -1286,19 +1277,10 @@ fn pum_preview_set_text(
 
     let original_textlock = g_st().textlock.get();
     g_st().textlock.set(0);
-    nvim_buf_set_lines(
-        0,
-        buf.b_fnum.get(),
-        0,
-        -1,
-        false,
-        replacement.clone(),
-        &mut err,
-    );
+    let set_lines_res = nvim_buf_set_lines(0, buf.b_fnum.get(), 0, -1, false, replacement.clone());
     g_st().textlock.set(original_textlock);
-    if err.err_type != ErrorType::ErrorTypeNone {
+    if let Err(err) = set_lines_res {
         emsg(err.msg_cstr().unwrap_or(c""));
-        api_clear_error(&mut err);
     }
     api_free_array(replacement);
     buf.b_p_ma.set(false);
