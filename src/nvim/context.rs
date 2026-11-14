@@ -766,7 +766,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> crate::globals::WinPtr {
 
     g_st().ctx_win_vec.borrow_mut().as_mut_slice()[cs.cs_ctxwin_idx as usize].cw_used = false;
 
-    if valid_tabpage_win(&curtab()) == 0 {
+    if !valid_tabpage_win(&curtab()) {
         close_tabpage(&curtab());
     }
 

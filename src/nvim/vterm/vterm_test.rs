@@ -460,11 +460,7 @@ pub fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user: Option
     let mut out = Vec::new();
     let errcode = match vterm_get_prop_type(prop) {
         VTERM_VALUETYPE_BOOL => {
-            let s = if (*val).boolean() != 0 {
-                "true"
-            } else {
-                "false"
-            };
+            let s = if (*val).boolean() { "true" } else { "false" };
             let _ = writeln!(out, "settermprop {prop} {s}");
             1
         }
@@ -516,18 +512,18 @@ pub fn state_setpenattr(
     _user: Option<&mut VTermScreen>,
 ) -> i32 {
     VT_TEST_STATE.with_borrow_mut(|st| match attr {
-        VTERM_ATTR_BOLD => st.state_pen.bold = val.boolean(),
+        VTERM_ATTR_BOLD => st.state_pen.bold = i32::from(val.boolean()),
         VTERM_ATTR_UNDERLINE => st.state_pen.underline = val.number(),
-        VTERM_ATTR_ITALIC => st.state_pen.italic = val.boolean(),
-        VTERM_ATTR_BLINK => st.state_pen.blink = val.boolean(),
-        VTERM_ATTR_REVERSE => st.state_pen.reverse = val.boolean(),
-        VTERM_ATTR_CONCEAL => st.state_pen.conceal = val.boolean(),
-        VTERM_ATTR_STRIKE => st.state_pen.strike = val.boolean(),
+        VTERM_ATTR_ITALIC => st.state_pen.italic = i32::from(val.boolean()),
+        VTERM_ATTR_BLINK => st.state_pen.blink = i32::from(val.boolean()),
+        VTERM_ATTR_REVERSE => st.state_pen.reverse = i32::from(val.boolean()),
+        VTERM_ATTR_CONCEAL => st.state_pen.conceal = i32::from(val.boolean()),
+        VTERM_ATTR_STRIKE => st.state_pen.strike = i32::from(val.boolean()),
         VTERM_ATTR_FONT => st.state_pen.font = val.number(),
-        VTERM_ATTR_SMALL => st.state_pen.small = val.boolean(),
+        VTERM_ATTR_SMALL => st.state_pen.small = i32::from(val.boolean()),
         VTERM_ATTR_BASELINE => st.state_pen.baseline = val.number(),
-        VTERM_ATTR_DIM => st.state_pen.dim = val.boolean(),
-        VTERM_ATTR_OVERLINE => st.state_pen.overline = val.boolean(),
+        VTERM_ATTR_DIM => st.state_pen.dim = i32::from(val.boolean()),
+        VTERM_ATTR_OVERLINE => st.state_pen.overline = i32::from(val.boolean()),
         VTERM_ATTR_FOREGROUND => st.state_pen.foreground = val.color(),
         VTERM_ATTR_BACKGROUND => st.state_pen.background = val.color(),
         _ => {}
@@ -670,18 +666,18 @@ pub fn vterm_state_get_penattr(
     }
 }
 
-pub fn vterm_color_is_equal(a: &VTermColor, b: &VTermColor) -> i32 {
+pub fn vterm_color_is_equal(a: &VTermColor, b: &VTermColor) -> bool {
     let ca = a;
     let cb = b;
     if ca.type_byte() != cb.type_byte() {
-        return 0;
+        return false;
     }
     if ca.is_indexed() {
-        i32::from(ca.idx() == cb.idx())
+        ca.idx() == cb.idx()
     } else if ca.is_rgb() {
-        i32::from(ca.red() == cb.red() && ca.green() == cb.green() && ca.blue() == cb.blue())
+        ca.red() == cb.red() && ca.green() == cb.green() && ca.blue() == cb.blue()
     } else {
-        0
+        false
     }
 }
 
@@ -712,10 +708,10 @@ fn attrs_differ(attrs: VTermAttrMask, a: &ScreenCell, b: &ScreenCell) -> bool {
     if (attrs & VTERM_ATTR_FONT_MASK) != 0 && pa.font() != pb.font() {
         return true;
     }
-    if (attrs & VTERM_ATTR_FOREGROUND_MASK) != 0 && vterm_color_is_equal(&pa.fg, &pb.fg) == 0 {
+    if (attrs & VTERM_ATTR_FOREGROUND_MASK) != 0 && !vterm_color_is_equal(&pa.fg, &pb.fg) {
         return true;
     }
-    if (attrs & VTERM_ATTR_BACKGROUND_MASK) != 0 && vterm_color_is_equal(&pa.bg, &pb.bg) == 0 {
+    if (attrs & VTERM_ATTR_BACKGROUND_MASK) != 0 && !vterm_color_is_equal(&pa.bg, &pb.bg) {
         return true;
     }
     if (attrs & VTERM_ATTR_SMALL_MASK) != 0 && pa.small() != pb.small() {
@@ -741,9 +737,9 @@ pub fn vterm_screen_get_attrs_extent(
     extent: &mut VTermRect,
     pos: VTermPos,
     attrs: VTermAttrMask,
-) -> i32 {
+) -> bool {
     let Some(target) = screen.cell_ref(pos.row, pos.col) else {
-        return 0;
+        return false;
     };
     extent.start_row = pos.row;
     extent.end_row = pos.row + 1;
@@ -777,7 +773,7 @@ pub fn vterm_screen_get_attrs_extent(
         col += 1;
     }
     extent.end_col = col - 1;
-    1
+    true
 }
 
 pub fn vterm_screen_get_text(
@@ -829,17 +825,17 @@ pub fn vterm_screen_get_text(
     outpos
 }
 
-pub fn vterm_screen_is_eol(screen: &VTermScreen, mut pos: VTermPos) -> i32 {
+pub fn vterm_screen_is_eol(screen: &VTermScreen, mut pos: VTermPos) -> bool {
     while pos.col < screen.cols {
         if screen
             .cell_ref(pos.row, pos.col)
             .is_some_and(|cell| cell.schar != 0)
         {
-            return 0;
+            return false;
         }
         pos.col += 1;
     }
-    1
+    true
 }
 
 pub fn vterm_state_get_cursorpos(state: &VTermStateFull, cursorpos: &mut VTermPos) {
@@ -1174,7 +1170,7 @@ mod tests {
         TEST_VT.with_borrow(|vt| {
             vterm_state_get_penattr(vt.as_ref().unwrap().state_ref(), attr, &mut val);
         });
-        assert_eq!(val.boolean(), expected);
+        assert_eq!(val.number(), expected);
     }
 
     fn resize(rows: i32, cols: i32, _vt: TestVt) {
@@ -1329,7 +1325,7 @@ mod tests {
         let actual = TEST_VT.with_borrow(|vt| {
             vterm_screen_is_eol(vt.as_ref().unwrap().screen_ref(), VTermPos { row, col })
         });
-        assert_eq!(actual, expected);
+        assert_eq!(i32::from(actual), expected);
     }
 
     fn screen_attrs_extent(row: i32, col: i32, expected: &[u8], _screen: TestVt) {
@@ -1431,9 +1427,9 @@ mod tests {
         let mut c2 = VTermColor { bytes: [0; 4] };
         c1.set_rgb(10, 20, 30);
         c2.set_rgb(10, 20, 30);
-        assert_eq!(vterm_color_is_equal(&c1, &c2), 1);
+        assert!(vterm_color_is_equal(&c1, &c2));
         c2.set_rgb(10, 20, 31);
-        assert_eq!(vterm_color_is_equal(&c1, &c2), 0);
+        assert!(!vterm_color_is_equal(&c1, &c2));
     }
 
     #[test]

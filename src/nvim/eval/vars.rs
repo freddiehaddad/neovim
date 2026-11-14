@@ -743,12 +743,8 @@ pub fn evalvars_clear() {
     }
 }
 
-pub fn garbage_collect_globvars(copy_id: i32) -> i32 {
-    i32::from(set_ref_in_ht(
-        Some(&get_globvar_dict().dv_hashtab),
-        copy_id,
-        None,
-    ))
+pub fn garbage_collect_globvars(copy_id: i32) -> bool {
+    set_ref_in_ht(Some(&get_globvar_dict().dv_hashtab), copy_id, None)
 }
 
 pub fn garbage_collect_vimvars(copy_id: i32) -> bool {

@@ -758,7 +758,7 @@ fn set_init_default_backupskip() {
         {
             let p_bytes = env_cstr.to_bytes();
             let plen = p_bytes.len();
-            let has_trailing_path_sep = after_pathsep(p_bytes) != 0;
+            let has_trailing_path_sep = after_pathsep(p_bytes);
 
             let itemsize = plen + usize::from(!has_trailing_path_sep) + 2;
             let mut item = vec![0u8; itemsize];
@@ -2281,7 +2281,7 @@ pub fn check_options() {
 }
 
 /// Check if option was set insecurely.
-pub fn was_set_insecurely(wp: Option<&WinInfoInfo>, opt_idx: OptIndex, opt_flags: i32) -> i32 {
+pub fn was_set_insecurely(wp: Option<&WinInfoInfo>, opt_idx: OptIndex, opt_flags: i32) -> bool {
     assert!(opt_idx != K_OPT_INVALID);
     let flags = if (opt_flags & OPT_LOCAL) != 0 {
         let wp = wp.unwrap();
@@ -2309,7 +2309,7 @@ pub fn was_set_insecurely(wp: Option<&WinInfoInfo>, opt_idx: OptIndex, opt_flags
         None
     }
     .unwrap_or_else(|| get_option(opt_idx).flags());
-    i32::from((flags & K_OPT_FLAG_INSECURE) != 0)
+    (flags & K_OPT_FLAG_INSECURE) != 0
 }
 
 fn set_insecure_flag(wp: Option<&WinInfoInfo>, opt_idx: OptIndex, opt_flags: i32, insecure: bool) {
@@ -5817,7 +5817,7 @@ fn set_option<'a>(
         || g_st().sandbox.get() != 0
         || (opt_flags & OPT_MODELINE) != 0
         || (!value_replaced
-            && was_set_insecurely(Some(&crate::globals::curwin()), opt_idx, opt_flags) != 0);
+            && was_set_insecurely(Some(&crate::globals::curwin()), opt_idx, opt_flags));
     if g_st().secure.get() == 0 && value_untrusted {
         g_st().secure.set(1);
     }
@@ -6155,7 +6155,7 @@ fn showoptions(all: bool, opt_flags: i32) {
             } else {
                 varp = get_varp(opt);
             }
-            if varp.is_some() && (all || optval_default(opt_idx, varp) == 0) {
+            if varp.is_some() && (all || !optval_default(opt_idx, varp)) {
                 let len = if (opt_flags & OPT_ONECOLUMN) != 0 {
                     g_st().columns_global.get()
                 } else if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
@@ -6202,9 +6202,9 @@ fn showoptions(all: bool, opt_flags: i32) {
     }
 }
 
-fn optval_default(opt_idx: OptIndex, varp: OptVar) -> i32 {
+fn optval_default(opt_idx: OptIndex, varp: OptVar) -> bool {
     if is_option_hidden(opt_idx) {
-        return 1;
+        return true;
     }
 
     let current_val = opt_from_varp(opt_idx, varp);
@@ -6212,7 +6212,7 @@ fn optval_default(opt_idx: OptIndex, varp: OptVar) -> i32 {
 
     let is_default = option_equal(current_val.clone(), default_val);
     optval_free_read(opt_idx, current_val);
-    i32::from(is_default)
+    is_default
 }
 
 /// Send update to UIs with values of UI relevant options.
@@ -6292,7 +6292,7 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
                 if varp.is_none() {
                     continue;
                 }
-                if (opt_flags & OPT_GLOBAL) != 0 && optval_default(opt_idx, varp.clone()) != 0 {
+                if (opt_flags & OPT_GLOBAL) != 0 && optval_default(opt_idx, varp.clone()) {
                     continue;
                 }
 
@@ -6310,7 +6310,7 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
                     }
                     if (opt_flags & OPT_GLOBAL) == 0 && local_only == 0 {
                         let varp_fresh = get_varp_scope(opt, OPT_GLOBAL);
-                        if optval_default(opt_idx, varp_fresh.clone()) == 0 {
+                        if !optval_default(opt_idx, varp_fresh.clone()) {
                             round = 1;
                             varp_local = varp;
                             varp = varp_fresh;
@@ -6412,7 +6412,7 @@ fn put_set_value(
             }
             let value_num = value.data.integer();
             let mut wc: OptInt = 0;
-            if wc_use_keyname(varp, &mut wc) != 0 {
+            if wc_use_keyname(varp, &mut wc) {
                 if fd.puts(&get_special_key_name(wc as i32, 0)) < 0 {
                     return false;
                 }
@@ -8025,7 +8025,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) -> std::ffi::CString {
     assert!(vp.is_some());
 
     let mut wc: OptInt = 0;
-    if wc_use_keyname(vp.clone(), &mut wc) != 0 {
+    if wc_use_keyname(vp.clone(), &mut wc) {
         return get_special_key_name(wc as i32, 0).as_cstr().to_owned();
     }
     if wc != 0 {
@@ -8046,14 +8046,14 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) -> std::ffi::CString {
     s
 }
 
-fn wc_use_keyname(varp: OptVar, wcp: &mut OptInt) -> i32 {
+fn wc_use_keyname(varp: OptVar, wcp: &mut OptInt) -> bool {
     if varp.ptr_eq(&opt_vars().p_wc) || varp.ptr_eq(&opt_vars().p_wcm) {
         *wcp = varp.int_val();
         if is_special(*wcp as i32) || find_special_key_in_table(*wcp as i32) >= 0 {
-            return 1;
+            return true;
         }
     }
-    0
+    false
 }
 
 pub fn shortmess(x: i32) -> bool {
@@ -8371,13 +8371,11 @@ pub fn option_next_keyval<'a>(p: &mut &'a [u8]) -> Option<(&'a [u8], Option<&'a 
 }
 
 /// Return true when 'shell' has "csh" in the tail.
-pub fn csh_like_shell() -> i32 {
-    i32::from(
-        path_tail(&opt_vars().p_sh.as_cstr())
-            .to_bytes()
-            .windows(3)
-            .any(|w| w == b"csh"),
-    )
+pub fn csh_like_shell() -> bool {
+    path_tail(&opt_vars().p_sh.as_cstr())
+        .to_bytes()
+        .windows(3)
+        .any(|w| w == b"csh")
 }
 
 /// Return true when 'shell' has "fish" in the tail.

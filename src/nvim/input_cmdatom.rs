@@ -2047,7 +2047,7 @@ pub fn atom_cmd_end(ca: &mut Cmdarg) {
         with_atom(|st| st.composite.lossy.set(true));
     }
 
-    if is_root && !mc_replaying() && typebuf_typed() != 0 && stuff_empty() {
+    if is_root && !mc_replaying() && typebuf_typed() && stuff_empty() {
         let (map_edit, comp_origin, comp_follow) = with_atom(|st| {
             (
                 st.map_edit.get(),

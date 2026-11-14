@@ -244,15 +244,15 @@ fn nfa_regcomp_start(expr_cstr: &std::ffi::CStr, re_flags: i32) {
     })
 }
 
-fn nfa_get_reganch(states: &[NfaState], start: Option<usize>, depth: i32) -> i32 {
+fn nfa_get_reganch(states: &[NfaState], start: Option<usize>, depth: i32) -> bool {
     let mut p = start;
     if depth > 4 {
-        return 0;
+        return false;
     }
     while let Some(idx) = p {
         let st = states[idx];
         match st.c {
-            NFA_BOL | NFA_BOF => return 1,
+            NFA_BOL | NFA_BOF => return true,
             NFA_ZSTART | NFA_ZEND | NFA_CURSOR | NFA_VISUAL | NFA_NOPEN => {
                 p = st.out;
             }
@@ -260,15 +260,13 @@ fn nfa_get_reganch(states: &[NfaState], start: Option<usize>, depth: i32) -> i32
                 p = st.out;
             }
             NFA_SPLIT => {
-                return i32::from(
-                    nfa_get_reganch(states, st.out, depth + 1) != 0
-                        && nfa_get_reganch(states, st.out1, depth + 1) != 0,
-                );
+                return nfa_get_reganch(states, st.out, depth + 1)
+                    && nfa_get_reganch(states, st.out1, depth + 1);
             }
-            _ => return 0,
+            _ => return false,
         }
     }
-    0
+    false
 }
 
 fn nfa_get_regstart(states: &[NfaState], start: Option<usize>, depth: i32) -> i32 {
@@ -4847,7 +4845,7 @@ fn nfa_regexec_both(
         re_s.rex.nfa_listid.set(1);
         re_s.rex.nfa_alt_listid.set(2);
 
-        if prog.reganch != 0 && col > 0 {
+        if prog.reganch && col > 0 {
             return 0;
         }
 
@@ -4934,7 +4932,7 @@ pub(super) fn nfa_regcomp(expr: &std::ffi::CStr, re_flags: i32) -> Option<NfaReg
             regflags: 0,
             re_engine: 0,
             start: None,
-            reganch: 0,
+            reganch: false,
             regstart: 0,
             match_text: None,
             has_zend: false,

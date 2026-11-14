@@ -628,7 +628,7 @@ pub fn expand_env_esc(
                 if c + tail_bytes.len() + 1 < (dst_rem as usize) {
                     dst_slice[dst_idx..dst_idx + c + 1].copy_from_slice(var_bytes_with_nul);
                     dst_rem -= c as i32;
-                    let ends_with_sep = after_pathsep(&dst_slice[dst_idx..dst_idx + c]) != 0;
+                    let ends_with_sep = after_pathsep(&dst_slice[dst_idx..dst_idx + c]);
                     #[cfg(windows)]
                     let not_colon = dst_slice[dst_idx + c - 1] != b':';
                     #[cfg(not(windows))]
@@ -724,7 +724,7 @@ fn remove_tail(path_slice: &[u8], pend_off: usize, dirname: &[u8]) -> usize {
         let new_tail_cstr = bytes_to_cstring(&path_slice[new_tail_off..pend_off]);
         let dirname_cstr = bytes_to_cstring(dirname);
         if path_cmp(opt_vars().p_fic.get(), &new_tail_cstr, &dirname_cstr, len) == 0
-            && (new_tail_off == 0 || after_pathsep(&path_slice[..new_tail_off]) != 0)
+            && (new_tail_off == 0 || after_pathsep(&path_slice[..new_tail_off]))
         {
             return new_tail_off;
         }
@@ -850,7 +850,7 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
                     if !vimruntime {
                         end_off = remove_tail(vim_path_slice, end_off, RUNTIME_DIRNAME.to_bytes());
                     }
-                    if end_off > 0 && after_pathsep(&vim_path.as_bytes()[..end_off]) != 0 {
+                    if end_off > 0 && after_pathsep(&vim_path.as_bytes()[..end_off]) {
                         end_off -= 1;
                     }
                     let cand =

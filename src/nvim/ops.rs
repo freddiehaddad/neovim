@@ -223,13 +223,13 @@ pub fn get_op_type(char1: i32, char2: i32) -> i32 {
 }
 
 /// Return non-zero if operator `op` always works on whole lines.
-pub fn op_on_lines(op: i32) -> i32 {
-    i32::from(OPCHARS[op as usize][2] & OPF_LINES)
+pub fn op_on_lines(op: i32) -> bool {
+    (OPCHARS[op as usize][2] & OPF_LINES) != 0
 }
 
 /// Return non-zero if operator `op` changes text.
-pub fn op_is_change(op: i32) -> i32 {
-    i32::from(OPCHARS[op as usize][2] & OPF_CHANGE)
+pub fn op_is_change(op: i32) -> bool {
+    (OPCHARS[op as usize][2] & OPF_CHANGE) != 0
 }
 
 /// Whether operator `op` builds a redo: text-changing operators do, ":" and the fold operators do
@@ -238,7 +238,7 @@ pub fn op_redoable(op: i32, redo_yank: bool) -> bool {
     if op == OP_YANK {
         redo_yank
     } else {
-        op_is_change(op) != 0
+        op_is_change(op)
     }
 }
 
@@ -1398,7 +1398,7 @@ pub fn op_tilde(oap: &mut Oparg) {
         while pos.lnum <= oap.end.lnum {
             block_prep(oap, &mut bd, pos.lnum, false);
             pos.col = bd.textcol;
-            let one_change = swapchars(oap.op_type, &mut pos, bd.textlen) != 0;
+            let one_change = swapchars(oap.op_type, &mut pos, bd.textlen);
             did_change |= one_change;
             pos.lnum += 1;
         }
@@ -1419,7 +1419,7 @@ pub fn op_tilde(oap: &mut Oparg) {
 
         if pos.lnum == oap.end.lnum {
             let len = oap.end.col - pos.col + 1;
-            did_change = swapchars(oap.op_type, &mut pos, len) != 0;
+            did_change = swapchars(oap.op_type, &mut pos, len);
         } else {
             loop {
                 let len = if pos.lnum == oap.end.lnum {
@@ -1427,7 +1427,7 @@ pub fn op_tilde(oap: &mut Oparg) {
                 } else {
                     ml_get_pos_len(&mut pos)
                 };
-                did_change |= swapchars(oap.op_type, &mut pos, len) != 0;
+                did_change |= swapchars(oap.op_type, &mut pos, len);
                 if ltoreq(oap.end, pos) || inc(&mut pos) == -1 {
                     break;
                 }
@@ -1467,8 +1467,8 @@ pub fn op_tilde(oap: &mut Oparg) {
     }
 }
 
-fn swapchars(op_type: i32, pos: &mut CursorPos, length: i32) -> i32 {
-    let mut did_change: i32 = 0;
+fn swapchars(op_type: i32, pos: &mut CursorPos, length: i32) -> bool {
+    let mut did_change = false;
     let mut todo = length;
     while todo > 0 {
         let len = crate::mbyte::utfc_slice2len(&crate::memline::ml_get_pos_slice(pos)) as i32;
@@ -1476,7 +1476,7 @@ fn swapchars(op_type: i32, pos: &mut CursorPos, length: i32) -> i32 {
         if len > 0 {
             todo -= len - 1;
         }
-        did_change |= i32::from(swapchar(op_type, pos));
+        did_change |= swapchar(op_type, pos);
         if inc(pos) == -1 {
             break;
         }
@@ -3672,7 +3672,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                 {
                     oap.inclusive = false;
                     if opt_vars().p_sel.first_byte() != b'o'
-                        && op_on_lines(oap.op_type) == 0
+                        && !op_on_lines(oap.op_type)
                         && oap.end.lnum < curbuf().b_ml.ml_line_count.get()
                     {
                         oap.end.lnum += 1;
@@ -4042,8 +4042,8 @@ mod tests {
     fn op_char_and_rot13_helpers() {
         assert_eq!(get_op_char(OP_UPPER), b'g' as i32);
         assert_eq!(get_extra_op_char(OP_UPPER), b'U' as i32);
-        assert_ne!(op_on_lines(OP_INDENT), 0);
-        assert_eq!(op_on_lines(OP_DELETE), 0);
+        assert!(op_on_lines(OP_INDENT));
+        assert!(!op_on_lines(OP_DELETE));
         assert!(op_redoable(OP_DELETE, false));
         assert!(!op_redoable(OP_YANK, false));
         assert!(op_redoable(OP_YANK, true));

@@ -1770,7 +1770,7 @@ fn syn_current_attr_ctx(
                             continue;
                         }
                         if if cur_next_list.is_some() {
-                            in_id_list_ctx(s, syn_blk, None, &cur_next_list, &spp.sp_syn, 0) != 0
+                            in_id_list_ctx(s, syn_blk, None, &cur_next_list, &spp.sp_syn, 0)
                         } else if let Some(si_idx) = cur_si_idx {
                             in_id_list_ctx(
                                 s,
@@ -1779,7 +1779,7 @@ fn syn_current_attr_ctx(
                                 &si_cont_list,
                                 &spp.sp_syn,
                                 spp.sp_flags,
-                            ) != 0
+                            )
                         } else {
                             true
                         } {
@@ -2039,18 +2039,18 @@ fn syn_current_attr_ctx(
                 } else {
                     sps.id = syn_blk.b_nospell_cluster_id.get() as i16;
 
-                    *can_spell = in_id_list_ctx(s, syn_blk, sip_idx, &sip_cont_list, &sps, 0) == 0;
+                    *can_spell = !in_id_list_ctx(s, syn_blk, sip_idx, &sip_cont_list, &sps, 0);
                 }
             } else if s.current_trans_id.get() == 0 {
                 *can_spell = syn_blk.b_syn_spell.get() == SYNSPL_TOP;
             } else {
                 sps.id = syn_blk.b_spell_cluster_id.get() as i16;
 
-                *can_spell = in_id_list_ctx(s, syn_blk, sip_idx, &sip_cont_list, &sps, 0) != 0;
+                *can_spell = in_id_list_ctx(s, syn_blk, sip_idx, &sip_cont_list, &sps, 0);
 
                 if syn_blk.b_nospell_cluster_id.get() != 0 {
                     sps.id = syn_blk.b_nospell_cluster_id.get() as i16;
-                    if in_id_list_ctx(s, syn_blk, sip_idx, &sip_cont_list, &sps, 0) != 0 {
+                    if in_id_list_ctx(s, syn_blk, sip_idx, &sip_cont_list, &sps, 0) {
                         *can_spell = false;
                     }
                 }
@@ -2964,9 +2964,9 @@ fn match_keyword_ctx<'a>(
             cur_si_idx.and_then(|idx| with_cur_state(|cs| cs[idx].si_cont_list.clone()));
         for kp in entries {
             if if cur_next_list.is_some() {
-                in_id_list_ctx(s, syn_blk, None, &cur_next_list, &kp.k_syn, 0) != 0
+                in_id_list_ctx(s, syn_blk, None, &cur_next_list, &kp.k_syn, 0)
             } else if cur_si_idx.is_some() {
-                in_id_list_ctx(s, syn_blk, cur_si_idx, &si_cont_list, &kp.k_syn, kp.flags) != 0
+                in_id_list_ctx(s, syn_blk, cur_si_idx, &si_cont_list, &kp.k_syn, kp.flags)
             } else {
                 (kp.flags & HL_CONTAINED) == 0
             } {
@@ -5165,7 +5165,7 @@ fn in_id_list_ctx(
     list: &SynIdList,
     ssp: &SpSyn,
     flags: i32,
-) -> i32 {
+) -> bool {
     let id = ssp.id;
 
     if let Some(mut idx) = cur_si_idx
@@ -5188,19 +5188,18 @@ fn in_id_list_ctx(
                 &ssp.cont_in_list,
                 &c_spp.sp_syn,
                 c_spp.sp_flags,
-            ) != 0
-            {
-                return 1;
+            ) {
+                return true;
             }
         }
     }
 
     let Some(ref list_rc) = *list else {
-        return 0;
+        return false;
     };
 
     if is_id_list_all(list) {
-        return i32::from((flags & HL_CONTAINED) == 0);
+        return (flags & HL_CONTAINED) == 0;
     }
 
     let toplevel = (flags & HL_CONTAINED) == 0 || (flags & HL_INCLUDED_TOPLEVEL) != 0;
@@ -5210,20 +5209,20 @@ fn in_id_list_ctx(
             let item = idl_marker;
             if item < SYNID_TOP {
                 if (item - SYNID_ALLBUT) as i32 != ssp.inc_tag {
-                    return 0;
+                    return false;
                 }
             } else if item < SYNID_CONTAINED {
                 if (item - SYNID_TOP) as i32 != ssp.inc_tag || !toplevel {
-                    return 0;
+                    return false;
                 }
             } else if (item - SYNID_CONTAINED) as i32 != ssp.inc_tag || toplevel {
-                return 0;
+                return false;
             }
             false
         } else {
             true
         };
-        return i32::from(if contains_id { retval } else { !retval });
+        return if contains_id { retval } else { !retval };
     }
 
     let mut slice: &[i16] = list_rc;
@@ -5231,14 +5230,14 @@ fn in_id_list_ctx(
     let retval = if (SYNID_ALLBUT..SYNID_CLUSTER).contains(&first) {
         if first < SYNID_TOP {
             if (first - SYNID_ALLBUT) as i32 != ssp.inc_tag {
-                return 0;
+                return false;
             }
         } else if first < SYNID_CONTAINED {
             if (first - SYNID_TOP) as i32 != ssp.inc_tag || !toplevel {
-                return 0;
+                return false;
             }
         } else if (first - SYNID_CONTAINED) as i32 != ssp.inc_tag || toplevel {
-            return 0;
+            return false;
         }
         slice = &slice[1..];
         false
@@ -5251,7 +5250,7 @@ fn in_id_list_ctx(
             break;
         }
         if item == id {
-            return i32::from(retval);
+            return retval;
         }
         if item >= SYNID_CLUSTER {
             let scl_list = syn_blk.b_syn_clusters.borrow()[(item - SYNID_CLUSTER) as usize]
@@ -5261,13 +5260,13 @@ fn in_id_list_ctx(
                 s.in_id_list_depth.set(s.in_id_list_depth.get() + 1);
                 let r = in_id_list_ctx(s, syn_blk, None, &scl_list, ssp, flags);
                 s.in_id_list_depth.set(s.in_id_list_depth.get() - 1);
-                if r != 0 {
-                    return i32::from(retval);
+                if r {
+                    return retval;
                 }
             }
         }
     }
-    i32::from(!retval)
+    !retval
 }
 
 type SubcmdFn = fn(&mut Exarg, i32);

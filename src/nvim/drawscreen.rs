@@ -2061,7 +2061,7 @@ fn win_update(wp: &WinInfoInfo) {
                                 || did_update == DidUpdate::Fold
                                 || (did_update == DidUpdate::Line
                                     && syntax_present(wp)
-                                    && ((foldmethod_is_syntax(wp) && has_any_folding(wp) != 0)
+                                    && ((foldmethod_is_syntax(wp) && has_any_folding(wp))
                                         || syntax_check_changed(lnum)))
                                 || (!wp.w_match_head.borrow().is_empty()
                                     && buf.b_mod_set.get()

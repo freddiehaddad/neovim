@@ -302,7 +302,7 @@ fn match_add(
 }
 
 /// Delete match with ID `id` in the match list of window `wp` (`match_delete`).
-fn match_delete(wp: &WinInfoInfo, id: i32, perr: bool) -> i32 {
+fn match_delete(wp: &WinInfoInfo, id: i32, perr: bool) -> bool {
     let mut rtype = UPD_SOME_VALID;
 
     if id < 1 {
@@ -312,7 +312,7 @@ fn match_delete(wp: &WinInfoInfo, id: i32, perr: bool) -> i32 {
                 i64::from(id),
             );
         }
-        return -1;
+        return false;
     }
     let Some(idx) = wp
         .w_match_head
@@ -323,7 +323,7 @@ fn match_delete(wp: &WinInfoInfo, id: i32, perr: bool) -> i32 {
         if perr {
             semsg!(gettext(c"E803: ID not found: %lld"), i64::from(id));
         }
-        return -1;
+        return false;
     };
     let cur = wp.w_match_head.borrow_mut().remove(idx);
     if cur.mit_toplnum != 0 {
@@ -331,7 +331,7 @@ fn match_delete(wp: &WinInfoInfo, id: i32, perr: bool) -> i32 {
         rtype = UPD_VALID;
     }
     redraw_later(Some(wp), rtype);
-    0
+    true
 }
 
 /// Delete all matches in the match list of window `wp` (`clear_matches`).
@@ -376,7 +376,7 @@ fn next_search_hl_pos(
     mit_pos: &mut [Llpos],
     mit_pos_cur: &mut i32,
     mincol: Colnr,
-) -> i32 {
+) -> bool {
     let mut found: isize = -1;
 
     shl.lnum = 0;
@@ -421,9 +421,9 @@ fn next_search_hl_pos(
         shl.is_addpos = true;
         shl.has_cursor = false;
         *mit_pos_cur = (found as i32) + 1;
-        return 1;
+        return true;
     }
-    0
+    false
 }
 
 enum ShlRef<'a> {
@@ -586,13 +586,13 @@ fn next_search_hl(
             }
         } else if let Some(idx) = match_idx {
             let cur = &mut win.w_match_head.borrow_mut()[idx];
-            nmatched = next_search_hl_pos(
+            nmatched = i32::from(next_search_hl_pos(
                 &mut cur.mit_hl,
                 lnum,
                 &mut cur.mit_pos,
                 &mut cur.mit_pos_cur,
                 matchcol,
-            );
+            ));
         }
         let mut shl = get_shl_mut(win, search_hl, match_idx);
         if nmatched == 0 {
@@ -1314,8 +1314,10 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 /// `matchdelete()` function (`f_matchdelete`).
 pub fn f_matchdelete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(
-        if let Some(win) = get_optional_window(argvars, 1) {
-            match_delete(&win, tv_get_number(&argvars[0]) as i32, true) as Varnumber
+        if let Some(win) = get_optional_window(argvars, 1)
+            && match_delete(&win, tv_get_number(&argvars[0]) as i32, true)
+        {
+            0
         } else {
             -1
         },

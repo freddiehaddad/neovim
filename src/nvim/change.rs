@@ -297,7 +297,7 @@ fn changed_common(buf: &FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr, xt
 
     for win in for_all_windows_ptr() {
         if win.w_buffer.get() == (std::ptr::from_ref(buf).cast_mut()) {
-            if win.w_onebuf_opt.wo_diff.get() && diff_internal() != 0 {
+            if win.w_onebuf_opt.wo_diff.get() && diff_internal() {
                 curtab().tp_diff_update.set(1);
                 diff_update_line(lnum);
             }
@@ -411,7 +411,7 @@ fn changed_common(buf: &FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr, xt
 
             changed_lines_invalidate_win(wp, lnum, col, lnume, xtra);
 
-            if has_any_folding(wp) != 0 {
+            if has_any_folding(wp) {
                 set_topline(wp, wp.w_topline.get());
             }
 
@@ -570,7 +570,7 @@ pub fn changed_lines(
     if xtra == 0
         && curwin().w_onebuf_opt.wo_diff.get()
         && curwin().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut())
-        && diff_internal() == 0
+        && !diff_internal()
     {
         for wp in for_all_windows_ptr() {
             if wp.w_onebuf_opt.wo_diff.get() && wp != curwin_ptr() {
@@ -891,7 +891,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
     }
     let newlen = oldlen - count;
 
-    if ml_line_alloced() == 0 {
+    if !ml_line_alloced() {
         let old_slice =
             &oldp_with_nul[..((col + count + movelen) as usize).min(oldp_with_nul.len())];
         let mut newp_vec = vec![0u8; newlen as usize + 1];

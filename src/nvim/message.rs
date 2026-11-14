@@ -1076,7 +1076,7 @@ pub fn msg_source(hl_id: i32) {
         with_msg_ext(|ext| *ext.last_sourcing_name.borrow_mut() = None);
         if let Some(sname) = sname {
             with_msg_ext(|ext| *ext.last_sourcing_name.borrow_mut() = Some(sname.to_owned()));
-            if redirecting() == 0 {
+            if !redirecting() {
                 msg_putchar_hl(NL, hl_id);
             }
         }
@@ -1755,7 +1755,7 @@ pub fn ex_messages(eap: &mut Exarg) {
                 data: ObjectData::Array(entry),
             });
         }
-        if redirecting() != 0 || !ui_has(K_UIMESSAGES) {
+        if redirecting() || !ui_has(K_UIMESSAGES) {
             g_st()
                 .msg_silent
                 .set(g_st().msg_silent.get() + (i32::from(ui_has(K_UIMESSAGES))));
@@ -2025,7 +2025,7 @@ fn hit_return_msg(newline_sb: bool) {
         HLF_R,
         false,
     );
-    if msg_use_printf() == 0 {
+    if !msg_use_printf() {
         msg_clr_eos();
     }
     opt_vars().p_more.set(save_p_more);
@@ -2158,7 +2158,7 @@ pub fn msg_start() {
     } else if (g_st().msg_didout.get() || opt_vars().p_ch.get() == 0) && !ui_has(K_UIMESSAGES) {
         if ((opt_vars().p_ch.get() == 0 && !g_st().msg_didout.get())
             || MSG_STATE.with(|s| s.msg_special_case_for_lua_print.get()))
-            && msg_use_printf() != 0
+            && msg_use_printf()
         {
             msg_puts_display(b"\n", 1, 0, 0);
         } else {
@@ -2783,14 +2783,14 @@ pub fn msg_puts_len(str_: &[u8], len: isize, hl_id: i32, hist: bool) {
     }
     g_st().msg_didany.set(true);
 
-    if msg_use_printf() != 0 && !MSG_STATE.with(|s| s.msg_special_case_for_lua_print.get()) {
+    if msg_use_printf() && !MSG_STATE.with(|s| s.msg_special_case_for_lua_print.get()) {
         let saved_msg_col = g_st().msg_col.get();
         msg_puts_printf(slice, len);
         if g_st().headless_mode.get() {
             g_st().msg_col.set(saved_msg_col);
         }
     }
-    if msg_use_printf() == 0
+    if !msg_use_printf()
         || (g_st().headless_mode.get() && crate::grid::grid_allocated(&g_st().default_grid))
     {
         msg_puts_display(slice, len as i32, hl_id, 0);
@@ -3419,8 +3419,8 @@ fn disp_sb_line(row: i32, smp: usize) -> Option<usize> {
 }
 
 /// @return  true when messages should be printed to stdout/stderr
-pub fn msg_use_printf() -> i32 {
-    i32::from(!g_st().embedded_mode.get() && ui_active() == 0 && !ui_has(K_UIMESSAGES))
+pub fn msg_use_printf() -> bool {
+    !g_st().embedded_mode.get() && ui_active() == 0 && !ui_has(K_UIMESSAGES)
 }
 
 /// Print a message when there is no valid screen.
@@ -4005,7 +4005,7 @@ fn redir_write(str_: &[u8], maxlen: isize) {
             verbose_open();
         }
 
-        if redirecting() != 0 {
+        if redirecting() {
             if !matches!(slice[0], b'\n' | b'\r') {
                 while MSG_STATE.with(|s| s.redir_col.get()) < g_st().msg_col.get() {
                     if let Some(ref mut cap) = *g_st().capture_ga.borrow_mut() {
@@ -4070,14 +4070,12 @@ fn redir_write(str_: &[u8], maxlen: isize) {
     }
 }
 
-pub fn redirecting() -> i32 {
-    i32::from(
-        has_redir_fd()
-            || !opt_vars().p_vfile.is_empty()
-            || g_st().redir_reg.get() != 0
-            || g_st().redir_vname.get()
-            || g_st().capture_ga.borrow().is_some(),
-    )
+pub fn redirecting() -> bool {
+    has_redir_fd()
+        || !opt_vars().p_vfile.is_empty()
+        || g_st().redir_reg.get() != 0
+        || g_st().redir_vname.get()
+        || g_st().capture_ga.borrow().is_some()
 }
 
 /// Before giving verbose message.

@@ -4221,19 +4221,17 @@ pub fn tv_dict_get_callback(
 }
 
 /// Check for adding a function to g: or l:.
-pub fn tv_dict_wrong_func_name(d: &TvDict, tv: &TypVal, name: &CStr) -> i32 {
-    i32::from(
-        (ptr::eq(d, &*get_globvar_dict())
-            || get_funccal_local_ht().is_some_and(|lht| ptr::eq(&raw const d.dv_hashtab, lht)))
-            && tv_is_func_inline(tv)
-            && var_wrong_func_name(name, true),
-    )
+pub fn tv_dict_wrong_func_name(d: &TvDict, tv: &TypVal, name: &CStr) -> bool {
+    (ptr::eq(d, &*get_globvar_dict())
+        || get_funccal_local_ht().is_some_and(|lht| ptr::eq(&raw const d.dv_hashtab, lht)))
+        && tv_is_func_inline(tv)
+        && var_wrong_func_name(name, true)
 }
 
 /// Add item to dictionary.
 pub fn tv_dict_add(d: &TvDict, item: &Dictitem) -> bool {
     let key = crate::memory::bytes_as_cstr(&item.di_key);
-    if tv_dict_wrong_func_name(d, &item.tv(), key) != 0 {
+    if tv_dict_wrong_func_name(d, &item.tv(), key) {
         return false;
     }
     hash_add(&d.dv_hashtab, item)
@@ -4423,7 +4421,7 @@ pub fn tv_dict_extend(d1: &TvDict, d2: &TvDict, action: &[u8]) {
                     {
                         break;
                     }
-                    if tv_dict_wrong_func_name(d1, &di2.tv(), key2) != 0 {
+                    if tv_dict_wrong_func_name(d1, &di2.tv(), key2) {
                         break;
                     }
 

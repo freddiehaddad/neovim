@@ -1799,7 +1799,7 @@ fn normal_need_redraw_mode_message(s: &mut NormalState) -> bool {
         && s.ca.oap.regname == 0
         && (s.ca.retval & CA_COMMAND_BUSY) == 0
         && stuff_empty()
-        && typebuf_typed() != 0
+        && typebuf_typed()
         && g_st().emsg_silent.get() == 0
         && !g_st().in_assert_fails.get()
         && !g_st().did_wait_return.get()
@@ -2416,7 +2416,7 @@ fn normal_check_safe_state(_s: &mut NormalState) {
 fn normal_check_folds(_s: &mut NormalState) {
     fold_adjust_visual();
 
-    if has_any_folding(&curwin()) != 0 && !char_avail() {
+    if has_any_folding(&curwin()) && !char_avail() {
         fold_check_close();
 
         if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_ALL) != 0 {
@@ -3876,7 +3876,7 @@ fn nv_zet(cap: &mut Cmdarg) {
             }
         }
         c if c == b'F' as i32 || c == b'f' as i32 => {
-            if fold_manual_allowed(true) != 0 {
+            if fold_manual_allowed(true) {
                 cap.nchar = b'f' as i32;
                 nv_operator(cap);
                 foldenable = 1;
@@ -3885,7 +3885,7 @@ fn nv_zet(cap: &mut Cmdarg) {
             }
         }
         c if c == b'd' as i32 || c == b'D' as i32 => {
-            if fold_manual_allowed(false) != 0 {
+            if fold_manual_allowed(false) {
                 if g_st().visual_global.borrow().active {
                     nv_operator(cap);
                 } else {
@@ -6157,7 +6157,7 @@ pub fn start_selection() {
 }
 
 pub fn may_start_select(c: i32) {
-    let sel = (c == b'o' as i32 || (stuff_empty() && typebuf_typed() != 0))
+    let sel = (c == b'o' as i32 || (stuff_empty() && typebuf_typed()))
         && crate::strings::vim_haschr(&opt_vars().p_slm.as_cstr(), c);
     g_st().visual_global.borrow_mut().select = sel;
 }
@@ -6309,7 +6309,7 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
         curwin().w_valid.set(curwin().w_valid.get() & (!VALID_WCOL));
     }
     curwin().w_set_curswant.set(true);
-    if has_any_folding(&curwin()) != 0 {
+    if has_any_folding(&curwin()) {
         validate_cheight(&curwin());
         if curwin().w_cline_folded.get() {
             update_curswant_force();
@@ -6785,7 +6785,7 @@ fn nv_operator(cap: &mut Cmdarg) {
     let op_type = get_op_type(cap.cmdchar, cap.nchar);
 
     if bt_prompt(Some(&crate::globals::curbuf()))
-        && op_is_change(op_type) != 0
+        && op_is_change(op_type)
         && !prompt_curpos_editable()
     {
         clearopbeep(&mut cap.oap);

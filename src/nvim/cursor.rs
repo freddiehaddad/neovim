@@ -408,7 +408,7 @@ pub fn dec_cursor() -> i32 {
 /// Get the line number relative to the current cursor position (`get_cursor_rel_lnum`).
 pub fn get_cursor_rel_lnum(wp: &WinInfoInfo, lnum: Linenr) -> Linenr {
     let cursor = wp.w_cursor.get().lnum;
-    if lnum == cursor || has_any_folding(wp) == 0 {
+    if lnum == cursor || !has_any_folding(wp) {
         return lnum - cursor;
     }
 

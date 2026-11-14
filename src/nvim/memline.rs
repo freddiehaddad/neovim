@@ -790,7 +790,7 @@ pub fn ml_setname(buf: &FileBuf) {
                 mfp.mf_fd = -1;
             }
 
-            if vim_rename(mf_fname_cstr, &fname) == 0 {
+            if vim_rename(mf_fname_cstr, &fname) {
                 success = true;
                 mf_free_fnames(mfp);
                 mf_set_fnames(mfp, fname);
@@ -1769,7 +1769,7 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &TvList)
                 names_vec.push(c".sw?".to_owned());
             }
         } else if let Some(f_res) = fname_res {
-            let tail = if after_pathsep(dir_bytes) != 0
+            let tail = if after_pathsep(dir_bytes)
                 && dir_bytes.len() > 1
                 && dir_bytes[dir_bytes.len() - 1] == dir_bytes[dir_bytes.len() - 2]
             {
@@ -2465,8 +2465,8 @@ fn ml_set_errorret(buf: &FileBuf, lnum: Linenr) {
 }
 
 /// Check if a line that was just obtained by `ml_get` is in allocated memory.
-pub fn ml_line_alloced() -> i32 {
-    curbuf().b_ml.ml_flags.get() & ML_LINE_DIRTY
+pub fn ml_line_alloced() -> bool {
+    (curbuf().b_ml.ml_flags.get() & ML_LINE_DIRTY) != 0
 }
 
 fn ml_append_int(buf: &FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, flags: i32) -> bool {
@@ -3765,7 +3765,7 @@ pub fn makeswapname(fname: Option<&CStr>, dir_name: &CStr) -> Option<std::ffi::C
 
     let dir_bytes = dir_name.to_bytes();
     let len = dir_bytes.len();
-    if after_pathsep(dir_bytes) != 0 && len > 1 && dir_bytes[len - 1] == dir_bytes[len - 2] {
+    if after_pathsep(dir_bytes) && len > 1 && dir_bytes[len - 1] == dir_bytes[len - 2] {
         let sw = make_percent_swname(&dir_bytes[..len - 1], fname_res)?;
         return modname(Some(&sw), c".swp", false);
     }

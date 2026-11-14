@@ -2057,7 +2057,7 @@ fn compute_double_env_sep_len(
         let mut dir: &[u8] = &[];
         iter = vim_env_iter(ENV_SEPCHAR, val_bytes, iter, &mut dir);
         if !dir.is_empty() {
-            let has_trailing_sep = after_pathsep(dir) != 0;
+            let has_trailing_sep = after_pathsep(dir);
             ret += (dir.len()
                 + dir.iter().filter(|&&b| b == b',').count()
                 + common_suf_len
@@ -2220,7 +2220,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 + 1
                 + SITE_SIZE
                 + 1
-                + usize::from(after_pathsep(dh_bytes) == 0))
+                + usize::from(!after_pathsep(dh_bytes)))
                 * 2
                 + AFTER_SIZE
                 + 1;
@@ -2234,7 +2234,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 + ch_bytes.iter().filter(|&&b| b == b',').count()
                 + appname_len
                 + 1
-                + usize::from(after_pathsep(ch_bytes) == 0))
+                + usize::from(!after_pathsep(ch_bytes)))
                 * 2
                 + AFTER_SIZE
                 + 1;
@@ -3361,8 +3361,8 @@ fn get_one_sourceline(sp: &mut SourceCookie) -> Option<Vec<u8>> {
 }
 
 /// Returns true if sourcing a script either from a file or a buffer or a string.
-pub fn sourcing_a_script(eap: &mut Exarg) -> i32 {
-    i32::from(eap.ea_getline.is_source())
+pub fn sourcing_a_script(eap: &mut Exarg) -> bool {
+    eap.ea_getline.is_source()
 }
 
 /// ":scriptencoding": Set encoding conversion for a sourced script.
@@ -3390,7 +3390,7 @@ pub fn ex_scriptencoding(eap: &mut Exarg) {
 
 /// ":finish": Mark a sourced file as finished.
 pub fn ex_finish(eap: &mut Exarg) {
-    if sourcing_a_script(eap) != 0 {
+    if sourcing_a_script(eap) {
         do_finish(eap, false);
     } else {
         emsg(gettext(c"E168: :finish used outside of a sourced file"));

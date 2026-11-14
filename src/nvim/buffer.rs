@@ -1249,7 +1249,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
     if retval.is_none()
         && curbuf().b_p_ft.is_empty()
         && curbuf().b_ffname.get().is_some()
-        && after_pathsep(&curbuf().ffname_bytes()) != 0
+        && after_pathsep(&curbuf().ffname_bytes())
         && augroup_exists(Some(c"filetypedetect"))
     {
         let mut bufref: Bufref = Bufref::new();
@@ -4471,7 +4471,7 @@ pub fn fname_expand(
         let name_cstr = crate::memory::bytes_as_cstr(&name_vec);
         let past_head_off =
             get_past_head(name_cstr).as_ptr() as usize - name_cstr.as_ptr() as usize;
-        if name_len > 0 && after_pathsep(&name_vec[..name_len]) != 0 && name_len > past_head_off {
+        if name_len > 0 && after_pathsep(&name_vec[..name_len]) && name_len > past_head_off {
             let tail_off =
                 path_tail_with_sep(name_cstr).as_ptr() as usize - name_cstr.as_ptr() as usize;
             name_vec[tail_off] = 0;

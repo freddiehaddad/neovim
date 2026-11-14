@@ -805,7 +805,7 @@ pub(super) struct NfaRegprog {
     pub regflags: u32,
     pub re_engine: u32,
     pub start: Option<usize>,
-    pub reganch: i32,
+    pub reganch: bool,
     pub regstart: i32,
     pub match_text: Option<std::ffi::CString>,
     pub has_zend: bool,

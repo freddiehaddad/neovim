@@ -1509,7 +1509,7 @@ pub fn decor_conceal_line(wp: &WinInfoInfo, row: i32, check_cursor: bool) -> boo
 }
 
 pub fn win_lines_concealed(wp: &WinInfoInfo) -> bool {
-    has_any_folding(wp) != 0 || wp.w_onebuf_opt.wo_cole.get() >= 2
+    has_any_folding(wp) || wp.w_onebuf_opt.wo_cole.get() >= 2
 }
 
 pub fn sign_item_cmp(s1: &SignItem, s2: &SignItem) -> Ordering {

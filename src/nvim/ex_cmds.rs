@@ -4724,7 +4724,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         }
     }
 
-    if EXCMDS_STATE.with(|s| s.subflags.get()).do_ask && has_any_folding(&curwin()) != 0 {
+    if EXCMDS_STATE.with(|s| s.subflags.get()).do_ask && has_any_folding(&curwin()) {
         changed_window_setting(&curwin());
     }
 

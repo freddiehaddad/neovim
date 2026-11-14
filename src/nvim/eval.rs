@@ -939,7 +939,7 @@ pub fn eval_expr_option_tv(cb: &Callback, use_sandbox: bool, ret_tv: &mut TypVal
 /// it in "*cp". Doesn't give error messages.
 pub fn eval_foldexpr(wp: &WinInfoInfo, cp: &mut i32) -> i32 {
     let saved_sctx = g_st().current_sctx.get();
-    let use_sandbox = was_set_insecurely(Some(wp), K_OPT_FOLDEXPR, OPT_LOCAL) != 0;
+    let use_sandbox = was_set_insecurely(Some(wp), K_OPT_FOLDEXPR, OPT_LOCAL);
 
     g_st()
         .current_sctx
@@ -988,7 +988,7 @@ pub fn eval_foldexpr(wp: &WinInfoInfo, cp: &mut i32) -> i32 {
 
 /// Evaluate 'foldtext', returning an Array or a String (NULL_STRING on failure).
 pub fn eval_foldtext(wp: &WinInfoInfo) -> Object {
-    let use_sandbox = was_set_insecurely(Some(wp), K_OPT_FOLDTEXT, OPT_LOCAL) != 0;
+    let use_sandbox = was_set_insecurely(Some(wp), K_OPT_FOLDTEXT, OPT_LOCAL);
     let mut tv = tv_initial_value();
     let retval: Object;
     if !eval_expr_option_tv(&wp.w_onebuf_opt.wo_fdt, use_sandbox, &mut tv) {
@@ -1622,7 +1622,7 @@ pub fn set_var_lval(
                 semsg!(gettext(E_DICTKEY), newkey_cstr);
                 return;
             }
-            if tv_dict_wrong_func_name(&lp.tv_mut().vval.v_dict(), rettv, newkey_cstr) != 0 {
+            if tv_dict_wrong_func_name(&lp.tv_mut().vval.v_dict(), rettv, newkey_cstr) {
                 return;
             }
 
@@ -1959,15 +1959,15 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
 }
 
 /// Does not use 'cpo' and always uses 'magic'.
-pub fn pattern_match(pat: &CStr, text: Option<&CStr>, ic: bool) -> i32 {
-    let mut matches: i32 = 0;
+pub fn pattern_match(pat: &CStr, text: Option<&CStr>, ic: bool) -> bool {
+    let mut matches = false;
     let mut regmatch: Regmatch = Regmatch::new();
 
     let save_cpo = opt_vars().p_cpo.take();
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = ic;
-        matches = i32::from(vim_regexec_nl(&mut regmatch, text, 0));
+        matches = vim_regexec_nl(&mut regmatch, text, 0);
         regmatch.free_prog();
     }
     opt_vars().p_cpo.set(save_cpo);
@@ -4155,7 +4155,7 @@ pub fn garbage_collect(testing: bool) -> bool {
         }
     }
 
-    abort = abort || garbage_collect_globvars(copy_id) != 0;
+    abort = abort || garbage_collect_globvars(copy_id);
     abort = abort || set_ref_in_call_stack(copy_id);
     abort = abort || set_ref_in_functions(copy_id);
 
@@ -4180,7 +4180,7 @@ pub fn garbage_collect(testing: bool) -> bool {
 
     let mut did_free = false;
     if !abort {
-        did_free = free_unref_items(copy_id) != 0;
+        did_free = free_unref_items(copy_id);
         did_free = free_unref_funccal(copy_id, i32::from(testing)) || did_free;
     } else {
         if opt_vars().p_verbose.get() > 0 {
@@ -4193,7 +4193,7 @@ pub fn garbage_collect(testing: bool) -> bool {
 }
 
 /// Free lists and dictionaries that are no longer referenced.
-fn free_unref_items(copy_id: i32) -> i32 {
+fn free_unref_items(copy_id: i32) -> bool {
     let mut did_free = false;
 
     crate::eval::typval::set_tv_in_free_unref_items(true);
@@ -4236,7 +4236,7 @@ fn free_unref_items(copy_id: i32) -> i32 {
     }
 
     crate::eval::typval::set_tv_in_free_unref_items(false);
-    i32::from(did_free)
+    did_free
 }
 
 /// Mark all lists and dicts referenced through hashtab "ht" with "copyID".
@@ -6912,8 +6912,8 @@ pub fn typval_compare(typ1: &mut TypVal, typ2: &mut TypVal, expr_type: Exprtype,
             EXPR_GEQUAL => i >= 0,
             EXPR_SMALLER => i < 0,
             EXPR_SEQUAL => i <= 0,
-            EXPR_MATCH => pattern_match(s2, Some(s1), ic) != 0,
-            EXPR_NOMATCH => pattern_match(s2, Some(s1), ic) == 0,
+            EXPR_MATCH => pattern_match(s2, Some(s1), ic),
+            EXPR_NOMATCH => !pattern_match(s2, Some(s1), ic),
             _ => false,
         };
         n1 = Varnumber::from(cmp);

@@ -427,7 +427,7 @@ pub fn clr_history(histype: i32) -> bool {
     }
 }
 
-fn del_history_entry(histype: i32, str_ptr: &CStr) -> i32 {
+fn del_history_entry(histype: i32, str_ptr: &CStr) -> bool {
     let hislen = hist_st(|st| st.hislen.get());
     if hislen == 0
         || histype < 0
@@ -435,7 +435,7 @@ fn del_history_entry(histype: i32, str_ptr: &CStr) -> i32 {
         || str_ptr.to_bytes().is_empty()
         || hist_st(|st| st.hisidx.get()[histype as usize]) < 0
     {
-        return 0;
+        return false;
     }
 
     let htype = histype as usize;
@@ -443,7 +443,7 @@ fn del_history_entry(histype: i32, str_ptr: &CStr) -> i32 {
     let mut regmatch = Regmatch::new();
     regmatch.set_prog(vim_regcomp(str_ptr, RE_MAGIC + RE_STRING));
     if regmatch.regprog.is_null() {
-        return 0;
+        return false;
     }
 
     let mut found = false;
@@ -485,13 +485,13 @@ fn del_history_entry(histype: i32, str_ptr: &CStr) -> i32 {
     });
 
     regmatch.free_prog();
-    i32::from(found)
+    found
 }
 
-fn del_history_idx(histype: i32, idx_arg: i32) -> i32 {
+fn del_history_idx(histype: i32, idx_arg: i32) -> bool {
     let mut i = calc_hist_idx(histype, idx_arg);
     if i < 0 {
-        return 0;
+        return false;
     }
     let htype = histype as usize;
     let maptick = g_st().maptick.get();
@@ -520,7 +520,7 @@ fn del_history_idx(histype: i32, idx_arg: i32) -> i32 {
         hisidx[htype] = i;
         st.hisidx.set(hisidx);
     });
-    1
+    true
 }
 
 /// `"histadd()"` function (`f_histadd`).
@@ -551,11 +551,11 @@ pub fn f_histadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// `"histdel()"` function (`f_histdel`).
 pub fn f_histdel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let n = if let Some(str_ptr) = tv_get_string_chk(&argvars[0]) {
+    let ok = if let Some(str_ptr) = tv_get_string_chk(&argvars[0]) {
         let htype = get_histtype(str_ptr.to_bytes(), false);
         let arg1 = &argvars[1];
         if arg1.v_type == VarType::VarUnknown {
-            i32::from(clr_history(htype))
+            clr_history(htype)
         } else if arg1.v_type == VarType::VarNumber {
             del_history_idx(htype, tv_get_number(arg1) as i32)
         } else {
@@ -564,9 +564,9 @@ pub fn f_histdel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             del_history_entry(htype, pat)
         }
     } else {
-        0
+        false
     };
-    rettv.vval = crate::eval::typval::TypvalVval::Number(n as i64);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(ok));
 }
 
 /// `"histget()"` function (`f_histget`).

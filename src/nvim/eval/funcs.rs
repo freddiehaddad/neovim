@@ -4122,7 +4122,7 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// "isinf()" function
 pub fn f_isinf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    if argvars[0].v_type == VarType::VarFloat && xisinf(argvars[0].vval.v_float()) != 0 {
+    if argvars[0].v_type == VarType::VarFloat && xisinf(argvars[0].vval.v_float()) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(if argvars[0].vval.v_float() > 0.0 {
             1
         } else {
@@ -4134,7 +4134,7 @@ pub fn f_isinf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 /// "isnan()" function
 pub fn f_isnan(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-        argvars[0].v_type == VarType::VarFloat && xisnan(argvars[0].vval.v_float()) != 0,
+        argvars[0].v_type == VarType::VarFloat && xisnan(argvars[0].vval.v_float()),
     ));
 }
 
@@ -5483,7 +5483,7 @@ pub fn f_state(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         (argvars[0].v_type != VarType::VarUnknown).then(|| tv_get_string(&argvars[0]));
     let include = include_cow.as_deref().map(CStr::to_bytes);
 
-    if !(stuff_empty() && g_st().typebuf.tb_len.get() == 0 && using_script() == 0) {
+    if !(stuff_empty() && g_st().typebuf.tb_len.get() == 0 && !using_script()) {
         may_add_state_char(&mut buf, &mut len, include, b'm');
     }
     if op_pending() {

@@ -289,7 +289,7 @@ pub fn modify_fname(
         {
             valid |= VALID_HEAD;
             *usedlen += 2;
-            while tail_off > s_off && after_pathsep(&fbuf[s_off..tail_off]) != 0 {
+            while tail_off > s_off && after_pathsep(&fbuf[s_off..tail_off]) {
                 let back =
                     crate::mbyte::utf_head_off(&fbuf[off..], tail_off - off - 1) as usize + 1;
                 tail_off -= back;
@@ -307,7 +307,7 @@ pub fn modify_fname(
                 s_off = 0;
                 *fnamelen = 1;
             } else {
-                while tail_off > s_off && after_pathsep(&fbuf[s_off..tail_off]) == 0 {
+                while tail_off > s_off && !after_pathsep(&fbuf[s_off..tail_off]) {
                     let back =
                         crate::mbyte::utf_head_off(&fbuf[off..], tail_off - off - 1) as usize + 1;
                     tail_off -= back;
@@ -551,7 +551,7 @@ pub fn f_delete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     } else if flags_bytes == b"rf" {
         // delete a directory recursively
         rettv.vval =
-            crate::eval::typval::TypvalVval::Number(Varnumber::from(delete_recursive(&name)));
+            crate::eval::typval::TypvalVval::Number(if delete_recursive(&name) { 0 } else { -1 });
     } else {
         semsg!(gettext(E_INVEXPR2), flags);
     }
@@ -1657,10 +1657,16 @@ pub fn f_rename(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     } else {
         let mut buf = [0u8; NUMBUFLEN];
-        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_rename(
-            &tv_get_string(&argvars[0]),
-            tv_get_string_buf(&argvars[1], &mut buf),
-        )));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(
+            if vim_rename(
+                &tv_get_string(&argvars[0]),
+                tv_get_string_buf(&argvars[1], &mut buf),
+            ) {
+                0
+            } else {
+                -1
+            },
+        );
     }
 }
 
@@ -1697,7 +1703,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             is_relative_to_current = true;
         }
 
-        if p_len > 1 && after_pathsep(&p_vec[..p_len]) != 0 {
+        if p_len > 1 && after_pathsep(&p_vec[..p_len]) {
             has_trailing_pathsep = true;
             p_len -= 1;
             p_vec[p_len] = 0; // The trailing slash breaks readlink().
@@ -1854,7 +1860,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         // Ensure that the result will have no trailing path separator
         // if the argument had none.  But keep "/" or "//".
-        if !has_trailing_pathsep && after_pathsep(&p_vec[..p_len]) != 0 {
+        if !has_trailing_pathsep && after_pathsep(&p_vec[..p_len]) {
             let p_cstr = crate::memory::bytes_as_cstr(&p_vec);
             let sep_off =
                 (path_tail_with_sep(p_cstr).as_ptr() as usize) - (p_cstr.as_ptr() as usize);

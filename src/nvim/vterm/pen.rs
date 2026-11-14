@@ -58,10 +58,10 @@ pub enum VTermValue<'a> {
 
 impl<'a> VTermValue<'a> {
     #[inline]
-    pub const fn boolean(self) -> i32 {
+    pub const fn boolean(self) -> bool {
         match self {
-            Self::Boolean(v) | Self::Number(v) => v,
-            _ => 0,
+            Self::Boolean(v) | Self::Number(v) => v != 0,
+            _ => false,
         }
     }
 

@@ -670,7 +670,7 @@ pub fn vim_strsave_shellescape(
     do_newline: bool,
 ) -> std::ffi::CString {
     let bytes = crate::memory::bytes_until_nul(bytes);
-    let csh_like = csh_like_shell() != 0;
+    let csh_like = csh_like_shell();
     let fish_like = fish_like_shell();
     #[cfg(windows)]
     let use_double_quote = !opt_vars().p_ssl.get();
@@ -2411,7 +2411,7 @@ fn vim_vsnprintf_typval_inner(
                         remove_trailing_zeroes = true;
                     }
 
-                    if xisinf(f) != 0 || (matches!(fmt_spec, b'f' | b'F') && abs_f > 1.0e307) {
+                    if xisinf(f) || (matches!(fmt_spec, b'f' | b'F') && abs_f > 1.0e307) {
                         crate::memory::copy_bytes_to_c_buf(
                             &mut tmp,
                             infinity_str(
@@ -2424,7 +2424,7 @@ fn vim_vsnprintf_typval_inner(
                         );
                         str_arg_l = crate::memory::bytes_until_nul(&tmp).len();
                         zero_padding = false;
-                    } else if xisnan(f) != 0 {
+                    } else if xisnan(f) {
                         let nan_s = if fmt_spec.is_ascii_uppercase() {
                             b"NAN\0"
                         } else {

@@ -830,7 +830,7 @@ pub fn buf_get_backup_name(
         }
     }
     if dir_len > 1
-        && after_pathsep(&iobuff[..dir_len]) != 0
+        && after_pathsep(&iobuff[..dir_len])
         && iobuff[dir_len - 1] == iobuff[dir_len - 2]
         && let Some(swname) = make_percent_swname(&iobuff[..dir_len - 1], fname_opt)
     {
@@ -1060,7 +1060,7 @@ fn buf_write_make_backup(
                         keep_bk = false;
                     }
                 }
-                if keep_bk && vim_rename(fname_cstr, crate::memory::bytes_as_cstr(&bk_vec)) == 0 {
+                if keep_bk && vim_rename(fname_cstr, crate::memory::bytes_as_cstr(&bk_vec)) {
                     *backupp = Some(crate::memory::cstring_until_nul(&bk_vec));
                     break;
                 }
@@ -1799,7 +1799,7 @@ pub fn buf_write(
                             if os_copy(bk, fname_cstr, UV_FS_COPYFILE_FICLONE) == 0 {
                                 end = 1;
                             }
-                        } else if vim_rename(bk, fname_cstr) == 0 {
+                        } else if vim_rename(bk, fname_cstr) {
                             end = 1;
                         }
                     }

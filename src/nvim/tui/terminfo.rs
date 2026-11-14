@@ -2838,17 +2838,17 @@ pub fn terminfo_info_msg(ti: &TerminfoEntry, termname: Option<&CStr>, from_db: b
     data
 }
 
-fn push(num: i64, string: Option<[u8; 8]>, stack: &mut TPSTACK) -> i32 {
+fn push(num: i64, string: Option<[u8; 8]>, stack: &mut TPSTACK) -> bool {
     if stack.offset >= stack.nums.len() {
-        return -1;
+        return false;
     }
     stack.nums[stack.offset] = num;
     stack.strings[stack.offset] = string;
     stack.offset += 1;
-    0
+    true
 }
 
-fn pop(num: Option<&mut i64>, string: Option<&mut Option<[u8; 8]>>, stack: &mut TPSTACK) -> i32 {
+fn pop(num: Option<&mut i64>, string: Option<&mut Option<[u8; 8]>>, stack: &mut TPSTACK) {
     if stack.offset == 0 {
         if let Some(n) = num {
             *n = 0;
@@ -2856,7 +2856,7 @@ fn pop(num: Option<&mut i64>, string: Option<&mut Option<[u8; 8]>>, stack: &mut 
         if let Some(s) = string {
             *s = None;
         }
-        return -1;
+        return;
     }
     stack.offset -= 1;
     if let Some(n) = num {
@@ -2865,7 +2865,6 @@ fn pop(num: Option<&mut i64>, string: Option<&mut Option<[u8; 8]>>, stack: &mut 
     if let Some(s) = string {
         *s = stack.strings[stack.offset];
     }
-    0
 }
 
 fn ochar(out_buf: &mut [u8], out_pos: &mut usize, mut c: i32) -> bool {
@@ -3079,7 +3078,7 @@ pub fn terminfo_fmt(out_buf: &mut [u8], mut str_: &[u8], params: &mut [TPVAR; 9]
                 let _ = next_byte(&mut str_);
                 let l = (sc - b'1') as usize;
                 let param = params[l];
-                if push(param.num, param.string, &mut stack) != 0 {
+                if !push(param.num, param.string, &mut stack) {
                     return 0;
                 }
             }
@@ -3095,11 +3094,11 @@ pub fn terminfo_fmt(out_buf: &mut [u8], mut str_: &[u8], params: &mut [TPVAR; 9]
             b'g' => {
                 let sc = peek_byte(str_);
                 if sc.is_ascii_lowercase() {
-                    if push(dnums[(sc - b'a') as usize], None, &mut stack) != 0 {
+                    if !push(dnums[(sc - b'a') as usize], None, &mut stack) {
                         return 0;
                     }
                 } else if sc.is_ascii_uppercase()
-                    && push(snums[(sc - b'A') as usize], None, &mut stack) != 0
+                    && !push(snums[(sc - b'A') as usize], None, &mut stack)
                 {
                     return 0;
                 }
@@ -3110,7 +3109,7 @@ pub fn terminfo_fmt(out_buf: &mut [u8], mut str_: &[u8], params: &mut [TPVAR; 9]
             }
             b'\'' => {
                 let ch = next_byte(&mut str_);
-                if push(i64::from(ch), None, &mut stack) != 0 {
+                if !push(i64::from(ch), None, &mut stack) {
                     return 0;
                 }
                 while peek_byte(str_) != 0 && peek_byte(str_) != b'\'' {
@@ -3125,7 +3124,7 @@ pub fn terminfo_fmt(out_buf: &mut [u8], mut str_: &[u8], params: &mut [TPVAR; 9]
                 while peek_byte(str_).is_ascii_digit() {
                     val = (val * 10) + i64::from(next_byte(&mut str_) - b'0');
                 }
-                if push(val, None, &mut stack) != 0 {
+                if !push(val, None, &mut stack) {
                     return 0;
                 }
                 while peek_byte(str_) != 0 && peek_byte(str_) != b'}' {
@@ -3167,7 +3166,7 @@ pub fn terminfo_fmt(out_buf: &mut [u8], mut str_: &[u8], params: &mut [TPVAR; 9]
                     b'>' => i64::from(val2 > val),
                     _ => val,
                 };
-                if push(val, None, &mut stack) != 0 {
+                if !push(val, None, &mut stack) {
                     return 0;
                 }
             }
@@ -3178,7 +3177,7 @@ pub fn terminfo_fmt(out_buf: &mut [u8], mut str_: &[u8], params: &mut [TPVAR; 9]
                     b'~' => !val,
                     _ => val,
                 };
-                if push(val, None, &mut stack) != 0 {
+                if !push(val, None, &mut stack) {
                     return 0;
                 }
             }

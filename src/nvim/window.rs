@@ -5243,7 +5243,7 @@ pub fn valid_tabpage(tpc: Option<&TabPageInfo>) -> bool {
     false
 }
 
-pub fn valid_tabpage_win(tpc: &TabPageInfo) -> i32 {
+pub fn valid_tabpage_win(tpc: &TabPageInfo) -> bool {
     for tp in for_all_tabpages_ptr() {
         if tp == tpc {
             for wp in win_iter_ptr(if g_st().curtab.get() == tp {
@@ -5252,13 +5252,13 @@ pub fn valid_tabpage_win(tpc: &TabPageInfo) -> i32 {
                 tp.tp_firstwin.get()
             }) {
                 if win_valid_any_tab(Some(&wp)) {
-                    return 1;
+                    return true;
                 }
             }
-            return 0;
+            return false;
         }
     }
-    0
+    false
 }
 
 pub fn close_tabpage(tab: &TabPageInfo) {

@@ -375,7 +375,7 @@ pub fn may_trigger_modechanged() {
 fn is_safe_now() -> bool {
     stuff_empty()
         && g_st().typebuf.tb_len.get() == 0
-        && using_script() == 0
+        && !using_script()
         && g_st().global_busy.get() == 0
         && !g_st().debug_mode.get()
 }

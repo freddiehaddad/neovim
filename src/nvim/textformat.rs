@@ -890,7 +890,7 @@ pub fn op_formatexpr(oap: &mut Oparg) {
 /// Evaluate `'formatexpr'` (`fex_format`).
 pub fn fex_format(lnum: Linenr, count: i64, c: i32) -> i32 {
     let use_sandbox =
-        was_set_insecurely(Some(&crate::globals::curwin()), K_OPT_FORMATEXPR, OPT_LOCAL) != 0;
+        was_set_insecurely(Some(&crate::globals::curwin()), K_OPT_FORMATEXPR, OPT_LOCAL);
     let save_sctx = g_st().current_sctx.get();
 
     set_vim_var_nr(VV_LNUM, i64::from(lnum));

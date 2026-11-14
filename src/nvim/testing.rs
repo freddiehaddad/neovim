@@ -242,7 +242,7 @@ fn fill_assert_error(
     }
 }
 
-fn assert_equal_common(argvars: &mut [TypVal], atype: AssertType) -> i32 {
+fn assert_equal_common(argvars: &mut [TypVal], atype: AssertType) -> bool {
     if tv_equal(&argvars[0], &argvars[1], false) != (atype == AssertType::Equal) {
         let mut ga = Vec::new();
         prepare_assert_error(&mut ga);
@@ -251,19 +251,19 @@ fn assert_equal_common(argvars: &mut [TypVal], atype: AssertType) -> i32 {
         };
         fill_assert_error(&mut ga, arg2, None, Some(arg0), arg1, atype);
         assert_error(&ga);
-        return 1;
+        return true;
     }
-    0
+    false
 }
 
-fn assert_match_common(argvars: &mut [TypVal], atype: AssertType) -> i32 {
+fn assert_match_common(argvars: &mut [TypVal], atype: AssertType) -> bool {
     let mut buf1 = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
     let pat = tv_get_string_buf_chk(&argvars[0], &mut buf1);
     let text = tv_get_string_buf_chk(&argvars[1], &mut buf2);
 
     if let (Some(pat), Some(text)) = (pat, text)
-        && (pattern_match(pat, Some(text), false) != 0) != (atype == AssertType::Match)
+        && pattern_match(pat, Some(text), false) != (atype == AssertType::Match)
     {
         let mut ga = Vec::new();
         prepare_assert_error(&mut ga);
@@ -272,12 +272,12 @@ fn assert_match_common(argvars: &mut [TypVal], atype: AssertType) -> i32 {
         };
         fill_assert_error(&mut ga, arg2, None, Some(arg0), arg1, atype);
         assert_error(&ga);
-        return 1;
+        return true;
     }
-    0
+    false
 }
 
-fn assert_bool(argvars: &mut [TypVal], is_true: bool) -> i32 {
+fn assert_bool(argvars: &mut [TypVal], is_true: bool) -> bool {
     let mut error = false;
     let arg0 = &argvars[0];
     let expected_bool = if is_true {
@@ -302,9 +302,9 @@ fn assert_bool(argvars: &mut [TypVal], is_true: bool) -> i32 {
             AssertType::Other,
         );
         assert_error(&ga);
-        return 1;
+        return true;
     }
-    0
+    false
 }
 
 fn assert_append_cmd_or_arg(gap: &mut Vec<u8>, argvars: &mut [TypVal], cmd: Option<&CStr>) {
@@ -316,9 +316,9 @@ fn assert_append_cmd_or_arg(gap: &mut Vec<u8>, argvars: &mut [TypVal], cmd: Opti
     }
 }
 
-fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> i32 {
+fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> bool {
     let cmd_owned = tv_get_string_chk(&argvars[0]).map(std::borrow::Cow::into_owned);
-    let mut ret: i32 = 0;
+    let mut ret = false;
 
     let beeps = g_st().did_beep.get();
     g_st().suppress_errthrow.set(true);
@@ -335,7 +335,7 @@ fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> i32 {
         }
         buf_concat_cstr(&mut ga, cmd_owned.as_deref());
         assert_error(&ga);
-        ret = 1;
+        ret = true;
     }
 
     g_st().suppress_errthrow.set(false);
@@ -361,14 +361,14 @@ pub fn f_assert_equal(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     ) as i64);
 }
 
-fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
+fn assert_equalfile(argvars: &mut [TypVal]) -> bool {
     let mut buf1 = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
     let fname1 = tv_get_string_buf_chk(&argvars[0], &mut buf1);
     let fname2 = tv_get_string_buf_chk(&argvars[1], &mut buf2);
 
     let (Some(fname1), Some(fname2)) = (fname1, fname2) else {
-        return 0;
+        return false;
     };
 
     let mut iobuf = [0u8; IOSIZE];
@@ -443,9 +443,9 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
             ga_concat_literal(&mut ga, b"\"");
         }
         assert_error(&ga);
-        return 1;
+        return true;
     }
-    0
+    false
 }
 
 /// `"assert_equalfile(fname-one, fname-two[, msg])"` function (`f_assert_equalfile`).
@@ -574,7 +574,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 let expected = tv_get_string_buf_chk(&first_tv, &mut buf).map(CStr::to_owned);
                 drop(first_tv);
                 if let Some(expected) = expected {
-                    if pattern_match(&expected, Some(actual_cstr), false) == 0 {
+                    if !pattern_match(&expected, Some(actual_cstr), false) {
                         error_found = true;
                         expected_str = Some(expected);
                     } else if list_len == 2 {
@@ -587,7 +587,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                             tv_get_string_buf_chk(&last_tv, &mut buf2).map(CStr::to_owned);
                         drop(last_tv);
                         if let Some(expected2) = expected2 {
-                            if pattern_match(&expected2, Some(actual_cstr), false) == 0 {
+                            if !pattern_match(&expected2, Some(actual_cstr), false) {
                                 error_found = true;
                                 expected_str = Some(expected2);
                             }
@@ -629,11 +629,11 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                         Some(c"E1116: \"assert_fails()\" fifth argument must be a string");
                     valid_args = false;
                 } else if !arg4.vval.v_string_is_null()
-                    && pattern_match(
+                    && !pattern_match(
                         arg4.vval.v_string_cstr_or_empty(),
                         g_st().emsg_assert_fails_context.get().as_deref(),
                         false,
-                    ) == 0
+                    )
                 {
                     error_found = true;
                     error_found_index = 4;
@@ -721,7 +721,7 @@ pub fn f_assert_false(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     rettv.vval = crate::eval::typval::TypvalVval::Number(assert_bool(argvars, false) as i64);
 }
 
-fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
+fn assert_inrange(argvars: &mut [TypVal]) -> bool {
     let mut error = false;
     let arg0 = &argvars[0];
     let arg1 = &argvars[1];
@@ -750,7 +750,7 @@ fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
                 AssertType::Other,
             );
             assert_error(&ga);
-            return 1;
+            return true;
         }
     } else {
         let lower = tv_get_number_chk(arg0, Some(&mut error));
@@ -758,7 +758,7 @@ fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
         let actual = tv_get_number_chk(arg2, Some(&mut error));
 
         if error {
-            return 0;
+            return false;
         }
         if actual < lower || actual > upper {
             let mut ga = Vec::new();
@@ -774,10 +774,10 @@ fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
                 AssertType::Other,
             );
             assert_error(&ga);
-            return 1;
+            return true;
         }
     }
-    0
+    false
 }
 
 /// `"assert_inrange(lower, upper, actual[, msg])"` function (`f_assert_inrange`).

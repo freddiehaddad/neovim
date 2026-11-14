@@ -1055,8 +1055,8 @@ extern "C-unwind" fn nlua_common_free_all_mem(lstate: *mut lua_State) {
 
 pub fn nlua_print_event(text: NvimString) {
     msg_ext_no_fast();
-    let raw = msg_use_printf() != 0
-        && redirecting() == 0
+    let raw = msg_use_printf()
+        && !redirecting()
         && crate::eval::typval::Callback::raw_cb_type(&g_st().on_print) == K_CALLBACK_NONE_CONST;
 
     let mut msg: HlMessage = vec![HlMessageChunk { text, hl_id: 0 }];

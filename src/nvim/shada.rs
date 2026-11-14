@@ -3176,7 +3176,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
             }
         }
         if can_rename && close_file(&mut sd_writer) == 0 {
-            if vim_rename(tempname, fname) == -1 {
+            if !vim_rename(tempname, fname) {
                 semsg!(
                     gettext(c"E136: Can't rename ShaDa file from %s to %s!"),
                     tempname,

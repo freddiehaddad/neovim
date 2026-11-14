@@ -672,12 +672,12 @@ pub fn last_csearch() -> crate::strings::InlineCStr<{ MAX_SCHAR_SIZE + 1 }> {
     with_srch(|s| crate::strings::InlineCStr(s.lastc_bytes))
 }
 
-pub fn last_csearch_forward() -> i32 {
-    with_srch(|s| i32::from(s.lastcdir == FORWARD))
+pub fn last_csearch_forward() -> bool {
+    with_srch(|s| s.lastcdir == FORWARD)
 }
 
-pub fn last_csearch_until() -> i32 {
-    with_srch(|s| i32::from(s.last_t_cmd))
+pub fn last_csearch_until() -> bool {
+    with_srch(|s| s.last_t_cmd)
 }
 
 pub fn set_last_csearch(c: i32, s: &[u8]) {

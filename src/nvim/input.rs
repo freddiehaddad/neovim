@@ -1092,8 +1092,8 @@ pub fn typebuf_changed(tb_change_cnt: i32) -> bool {
 }
 
 /// Return true if there are no characters in the typeahead buffer that have not been typed.
-pub fn typebuf_typed() -> i32 {
-    i32::from(g_st().typebuf.tb_maplen.get() == 0)
+pub fn typebuf_typed() -> bool {
+    g_st().typebuf.tb_maplen.get() == 0
 }
 
 /// Get the number of characters that are mapped (or not typed).
@@ -1540,8 +1540,8 @@ pub fn open_scriptin(scriptin_name: &CStr) -> bool {
 }
 
 /// Return true when reading keys from a script file.
-pub fn using_script() -> i32 {
-    i32::from(INP_STATE.with(|s| s.curscript.get()) >= 0)
+pub fn using_script() -> bool {
+    INP_STATE.with(|s| s.curscript.get()) >= 0
 }
 
 /// Called just before doing a blocking wait.
@@ -3062,7 +3062,7 @@ fn inchar(tb_idx: usize, maxlen: i32, wait_time: i64) -> i32 {
 
 /// Fix typed characters for use by `vgetc()`.
 pub fn fix_input_buffer(buf: &mut [u8], mut len: i32) -> i32 {
-    if using_script() == 0 {
+    if !using_script() {
         buf[len as usize] = NUL as u8;
 
         return len;

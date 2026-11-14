@@ -69,7 +69,7 @@ pub fn check_linecomment(bytes: &[u8]) -> i32 {
                     }
                 } else if !in_str
                     && (idx < 2 || (bytes[idx - 1] != b'\\' && bytes[idx - 2] != b'#'))
-                    && is_pos_in_string_slice(bytes, idx as Colnr) == 0
+                    && !is_pos_in_string_slice(bytes, idx as Colnr)
                 {
                     return idx as i32;
                 }
@@ -108,7 +108,7 @@ pub fn find_start_comment(ind_maxcomment: i32) -> Option<CursorPos> {
             break;
         };
         let in_str = crate::memline::with_ml_buf_line(&curbuf, pos_ref.lnum, |line| {
-            is_pos_in_string_slice(line, pos_ref.col) != 0
+            is_pos_in_string_slice(line, pos_ref.col)
         });
         if !in_str {
             break;
@@ -144,7 +144,7 @@ fn find_start_rawstring(ind_maxcomment: i32) -> Option<CursorPos> {
             break;
         };
         let in_str = crate::memline::with_ml_buf_line(&curbuf, pos_ref.lnum, |line| {
-            is_pos_in_string_slice(line, pos_ref.col) != 0
+            is_pos_in_string_slice(line, pos_ref.col)
         });
         if !in_str {
             break;
@@ -217,12 +217,12 @@ fn skip_string_idx(bytes: &[u8], mut p: usize) -> usize {
     }
     p
 }
-fn is_pos_in_string_slice(bytes: &[u8], col: Colnr) -> i32 {
+fn is_pos_in_string_slice(bytes: &[u8], col: Colnr) -> bool {
     let mut idx = 0usize;
     while idx < bytes.len() && (idx as Colnr) < col {
         idx = skip_string_idx(bytes, idx) + 1;
     }
-    i32::from(!((idx as Colnr) <= col))
+    (idx as Colnr) > col
 }
 pub fn cin_is_cinword(line: &[u8]) -> bool {
     let line = crate::charset::skipwhite_slice(line);
@@ -898,10 +898,10 @@ fn cin_iswhileofdo(p: &[u8], lnum: Linenr) -> bool {
     curwin().w_cursor.set(cursor_save);
     retval
 }
-fn cin_is_if_for_while_before_offset(bytes: &[u8], poffset: &mut Colnr) -> i32 {
+fn cin_is_if_for_while_before_offset(bytes: &[u8], poffset: &mut Colnr) -> bool {
     let mut offset = *poffset;
     if offset < 2 {
-        return 0;
+        return false;
     }
     offset -= 1;
     while offset > 2
@@ -936,13 +936,13 @@ fn cin_is_if_for_while_before_offset(bytes: &[u8], poffset: &mut Colnr) -> i32 {
         }
     }
     if !probably_found {
-        return 0;
+        return false;
     }
     if offset == 0 || !vim_is_idc(i32::from(bytes[(offset - 1) as usize])) {
         *poffset = offset;
-        return 1;
+        return true;
     }
-    0
+    false
 }
 fn cin_iswhileofdo_end(terminated: i32) -> bool {
     if terminated != b';' as i32 {
@@ -1728,7 +1728,7 @@ pub fn get_c_indent() -> i32 {
                     }
                     if amount == -1 {
                         let mut ignore_paren_col: i32 = 0;
-                        let mut is_if_for_while: i32 = 0;
+                        let mut is_if_for_while = false;
                         if curbuf().b_ind_if_for_while.get() != 0 {
                             let cursor_save = curwin().w_cursor.get();
                             let mut outermost: CursorPos;
@@ -1771,7 +1771,7 @@ pub fn get_c_indent() -> i32 {
                             look = paren_line.slice((look_col as usize).min(paren_line.len()));
                         }
                         if theline_b0 == b')'
-                            || (curbuf().b_ind_unclosed.get() == 0 && is_if_for_while == 0)
+                            || (curbuf().b_ind_unclosed.get() == 0 && !is_if_for_while)
                             || (curbuf().b_ind_unclosed_noignore.get() == 0
                                 && look.first() == Some(&b'(')
                                 && ignore_paren_col == 0)
@@ -1827,7 +1827,7 @@ pub fn get_c_indent() -> i32 {
                         }
                         if theline_b0 == b')' && curbuf().b_ind_matching_paren.get() != 0 {
                             // Line up with the start of the matching paren line.
-                        } else if (curbuf().b_ind_unclosed.get() == 0 && is_if_for_while == 0)
+                        } else if (curbuf().b_ind_unclosed.get() == 0 && !is_if_for_while)
                             || (curbuf().b_ind_unclosed_noignore.get() == 0
                                 && look.first() == Some(&b'(')
                                 && ignore_paren_col == 0)
@@ -1864,7 +1864,7 @@ pub fn get_c_indent() -> i32 {
                                     .is_some()
                                 {
                                     amount += curbuf().b_ind_unclosed2.get();
-                                } else if is_if_for_while != 0 {
+                                } else if is_if_for_while {
                                     amount += curbuf().b_ind_if_for_while.get();
                                 } else {
                                     amount += curbuf().b_ind_unclosed.get();

@@ -157,13 +157,11 @@ pub fn copy_folding_state(wp_from: &WinInfoInfo, wp_to: &WinInfoInfo) {
 }
 
 /// True if there may be folded lines in window `win`.
-pub fn has_any_folding(win: &WinInfoInfo) -> i32 {
-    i32::from(
-        win.w_onebuf_opt.wo_fen.get()
-            && (!foldmethod_is_manual(win) || !win.w_folds.borrow().is_empty())
-            && !mc_replaying()
-            && win.with_buf(|buf| buf.terminal.get().is_null()),
-    )
+pub fn has_any_folding(win: &WinInfoInfo) -> bool {
+    win.w_onebuf_opt.wo_fen.get()
+        && (!foldmethod_is_manual(win) || !win.w_folds.borrow().is_empty())
+        && !mc_replaying()
+        && win.with_buf(|buf| buf.terminal.get().is_null())
 }
 
 /// Return true if line "lnum" in window "win" is part of a closed fold.
@@ -187,7 +185,7 @@ pub fn has_folding_win(
 ) -> bool {
     checkupdate(win);
 
-    if has_any_folding(win) == 0 {
+    if !has_any_folding(win) {
         if let Some(infop) = infop.as_deref_mut() {
             infop.fi_level = 0;
         }
@@ -287,7 +285,7 @@ fn fold_level(lnum: Linenr) -> i32 {
         return -1;
     }
 
-    if has_any_folding(&curwin()) == 0 {
+    if !has_any_folding(&curwin()) {
         return 0;
     }
 
@@ -408,7 +406,7 @@ pub fn open_fold_recurse(pos: CursorPos) {
 /// Open folds until the cursor line is not in a closed fold.
 pub fn fold_open_cursor() {
     checkupdate(&curwin());
-    if has_any_folding(&curwin()) != 0 {
+    if has_any_folding(&curwin()) {
         loop {
             let mut done = DONE_NOTHING;
             set_manual_fold(curwin().w_cursor.get(), true, false, Some(&mut done));
@@ -477,9 +475,9 @@ fn check_close_rec(gap: &mut [FoldEntry], lnum: Linenr, level: i32) -> bool {
     retval
 }
 
-pub fn fold_manual_allowed(create: bool) -> i32 {
+pub fn fold_manual_allowed(create: bool) -> bool {
     if foldmethod_is_manual(&curwin()) || foldmethod_is_marker(&curwin()) {
-        return 1;
+        return true;
     }
     if create {
         emsg(gettext(
@@ -490,7 +488,7 @@ pub fn fold_manual_allowed(create: bool) -> i32 {
             c"E351: Cannot delete fold with current 'foldmethod'",
         ));
     }
-    0
+    false
 }
 
 /// Create a fold from line "start" to line "end" (inclusive) in the current
@@ -889,7 +887,7 @@ pub fn find_wl_entry(win: &WinInfoInfo, lnum: Linenr) -> i32 {
 
 /// Adjust the Visual area to include any fold at the start or end completely.
 pub fn fold_adjust_visual() {
-    if !g_st().visual_global.borrow().active || has_any_folding(&curwin()) == 0 {
+    if !g_st().visual_global.borrow().active || !has_any_folding(&curwin()) {
         return;
     }
 

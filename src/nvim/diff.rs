@@ -148,7 +148,7 @@ struct Diffio {
     dio_orig: Diffin,
     dio_new: Diffin,
     dio_diff: Diffout,
-    dio_internal: i32,
+    dio_internal: bool,
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Diffstyle {
@@ -369,7 +369,7 @@ fn diff_mark_adjust_tp(
     amount_after: Linenr,
 ) {
     diff_st(|st| st.diff_finger_dp_idx.set(None));
-    if diff_internal() != 0 {
+    if diff_internal() {
         tp.tp_diff_invalid.set(1);
         tp.tp_diff_update.set(1);
     }
@@ -826,7 +826,7 @@ fn diff_write(buf: &FileBuf, din: &mut Diffin, start: Linenr, mut end: Linenr) -
 fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
     let take_tempname = || vim_tempname();
     'theend: {
-        if dio.dio_internal != 0 {
+        if dio.dio_internal {
             dio.dio_diff.dout_ga.clear();
         } else {
             dio.dio_orig.din_fname = take_tempname();
@@ -948,12 +948,9 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
         }
     }
 }
-pub fn diff_internal() -> i32 {
-    i32::from(
-        (diff_flags() & DIFF_INTERNAL) != 0
-            && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex)
-                == K_CALLBACK_NONE_CONST,
-    )
+pub fn diff_internal() -> bool {
+    (diff_flags() & DIFF_INTERNAL) != 0
+        && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) == K_CALLBACK_NONE_CONST
 }
 pub fn ex_diffupdate(eap: &mut Exarg) {
     if diff_st(|st| st.diff_busy.get()) {
@@ -1132,7 +1129,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
         eval_diff(tmp_orig, tmp_new, tmp_diff);
         return true;
     }
-    if dio.dio_internal != 0 {
+    if dio.dio_internal {
         return diff_file_internal(dio);
     }
     let len = tmp_orig.to_bytes().len()
@@ -1692,7 +1689,7 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut Diffio) {
     let dout = &mut dio.dio_diff;
     let mut notset = true;
     let mut diffstyle = Diffstyle::DiffNone;
-    if dio.dio_internal == 0 {
+    if !dio.dio_internal {
         let Some(f) = CFile::open(dout.dout_fname.as_ref().unwrap(), c"r") else {
             emsg(gettext(c"E98: Cannot read diff output"));
             return;
@@ -1706,7 +1703,7 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut Diffio) {
             lnum_new: 0,
             count_new: 0,
         };
-        let eof = if dio.dio_internal != 0 {
+        let eof = if dio.dio_internal {
             extract_hunk_internal(dout, &mut hunk, &mut line_hunk_idx)
         } else {
             extract_hunk(fd.as_ref().unwrap(), &mut hunk, &mut diffstyle)
@@ -2763,7 +2760,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
             dout_fname: None,
             dout_ga: Vec::new(),
         },
-        dio_internal: 1,
+        dio_internal: true,
     };
     let flags = diff_flags();
     let dp_lnum = curtab().tp_diffs.borrow()[dp_idx].df_lnum;

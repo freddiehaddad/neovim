@@ -692,7 +692,7 @@ fn scrollrect(
         return 1;
     }
 
-    if screen.damaged.start_row != -1 && rect_intersects(&mut rect, &mut screen.damaged) == 0 {
+    if screen.damaged.start_row != -1 && !rect_intersects(&rect, &screen.damaged) {
         vterm_screen_flush_damage(screen);
     }
 
@@ -700,7 +700,7 @@ fn scrollrect(
         screen.pending_scrollrect = rect;
         screen.pending_scroll_downward = downward;
         screen.pending_scroll_rightward = rightward;
-    } else if rect_equal(&mut screen.pending_scrollrect, &mut rect) != 0
+    } else if rect_equal(&screen.pending_scrollrect, &rect)
         && ((screen.pending_scroll_downward == 0 && downward == 0)
             || (screen.pending_scroll_rightward == 0 && rightward == 0))
     {
@@ -727,7 +727,7 @@ fn scrollrect(
         return 1;
     }
 
-    if rect_contains(&mut rect, &mut screen.damaged) != 0 {
+    if rect_contains(&rect, &screen.damaged) {
         vterm_rect_move(&mut screen.damaged, -downward, -rightward);
         rect_clip(&mut screen.damaged, &mut rect);
     } else if rect.start_col <= screen.damaged.start_col
@@ -843,15 +843,15 @@ fn settermprop(prop: VTermProp, val: &mut VTermValue, screen: Option<&mut VTermS
     let screen = screen.unwrap();
     match prop {
         VTERM_PROP_ALTSCREEN => {
-            if val.boolean() != 0 && screen.buffers[BUFIDX_ALTSCREEN].is_empty() {
+            if val.boolean() && screen.buffers[BUFIDX_ALTSCREEN].is_empty() {
                 return 0;
             }
-            screen.bufidx = if val.boolean() != 0 {
+            screen.bufidx = if val.boolean() {
                 BUFIDX_ALTSCREEN
             } else {
                 BUFIDX_PRIMARY
             };
-            if val.boolean() == 0 {
+            if !val.boolean() {
                 damagescreen(screen);
             }
         }
@@ -1359,9 +1359,9 @@ pub fn vterm_screen_get_cell(
     screen: &VTermScreen,
     pos: VTermPos,
     cell: &mut VTermScreenCell,
-) -> i32 {
+) -> bool {
     let Some(intcell) = screen.cell_ref(pos.row, pos.col) else {
-        return 0;
+        return false;
     };
 
     cell.schar = if intcell.schar == u32::MAX {
@@ -1401,7 +1401,7 @@ pub fn vterm_screen_get_cell(
         cell.width = 1;
     }
 
-    1
+    true
 }
 
 pub fn vterm_obtain_screen(vt: &mut VTerm) -> &mut VTermScreen {
@@ -1519,37 +1519,25 @@ pub fn rect_clip(dst: &mut VTermRect, bounds: &mut VTermRect) {
     }
 }
 
-pub fn rect_equal(a: &mut VTermRect, b: &mut VTermRect) -> i32 {
-    i32::from(
-        a.start_row == b.start_row
-            && a.start_col == b.start_col
-            && a.end_row == b.end_row
-            && a.end_col == b.end_col,
-    )
+pub fn rect_equal(a: &VTermRect, b: &VTermRect) -> bool {
+    a.start_row == b.start_row
+        && a.start_col == b.start_col
+        && a.end_row == b.end_row
+        && a.end_col == b.end_col
 }
 
-pub fn rect_contains(big: &mut VTermRect, small: &mut VTermRect) -> i32 {
-    if small.start_row < big.start_row
+pub fn rect_contains(big: &VTermRect, small: &VTermRect) -> bool {
+    !(small.start_row < big.start_row
         || small.start_col < big.start_col
         || small.end_row > big.end_row
-        || small.end_col > big.end_col
-    {
-        0
-    } else {
-        1
-    }
+        || small.end_col > big.end_col)
 }
 
-pub fn rect_intersects(a: &mut VTermRect, b: &mut VTermRect) -> i32 {
-    if a.start_row > b.end_row
+pub fn rect_intersects(a: &VTermRect, b: &VTermRect) -> bool {
+    !(a.start_row > b.end_row
         || b.start_row > a.end_row
         || a.start_col > b.end_col
-        || b.start_col > a.end_col
-    {
-        0
-    } else {
-        1
-    }
+        || b.start_col > a.end_col)
 }
 
 #[cfg(test)]
@@ -1564,19 +1552,19 @@ mod tests {
             start_col: 3,
             end_col: 8,
         };
-        let mut r2 = VTermRect {
+        let r2 = VTermRect {
             start_row: 1,
             end_row: 4,
             start_col: 6,
             end_col: 10,
         };
-        assert_eq!(rect_intersects(&mut r1, &mut r2), 1);
-        assert_eq!(rect_equal(&mut r1, &mut r2), 0);
+        assert!(rect_intersects(&r1, &r2));
+        assert!(!rect_equal(&r1, &r2));
         rect_expand(&mut r1, &r2);
         assert_eq!(
             (r1.start_row, r1.end_row, r1.start_col, r1.end_col),
             (1, 5, 3, 10)
         );
-        assert_eq!(rect_contains(&mut r1, &mut r2), 1);
+        assert!(rect_contains(&r1, &r2));
     }
 }

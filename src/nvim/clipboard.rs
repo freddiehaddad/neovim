@@ -61,7 +61,7 @@ pub fn adjust_clipboard_name(name: &mut i32, quiet: bool, writing: bool) -> Opti
         let should_warn = CLIP_STATE.with(|st| {
             st.batch_change_count.get() <= 1
                 && !quiet
-                && (!st.clipboard_didwarn.get() || (explicit_cb_reg && redirecting() == 0))
+                && (!st.clipboard_didwarn.get() || (explicit_cb_reg && !redirecting()))
         });
         if should_warn {
             CLIP_STATE.with(|st| st.clipboard_didwarn.set(true));

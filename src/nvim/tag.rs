@@ -1973,7 +1973,7 @@ fn findtags_add_match(
         let tag_fname_cstr = crate::memory::bytes_as_cstr(&st.tag_fname);
         let lbuf_bytes = tagpp.raw_line;
 
-        let is_current = test_for_current(tagpp.fname, tag_fname_cstr, buf_ffname) != 0;
+        let is_current = test_for_current(tagpp.fname, tag_fname_cstr, buf_ffname);
         let is_static = test_for_static(tagpp);
 
         let mut mtt = if is_static {
@@ -3004,7 +3004,7 @@ fn test_for_current(
     fname: &[u8],
     tag_fname: &std::ffi::CStr,
     buf_ffname: Option<&std::ffi::CStr>,
-) -> i32 {
+) -> bool {
     let mut retval = false;
     if let Some(buf_ffname) = buf_ffname {
         let fname_cstr =
@@ -3016,7 +3016,7 @@ fn test_for_current(
             (K_PATH_CMP_EXPAND | K_PATH_CMP_FULL) as PathCmpFlags,
         );
     }
-    i32::from(retval)
+    retval
 }
 
 fn find_extra(bytes: &[u8]) -> Option<usize> {

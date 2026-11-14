@@ -614,24 +614,24 @@ fn schedule_termrequest(term: &mut Terminal) {
     multiqueue_put_event(main_loop_events_mut(), Event::TermRequest(req));
 }
 
-fn parse_osc8(str_: &[u8], attr: &mut i32) -> i32 {
+fn parse_osc8(str_: &[u8], attr: &mut i32) -> bool {
     let str_len = str_.iter().position(|&b| b == 0).unwrap_or(str_.len());
     let slice = &str_[..str_len];
     let Some(semi_idx) = slice.iter().position(|&b| b == b';') else {
-        return 0;
+        return false;
     };
 
     let url_start = semi_idx + 1;
     if url_start >= slice.len() {
         *attr = 0;
-        return 1;
+        return true;
     }
 
     let Ok(url_cstr) = CStr::from_bytes_until_nul(&str_[url_start..]) else {
-        return 0;
+        return false;
     };
     *attr = hl_add_url(0, url_cstr);
-    1
+    true
 }
 
 fn on_osc(command: i32, frag: VTermStringFragment, term_id: Option<&mut TermId>) -> i32 {
@@ -664,7 +664,7 @@ fn on_osc(command: i32, frag: VTermStringFragment, term_id: Option<&mut TermId>)
                 let off = b"\x1b]8;".len();
                 let mut attr: i32 = 0;
                 if let Some(osc_tail) = term.termrequest_buffer.get(off..)
-                    && parse_osc8(osc_tail, &mut attr) != 0
+                    && parse_osc8(osc_tail, &mut attr)
                 {
                     term.pending_uri_attr = Some(attr);
                 }
@@ -1959,11 +1959,11 @@ fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term_id: Option<&mut 
     let term_id = *term_id.unwrap();
     with_term_mut(term_id, |term| match prop {
         VTERM_PROP_ALTSCREEN => {
-            term.in_altscreen = val.boolean() != 0;
+            term.in_altscreen = val.boolean();
             1
         }
         VTERM_PROP_CURSORVISIBLE => {
-            term.cursor.visible = val.boolean() != 0;
+            term.cursor.visible = val.boolean();
             invalidate_terminal(term_id, term, -1, -1);
             1
         }
@@ -1997,7 +1997,7 @@ fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term_id: Option<&mut 
             1
         }
         VTERM_PROP_CURSORBLINK => {
-            term.cursor.blink = val.boolean() != 0;
+            term.cursor.blink = val.boolean();
             term.pending.cursor = true;
             invalidate_terminal(term_id, term, -1, -1);
             1
@@ -2009,12 +2009,12 @@ fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term_id: Option<&mut 
             1
         }
         VTERM_PROP_THEMEUPDATES => {
-            term.theme_updates = val.boolean() != 0;
+            term.theme_updates = val.boolean();
             1
         }
         VTERM_PROP_SYNCOUTPUT => {
-            term.synchronized_output = val.boolean() != 0;
-            if val.boolean() == 0 {
+            term.synchronized_output = val.boolean();
+            if !val.boolean() {
                 term.sync_flush_pending = true;
             }
             1

@@ -1608,7 +1608,7 @@ pub fn ex_retab(eap: &mut Exarg) {
 /// Get indent level from `'indentexpr'` (`get_expr_indent`).
 pub fn get_expr_indent() -> i32 {
     let use_sandbox =
-        was_set_insecurely(Some(&crate::globals::curwin()), K_OPT_INDENTEXPR, OPT_LOCAL) != 0;
+        was_set_insecurely(Some(&crate::globals::curwin()), K_OPT_INDENTEXPR, OPT_LOCAL);
     let save_sctx = g_st().current_sctx.get();
 
     let save_pos = curwin().w_cursor.get();

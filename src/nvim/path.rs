@@ -232,7 +232,7 @@ pub fn path_tail_with_sep(fname: &CStr) -> &CStr {
     let past_head_off = fname_bytes.len() - past_head.to_bytes().len();
     let tail = path_tail(fname);
     let mut tail_off = fname_bytes.len() - tail.to_bytes().len();
-    while tail_off > past_head_off && after_pathsep(&fname_bytes[..tail_off]) != 0 {
+    while tail_off > past_head_off && after_pathsep(&fname_bytes[..tail_off]) {
         tail_off -= 1;
     }
     &fname[tail_off..]
@@ -446,7 +446,7 @@ pub fn add_pathsep(p: &mut [u8]) -> bool {
         return true;
     }
 
-    if after_pathsep(&p[..plen]) == 0 {
+    if !after_pathsep(&p[..plen]) {
         let pathsep_len = PATHSEPSTR.len();
         if plen > MAXPATHL - pathsep_len || plen + pathsep_len > p.len() {
             return false;
@@ -1493,7 +1493,7 @@ pub fn simplify_filename(filename: &mut [u8]) -> usize {
                     filename[p - 1] = saved_char;
 
                     p -= 1;
-                    while p > start && after_pathsep(&filename[start..p]) == 0 {
+                    while p > start && !after_pathsep(&filename[start..p]) {
                         let off =
                             crate::mbyte::utf_head_off(&filename[start..p], p - start - 1) + 1;
                         p -= off as usize;
@@ -1737,12 +1737,10 @@ pub fn path_fix_case(name: &mut [u8]) {
     os_closedir(&mut dir);
 }
 
-pub fn after_pathsep(prefix: &[u8]) -> i32 {
-    i32::from(
-        !prefix.is_empty()
-            && vim_ispathsep(i32::from(prefix[prefix.len() - 1]))
-            && crate::mbyte::utf_head_off(prefix, prefix.len() - 1) == 0,
-    )
+pub fn after_pathsep(prefix: &[u8]) -> bool {
+    !prefix.is_empty()
+        && vim_ispathsep(i32::from(prefix[prefix.len() - 1]))
+        && crate::mbyte::utf_head_off(prefix, prefix.len() - 1) == 0
 }
 
 pub fn same_directory(f1: Option<&CStr>, f2: Option<&CStr>) -> bool {

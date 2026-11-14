@@ -778,8 +778,7 @@ fn handle_raw_buffer(tui: &mut TUIData, force: bool, mut rest: &[u8]) -> usize {
         if to_use > remaining {
             let delta = to_use - remaining;
             let bufsize = termkey_get_buffer_size(tui.input.tk());
-            if termkey_set_buffer_size(tui.input.tk_mut(), (bufsize + delta).max(bufsize * 2)) == 0
-            {
+            if !termkey_set_buffer_size(tui.input.tk_mut(), (bufsize + delta).max(bufsize * 2)) {
                 std::process::abort();
             }
         }
@@ -796,7 +795,7 @@ fn handle_raw_buffer(tui: &mut TUIData, force: bool, mut rest: &[u8]) -> usize {
     let tk_count = tk_size - tk_remaining;
     if tk_count < INPUT_BUFFER_SIZE
         && tk_size > INPUT_BUFFER_SIZE
-        && termkey_set_buffer_size(tui.input.tk_mut(), INPUT_BUFFER_SIZE) == 0
+        && !termkey_set_buffer_size(tui.input.tk_mut(), INPUT_BUFFER_SIZE)
     {
         std::process::abort();
     }

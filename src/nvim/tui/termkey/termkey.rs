@@ -374,7 +374,7 @@ pub fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: i32) -> Option<
     register_c0(&mut tk, TERMKEY_SYM_ENTER, 0x0d, None);
     register_c0(&mut tk, TERMKEY_SYM_ESCAPE, 0x1b, None);
 
-    if (flags & TERMKEY_FLAG_NOSTART) == 0 && termkey_start(&mut tk, term, None) == 0 {
+    if (flags & TERMKEY_FLAG_NOSTART) == 0 && !termkey_start(&mut tk, term, None) {
         return None;
     }
 
@@ -385,17 +385,17 @@ pub fn termkey_start(
     tk: &mut TermKey,
     term: Option<&TerminfoEntry>,
     input: Option<&mut crate::tui::input::TermInput>,
-) -> i32 {
+) -> bool {
     if tk.is_started {
-        return 1;
+        return true;
     }
 
     if start_driver_ti(tk, term, input) == 0 {
-        return 0;
+        return false;
     }
 
     tk.is_started = true;
-    1
+    true
 }
 
 #[cfg(test)]
@@ -434,9 +434,9 @@ pub fn termkey_get_buffer_size(tk: &TermKey) -> usize {
     tk.buffer.len()
 }
 
-pub fn termkey_set_buffer_size(tk: &mut TermKey, size: usize) -> i32 {
+pub fn termkey_set_buffer_size(tk: &mut TermKey, size: usize) -> bool {
     tk.buffer.resize(size, 0);
-    1
+    true
 }
 
 pub fn termkey_get_buffer_remaining(tk: &TermKey) -> usize {
@@ -1201,7 +1201,7 @@ mod tests {
 
         // Buffer resize preserves buffered bytes
         push(tk, b"h");
-        assert_eq!(termkey_set_buffer_size(tk, 512), 1);
+        assert!(termkey_set_buffer_size(tk, 512));
         assert_eq!(termkey_get_buffer_size(tk), 512);
         assert_eq!(termkey_get_buffer_remaining(tk), 511);
         assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);

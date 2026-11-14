@@ -2146,8 +2146,8 @@ pub fn syn_name2attr(name: &CStr) -> i32 {
     0
 }
 
-pub fn highlight_exists(name: &CStr) -> i32 {
-    i32::from(syn_name2id(name) > 0)
+pub fn highlight_exists(name: &CStr) -> bool {
+    syn_name2id(name) > 0
 }
 
 pub fn syn_id2name(id: i32) -> std::ffi::CString {

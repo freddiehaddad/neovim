@@ -4684,7 +4684,7 @@ pub fn vim_strsave_fnameescape(fname: &[u8], what: i32) -> std::ffi::CString {
             PATH_ESC_CHARS.to_bytes()
         };
         let mut res = vim_strsave_escaped(fname_bytes, chars);
-        if what == VSE_SHELL && csh_like_shell() != 0 {
+        if what == VSE_SHELL && csh_like_shell() {
             res = vim_strsave_escaped(res.as_bytes(), b"!");
         }
         res
@@ -4876,9 +4876,9 @@ pub fn f_getcmdtype(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// Set the command line str to `str`.
 /// @return 1 when failed, 0 when OK.
-fn set_cmdline_str(str: &CStr, pos: i32) -> i32 {
+fn set_cmdline_str(str: &CStr, pos: i32) -> bool {
     let Some(p) = get_ccline_opt() else {
-        return 1;
+        return false;
     };
 
     let bytes = str.to_bytes_with_nul();
@@ -4899,18 +4899,18 @@ fn set_cmdline_str(str: &CStr, pos: i32) -> i32 {
 
     do_autocmd_cmdlinechanged(get_cmdline_type());
 
-    0
+    true
 }
 
 /// Set the command line byte position to `pos`.
-fn set_cmdline_pos(pos: i32) -> i32 {
+fn set_cmdline_pos(pos: i32) -> bool {
     if get_ccline_opt().is_none() {
-        return 1;
+        return false;
     }
 
     GETLN_STATE.with(|s| s.new_cmdpos.set(pos.max(0)));
 
-    0
+    true
 }
 
 /// `"setcmdline()"` function.
@@ -4933,10 +4933,10 @@ pub fn f_setcmdline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
     }
 
-    rettv.vval = crate::eval::typval::TypvalVval::Number(set_cmdline_str(
+    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(!set_cmdline_str(
         &tv_get_string(&argvars[0]),
         pos,
-    ) as Varnumber);
+    )));
 }
 
 /// `"setcmdpos()"` function.
@@ -4944,7 +4944,8 @@ pub fn f_setcmdpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let pos = (tv_get_number(&argvars[0]) - 1) as i32;
 
     if pos >= 0 {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(set_cmdline_pos(pos) as Varnumber);
+        rettv.vval =
+            crate::eval::typval::TypvalVval::Number(Varnumber::from(!set_cmdline_pos(pos)));
     }
 }
 

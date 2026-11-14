@@ -84,7 +84,7 @@ fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: Option<&WinInfoInf
     if restore_size && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_WINSIZE) != 0 {
         let mut n: i32 = 0;
         for wp in win_iter_ptr(tab_firstwin) {
-            if ses_do_win(&wp) == 0 {
+            if !ses_do_win(&wp) {
                 continue;
             }
             n += 1;
@@ -178,7 +178,7 @@ fn ses_skipframe(fr: Option<crate::globals::FramePtr>) -> Option<crate::globals:
 
 fn ses_do_frame(fr: &Frame) -> bool {
     if fr.fr_layout.get() == FR_LEAF {
-        return ses_do_win(&fr.win()) != 0;
+        return ses_do_win(&fr.win());
     }
     for frc in frame_iter_ptr(fr.fr_child.get()) {
         if ses_do_frame(&frc) {
@@ -188,21 +188,21 @@ fn ses_do_frame(fr: &Frame) -> bool {
     false
 }
 
-fn ses_do_win(wp: &WinInfoInfo) -> i32 {
+fn ses_do_win(wp: &WinInfoInfo) -> bool {
     if wp.w_floating.get() {
-        return 0;
+        return false;
     }
     let buf = wp.buf();
     if buf.fname_opt().is_none() || (buf.terminal.get().is_null() && bt_nofilename(Some(&buf))) {
-        return (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_BLANK) as i32;
+        return (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_BLANK) != 0;
     }
     if bt_help(Some(&buf)) {
-        return (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) as i32;
+        return (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_HELP) != 0;
     }
     if bt_terminal(Some(&buf)) {
-        return (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) as i32;
+        return (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TERMINAL) != 0;
     }
-    1
+    true
 }
 
 fn ses_arglist(
@@ -741,7 +741,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
 
             let mut wp = tab_firstwin.clone();
             while let Some(wp_ref) = wp.opt() {
-                if ses_do_win(wp_ref) != 0
+                if ses_do_win(wp_ref)
                     && wp_ref.buf().b_ffname.get().is_some()
                     && !bt_help(wp_ref.buf_opt().as_deref())
                     && !bt_nofilename(wp_ref.buf_opt().as_deref())
@@ -783,7 +783,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             let mut restore_size = true;
             wp = tab_firstwin.clone();
             while let Some(wp_ref) = wp.opt() {
-                if ses_do_win(wp_ref) != 0 {
+                if ses_do_win(wp_ref) {
                     nr += 1;
                 } else if !wp_ref.w_floating.get() {
                     restore_size = false;
@@ -820,7 +820,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
 
             wp = tab_firstwin.clone();
             while let Some(wp_ref) = wp.opt() {
-                if ses_do_win(wp_ref) == 0 {
+                if !ses_do_win(wp_ref) {
                     wp = wp_ref.w_next.get();
                     continue;
                 }

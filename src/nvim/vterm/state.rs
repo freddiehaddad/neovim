@@ -2532,11 +2532,11 @@ pub fn vterm_state_set_termprop(
     match prop {
         VTERM_PROP_TITLE | VTERM_PROP_ICONNAME => 1,
         VTERM_PROP_CURSORVISIBLE => {
-            set_mode_bit(&mut state.mode, MODE_CURSOR_VISIBLE, val.boolean() != 0);
+            set_mode_bit(&mut state.mode, MODE_CURSOR_VISIBLE, val.boolean());
             1
         }
         VTERM_PROP_CURSORBLINK => {
-            set_mode_bit(&mut state.mode, MODE_CURSOR_BLINK, val.boolean() != 0);
+            set_mode_bit(&mut state.mode, MODE_CURSOR_BLINK, val.boolean());
             1
         }
         VTERM_PROP_CURSORSHAPE => {
@@ -2544,11 +2544,11 @@ pub fn vterm_state_set_termprop(
             1
         }
         VTERM_PROP_REVERSE => {
-            set_mode_bit(&mut state.mode, MODE_SCREEN, val.boolean() != 0);
+            set_mode_bit(&mut state.mode, MODE_SCREEN, val.boolean());
             1
         }
         VTERM_PROP_ALTSCREEN => {
-            set_mode_bit(&mut state.mode, MODE_ALT_SCREEN, val.boolean() != 0);
+            set_mode_bit(&mut state.mode, MODE_ALT_SCREEN, val.boolean());
             if (state.mode & MODE_ALT_SCREEN) != 0 {
                 let rect = VTermRect {
                     start_row: 0,
@@ -2574,19 +2574,15 @@ pub fn vterm_state_set_termprop(
             1
         }
         VTERM_PROP_FOCUSREPORT => {
-            set_mode_bit(&mut state.mode, MODE_REPORT_FOCUS, val.boolean() != 0);
+            set_mode_bit(&mut state.mode, MODE_REPORT_FOCUS, val.boolean());
             1
         }
         VTERM_PROP_THEMEUPDATES => {
-            set_mode_bit(&mut state.mode, MODE_THEME_UPDATES, val.boolean() != 0);
+            set_mode_bit(&mut state.mode, MODE_THEME_UPDATES, val.boolean());
             1
         }
         VTERM_PROP_SYNCOUTPUT => {
-            set_mode_bit(
-                &mut state.mode,
-                MODE_SYNCHRONIZED_OUTPUT,
-                val.boolean() != 0,
-            );
+            set_mode_bit(&mut state.mode, MODE_SYNCHRONIZED_OUTPUT, val.boolean());
             1
         }
         _ => 0,

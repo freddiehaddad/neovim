@@ -3457,7 +3457,7 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&Callback>
 
     let is_cpt_function = cb_opt.is_some();
     let use_sandbox = is_cpt_function
-        && was_set_insecurely(Some(&crate::globals::curwin()), K_OPT_COMPLETE, OPT_LOCAL) != 0;
+        && was_set_insecurely(Some(&crate::globals::curwin()), K_OPT_COMPLETE, OPT_LOCAL);
     let cb_owned;
     let cb = match cb_opt {
         Some(c) => c,
@@ -6015,7 +6015,7 @@ fn check_elapsed_time() {
 pub fn ins_compl_check_keys(frequency: i32, in_compl_func: bool) {
     static COUNT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
     {
-        if !in_compl_func && (using_script() != 0 || g_st().ex_normal_busy.get() != 0) {
+        if !in_compl_func && (using_script() || g_st().ex_normal_busy.get() != 0) {
             return;
         }
 
@@ -6373,7 +6373,7 @@ fn get_userdefined_compl_info(
 
     let is_cpt_function = cb_opt.is_some();
     let use_sandbox = is_cpt_function
-        && was_set_insecurely(Some(&crate::globals::curwin()), K_OPT_COMPLETE, OPT_LOCAL) != 0;
+        && was_set_insecurely(Some(&crate::globals::curwin()), K_OPT_COMPLETE, OPT_LOCAL);
     let cb_owned;
     let cb = match cb_opt {
         Some(c) => c,

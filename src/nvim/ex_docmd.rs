@@ -7259,7 +7259,7 @@ pub fn undo_cmdmod(cmod: &mut Cmdmod) {
         }
         g_st().msg_scroll.set(cmod.cmod_save_msg_scroll);
 
-        if redirecting() != 0 {
+        if redirecting() {
             g_st().msg_col.set(0);
         }
 
@@ -10930,7 +10930,7 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
         if !bcd_active {
             do_autocmd_dirchanged(&new_dir_owned, scope, K_CD_CAUSE_MANUAL, true);
         }
-        if vim_chdir(&new_dir_owned) != 0 {
+        if !vim_chdir(&new_dir_owned) {
             let _ = emsg(gettext(E_FAILED));
             return false;
         }
@@ -11039,7 +11039,7 @@ fn ex_equal(eap: &mut Exarg) {
 }
 
 fn ex_sleep(eap: &mut Exarg) {
-    if cursor_valid(&curwin()) != 0 {
+    if cursor_valid(&curwin()) {
         setcursor_mayforce(&curwin(), true);
     }
 
@@ -11820,7 +11820,7 @@ pub fn exec_normal(was_typed: bool, use_vpeekc: bool) {
     let mut oa = Oparg::new();
     g_st().finish_op.set(false);
     while (!stuff_empty()
-        || ((was_typed || typebuf_typed() == 0) && g_st().typebuf.tb_len.get() > 0)
+        || ((was_typed || !typebuf_typed()) && g_st().typebuf.tb_len.get() > 0)
         || (use_vpeekc && {
             let c = vpeekc();
             c != 0 && c != i32::from(CTRL_C_CONST)
@@ -12561,7 +12561,7 @@ fn ex_nohlsearch(_eap: &mut Exarg) {
 }
 
 fn ex_fold(eap: &mut Exarg) {
-    if fold_manual_allowed(true) != 0 {
+    if fold_manual_allowed(true) {
         let start = CursorPos {
             lnum: eap.line1,
             col: 1,

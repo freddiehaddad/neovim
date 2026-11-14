@@ -1582,7 +1582,7 @@ pub fn build_stl_str_hl_slice(
     }
 
     let use_sandbox = if opt_idx != K_OPT_INVALID {
-        was_set_insecurely(wp.opt(), opt_idx, opt_scope) != 0
+        was_set_insecurely(wp.opt(), opt_idx, opt_scope)
     } else {
         false
     };

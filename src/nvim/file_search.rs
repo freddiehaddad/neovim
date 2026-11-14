@@ -340,7 +340,7 @@ pub fn vim_findfile_init(
             return None;
         }
 
-        let mut add_sep = after_pathsep(search_ctx.ffsc_start_dir.cstr_bytes()) == 0;
+        let mut add_sep = !after_pathsep(search_ctx.ffsc_start_dir.cstr_bytes());
         expand_size = format_to_buf!(
             &mut expand_buf,
             c"%s%s",
@@ -360,7 +360,7 @@ pub fn vim_findfile_init(
             );
             if os_isdir(crate::memory::bytes_as_cstr(&buf_vec)) {
                 if search_ctx.ffsc_fix_path.size > 0 {
-                    add_sep = after_pathsep(search_ctx.ffsc_fix_path.cstr_bytes()) == 0;
+                    add_sep = !after_pathsep(search_ctx.ffsc_fix_path.cstr_bytes());
                     expand_size += format_to_buf!(
                         &mut expand_buf[expand_size..],
                         c"%s%s",
@@ -383,7 +383,7 @@ pub fn vim_findfile_init(
                         return None;
                     }
 
-                    add_sep = after_pathsep(search_ctx.ffsc_fix_path.cstr_bytes()) == 0;
+                    add_sep = !after_pathsep(search_ctx.ffsc_fix_path.cstr_bytes());
                     expand_size += format_to_buf!(
                         &mut expand_buf[expand_size..],
                         c"%.*s%s",
@@ -513,7 +513,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                     if search_ctx.ffsc_start_dir.size + 1 >= MAXPATHL {
                         break 'upward;
                     }
-                    let add_sep = after_pathsep(search_ctx.ffsc_start_dir.cstr_bytes()) == 0;
+                    let add_sep = !after_pathsep(search_ctx.ffsc_start_dir.cstr_bytes());
                     file_path_len = format_to_buf!(
                         &mut file_path_vec,
                         c"%s%s",
@@ -528,7 +528,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                 if file_path_len + stackp.ffs_fix_path.size + 1 >= MAXPATHL {
                     break 'upward;
                 }
-                let add_sep = after_pathsep(stackp.ffs_fix_path.cstr_bytes()) == 0;
+                let add_sep = !after_pathsep(stackp.ffs_fix_path.cstr_bytes());
                 file_path_len += format_to_buf!(
                     &mut file_path_vec[file_path_len..],
                     c"%s%s",
@@ -620,7 +620,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                         if len + 1 + search_ctx.ffsc_file_to_search.size >= MAXPATHL {
                             break 'upward;
                         }
-                        let add_sep = after_pathsep(entry_bytes) == 0;
+                        let add_sep = !after_pathsep(entry_bytes);
                         file_path_len = format_to_buf!(
                             &mut file_path_vec,
                             c"%s%s%s",
@@ -773,7 +773,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
             if search_ctx.ffsc_start_dir.size + 1 + search_ctx.ffsc_fix_path.size >= MAXPATHL {
                 break;
             }
-            let add_sep = after_pathsep(search_ctx.ffsc_start_dir.cstr_bytes()) == 0;
+            let add_sep = !after_pathsep(search_ctx.ffsc_start_dir.cstr_bytes());
             file_path_len = format_to_buf!(
                 &mut file_path_vec,
                 c"%s%s%s",
@@ -1399,7 +1399,7 @@ fn eval_includeexpr(ptr_slice: &[u8]) -> Option<std::ffi::CString> {
             Some(&crate::globals::curwin()),
             K_OPT_INCLUDEEXPR,
             OPT_LOCAL,
-        ) != 0;
+        );
         let mut tv: TypVal = TypVal::new();
         let mut res = None;
         if eval_expr_option_tv(&curbuf().b_p_inex, use_sandbox, &mut tv) {
@@ -1613,7 +1613,7 @@ pub fn vim_chdirfile(fname: &std::ffi::CStr, cause: CdCause) -> bool {
 }
 
 /// Change directory to `new_dir`. Search `'cdpath'` for relative directory names.
-pub fn vim_chdir(new_dir: &std::ffi::CStr) -> i32 {
+pub fn vim_chdir(new_dir: &std::ffi::CStr) -> bool {
     let mut file_to_find: Option<std::ffi::CString> = None;
     let mut search_ctx: Option<FfSearchCtx> = None;
     let Some(dir_name) = find_directory_in_path(
@@ -1623,10 +1623,10 @@ pub fn vim_chdir(new_dir: &std::ffi::CStr) -> i32 {
         &mut file_to_find,
         &mut search_ctx,
     ) else {
-        return -1;
+        return false;
     };
 
-    os_chdir(&dir_name)
+    os_chdir(&dir_name) == 0
 }
 
 #[cfg(test)]

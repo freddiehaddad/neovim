@@ -545,7 +545,7 @@ pub fn readfile(
                     break 'theend;
                 }
 
-                if after_pathsep(fname_bytes) != 0 {
+                if after_pathsep(fname_bytes) {
                     if !silent {
                         filemess(
                             g_st().curbuf.get().opt(),
@@ -2950,10 +2950,10 @@ pub fn put_time(fd: &crate::os::fs::CFile, time_: time_t) -> bool {
     fd.write_all(&buf)
 }
 
-fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
+fn rename_with_tmp(from: &CStr, to: &CStr) -> bool {
     let from_bytes = from.to_bytes();
     if from_bytes.len() >= MAXPATHL - 5 {
-        return -1;
+        return false;
     }
 
     let mut tempname: [u8; MAXPATHL + 1] = [0; MAXPATHL + 1];
@@ -2967,7 +2967,7 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
         if !os_path_exists(temp_cstr) {
             if os_rename(from, temp_cstr) {
                 if os_rename(temp_cstr, to) {
-                    return 0;
+                    return true;
                 }
                 if !os_rename(temp_cstr, from) {
                     logmsg!(
@@ -2981,29 +2981,29 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
                         &tempname,
                     );
                 }
-                return -1;
+                return false;
             }
-            return -1;
+            return false;
         }
     }
-    -1
+    false
 }
 
 /// Rename a file, falling back to copying across filesystems if needed.
-pub fn vim_rename(from: &CStr, to: &CStr) -> i32 {
+pub fn vim_rename(from: &CStr, to: &CStr) -> bool {
     let mut use_tmp_file = false;
 
     if path_equal(from, to, K_PATH_CMP_LITERAL) {
         if opt_vars().p_fic.get() && path_tail(from) != path_tail(to) {
             use_tmp_file = true;
         } else {
-            return 0;
+            return true;
         }
     }
 
     let mut from_info: FileInfo = FileInfo::new();
     if !os_fileinfo(from, &mut from_info) {
-        return -1;
+        return false;
     }
 
     let mut to_info: FileInfo = FileInfo::new();
@@ -3016,22 +3016,22 @@ pub fn vim_rename(from: &CStr, to: &CStr) -> i32 {
     }
 
     if os_rename(from, to) {
-        return 0;
+        return true;
     }
 
     if os_remove(to) == 0 && os_rename(from, to) {
-        return 0;
+        return true;
     }
 
     if !vim_copyfile(from, to) {
-        return -1;
+        return false;
     }
 
     if os_fileinfo(from, &mut from_info) {
         os_remove(from);
     }
 
-    0
+    true
 }
 
 /// Create the new file with same permissions as the original.
@@ -3079,7 +3079,7 @@ pub fn check_timestamps(focus: i32) -> i32 {
 
     if !stuff_empty()
         || g_st().global_busy.get() != 0
-        || typebuf_typed() == 0
+        || !typebuf_typed()
         || g_st().autocmd_busy.get()
         || curbuf().b_ro_locked.get() > 0
         || g_st().allbuf_lock.get() > 0
@@ -3569,7 +3569,7 @@ fn vim_mktempdir() {
             continue;
         }
 
-        if after_pathsep(&tmp[..tmplen]) == 0 {
+        if !after_pathsep(&tmp[..tmplen]) {
             tmplen += format_to_buf!(&mut tmp[tmplen..], c"%s", PATHSEPSTR) as usize;
             debug_assert!(tmplen < tmp.len());
         }
@@ -3585,7 +3585,7 @@ fn vim_mktempdir() {
         #[cfg(not(unix))]
         let valid = isdir && owned;
         if valid {
-            if after_pathsep(&tmp[..tmplen]) == 0 {
+            if !after_pathsep(&tmp[..tmplen]) {
                 tmplen += format_to_buf!(&mut tmp[tmplen..], c"%s", PATHSEPSTR) as usize;
                 debug_assert!(tmplen < tmp.len());
             }
@@ -3696,8 +3696,8 @@ pub fn readdir_core(
 }
 
 /// Delete "name" and everything in it, recursively.
-pub fn delete_recursive(name: &CStr) -> i32 {
-    let mut result: i32 = 0;
+pub fn delete_recursive(name: &CStr) -> bool {
+    let mut result = true;
 
     if os_isrealdir(name) {
         let exp = name.to_owned();
@@ -3709,19 +3709,19 @@ pub fn delete_recursive(name: &CStr) -> i32 {
             for entry in &entries {
                 format_to_buf!(&mut name_buff[len..], c"%s", entry);
                 let sub_cstr = crate::memory::bytes_as_cstr(&name_buff);
-                if delete_recursive(sub_cstr) != 0 {
-                    result = -1;
+                if !delete_recursive(sub_cstr) {
+                    result = false;
                 }
             }
             drop(entries);
             if os_rmdir(&exp) != 0 {
-                result = -1;
+                result = false;
             }
         } else {
-            result = -1;
+            result = false;
         }
     } else {
-        result = if os_remove(name) == 0 { 0 } else { -1 };
+        result = os_remove(name) == 0;
     }
 
     result
@@ -3804,7 +3804,7 @@ fn vim_settempdir(tempdir: &CStr) -> bool {
     vim_full_name(Some(tempdir), &mut buf_vec[..MAXPATHL], cfg!(windows));
 
     let mut buflen = crate::memory::bytes_until_nul(&buf_vec).len();
-    if after_pathsep(&buf_vec[..buflen]) == 0 {
+    if !after_pathsep(&buf_vec[..buflen]) {
         let sep_bytes = PATHSEPSTR.to_bytes_with_nul();
         buf_vec[buflen..(buflen + sep_bytes.len())].copy_from_slice(sep_bytes);
         buflen += sep_bytes.len() - 1;

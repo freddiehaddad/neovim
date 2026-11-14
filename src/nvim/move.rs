@@ -731,9 +731,9 @@ pub fn approximate_botline_win(wp: &WinInfoInfo) {
 }
 
 /// Return true if `wp->w_wrow` and `wp->w_wcol` are valid.
-pub fn cursor_valid(wp: &WinInfoInfo) -> i32 {
+pub fn cursor_valid(wp: &WinInfoInfo) -> bool {
     check_cursor_moved(wp);
-    i32::from((wp.w_valid.get() & (VALID_WROW | VALID_WCOL)) == (VALID_WROW | VALID_WCOL))
+    (wp.w_valid.get() & (VALID_WROW | VALID_WCOL)) == (VALID_WROW | VALID_WCOL)
 }
 
 /// Validate cursor position. Makes sure `w_wrow` and `w_wcol` are valid.

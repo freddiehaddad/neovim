@@ -72,13 +72,13 @@ pub fn xfpclassify(d: f64) -> i32 {
 }
 
 /// Return non-zero (1) if `d` is positive or negative infinity (`xisinf`).
-pub fn xisinf(d: f64) -> i32 {
-    i32::from(xfpclassify(d) == FP_INFINITE)
+pub fn xisinf(d: f64) -> bool {
+    xfpclassify(d) == FP_INFINITE
 }
 
-/// Return non-zero (1) if `d` is NaN (`xisnan`).
-pub fn xisnan(d: f64) -> i32 {
-    i32::from(xfpclassify(d) == FP_NAN)
+/// Return true if `d` is NaN (`xisnan`).
+pub fn xisnan(d: f64) -> bool {
+    xfpclassify(d) == FP_NAN
 }
 
 /// Count trailing zeroes at the end of 64-bit bitfield (`xctz`).
@@ -122,14 +122,14 @@ mod tests {
         assert_eq!(xfpclassify(f64::NEG_INFINITY), FP_INFINITE);
         assert_eq!(xfpclassify(f64::NAN), FP_NAN);
 
-        assert_eq!(xisinf(f64::INFINITY), 1);
-        assert_eq!(xisinf(f64::NEG_INFINITY), 1);
-        assert_eq!(xisinf(f64::NAN), 0);
-        assert_eq!(xisinf(0.0), 0);
+        assert!(xisinf(f64::INFINITY));
+        assert!(xisinf(f64::NEG_INFINITY));
+        assert!(!xisinf(f64::NAN));
+        assert!(!xisinf(0.0));
 
-        assert_eq!(xisnan(f64::NAN), 1);
-        assert_eq!(xisnan(f64::INFINITY), 0);
-        assert_eq!(xisnan(1.0), 0);
+        assert!(xisnan(f64::NAN));
+        assert!(!xisnan(f64::INFINITY));
+        assert!(!xisnan(1.0));
     }
 
     #[test]

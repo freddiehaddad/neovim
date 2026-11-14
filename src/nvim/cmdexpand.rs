@@ -2284,7 +2284,7 @@ fn skip_wildmenu_char(xp: &ExpandCtx, s_bytes: &[u8]) -> usize {
     {
         #[cfg(not(windows))]
         if xp.xp_shell
-            && csh_like_shell() != 0
+            && csh_like_shell()
             && s_bytes.get(1) == Some(&b'\\')
             && s_bytes.get(2) == Some(&b'!')
         {
@@ -5301,7 +5301,7 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
                 flags &= !EW_DIR;
             }
 
-            seplen = if after_pathsep(s_seg) == 0 {
+            seplen = if !after_pathsep(s_seg) {
                 PATHSEPSTR.len()
             } else {
                 0
@@ -5555,7 +5555,7 @@ pub fn globpath(
     let mut path_bytes = path_arg.to_bytes();
     while !path_bytes.is_empty() {
         let mut pathlen = copy_option_part(&mut path_bytes, &mut buf_vec[..MAXPATHL], c",");
-        let seplen = if buf_vec[0] != 0 && after_pathsep(&buf_vec[..pathlen]) == 0 {
+        let seplen = if buf_vec[0] != 0 && !after_pathsep(&buf_vec[..pathlen]) {
             PATHSEPSTR.len()
         } else {
             0
