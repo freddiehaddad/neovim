@@ -625,7 +625,7 @@ pub fn nvim_cmd(
     }
 
     let cmdname = crate::api::private::helpers::ensure_nul_string(cmd.cmd.clone());
-    ea.cmd = crate::strings::OwnedSlice::from_cstr(cmdname.as_cstr());
+    ea.cmd = crate::option_vars::RcSlice::from_cstr(cmdname.as_cstr());
 
     let mut p_opt = find_ex_command(&mut ea, None);
 
@@ -1057,7 +1057,7 @@ pub fn nvim_cmd(
 
     let ea_arg = ea.arg.clone();
     let new_arg = replace_makeprg(&mut ea, ea_arg);
-    if new_arg.addr() != ea.arg.addr() {
+    if new_arg != ea.arg {
         ea.arg = new_arg;
         ea.args.clear();
         ea.arglens.clear();

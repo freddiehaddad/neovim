@@ -347,13 +347,11 @@ pub fn set_context_in_user_cmd<'a>(xp: &mut ExpandCtx, arg_in: &'a CStr) -> Opti
         if p_rem.is_empty() {
             let Some(eq_idx) = rem.iter().position(|&b| b == b'=') else {
                 xp.xp_context = EXPAND_USER_CMD_FLAGS;
-                xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg_cstr);
+                xp.xp_pattern = xp.line_slice(arg_cstr);
                 return None;
             };
             let attr = &rem[..eq_idx];
-            let pat_ptr = crate::strings::OwnedSlice::from_cstr(
-                crate::memory::CStrSubslice::advance(arg_cstr, eq_idx + 1),
-            );
+            let pat_ptr = xp.line_slice(crate::memory::CStrSubslice::advance(arg_cstr, eq_idx + 1));
             if attr.len() <= 8 && attr.eq_ignore_ascii_case(&b"complete"[..attr.len()]) {
                 xp.xp_context = EXPAND_USER_COMPLETE;
                 xp.xp_pattern = pat_ptr;
@@ -373,7 +371,7 @@ pub fn set_context_in_user_cmd<'a>(xp: &mut ExpandCtx, arg_in: &'a CStr) -> Opti
     let p_rem = crate::charset::skiptowhite_slice(rem);
     if p_rem.is_empty() {
         xp.xp_context = EXPAND_USER_COMMANDS;
-        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg_cstr);
+        xp.xp_pattern = xp.line_slice(arg_cstr);
         return None;
     }
 
@@ -430,7 +428,7 @@ pub fn set_context_in_user_cmdarg<'a>(
             rem = &rem[clen..];
         }
     }
-    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
+    xp.xp_pattern = xp.line_slice(arg);
     xp.xp_context = context;
 
     None

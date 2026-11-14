@@ -1126,7 +1126,7 @@ pub fn ex_catch(eap: &mut Exarg) {
 
     let (pat, end) = if ends_excmd(i32::from(eap.arg.first_byte())) != 0 {
         eap.nextcmd = eap.arg.advance_to_opt_cstr(find_nextcmd(eap.arg.as_cstr()));
-        (crate::strings::OwnedSlice::from_cstr(c".*"), None)
+        (crate::option_vars::RcSlice::from_cstr(c".*"), None)
     } else {
         let pat = eap.arg.wrapping_add(1);
         let end_opt = skip_regexp_err(pat.as_cstr(), i32::from(eap.arg.first_byte()), 1)

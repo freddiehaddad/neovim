@@ -3353,7 +3353,7 @@ pub fn clear_sb_text(all: bool) {
 pub fn show_sb_text() {
     if ui_has(K_UIMESSAGES) {
         let mut ea: Exarg = Exarg::new();
-        ea.arg = crate::strings::OwnedSlice::from_cstr(c"");
+        ea.arg = crate::option_vars::RcSlice::from_cstr(c"");
         ea.skip = true;
         ex_messages(&mut ea);
         return;

@@ -37,7 +37,7 @@ use crate::marktree::{
     marktree_itr_get_overlap, marktree_itr_next, marktree_itr_step_overlap, marktree_lookup_ns,
     mt_decor, mt_decor_sign, mt_end,
 };
-use crate::mbyte::{utf_cluster_info, utf_ptr2_str_char_info};
+use crate::mbyte::{utf_cluster_info, utf_slice2_str_char_info};
 use crate::message::{
     emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg, smsg,
 };
@@ -454,7 +454,7 @@ pub fn init_sign_text(sp: Option<&Sign>, sign_text: &mut [Schar; SIGN_WIDTH], te
     unescaped.push(0);
 
     let mut cells: usize = 0;
-    let mut ci = utf_ptr2_str_char_info(crate::memory::bytes_as_cstr(&unescaped));
+    let mut ci = utf_slice2_str_char_info(&unescaped);
     while !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
         if !vim_isprintc(ci.chr.value) || cells + (cli.cells as usize) > SIGN_WIDTH {
@@ -1005,80 +1005,81 @@ fn parse_sign_cmd_args<'a>(
 }
 
 pub fn ex_sign(eap: &mut Exarg) {
-    let arg_buf = eap.arg_cstr_buf_mut();
-    let p_off = crate::charset::skiptowhite_len(arg_buf);
-    let idx = sign_cmd_idx(&arg_buf[..p_off]);
-    if idx == SIGNCMD_LAST {
-        semsg!(
-            gettext(c"E160: Unknown sign command: %s"),
-            crate::memory::bytes_as_cstr(arg_buf),
-        );
-        return;
-    }
-    let mut arg_off = p_off + crate::charset::skipwhite_len(&arg_buf[p_off..]);
-
-    if idx <= SIGNCMD_LIST {
-        let first_b = arg_buf.get(arg_off).copied().unwrap_or(0);
-        if idx == SIGNCMD_LIST && first_b == 0 {
-            let signs = SIGN_STATE.with(|st| st.sign_map.borrow().clone());
-            for sp in &signs {
-                sign_list_defined(sp);
-            }
-        } else if first_b == 0 {
-            emsg(gettext(c"E156: Missing sign name"));
-        } else {
-            let mut p_off = arg_off + crate::charset::skiptowhite_len(&arg_buf[arg_off..]);
-            if arg_buf.get(p_off).copied().unwrap_or(0) != 0 {
-                arg_buf[p_off] = 0;
-                p_off += 1;
-            }
-            while arg_buf.get(arg_off).copied() == Some(b'0')
-                && arg_buf.get(arg_off + 1).copied().unwrap_or(0) != 0
-            {
-                arg_off += 1;
-            }
-
-            if idx == SIGNCMD_DEFINE {
-                let arg_cstr = crate::memory::cstring_until_nul(&arg_buf[arg_off..]);
-                sign_define_cmd(arg_cstr.as_c_str(), &mut arg_buf[p_off..]);
-            } else {
-                let arg_cstr = crate::memory::bytes_as_cstr(&arg_buf[arg_off..]);
-                if idx == SIGNCMD_LIST {
-                    sign_list_by_name(arg_cstr);
-                } else {
-                    sign_undefine_by_name(arg_cstr);
-                }
-            }
-        }
-    } else {
-        let mut id: i32 = -1;
-        let mut lnum: Linenr = -1;
-        let mut name: Option<&CStr> = None;
-        let mut group: Option<&CStr> = None;
-        let mut prio: i32 = -1;
-        let mut buf: Option<crate::globals::BufPtr> = None;
-
-        if !parse_sign_cmd_args(
-            idx,
-            &mut arg_buf[arg_off..],
-            &mut name,
-            &mut id,
-            &mut group,
-            &mut prio,
-            &mut buf,
-            &mut lnum,
-        ) {
+    eap.with_arg_cstr_buf_mut(|arg_buf| {
+        let p_off = crate::charset::skiptowhite_len(arg_buf);
+        let idx = sign_cmd_idx(&arg_buf[..p_off]);
+        if idx == SIGNCMD_LAST {
+            semsg!(
+                gettext(c"E160: Unknown sign command: %s"),
+                crate::memory::bytes_as_cstr(arg_buf),
+            );
             return;
         }
+        let mut arg_off = p_off + crate::charset::skipwhite_len(&arg_buf[p_off..]);
 
-        if idx == SIGNCMD_PLACE {
-            sign_place_cmd(buf.as_deref(), lnum, name, id, group, prio);
-        } else if idx == SIGNCMD_UNPLACE {
-            sign_unplace_cmd(buf.as_deref(), lnum, name, id, group);
-        } else if idx == SIGNCMD_JUMP {
-            sign_jump_cmd(buf.as_deref(), lnum, name, id, group);
+        if idx <= SIGNCMD_LIST {
+            let first_b = arg_buf.get(arg_off).copied().unwrap_or(0);
+            if idx == SIGNCMD_LIST && first_b == 0 {
+                let signs = SIGN_STATE.with(|st| st.sign_map.borrow().clone());
+                for sp in &signs {
+                    sign_list_defined(sp);
+                }
+            } else if first_b == 0 {
+                emsg(gettext(c"E156: Missing sign name"));
+            } else {
+                let mut p_off = arg_off + crate::charset::skiptowhite_len(&arg_buf[arg_off..]);
+                if arg_buf.get(p_off).copied().unwrap_or(0) != 0 {
+                    arg_buf[p_off] = 0;
+                    p_off += 1;
+                }
+                while arg_buf.get(arg_off).copied() == Some(b'0')
+                    && arg_buf.get(arg_off + 1).copied().unwrap_or(0) != 0
+                {
+                    arg_off += 1;
+                }
+
+                if idx == SIGNCMD_DEFINE {
+                    let arg_cstr = crate::memory::cstring_until_nul(&arg_buf[arg_off..]);
+                    sign_define_cmd(arg_cstr.as_c_str(), &mut arg_buf[p_off..]);
+                } else {
+                    let arg_cstr = crate::memory::bytes_as_cstr(&arg_buf[arg_off..]);
+                    if idx == SIGNCMD_LIST {
+                        sign_list_by_name(arg_cstr);
+                    } else {
+                        sign_undefine_by_name(arg_cstr);
+                    }
+                }
+            }
+        } else {
+            let mut id: i32 = -1;
+            let mut lnum: Linenr = -1;
+            let mut name: Option<&CStr> = None;
+            let mut group: Option<&CStr> = None;
+            let mut prio: i32 = -1;
+            let mut buf: Option<crate::globals::BufPtr> = None;
+
+            if !parse_sign_cmd_args(
+                idx,
+                &mut arg_buf[arg_off..],
+                &mut name,
+                &mut id,
+                &mut group,
+                &mut prio,
+                &mut buf,
+                &mut lnum,
+            ) {
+                return;
+            }
+
+            if idx == SIGNCMD_PLACE {
+                sign_place_cmd(buf.as_deref(), lnum, name, id, group, prio);
+            } else if idx == SIGNCMD_UNPLACE {
+                sign_unplace_cmd(buf.as_deref(), lnum, name, id, group);
+            } else if idx == SIGNCMD_JUMP {
+                sign_jump_cmd(buf.as_deref(), lnum, name, id, group);
+            }
         }
-    }
+    });
 }
 
 fn sign_get_info_dict(sp: &Sign) -> crate::eval::typval::DictId {
@@ -1279,7 +1280,7 @@ pub fn get_sign_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
 }
 
 pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
-    let arg = crate::strings::OwnedSlice::from_cstr(arg_cstr);
+    let arg = xp.line_slice(arg_cstr);
     xp.xp_context = EXPAND_SIGN;
     SIGN_STATE.with(|st| st.expand_what.set(EXP_SUBCMD));
     xp.xp_pattern = arg.clone();

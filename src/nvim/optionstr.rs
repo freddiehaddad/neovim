@@ -441,7 +441,7 @@ pub struct Optexpand<'a> {
     pub oe_include_orig_val: bool,
     pub oe_regmatch: &'a mut Regmatch,
     pub oe_xp: &'a mut ExpandCtx,
-    pub oe_set_arg: crate::strings::OwnedSlice,
+    pub oe_set_arg: crate::option_vars::RcSlice,
 }
 
 pub type OptValidateCb = Option<for<'a> fn(&mut Optset<'a>) -> Option<&'a CStr>>;

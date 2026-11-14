@@ -8,6 +8,19 @@ use crate::regexp::Regprog;
 use crate::syntax::{IdlCache, Keyentry, SynCluster, SynTime, Synpat, Synstate};
 use crate::window::K_WIN_OPT_COUNT;
 
+#[inline]
+fn rc_cstr_from_clean_bytes(clean: &[u8]) -> std::rc::Rc<std::ffi::CStr> {
+    if clean.len() < 512 {
+        let mut stack = [0u8; 512];
+        stack[..clean.len()].copy_from_slice(clean);
+        let cstr = std::ffi::CStr::from_bytes_with_nul(&stack[..=clean.len()])
+            .expect("stack buffer is NUL-terminated without interior NULs");
+        std::rc::Rc::from(cstr)
+    } else {
+        std::rc::Rc::from(crate::memory::bytes_to_cstring(clean))
+    }
+}
+
 #[derive(Clone)]
 pub enum RcCStr {
     Static(&'static std::ffi::CStr),
@@ -29,6 +42,15 @@ impl RcCStr {
         } else {
             Self::Shared(std::rc::Rc::from(s), 0)
         }
+    }
+
+    #[inline(always)]
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        let clean = crate::memory::bytes_until_nul(bytes);
+        if clean.is_empty() {
+            return Self::EMPTY;
+        }
+        Self::Shared(rc_cstr_from_clean_bytes(clean), 0)
     }
 
     #[inline(always)]
@@ -67,20 +89,49 @@ impl RcCStr {
     }
 
     #[inline(always)]
+    pub fn to_bytes(&self) -> &[u8] {
+        self.as_cstr().to_bytes()
+    }
+
+    #[inline(always)]
+    pub fn to_bytes_with_nul(&self) -> &[u8] {
+        self.as_cstr().to_bytes_with_nul()
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.to_bytes().is_empty()
+    }
+
+    #[inline(always)]
     pub fn to_bytes_slice(&self) -> RcSlice {
-        RcSlice {
-            cstr: self.clone(),
-            start: 0,
-            with_nul: false,
+        match self {
+            Self::Static(s) => RcSlice {
+                buf: RcSliceBuf::Static(s),
+                start: 0,
+                with_nul: false,
+            },
+            Self::Shared(rc, start) => RcSlice {
+                buf: RcSliceBuf::SharedCStr(rc.clone()),
+                start: *start,
+                with_nul: false,
+            },
         }
     }
 
     #[inline(always)]
     pub fn to_bytes_with_nul_slice(&self) -> RcSlice {
-        RcSlice {
-            cstr: self.clone(),
-            start: 0,
-            with_nul: true,
+        match self {
+            Self::Static(s) => RcSlice {
+                buf: RcSliceBuf::Static(s),
+                start: 0,
+                with_nul: true,
+            },
+            Self::Shared(rc, start) => RcSlice {
+                buf: RcSliceBuf::SharedCStr(rc.clone()),
+                start: *start,
+                with_nul: true,
+            },
         }
     }
 }
@@ -172,29 +223,393 @@ impl std::fmt::Debug for RcCStr {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
+enum RcSliceBuf {
+    Null,
+    Static(&'static std::ffi::CStr),
+    SharedCStr(std::rc::Rc<std::ffi::CStr>),
+    SharedBytes(std::rc::Rc<[u8]>),
+}
+
+#[derive(Clone)]
 pub struct RcSlice {
-    cstr: RcCStr,
+    buf: RcSliceBuf,
     start: usize,
     with_nul: bool,
 }
 
-impl RcSlice {
+impl Default for RcSlice {
     #[inline(always)]
-    pub fn as_slice(&self) -> &[u8] {
-        let bytes = if self.with_nul {
-            self.cstr.to_bytes_with_nul()
+    fn default() -> Self {
+        Self {
+            buf: RcSliceBuf::Static(c""),
+            start: 0,
+            with_nul: false,
+        }
+    }
+}
+
+impl RcSlice {
+    pub const NULL: Self = Self {
+        buf: RcSliceBuf::Null,
+        start: 0,
+        with_nul: false,
+    };
+
+    #[inline]
+    pub fn from_cstr(s: &std::ffi::CStr) -> Self {
+        if s.is_empty() {
+            Self::default()
         } else {
-            self.cstr.to_bytes()
-        };
-        &bytes[self.start.min(bytes.len())..]
+            Self {
+                buf: RcSliceBuf::SharedCStr(std::rc::Rc::from(s)),
+                start: 0,
+                with_nul: false,
+            }
+        }
+    }
+
+    #[inline]
+    pub fn from_opt_cstr(s: Option<&std::ffi::CStr>) -> Self {
+        match s {
+            Some(s) => Self::from_cstr(s),
+            None => Self::NULL,
+        }
+    }
+
+    #[inline]
+    pub fn from_bytes(b: &[u8]) -> Self {
+        let clean = crate::memory::bytes_until_nul(b);
+        if clean.is_empty() {
+            Self::default()
+        } else {
+            Self {
+                buf: RcSliceBuf::SharedCStr(rc_cstr_from_clean_bytes(clean)),
+                start: 0,
+                with_nul: false,
+            }
+        }
+    }
+
+    #[inline]
+    pub fn from_opt_bytes(s: Option<&[u8]>) -> Self {
+        match s {
+            Some(s) => Self::from_bytes(s),
+            None => Self::NULL,
+        }
     }
 
     #[inline(always)]
-    pub fn slice(&self, start: usize) -> Self {
-        let mut res = self.clone();
-        res.start = res.start.saturating_add(start);
+    pub const fn is_null(&self) -> bool {
+        matches!(self.buf, RcSliceBuf::Null)
+    }
+
+    #[inline(always)]
+    pub const fn offset(&self) -> usize {
+        self.start
+    }
+
+    #[inline(always)]
+    pub fn shares_buf(&self, other: &Self) -> bool {
+        match (&self.buf, &other.buf) {
+            (RcSliceBuf::Static(a), RcSliceBuf::Static(b)) => {
+                std::ptr::eq(a.as_ptr(), b.as_ptr())
+                    && a.to_bytes_with_nul().len() == b.to_bytes_with_nul().len()
+            }
+            (RcSliceBuf::SharedCStr(a), RcSliceBuf::SharedCStr(b)) => std::rc::Rc::ptr_eq(a, b),
+            (RcSliceBuf::SharedBytes(a), RcSliceBuf::SharedBytes(b)) => std::rc::Rc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+
+    #[inline(always)]
+    pub fn same_pos(&self, other: &Self) -> bool {
+        match (&self.buf, &other.buf) {
+            (RcSliceBuf::Null, RcSliceBuf::Null) => true,
+            _ => self.shares_buf(other) && self.start == other.start,
+        }
+    }
+
+    #[inline(always)]
+    fn raw_buf(&self) -> &[u8] {
+        match self.buf {
+            RcSliceBuf::Null => &[],
+            RcSliceBuf::Static(s) => s.to_bytes_with_nul(),
+            RcSliceBuf::SharedCStr(ref s) => s.to_bytes_with_nul(),
+            RcSliceBuf::SharedBytes(ref s) => s,
+        }
+    }
+
+    #[inline(always)]
+    pub fn cstr_buf(&self) -> &[u8] {
+        let b = self.raw_buf();
+        &b[self.start.min(b.len())..]
+    }
+
+    #[inline(always)]
+    pub fn as_bytes(&self) -> &[u8] {
+        match self.buf {
+            RcSliceBuf::Null => &[],
+            RcSliceBuf::Static(s) => {
+                let b = s.to_bytes();
+                &b[self.start.min(b.len())..]
+            }
+            RcSliceBuf::SharedCStr(ref s) => {
+                let b = s.to_bytes();
+                &b[self.start.min(b.len())..]
+            }
+            RcSliceBuf::SharedBytes(ref b) => {
+                crate::memory::bytes_until_nul(&b[self.start.min(b.len())..])
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn as_opt_bytes(&self) -> Option<&[u8]> {
+        if self.is_null() {
+            None
+        } else {
+            Some(self.as_bytes())
+        }
+    }
+
+    #[inline(always)]
+    pub fn as_cstr(&self) -> &std::ffi::CStr {
+        match self.buf {
+            RcSliceBuf::Null => c"",
+            RcSliceBuf::Static(s) => {
+                let len = s.to_bytes().len();
+                &s[self.start.min(len)..]
+            }
+            RcSliceBuf::SharedCStr(ref s) => {
+                if self.start == 0 {
+                    s
+                } else {
+                    let len = s.to_bytes().len();
+                    &s[self.start.min(len)..]
+                }
+            }
+            RcSliceBuf::SharedBytes(ref b) => {
+                std::ffi::CStr::from_bytes_until_nul(&b[self.start.min(b.len())..]).unwrap_or(c"")
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn as_opt_cstr(&self) -> Option<&std::ffi::CStr> {
+        if self.is_null() {
+            None
+        } else {
+            Some(self.as_cstr())
+        }
+    }
+
+    #[inline(always)]
+    pub fn as_slice(&self) -> &[u8] {
+        if self.with_nul {
+            self.cstr_buf()
+        } else {
+            self.as_bytes()
+        }
+    }
+
+    #[inline]
+    pub fn cstr_buf_mut(&mut self) -> &mut [u8] {
+        match self.buf {
+            RcSliceBuf::Null => return &mut [],
+            RcSliceBuf::Static(s) => {
+                self.buf = RcSliceBuf::SharedBytes(std::rc::Rc::from(s.to_bytes_with_nul()));
+            }
+            RcSliceBuf::SharedCStr(ref s) => {
+                self.buf = RcSliceBuf::SharedBytes(std::rc::Rc::from(s.to_bytes_with_nul()));
+            }
+            RcSliceBuf::SharedBytes(ref mut rc) => {
+                if std::rc::Rc::get_mut(rc).is_none() {
+                    *rc = std::rc::Rc::from(&**rc);
+                }
+            }
+        }
+        let RcSliceBuf::SharedBytes(ref mut rc) = self.buf else {
+            unreachable!()
+        };
+        let buf_mut = std::rc::Rc::get_mut(rc).expect("Rc<[u8]> is uniquely owned");
+        let start = self.start.min(buf_mut.len());
+        &mut buf_mut[start..]
+    }
+
+    pub fn mutate_in_place<R>(
+        &mut self,
+        siblings: &mut [&mut Self],
+        mut_bytes_only: bool,
+        f: impl FnOnce(&mut [u8]) -> R,
+    ) -> R {
+        if matches!(self.buf, RcSliceBuf::Null) {
+            return f(&mut []);
+        }
+        let mut shared_mask = 0u64;
+        for (i, sib) in siblings.iter_mut().enumerate() {
+            if i < 64 && self.shares_buf(sib) {
+                shared_mask |= 1u64 << i;
+                sib.buf = RcSliceBuf::Null;
+            }
+        }
+        match self.buf {
+            RcSliceBuf::Null => unreachable!(),
+            RcSliceBuf::Static(s) => {
+                self.buf = RcSliceBuf::SharedBytes(std::rc::Rc::from(s.to_bytes_with_nul()));
+            }
+            RcSliceBuf::SharedCStr(ref s) => {
+                self.buf = RcSliceBuf::SharedBytes(std::rc::Rc::from(s.to_bytes_with_nul()));
+            }
+            RcSliceBuf::SharedBytes(ref mut rc) => {
+                if std::rc::Rc::get_mut(rc).is_none() {
+                    *rc = std::rc::Rc::from(&**rc);
+                }
+            }
+        }
+        let RcSliceBuf::SharedBytes(ref mut rc) = self.buf else {
+            unreachable!()
+        };
+        let buf_mut = std::rc::Rc::get_mut(rc).expect("Rc<[u8]> is uniquely owned");
+        let start = self.start.min(buf_mut.len());
+        let tail = &mut buf_mut[start..];
+        let res = if mut_bytes_only {
+            let len = crate::memory::bytes_until_nul(tail).len();
+            f(&mut tail[..len])
+        } else {
+            f(tail)
+        };
+        let new_rc = rc.clone();
+        for (i, sib) in siblings.iter_mut().enumerate() {
+            if i < 64 && (shared_mask & (1u64 << i)) != 0 {
+                sib.buf = RcSliceBuf::SharedBytes(new_rc.clone());
+            }
+        }
         res
+    }
+
+    #[inline]
+    pub fn advance_to_cstr(&self, sub: &std::ffi::CStr) -> Self {
+        let b = self.raw_buf();
+        if b.is_empty() {
+            return Self::from_cstr(sub);
+        }
+        let buf_ptr = b.as_ptr() as usize;
+        let sub_ptr = sub.as_ptr() as usize;
+        if sub_ptr >= buf_ptr && sub_ptr < buf_ptr + b.len() {
+            let off = (sub_ptr - buf_ptr).min(b.len().saturating_sub(1));
+            let mut res = self.clone();
+            res.start = off;
+            res
+        } else {
+            Self::from_cstr(sub)
+        }
+    }
+
+    #[inline]
+    pub fn advance_to_slice(&self, sub: &[u8]) -> Self {
+        let b = self.raw_buf();
+        if b.is_empty() {
+            return Self::from_bytes(sub);
+        }
+        let buf_ptr = b.as_ptr() as usize;
+        let sub_ptr = sub.as_ptr() as usize;
+        if sub_ptr >= buf_ptr && sub_ptr <= buf_ptr + b.len() {
+            let off = (sub_ptr - buf_ptr).min(b.len().saturating_sub(1));
+            let mut res = self.clone();
+            res.start = off;
+            res
+        } else {
+            Self::from_bytes(sub)
+        }
+    }
+
+    #[inline]
+    pub fn advance_to_opt_cstr(&self, sub: Option<&std::ffi::CStr>) -> Self {
+        match sub {
+            Some(s) => self.advance_to_cstr(s),
+            None => Self::NULL,
+        }
+    }
+
+    #[inline]
+    pub fn advance_to_opt_slice(&self, sub: Option<&[u8]>) -> Self {
+        match sub {
+            Some(s) => self.advance_to_slice(s),
+            None => Self::NULL,
+        }
+    }
+
+    #[inline]
+    pub fn to_cstring(&self) -> std::ffi::CString {
+        self.as_cstr().to_owned()
+    }
+
+    #[inline(always)]
+    pub fn first_byte(&self) -> u8 {
+        self.cstr_buf().first().copied().unwrap_or(0)
+    }
+
+    #[inline(always)]
+    pub fn byte_at(&self, idx: usize) -> u8 {
+        self.as_bytes().get(idx).copied().unwrap_or(0)
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.as_slice().is_empty()
+    }
+
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.as_slice().len()
+    }
+
+    #[inline(always)]
+    pub fn slice(&self, len: usize) -> &[u8] {
+        let b = self.as_slice();
+        &b[..len.min(b.len())]
+    }
+
+    #[inline(always)]
+    pub fn wrapping_add(&self, n: usize) -> Self {
+        if self.is_null() {
+            return Self::NULL;
+        }
+        let max_step = self.raw_buf().len().saturating_sub(1 + self.start);
+        let step = n.min(max_step);
+        let mut res = self.clone();
+        res.start += step;
+        res
+    }
+
+    #[inline(always)]
+    pub fn skipwhite(&self) -> Self {
+        self.wrapping_add(crate::charset::skipwhite_len(self.as_bytes()))
+    }
+
+    #[inline(always)]
+    pub fn skiptowhite(&self) -> Self {
+        self.wrapping_add(crate::charset::skiptowhite_len(self.as_bytes()))
+    }
+
+    #[inline(always)]
+    pub fn offset_from(&self, base: &Self) -> usize {
+        debug_assert!(
+            self.is_null() || base.is_null() || self.shares_buf(base),
+            "RcSlice::offset_from called on slices from different buffers"
+        );
+        self.start.saturating_sub(base.start)
+    }
+
+    #[inline(always)]
+    pub fn offset_in(&self, base: &Self, d: isize) -> Self {
+        if d >= 0 {
+            self.wrapping_add(d as usize)
+        } else {
+            let off = self.offset_from(base).saturating_sub((-d) as usize);
+            base.wrapping_add(off)
+        }
     }
 
     #[inline(always)]
@@ -207,9 +622,7 @@ impl RcSlice {
                 .saturating_sub(base.as_ptr() as usize)
                 .min(base.len())
         };
-        let mut res = self.clone();
-        res.start = res.start.saturating_add(off);
-        res
+        self.wrapping_add(off)
     }
 }
 
@@ -325,11 +738,9 @@ impl OptString {
 
     #[inline(always)]
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        let bytes = crate::memory::bytes_until_nul(bytes);
-        if bytes.is_empty() {
-            return Self(crate::globals::CloneCell::new(Some(RcCStr::EMPTY)));
-        }
-        Self::from_cstr(&crate::memory::bytes_to_cstring(bytes))
+        Self(crate::globals::CloneCell::new(Some(RcCStr::from_bytes(
+            bytes,
+        ))))
     }
 
     #[inline(always)]
@@ -366,14 +777,7 @@ impl OptString {
         {
             return;
         }
-        if bytes.is_empty() {
-            self.0.set(Some(RcCStr::EMPTY));
-            return;
-        }
-        self.0
-            .set(Some(RcCStr::from_cstring(crate::memory::bytes_to_cstring(
-                bytes,
-            ))));
+        self.0.set(Some(RcCStr::from_bytes(bytes)));
     }
 
     #[inline(always)]
@@ -1847,5 +2251,11 @@ mod tests {
         assert_eq!(opt_vars().p_mousescroll_vert.get(), 3);
         assert_eq!(opt_vars().p_mousescroll_hor.get(), 6);
         assert!(opt_vars().p_vfile.is_empty());
+
+        let rc = RcCStr::from_bytes(b"hello\0world");
+        assert_eq!(rc.as_cstr(), c"hello");
+        assert_eq!(rc.slice(2).as_cstr(), c"llo");
+        assert!(RcCStr::from_bytes(b"").is_empty());
+        assert!(RcCStr::from_bytes(b"\0abc").is_empty());
     }
 }

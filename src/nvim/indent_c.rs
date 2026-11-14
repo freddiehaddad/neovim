@@ -1641,7 +1641,7 @@ pub fn get_c_indent() -> i32 {
                         if curbuf().b_ind_in_comment2.get() == 0 {
                             let start_slice = crate::memline::ml_get_slice(cp.lnum);
                             let off = (cp.col as usize + 2).min(start_slice.len());
-                            look = start_slice.slice(off);
+                            look = start_slice.wrapping_add(off);
                             if !look.is_empty() {
                                 let trimmed = crate::charset::skipwhite_slice(&look);
 
@@ -1768,7 +1768,8 @@ pub fn get_c_indent() -> i32 {
                             }
                             curwin().w_cursor.set_lnum(save_lnum);
                             let paren_line = crate::memline::ml_get_slice(our_paren_pos.lnum);
-                            look = paren_line.slice((look_col as usize).min(paren_line.len()));
+                            look =
+                                paren_line.wrapping_add((look_col as usize).min(paren_line.len()));
                         }
                         if theline_b0 == b')'
                             || (curbuf().b_ind_unclosed.get() == 0 && !is_if_for_while)

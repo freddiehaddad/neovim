@@ -2346,7 +2346,7 @@ pub fn prep_exarg(eap: &mut Exarg, buf: &FileBuf) -> std::ffi::CString {
     cmd_vec.extend_from_slice(b"e ++enc=");
     cmd_vec.extend_from_slice(&fenc_bytes);
     let cmd_cstr = std::ffi::CString::new(cmd_vec).unwrap_or_default();
-    eap.cmd = crate::strings::OwnedSlice::from_cstr(&cmd_cstr);
+    eap.cmd = crate::option_vars::RcSlice::from_cstr(&cmd_cstr);
     eap.force_enc = 8;
     eap.bad_char = buf.b_bad_char.get();
     eap.force_ff = (buf.b_p_ff.first_byte()) as i32;

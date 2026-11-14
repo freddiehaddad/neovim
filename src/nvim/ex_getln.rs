@@ -595,9 +595,9 @@ pub fn parse_pattern_and_range(
 
     let end_off = skip_regexp_magic(p.as_bytes(), delim, i32::from(*is_magic), Some(&mut magic));
     let end = p.wrapping_add(end_off);
-    let use_last_pat = end.addr() == p.addr() && i32::from(end.first_byte()) == delim;
+    let use_last_pat = end == p && i32::from(end.first_byte()) == delim;
 
-    if end.addr() == p.addr() && !use_last_pat {
+    if end == p && !use_last_pat {
         return false;
     }
 
@@ -610,7 +610,7 @@ pub fn parse_pattern_and_range(
     }
 
     // Found a non-empty pattern or //
-    *skiplen = p.offset_from(get_cmdline_info().cmdbuff()) as i32;
+    *skiplen = p.offset() as i32;
     *patlen = end.offset_from(&p) as i32;
 
     // Parse the address range
@@ -3620,7 +3620,6 @@ pub fn realloc_cmdbuff(mut len: i32) {
         len += 20;
     }
 
-    let p = get_cmdline_info().cmdbuff();
     get_cmdline_info()
         .cmdbuff_vec
         .borrow_mut()
@@ -3637,7 +3636,7 @@ pub fn realloc_cmdbuff(mut len: i32) {
         && xpc.xp_context != EXPAND_NOTHING
         && xpc.xp_context != EXPAND_UNSUCCESSFUL
     {
-        let i = ((xpc.xp_pattern).offset_from(p) as isize) as i32;
+        let i = xpc.xp_pattern.offset() as i32;
 
         if i >= 0 && i <= ccline.cmdlen.get() {
             xpc.xp_pattern = ccline.cmdbuff().wrapping_add(i as usize);

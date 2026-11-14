@@ -1504,7 +1504,7 @@ pub fn set_context_in_map_cmd(
             }
             break;
         }
-        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
+        xp.xp_pattern = xp.line_slice(arg);
     }
 
     None

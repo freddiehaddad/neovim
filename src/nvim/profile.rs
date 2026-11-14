@@ -414,7 +414,7 @@ pub fn get_profile_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
 
 /// Set command-line completion context for `:profile` (`set_context_in_profile_cmd`).
 pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg_slice: &[u8]) {
-    let arg = crate::strings::OwnedSlice::from_bytes(arg_slice);
+    let arg = xp.line_slice_bytes(arg_slice);
     xp.xp_context = EXPAND_PROFILE;
     prof_st(|st| st.pexpand_what.set(PEXP_SUBCMD));
     let end_subcmd = arg.skiptowhite();

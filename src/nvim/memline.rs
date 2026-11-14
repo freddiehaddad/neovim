@@ -2235,7 +2235,7 @@ pub fn ml_get_buf_slice(buf: &FileBuf, lnum: Linenr) -> crate::option_vars::RcSl
 /// Return the bytes (excluding NUL) starting at position `pos` in `curbuf`.
 #[inline(always)]
 pub fn ml_get_pos_slice(pos: &CursorPos) -> crate::option_vars::RcSlice {
-    ml_get_buf_slice(&curbuf(), pos.lnum).slice(pos.col.max(0) as usize)
+    ml_get_buf_slice(&curbuf(), pos.lnum).wrapping_add(pos.col.max(0) as usize)
 }
 
 /// Mutate the byte slice (excluding NUL) of a line in `buf`, marking its data block dirty.

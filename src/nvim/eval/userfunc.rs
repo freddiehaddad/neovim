@@ -2749,7 +2749,7 @@ fn list_functions(mut regmatch: Option<&mut Regmatch>) {
     }
 }
 
-fn list_functions_matching_pat(eap: &mut Exarg) -> crate::strings::OwnedSlice {
+fn list_functions_matching_pat(eap: &mut Exarg) -> crate::option_vars::RcSlice {
     let pat_start = eap.arg.wrapping_add(1);
     let mut p = pat_start.advance_to_cstr(skip_regexp(pat_start.as_cstr(), b'/' as i32, 1));
     if !eap.skip {
@@ -2788,11 +2788,10 @@ fn list_one_function(
     }
 
     eap.nextcmd = p.advance_to_opt_cstr(check_nextcmd(p.as_cstr()));
+    drop(p);
 
-    if !eap.nextcmd.is_null()
-        && let Some(b) = eap.arg_cstr_buf_mut().get_mut(p_off)
-    {
-        *b = 0;
+    if !eap.nextcmd.is_null() {
+        eap.set_arg_byte(p_off, 0);
     }
 
     if eap.skip || g_st().got_int.get() {
@@ -3000,7 +2999,7 @@ fn get_function_body(
                             eap.set_cmdline_vec(new_buf);
                             eap.nextcmd = eap.cmdline_ptr().wrapping_add(off);
                         } else {
-                            eap.nextcmd = crate::strings::OwnedSlice::from_cstr(nextcmd);
+                            eap.nextcmd = crate::option_vars::RcSlice::from_cstr(nextcmd);
                         }
                     }
                     break;
@@ -3657,10 +3656,9 @@ pub fn ex_delfunction(eap: &mut Exarg) {
         return;
     }
     eap.nextcmd = p.advance_to_opt_cstr(check_nextcmd(p.as_cstr()));
-    if !eap.nextcmd.is_null()
-        && let Some(b) = eap.arg_cstr_buf_mut().get_mut(p_off)
-    {
-        *b = NUL as u8;
+    drop(p);
+    if !eap.nextcmd.is_null() {
+        eap.set_arg_byte(p_off, NUL as u8);
     }
 
     if name_cstr.as_bytes().first().is_some_and(u8::is_ascii_digit) && fudi.fd_dict.is_null() {
@@ -3804,7 +3802,7 @@ pub fn ex_return(eap: &mut Exarg) {
         g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
     }
 
-    eap.nextcmd = crate::strings::OwnedSlice::NULL;
+    eap.nextcmd = crate::option_vars::RcSlice::NULL;
     if (!(arg).is_empty() && (arg).first_byte() != b'|' && (arg).first_byte() != b'\n')
         && eval0((arg).as_cstr(), &mut rettv, Some(&mut *eap), &mut evalarg)
     {
@@ -3822,7 +3820,7 @@ pub fn ex_return(eap: &mut Exarg) {
     }
 
     if returning {
-        eap.nextcmd = crate::strings::OwnedSlice::NULL;
+        eap.nextcmd = crate::option_vars::RcSlice::NULL;
     } else if eap.nextcmd.is_null() {
         eap.nextcmd = arg.advance_to_opt_cstr(check_nextcmd((arg).as_cstr()));
     }

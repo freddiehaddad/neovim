@@ -3328,7 +3328,7 @@ fn syn_cmd_onoff(eap: &mut Exarg, name: &std::ffi::CStr) {
 pub fn syn_maybe_enable() {
     if !SYN_STATE.with(|s| s.did_syntax_onoff.get()) {
         let mut ea: Exarg = Exarg::new();
-        ea.arg = crate::strings::OwnedSlice::from_cstr(c"");
+        ea.arg = crate::option_vars::RcSlice::from_cstr(c"");
         ea.skip = false;
         syn_cmd_on(&mut ea, 0);
     }
@@ -4075,7 +4075,9 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
         }
     } else {
         #[cfg(windows)]
-        path_to_slash(eap.arg_mut_bytes());
+        eap.with_arg_mut_bytes(|b| {
+            path_to_slash(b);
+        });
     }
 
     if SYN_STATE.with(|s| s.running_syn_inc_tag.get()) >= MAX_SYN_INC_TAG {
@@ -5376,12 +5378,12 @@ pub fn reset_expand_highlight() {
 
 pub fn set_context_in_echohl_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     xp.xp_context = EXPAND_HIGHLIGHT;
-    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
+    xp.xp_pattern = xp.line_slice(arg);
     g_st().include_none.set(1);
 }
 
 pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: &CStr) {
-    let arg_ptr = crate::strings::OwnedSlice::from_cstr(arg);
+    let arg_ptr = xp.line_slice(arg);
     xp.xp_context = EXPAND_SYNTAX;
     SYN_STATE.with(|s| s.expand_what.set(EXP_SUBCMD));
     xp.xp_pattern = arg_ptr.clone();

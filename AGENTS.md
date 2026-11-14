@@ -52,7 +52,7 @@ Follow these rules strictly when modifying `src/nvim/`:
    - Note that LuaJIT's `ffi.C` tests declare several types (such as `Error`) as 0-byte `typedef struct {}`; exported `extern "C"` shims must not write larger Rust structs through such pointers.
    - In `src/nvim/event/`, `libuv` callbacks mutate `Proc` and `Stream` fields through raw C pointers (`handle.data`). Polling loops must take `*mut Proc` and read shared state via `VolatileCell` / `std::ptr::read_volatile`, never holding `&mut Proc` across `uv_run`.
 5. **Preserve NUL-termination invariants on C-string buffers**:
-   - Use `CStrSlice`, `OwnedSlice`, `RcSlice`, `CString`, or `c"..."` literals for NUL-terminated strings; never pass `Vec::new().as_ptr()` to C functions expecting a valid NUL-terminated `*const c_char`.
+   - Use `RcCStr`, `RcSlice`, `CString`, or `c"..."` literals for NUL-terminated strings; never pass `Vec::new().as_ptr()` to C functions expecting a valid NUL-terminated `*const c_char`.
 6. **Always validate nontrivial core changes in `--release` mode**:
    - Test core changes with `cargo xtask functionaltest --release` to validate both optimized codegen and runtime `RefCell` invariants.
 

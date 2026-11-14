@@ -7488,20 +7488,19 @@ pub fn set_imsearch_global(buf: &FileBuf) {
 
 pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt_flags: i32) {
     let mut arg = arg_cstr;
+    let arg_slice = xp.line_slice(arg_cstr);
     OPT_STATE.with(|s| s.expand_option_flags.set(opt_flags));
 
     xp.xp_context = EXPAND_SETTINGS;
     let arg_bytes = arg_cstr.to_bytes();
     if arg_bytes.is_empty() {
-        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
+        xp.xp_pattern = arg_slice;
         return;
     }
     let argend = crate::memory::CStrSubslice::advance(arg, arg_bytes.len());
     let mut p_idx = arg_bytes.len() - 1;
     if arg_bytes[p_idx] == b' ' && (p_idx == 0 || arg_bytes[p_idx - 1] != b'\\') {
-        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(
-            crate::memory::CStrSubslice::advance(arg, p_idx + 1),
-        );
+        xp.xp_pattern = arg_slice.wrapping_add(p_idx + 1);
         return;
     }
     while p_idx > 0 {
@@ -7527,7 +7526,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         p_idx += 3;
     }
     let mut p = crate::memory::CStrSubslice::advance(arg, p_idx);
-    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(p);
+    xp.xp_pattern = arg_slice.advance_to_cstr(p);
     let p_bytes = &arg_bytes[p_idx..];
     arg = p;
 
@@ -7605,10 +7604,10 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
     }
 
     let p_after_eq = crate::memory::CStrSubslice::advance(p, 1);
-    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(p_after_eq);
+    xp.xp_pattern = arg_slice.advance_to_cstr(p_after_eq);
     OPT_STATE.with(|s| {
         s.expand_option_start_col
-            .set(((p_after_eq.as_ptr() as usize).saturating_sub(xp.xp_line.addr()) as isize) as i32)
+            .set(xp.xp_pattern.offset_from(&xp.xp_line) as i32)
     });
 
     let opt_var = get_option(opt_idx).var();
@@ -7678,7 +7677,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         || (flags & K_OPT_FLAG_COMMA) != 0
         || (flags & K_OPT_FLAG_COLON) != 0
     {
-        let pat_start_idx = xp.xp_pattern.offset_from(arg_cstr);
+        let pat_start_idx = xp.xp_pattern.offset_from(&arg_slice);
         let mut idx = arg_bytes.len();
         while idx > pat_start_idx + 1 {
             idx -= 1;
@@ -7697,8 +7696,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
                     || comma_unesc
                     || (b == b':' && (flags & K_OPT_FLAG_COLON) != 0)
                 {
-                    xp.xp_pattern =
-                        crate::strings::OwnedSlice::from_cstr(arg_cstr).wrapping_add(idx + 1);
+                    xp.xp_pattern = arg_slice.wrapping_add(idx + 1);
                     break;
                 }
             }
@@ -7706,7 +7704,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
     }
 
     if (flags & K_OPT_FLAG_FLAG_LIST) != 0 {
-        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(argend);
+        xp.xp_pattern = arg_slice.advance_to_cstr(argend);
     }
 
     if get_option(opt_idx).var().ptr_eq(&opt_vars().p_sps) {

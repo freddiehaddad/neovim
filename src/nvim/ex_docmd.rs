@@ -315,11 +315,11 @@ pub struct ExMagic {
 }
 
 pub struct Exarg {
-    pub arg: crate::strings::OwnedSlice,
-    pub args: Vec<crate::strings::OwnedSlice>,
+    pub arg: crate::option_vars::RcSlice,
+    pub args: Vec<crate::option_vars::RcSlice>,
     pub arglens: Vec<usize>,
-    pub nextcmd: crate::strings::OwnedSlice,
-    pub cmd: crate::strings::OwnedSlice,
+    pub nextcmd: crate::option_vars::RcSlice,
+    pub cmd: crate::option_vars::RcSlice,
     pub cmdline_buf: Vec<u8>,
     pub cmdidx: Cmdidx,
     pub argt: u32,
@@ -352,11 +352,11 @@ pub struct Exarg {
 impl Exarg {
     pub const fn new() -> Self {
         Self {
-            arg: crate::strings::OwnedSlice::NULL,
+            arg: crate::option_vars::RcSlice::NULL,
             args: Vec::new(),
             arglens: Vec::new(),
-            nextcmd: crate::strings::OwnedSlice::NULL,
-            cmd: crate::strings::OwnedSlice::NULL,
+            nextcmd: crate::option_vars::RcSlice::NULL,
+            cmd: crate::option_vars::RcSlice::NULL,
             cmdline_buf: Vec::new(),
             cmdidx: Cmdidx::CmdAppend,
             argt: 0,
@@ -394,12 +394,46 @@ impl Exarg {
         self.cmdline_buf = new_buf;
     }
 
-    pub fn arg_cstr_buf_mut(&mut self) -> &mut [u8] {
-        self.arg.cstr_buf_mut()
+    pub fn with_arg_cstr_buf_mut<R>(&mut self, f: impl FnOnce(&mut [u8]) -> R) -> R {
+        self.arg
+            .mutate_in_place(&mut [&mut self.cmd, &mut self.nextcmd], false, f)
     }
 
-    pub fn arg_mut_bytes(&mut self) -> &mut [u8] {
-        self.arg.mut_bytes()
+    pub fn with_arg_mut_bytes<R>(&mut self, f: impl FnOnce(&mut [u8]) -> R) -> R {
+        self.arg
+            .mutate_in_place(&mut [&mut self.cmd, &mut self.nextcmd], true, f)
+    }
+
+    pub fn set_arg_byte(&mut self, offset: usize, val: u8) {
+        self.with_arg_cstr_buf_mut(|buf| {
+            if let Some(b) = buf.get_mut(offset) {
+                *b = val;
+            }
+        });
+    }
+
+    pub fn set_cmd_byte(&mut self, offset: usize, val: u8) {
+        self.cmd
+            .mutate_in_place(&mut [&mut self.arg, &mut self.nextcmd], false, |buf| {
+                if let Some(b) = buf.get_mut(offset) {
+                    *b = val;
+                }
+            });
+    }
+
+    pub fn set_cmd_subslice_lowercased_nul(&mut self, offset: usize, len: usize) {
+        self.cmd
+            .mutate_in_place(&mut [&mut self.arg, &mut self.nextcmd], false, |v| {
+                if offset <= v.len() {
+                    let end = (offset + len).min(v.len().saturating_sub(1));
+                    for b in &mut v[offset..end] {
+                        *b = crate::charset::tolower_asc(i32::from(*b)) as u8;
+                    }
+                    if end < v.len() {
+                        v[end] = 0;
+                    }
+                }
+            });
     }
 }
 
@@ -415,16 +449,11 @@ impl Exarg {
     }
 
     #[inline]
-    pub fn cmdline_addr(&self) -> usize {
-        self.cmdline_buf.as_ptr() as usize
-    }
-
-    #[inline]
-    pub fn cmdline_ptr(&self) -> crate::strings::OwnedSlice {
+    pub fn cmdline_ptr(&self) -> crate::option_vars::RcSlice {
         if self.cmdline_buf.is_empty() {
-            crate::strings::OwnedSlice::NULL
+            crate::option_vars::RcSlice::NULL
         } else {
-            crate::strings::OwnedSlice::from_bytes(&self.cmdline_buf)
+            crate::option_vars::RcSlice::from_bytes(&self.cmdline_buf)
         }
     }
 
@@ -5855,11 +5884,11 @@ fn parse_count(
             eap.arg = eap.arg.wrapping_add(step);
 
             if !eap.args.is_empty() {
-                let arg0_addr = eap.args[0].addr();
+                let arg0_off = eap.args[0].offset();
                 let arglen0 = eap.arglens[0];
-                debug_assert!(eap.arg.addr() >= arg0_addr);
-                if eap.arg.addr() < arg0_addr + arglen0 {
-                    eap.arglens[0] -= eap.arg.addr() - arg0_addr;
+                debug_assert!(eap.arg.offset() >= arg0_off);
+                if eap.arg.offset() < arg0_off + arglen0 {
+                    eap.arglens[0] -= eap.arg.offset() - arg0_off;
                     eap.args[0] = eap.arg.clone();
                 } else {
                     shift_cmd_args(eap);
@@ -5884,7 +5913,7 @@ pub fn is_cmd_ni(cmdidx: Cmdidx) -> bool {
     ptr::fn_addr_eq(func, ex_ni as ExFunc) || ptr::fn_addr_eq(func, ex_script_ni as ExFunc)
 }
 
-fn find_excmd_after_range(eap: &mut Exarg) -> crate::strings::OwnedSlice {
+fn find_excmd_after_range(eap: &mut Exarg) -> crate::option_vars::RcSlice {
     let cmd = eap.cmd.clone();
     eap.cmd = cmd.advance_to_cstr(skip_range(cmd.as_cstr(), None));
     let p = find_ex_command(eap, None);
@@ -5892,7 +5921,7 @@ fn find_excmd_after_range(eap: &mut Exarg) -> crate::strings::OwnedSlice {
     p
 }
 
-fn parse_bang(eap: &Exarg, p: &mut crate::strings::OwnedSlice) -> bool {
+fn parse_bang(eap: &Exarg, p: &mut crate::option_vars::RcSlice) -> bool {
     if p.first_byte() == b'!'
         && eap.cmdidx != Cmdidx::CmdSubstitute
         && eap.cmdidx != Cmdidx::CmdSmagic
@@ -6024,22 +6053,21 @@ pub fn parse_cmdline(
         } else if !skipmods && !eap.cmdidx.is_user() && cmd_has_expr_args(eap.cmdidx) {
             let mut arg = eap.arg.clone();
             while !arg.is_empty() && arg.first_byte() != b'|' && arg.first_byte() != b'\n' {
-                let start_addr = arg.addr();
+                let start_off = arg.offset();
                 g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
                 let mut arg_cstr = arg.as_cstr();
                 skip_expr(&mut arg_cstr, None);
                 arg = arg.advance_to_cstr(arg_cstr);
                 g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
-                if arg.addr() == start_addr {
+                if arg.offset() == start_off {
                     arg = arg.wrapping_add(1);
                 }
             }
             if arg.first_byte() == b'|' || arg.first_byte() == b'\n' {
                 let split_off = arg.offset_from(&eap.arg);
                 eap.nextcmd = arg.advance_to_opt_cstr(check_nextcmd(arg.as_cstr()));
-                if let Some(b) = eap.arg_cstr_buf_mut().get_mut(split_off) {
-                    *b = NUL as u8;
-                }
+                drop(arg);
+                eap.set_arg_byte(split_off, NUL as u8);
             }
         }
 
@@ -6682,8 +6710,7 @@ fn do_one_cmd(
         {
             let mut arg_len = ea.arg.len();
             let mut nextcmd_off = None;
-            {
-                let arg_slice = ea.arg_cstr_buf_mut();
+            ea.with_arg_cstr_buf_mut(|arg_slice| {
                 let mut idx = 0;
                 while idx < arg_len {
                     if arg_slice[idx] == b'\\' && idx + 1 < arg_len && arg_slice[idx + 1] == b'\n' {
@@ -6696,7 +6723,7 @@ fn do_one_cmd(
                     }
                     idx += 1;
                 }
-            }
+            });
             if let Some(off) = nextcmd_off {
                 ea.nextcmd = ea.arg.wrapping_add(off);
             }
@@ -6785,7 +6812,7 @@ fn do_one_cmd(
         .set(save_pending_end_reg_executing);
 
     if !ea.nextcmd.is_null() && ea.nextcmd.is_empty() {
-        ea.nextcmd = crate::strings::OwnedSlice::NULL;
+        ea.nextcmd = crate::option_vars::RcSlice::NULL;
     }
 
     g_st()
@@ -6839,7 +6866,7 @@ pub fn parse_command_modifiers(
     skip_only: bool,
 ) -> bool {
     let orig_cmd = eap.cmd.clone();
-    let mut cmd_start = crate::strings::OwnedSlice::NULL;
+    let mut cmd_start = crate::option_vars::RcSlice::NULL;
     let mut has_visual_range = false;
     *cmod = Cmdmod::new();
 
@@ -7003,7 +7030,7 @@ pub fn parse_command_modifiers(
                     cmod.cmod_split |= WSP_HOR;
                     continue;
                 }
-                if p.addr() != eap.cmd.addr()
+                if !p.same_pos(&eap.cmd)
                     || !checkforcmd(p.as_bytes(), b"hide", 3)
                         .inspect(|&n| p = p.wrapping_add(n))
                         .is_some()
@@ -7169,20 +7196,20 @@ pub fn parse_command_modifiers(
     }
 
     if has_visual_range {
-        if eap.cmd.addr() > cmd_start.addr() {
+        if eap.cmd.offset() > cmd_start.offset() {
             let mod_len = eap.cmd.offset_from(&cmd_start);
             if eap.cmdline_buf.len() >= mod_len + 5 {
                 eap.cmdline_buf.copy_within(5..5 + mod_len, 0);
                 eap.cmdline_buf[mod_len - 1..mod_len + 5].copy_from_slice(b":'<,'>");
                 eap.cmd = eap.cmdline_ptr().wrapping_add(mod_len);
             } else {
-                let mut new_cmd = Vec::with_capacity(5 + eap.cmd.len());
-                new_cmd.extend_from_slice(b"'<,'>");
-                new_cmd.extend_from_slice(eap.cmd.as_bytes());
-                eap.cmd = crate::strings::OwnedSlice::from_bytes_with_addr(
-                    &new_cmd,
-                    orig_cmd.addr().wrapping_add(mod_len),
-                );
+                let mut modified = orig_cmd;
+                let buf = modified.cstr_buf_mut();
+                if buf.len() >= mod_len + 5 {
+                    buf.copy_within(5..5 + mod_len, 0);
+                    buf[mod_len - 1..mod_len + 5].copy_from_slice(b":'<,'>");
+                }
+                eap.cmd = modified.wrapping_add(mod_len);
             }
         } else {
             eap.cmd = orig_cmd;
@@ -7502,7 +7529,10 @@ fn one_letter_cmd(bytes: &[u8], idx: &mut Cmdidx) -> bool {
     false
 }
 
-pub fn find_ex_command(eap: &mut Exarg, mut full: Option<&mut bool>) -> crate::strings::OwnedSlice {
+pub fn find_ex_command(
+    eap: &mut Exarg,
+    mut full: Option<&mut bool>,
+) -> crate::option_vars::RcSlice {
     let mut p = eap.cmd.clone();
     let mut cmdidx_out = Cmdidx::CmdAppend;
     let cmd_bytes = p.as_bytes();
@@ -7594,13 +7624,13 @@ pub fn find_ex_command(eap: &mut Exarg, mut full: Option<&mut bool>) -> crate::s
                 None,
                 None,
             )
-            .map_or(crate::strings::OwnedSlice::NULL, |off| {
+            .map_or(crate::option_vars::RcSlice::NULL, |off| {
                 eap.cmd.wrapping_add(off)
             });
         } else {
             p = eap.cmd.wrapping_add(p_off);
         }
-        if p == eap.cmd {
+        if p.same_pos(&eap.cmd) {
             eap.cmdidx = Cmdidx::CmdSize;
         }
     }
@@ -7654,7 +7684,7 @@ pub fn cmd_exists(name: &CStr) -> i32 {
     }
 
     let mut ea: Exarg = Exarg::new();
-    let name_slice = crate::strings::OwnedSlice::from_cstr(name);
+    let name_slice = crate::option_vars::RcSlice::from_cstr(name);
     ea.cmd = if matches!(name_bytes.first(), Some(&b'2' | &b'3')) {
         name_slice.wrapping_add(1)
     } else {
@@ -7683,7 +7713,7 @@ pub fn cmd_exists(name: &CStr) -> i32 {
 }
 
 pub fn f_fullcommand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut name = crate::strings::OwnedSlice::from_cstr(&tv_get_string(&argvars[0]));
+    let mut name = crate::option_vars::RcSlice::from_cstr(&tv_get_string(&argvars[0]));
 
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
@@ -8295,8 +8325,8 @@ fn skip_grep_pat(eap: &Exarg) -> usize {
 
 pub fn replace_makeprg(
     eap: &mut Exarg,
-    mut arg: crate::strings::OwnedSlice,
-) -> crate::strings::OwnedSlice {
+    mut arg: crate::option_vars::RcSlice,
+) -> crate::option_vars::RcSlice {
     let isgrep = eap.cmdidx == Cmdidx::CmdGrep
         || eap.cmdidx == Cmdidx::CmdLgrep
         || eap.cmdidx == Cmdidx::CmdGrepadd
@@ -8372,16 +8402,17 @@ pub fn expand_filename(
         let mut srclen: usize = 0;
         let mut escaped = false;
         let mut do_ecmd_lnum = eap.do_ecmd_lnum;
-        let arg_mut = eap.arg_cstr_buf_mut();
-        let repl_owned = eval_vars(
-            arg_mut,
-            arg_off,
-            &mut srclen,
-            Some(&mut do_ecmd_lnum),
-            errormsgp,
-            Some(&mut escaped),
-            true,
-        );
+        let repl_owned = eap.with_arg_cstr_buf_mut(|arg_mut| {
+            eval_vars(
+                arg_mut,
+                arg_off,
+                &mut srclen,
+                Some(&mut do_ecmd_lnum),
+                errormsgp,
+                Some(&mut escaped),
+                true,
+            )
+        });
         eap.do_ecmd_lnum = do_ecmd_lnum;
         if errormsgp.is_some() {
             return false;
@@ -8455,11 +8486,11 @@ pub fn expand_filename(
 
         #[cfg(unix)]
         if !has_wildcards {
-            backslash_halve(eap.arg_cstr_buf_mut());
+            eap.with_arg_cstr_buf_mut(backslash_halve);
         }
         #[cfg(not(unix))]
         {
-            backslash_halve(eap.arg_cstr_buf_mut());
+            eap.with_arg_cstr_buf_mut(backslash_halve);
         }
 
         if has_wildcards {
@@ -8481,7 +8512,7 @@ pub fn expand_filename(
             };
             repl_cmdline(eap, 0, eap.arg.len(), &expanded);
         } else {
-            to_slash(eap.arg_mut_bytes());
+            eap.with_arg_mut_bytes(to_slash);
         }
     }
     true
@@ -8489,8 +8520,8 @@ pub fn expand_filename(
 
 fn repl_cmdline(eap: &mut Exarg, arg_off: usize, srclen: usize, repl: &CStr) -> usize {
     let old_cmdline = eap.cmdline_ptr();
-    let cmd_off = eap.cmd.offset_from(&old_cmdline);
-    let eap_arg_off = eap.arg.offset_from(&old_cmdline);
+    let cmd_off = eap.cmd.offset();
+    let eap_arg_off = eap.arg.offset();
     let offset = eap_arg_off + arg_off;
     let src = eap.arg.wrapping_add(arg_off);
     let len = repl.to_bytes().len();
@@ -8516,15 +8547,11 @@ fn repl_cmdline(eap: &mut Exarg, arg_off: usize, srclen: usize, repl: &CStr) -> 
     } else {
         None
     };
-    let arg_offs: Vec<usize> = eap
-        .args
-        .iter()
-        .map(|a| a.offset_from(&old_cmdline))
-        .collect();
+    let arg_offs: Vec<usize> = eap.args.iter().map(|a| a.offset()).collect();
     eap.set_cmdline_vec(new_buf);
     let new_cmdline = eap.cmdline_ptr();
     if let Some(nc_off) = nextcmd_off {
-        eap.nextcmd = crate::strings::OwnedSlice::from_bytes(&eap.cmdline_buf[nc_off..]);
+        eap.nextcmd = crate::option_vars::RcSlice::from_bytes(&eap.cmdline_buf[nc_off..]);
     }
     eap.cmd = new_cmdline.wrapping_add(cmd_off);
     eap.arg = new_cmdline.wrapping_add(eap_arg_off);
@@ -8543,18 +8570,16 @@ fn repl_cmdline(eap: &mut Exarg, arg_off: usize, srclen: usize, repl: &CStr) -> 
 pub fn separate_nextcmd(eap: &mut Exarg) {
     let mut idx = skip_grep_pat(eap);
     let arg_off_in_cmdline = if !eap.cmdline_buf.is_empty() {
-        Some(eap.arg.offset_from(eap.cmdline_addr()))
+        Some(eap.arg.offset())
     } else {
         None
     };
-    let base_addr = eap.arg.addr();
     let cmdidx = eap.cmdidx;
     let argt = eap.argt;
     let has_cpo_bar = crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_BAR);
-    let mut nextcmd = crate::strings::OwnedSlice::NULL;
+    let mut nextcmd = crate::option_vars::RcSlice::NULL;
 
-    {
-        let buf = eap.arg_cstr_buf_mut();
+    eap.with_arg_cstr_buf_mut(|buf| {
         let mut len = crate::memory::bytes_until_nul(buf).len();
         while idx < len {
             let b0 = buf[idx];
@@ -8594,11 +8619,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                 } else {
                     let p_cstr = crate::memory::bytes_as_cstr(&buf[idx..=len]);
                     if let Some(nc) = check_nextcmd(p_cstr) {
-                        let nc_off = idx + ((nc.as_ptr() as usize) - (p_cstr.as_ptr() as usize));
-                        nextcmd = crate::strings::OwnedSlice::from_bytes_with_addr(
-                            nc.to_bytes_with_nul(),
-                            base_addr.wrapping_add(nc_off),
-                        );
+                        nextcmd = crate::option_vars::RcSlice::from_cstr(nc);
                     }
                     buf[idx] = 0;
                     len = idx;
@@ -8611,7 +8632,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
         if (argt & EX_NOTRLCOM) == 0 {
             del_trailing_spaces(&mut buf[..=len]);
         }
-    }
+    });
 
     if !nextcmd.is_null() {
         eap.nextcmd = nextcmd;
@@ -8628,20 +8649,21 @@ pub fn getargcmd(eap: &mut Exarg) -> Option<std::ffi::CString> {
     if eap.arg.first_byte() != b'+' {
         return None;
     }
-    let mut arg = eap.arg.wrapping_add(1);
-    let command = if ascii_isspace(arg.first_byte()) || arg.is_empty() {
+    eap.arg = eap.arg.wrapping_add(1);
+    let command = if ascii_isspace(eap.arg.first_byte()) || eap.arg.is_empty() {
         Some(c"$".to_owned())
     } else {
-        let cmd_buf = arg.cstr_buf_mut();
-        let off = skip_cmd_arg_mut(cmd_buf);
-        let cmd_cstr = crate::memory::bytes_to_cstring(&cmd_buf[..off]);
-        arg = arg.wrapping_add(off);
-        if !arg.is_empty() {
-            arg = arg.wrapping_add(1);
+        let (cmd_cstr, off) = eap.with_arg_cstr_buf_mut(|cmd_buf| {
+            let off = skip_cmd_arg_mut(cmd_buf);
+            (crate::memory::bytes_to_cstring(&cmd_buf[..off]), off)
+        });
+        eap.arg = eap.arg.wrapping_add(off);
+        if !eap.arg.is_empty() {
+            eap.arg = eap.arg.wrapping_add(1);
         }
         Some(cmd_cstr)
     };
-    eap.arg = arg.skipwhite();
+    eap.arg = eap.arg.skipwhite();
     command
 }
 
@@ -8766,13 +8788,13 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
         let after_cstr = skip_cmd_arg(arg_cstr, false);
         (after_cstr.as_ptr() as usize) - (arg_cstr.as_ptr() as usize)
     };
-    let val_bytes = arg.slice(val_len);
     let end_off = arg.offset_from(&eap.arg) + val_len;
-    let next_arg = arg.wrapping_add(val_len).skipwhite();
+    let next_arg_off = arg.wrapping_add(val_len).skipwhite().offset_from(&eap.arg);
 
     let ok = match kind {
         ArgOptKind::Ff => {
-            let val_cstr = crate::memory::bytes_to_cstring(val_bytes);
+            let val_cstr = crate::memory::bytes_to_cstring(arg.slice(val_len));
+            drop(arg);
             if !check_ff_value(&val_cstr) {
                 false
             } else {
@@ -8781,17 +8803,22 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
             }
         }
         ArgOptKind::Enc => {
+            drop(arg);
             eap.force_enc = opt_off as i32;
-            eap.cmd.set_subslice_lowercased_nul(opt_off, val_len);
+            eap.set_cmd_subslice_lowercased_nul(opt_off, val_len);
             true
         }
-        ArgOptKind::Bad => get_bad_opt(val_bytes, eap),
+        ArgOptKind::Bad => {
+            let ok = get_bad_opt(arg.slice(val_len), eap);
+            drop(arg);
+            ok
+        }
         ArgOptKind::None => unreachable!(),
     };
     if ok {
-        eap.arg = next_arg;
-    } else if let Some(b) = eap.arg_cstr_buf_mut().get_mut(end_off) {
-        *b = 0;
+        eap.arg = eap.arg.wrapping_add(next_arg_off);
+    } else {
+        eap.set_arg_byte(end_off, 0);
     }
     ok
 }
@@ -8883,7 +8910,7 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                         tab_number = 0;
                         break 'theend;
                     }
-                } else if p == p_save
+                } else if p.same_pos(&p_save)
                     || (p_save).first_byte() == b'-'
                     || !(p).is_empty()
                     || tab_number > last_tab
@@ -8894,7 +8921,7 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
             } else {
                 if (p_save).is_empty() {
                     tab_number = 1;
-                } else if p == p_save
+                } else if p.same_pos(&p_save)
                     || (p_save).first_byte() == b'-'
                     || !(p).is_empty()
                     || tab_number == 0
@@ -8918,7 +8945,7 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                 tab_number = eap.line2;
                 if unaccept_arg0 == 0 {
                     let cmdline = eap.cmdline_ptr();
-                    let mut cmd_off = eap.cmd.offset_from(&cmdline);
+                    let mut cmd_off = eap.cmd.offset();
                     while {
                         cmd_off = cmd_off.saturating_sub(1);
                         let b = cmdline.byte_at(cmd_off);
@@ -10053,7 +10080,7 @@ fn set_browse_edit_arg(eap: &mut Exarg) {
             || eap.cmdidx == Cmdidx::CmdTabedit
             || eap.cmdidx == Cmdidx::CmdTabnew)
     {
-        eap.arg = crate::strings::OwnedSlice::from_cstr(c".");
+        eap.arg = crate::option_vars::RcSlice::from_cstr(c".");
     }
 }
 
@@ -10096,7 +10123,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
             let Some(ref f) = fname else {
                 break 'theend;
             };
-            eap.arg = crate::strings::OwnedSlice::from_cstr(f);
+            eap.arg = crate::option_vars::RcSlice::from_cstr(f);
         }
 
         if use_tab {
@@ -10152,8 +10179,8 @@ pub fn ex_splitview(eap: &mut Exarg) {
 pub fn tabpage_new() {
     let mut ea: Exarg = Exarg::new();
     ea.cmdidx = Cmdidx::CmdTabnew;
-    ea.cmd = crate::strings::OwnedSlice::from_cstr(c"tabn");
-    ea.arg = crate::strings::OwnedSlice::from_cstr(c"");
+    ea.cmd = crate::option_vars::RcSlice::from_cstr(c"tabn");
+    ea.arg = crate::option_vars::RcSlice::from_cstr(c"");
     ex_splitview(&mut ea);
 }
 
@@ -10381,12 +10408,12 @@ fn ex_connect(eap: &mut Exarg) {
             return; // Declined, interrupted (CTRL-C), or failed (E6101 shown).
         }
 
-        addr = crate::strings::OwnedSlice::from_cstr(ssh_rettv.vval.v_string_cstr_or_empty());
+        addr = crate::option_vars::RcSlice::from_cstr(ssh_rettv.vval.v_string_cstr_or_empty());
     } else {
         if !is_tcp && !crate::path::path_is_absolute(addr_bytes) {
             // Relative to the current directory (not the UI's), like other file args.
             if let Some(full_addr) = crate::path::FullName_save(addr.as_opt_cstr(), true) {
-                addr = crate::strings::OwnedSlice::from_cstr(full_addr.as_c_str());
+                addr = crate::option_vars::RcSlice::from_cstr(full_addr.as_c_str());
             }
         }
         if !crate::event::socket::socket_alive(
@@ -10432,7 +10459,7 @@ fn ex_connect(eap: &mut Exarg) {
                 return;
             }
             if relinked.vval.v_bool() == K_BOOL_VAR_TRUE_CONST {
-                addr = crate::strings::OwnedSlice::from_cstr(chan_addr.as_c_str());
+                addr = crate::option_vars::RcSlice::from_cstr(chan_addr.as_c_str());
             }
         }
     }
@@ -10539,7 +10566,7 @@ fn ex_find(eap: &mut Exarg) {
         return;
     };
 
-    eap.arg = crate::strings::OwnedSlice::from_cstr(&fname);
+    eap.arg = crate::option_vars::RcSlice::from_cstr(&fname);
     do_exedit(eap, None);
 }
 
@@ -11096,7 +11123,7 @@ fn ex_winsize(eap: &mut Exarg) {
 
 fn ex_wincmd(eap: &mut Exarg) {
     let mut xchar: i32 = 0;
-    let mut p: crate::strings::OwnedSlice;
+    let mut p: crate::option_vars::RcSlice;
 
     if eap.arg.first_byte() == b'g' || eap.arg.first_byte() == CTRL_G {
         let next_b = eap.arg.as_bytes().get(1).copied().unwrap_or(0);
@@ -11219,7 +11246,7 @@ fn ex_copymove(eap: &mut Exarg) {
         if let Some(msg) = errormsg {
             let _ = emsg(&msg);
         }
-        eap.nextcmd = crate::strings::OwnedSlice::NULL;
+        eap.nextcmd = crate::option_vars::RcSlice::NULL;
         return;
     }
     get_flags(eap);
@@ -11881,12 +11908,9 @@ fn ex_findpat(eap: &mut Exarg) {
             let p_cstr = skip_regexp(arg_cstr, b'/' as i32, i32::from(opt_vars().p_magic.get()));
             (p_cstr.as_ptr() as usize) - (arg_cstr.as_ptr() as usize)
         };
-        let mut p = eap.arg.wrapping_add(pat_len);
-        if !p.is_empty() {
-            if let Some(b) = eap.arg_cstr_buf_mut().get_mut(pat_len) {
-                *b = NUL as u8;
-            }
-            p = p.wrapping_add(1).skipwhite();
+        if eap.arg.byte_at(pat_len) != 0 {
+            eap.set_arg_byte(pat_len, NUL as u8);
+            let p = eap.arg.wrapping_add(pat_len + 1).skipwhite();
 
             if ends_excmd(i32::from(p.first_byte())) == 0 {
                 eap.errmsg = Some(ex_errmsg(E_TRAILING_ARG, p.as_cstr()));
@@ -12521,7 +12545,7 @@ fn ex_setfiletype(eap: &mut Exarg) {
     }
 
     set_option_value_give_err(K_OPT_FILETYPE, cstr_as_obj((arg).as_opt_cstr()), OPT_LOCAL);
-    if arg != eap.arg {
+    if !arg.same_pos(&eap.arg) {
         curbuf().b_did_filetype.set(false);
     }
 }

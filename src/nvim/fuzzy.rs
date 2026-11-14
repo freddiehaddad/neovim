@@ -976,7 +976,7 @@ pub fn search_for_fuzzy_match(
 
     if let Some((lnum, off)) = matched_line {
         let full_line = crate::memline::ml_get_buf_slice(buf, lnum);
-        *out_line = full_line.slice(off.min(full_line.len()));
+        *out_line = full_line.wrapping_add(off.min(full_line.len()));
     }
 
     found_new_match

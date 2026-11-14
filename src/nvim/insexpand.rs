@@ -4563,14 +4563,8 @@ fn get_next_filename_completion() {
 
 fn get_next_cmdline_completion() {
     let mut matches: Vec<std::ffi::CString> = Vec::new();
-    let pat = compl_pattern();
     let mut xp = COMPL_XP.with(|c| std::mem::take(&mut *c.borrow_mut()));
-    let exp_res = expand_cmdline(
-        &mut xp,
-        pat.as_deref().unwrap_or(c"").as_ptr() as usize,
-        compl_pattern_len() as i32,
-        &mut matches,
-    );
+    let exp_res = expand_cmdline(&mut xp, compl_pattern_len() as i32, &mut matches);
     if exp_res == EXPAND_OK {
         let mut add_r = Some(true);
         let mut dir = INSEXPAND.with(|s| s.compl_direction.get());
@@ -6322,10 +6316,7 @@ fn get_cmdline_compl_info(line: &CStr, curs_col: Colnr) -> bool {
     if xp.xp_context == EXPAND_UNSUCCESSFUL || xp.xp_context == EXPAND_NOTHING {
         INSEXPAND.with(|s| s.compl_col.set(curs_col));
     } else {
-        INSEXPAND.with(|s| {
-            s.compl_col
-                .set((xp.xp_pattern.offset_from(pat_cstr.to_bytes_with_nul()) as isize) as Colnr)
-        });
+        INSEXPAND.with(|s| s.compl_col.set(xp.xp_pattern.offset() as Colnr));
     }
     COMPL_XP.with(|c| *c.borrow_mut() = xp);
     INSEXPAND.with(|s| {

@@ -2266,7 +2266,7 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     eap.cmd = cmdstr.clone();
     eap.arg = cmdstr;
     eap.usefilter = false;
-    eap.nextcmd = crate::strings::OwnedSlice::NULL;
+    eap.nextcmd = crate::option_vars::RcSlice::NULL;
     eap.cmdidx = Cmdidx::CmdUser;
     eap.argt |= EX_NOSPC;
 

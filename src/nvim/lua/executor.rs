@@ -2008,7 +2008,7 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
     luaL_checktype_safe(lstate, -1, LUA_TFUNCTION);
 
     let line_end = xp.xp_line.wrapping_add(xp.xp_col as usize);
-    assert!(line_end.addr() >= xp.xp_pattern.addr());
+    assert!(line_end.offset() >= xp.xp_pattern.offset());
     let patlen = line_end.offset_from(&xp.xp_pattern) as isize;
     lua_push_bytes(lstate, xp.xp_pattern.slice(patlen as usize));
 

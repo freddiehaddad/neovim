@@ -69,9 +69,8 @@ pub trait CStrSubslice<'a> {
 impl<'a> CStrSubslice<'a> for &'a CStr {
     #[inline(always)]
     fn advance(self, n: usize) -> &'a CStr {
-        let bytes = self.to_bytes_with_nul();
-        let off = n.min(bytes.len() - 1);
-        CStr::from_bytes_with_nul(&bytes[off..]).unwrap_or(c"")
+        let len = self.to_bytes().len();
+        &self[n.min(len)..]
     }
 }
 

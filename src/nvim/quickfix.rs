@@ -5415,7 +5415,7 @@ fn vgr_jump_to_match(
         && let Some(target_dir) = target_dir
     {
         let mut ea: Exarg = Exarg::new();
-        ea.arg = crate::strings::OwnedSlice::from_cstr(target_dir);
+        ea.arg = crate::option_vars::RcSlice::from_cstr(target_dir);
         ea.cmdidx = Cmdidx::CmdLcd;
         ex_cd(&mut ea);
     }
@@ -5711,7 +5711,7 @@ fn restore_start_dir(dirname_start: &CStr) {
     os_dirname(&mut dirname_now);
     if dirname_start.to_bytes() != crate::memory::bytes_until_nul(&dirname_now) {
         let mut ea: Exarg = Exarg::new();
-        ea.arg = crate::strings::OwnedSlice::from_cstr(dirname_start);
+        ea.arg = crate::option_vars::RcSlice::from_cstr(dirname_start);
         ea.cmdidx = if curwin().w_localdir.get().is_none() {
             Cmdidx::CmdCd
         } else {
@@ -7303,7 +7303,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
     let lang_owned = if eap.arg.is_null() {
         None
     } else {
-        check_help_lang(eap.arg_cstr_buf_mut()).map(CStr::to_owned)
+        eap.with_arg_cstr_buf_mut(|buf| check_help_lang(buf).map(CStr::to_owned))
     };
     let lang = lang_owned.as_deref();
     let mut regmatch: Regmatch = Regmatch::new();

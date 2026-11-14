@@ -976,17 +976,6 @@ impl AsMbyteSlice for &CStr {
     }
 }
 
-impl AsMbyteSlice for crate::strings::OwnedSlice {
-    #[inline]
-    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
-        f(self.as_bytes())
-    }
-    #[inline]
-    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
-        f(self.as_bytes())
-    }
-}
-
 impl AsMbyteSlice for crate::option_vars::RcSlice {
     #[inline]
     fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
@@ -1028,17 +1017,6 @@ impl AsMbyteSlice for &crate::option_vars::RcCStr {
     #[inline]
     fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
         f(self.to_bytes())
-    }
-}
-
-impl AsMbyteSlice for &crate::strings::OwnedSlice {
-    #[inline]
-    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
-        f(self.as_bytes())
-    }
-    #[inline]
-    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
-        f(self.as_bytes())
     }
 }
 

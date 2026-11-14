@@ -120,7 +120,7 @@ use crate::runtime::Sctx;
 pub(crate) const EXPAND_BUF_LEN: usize = 256;
 
 pub struct ExpandCtx {
-    pub xp_pattern: crate::strings::OwnedSlice,
+    pub xp_pattern: crate::option_vars::RcSlice,
     pub xp_context: i32,
     pub xp_pattern_len: usize,
     pub xp_prefix: i32,
@@ -139,7 +139,7 @@ pub struct ExpandCtx {
     pub xp_files_kind: Vec<Option<std::ffi::CString>>,
     pub xp_files_menu: Vec<Option<std::ffi::CString>>,
     pub xp_files_info: Vec<Option<std::ffi::CString>>,
-    pub xp_line: crate::strings::OwnedSlice,
+    pub xp_line: crate::option_vars::RcSlice,
     pub xp_buf: [u8; EXPAND_BUF_LEN],
     pub xp_item: Option<std::ffi::CString>,
     pub xp_search_dir: i32,
@@ -149,7 +149,7 @@ pub struct ExpandCtx {
 impl ExpandCtx {
     pub const fn new() -> Self {
         Self {
-            xp_pattern: crate::strings::OwnedSlice::NULL,
+            xp_pattern: crate::option_vars::RcSlice::NULL,
             xp_context: 0,
             xp_pattern_len: 0,
             xp_prefix: XP_PREFIX_NONE,
@@ -173,7 +173,7 @@ impl ExpandCtx {
             xp_files_kind: Vec::new(),
             xp_files_menu: Vec::new(),
             xp_files_info: Vec::new(),
-            xp_line: crate::strings::OwnedSlice::NULL,
+            xp_line: crate::option_vars::RcSlice::NULL,
             xp_buf: [0; EXPAND_BUF_LEN],
             xp_item: None,
             xp_search_dir: 0,
@@ -189,6 +189,16 @@ impl ExpandCtx {
     pub fn set_item(&mut self, item: std::ffi::CString) -> &CStr {
         self.xp_item = Some(item);
         self.xp_item.as_deref().unwrap()
+    }
+
+    #[inline]
+    pub fn line_slice(&self, sub: &CStr) -> crate::option_vars::RcSlice {
+        self.xp_line.advance_to_cstr(sub)
+    }
+
+    #[inline]
+    pub fn line_slice_bytes(&self, sub: &[u8]) -> crate::option_vars::RcSlice {
+        self.xp_line.advance_to_slice(sub)
     }
 }
 
@@ -1617,12 +1627,12 @@ impl CmdlineInfo {
     }
 
     #[inline]
-    pub fn cmdbuff(&self) -> crate::strings::OwnedSlice {
+    pub fn cmdbuff(&self) -> crate::option_vars::RcSlice {
         let vec = self.cmdbuff_vec.borrow();
         if vec.is_empty() {
-            crate::strings::OwnedSlice::NULL
+            crate::option_vars::RcSlice::NULL
         } else {
-            crate::strings::OwnedSlice::from_bytes(&vec)
+            crate::option_vars::RcSlice::from_bytes(&vec)
         }
     }
 }
@@ -2044,7 +2054,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
         return false;
     }
 
-    let i = ((xp.xp_pattern).offset_from(ccline.cmdbuff()) as isize) as i32;
+    let i = xp.xp_pattern.offset() as i32;
     debug_assert!(ccline.cmdpos.get() >= i);
     xp.xp_pattern_len = (ccline.cmdpos.get() as usize) - (i as usize);
 
@@ -2203,19 +2213,11 @@ fn cmdline_pum_create(
     } else {
         0
     };
-    let endpos_addr = xp.xp_pattern.addr().wrapping_add(tail_off);
-    let cmdbuff_addr = ccline.cmdbuff().addr();
+    let start_col = (xp.xp_pattern.offset() + tail_off) as i32;
     if ui_has(K_UICMDLINE) && g_st().cmdline_win.get().is_null() {
-        CMDEXP_STATE.with(|s| {
-            s.compl_startcol
-                .set(((endpos_addr as isize) - (cmdbuff_addr as isize)) as i32)
-        });
+        CMDEXP_STATE.with(|s| s.compl_startcol.set(start_col));
     } else {
-        CMDEXP_STATE.with(|s| {
-            s.compl_startcol.set(cmd_screencol(
-                ((endpos_addr as isize) - (cmdbuff_addr as isize)) as i32,
-            ))
-        });
+        CMDEXP_STATE.with(|s| s.compl_startcol.set(cmd_screencol(start_col)));
     }
 }
 
@@ -2938,12 +2940,7 @@ pub fn showmatches(
         if xp.xp_context == EXPAND_LUA {
             nlua_expand_pat(xp);
         }
-        let retval = expand_cmdline(
-            xp,
-            ccline.cmdbuff().addr(),
-            ccline.cmdpos.get(),
-            &mut temp_matches,
-        );
+        let retval = expand_cmdline(xp, ccline.cmdpos.get(), &mut temp_matches);
         if retval != EXPAND_OK {
             return retval;
         }
@@ -3332,7 +3329,7 @@ fn set_cmd_index<'a>(
             eap.cmdidx = Cmdidx::CmdSubstitute;
             p_idx = 1;
         } else if cmd_bytes.first().is_some_and(u8::is_ascii_uppercase) {
-            eap.cmd = crate::strings::OwnedSlice::from_cstr(cmd);
+            eap.cmd = crate::option_vars::RcSlice::from_cstr(cmd);
             if let Some(off) = find_ucmd(eap, p_idx, None, Some(&mut *xp), Some(&mut *complp)) {
                 p_idx = off;
             } else {
@@ -3403,7 +3400,7 @@ fn set_context_for_wildcard_arg(
     {
         pat = bow_cstr;
     }
-    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(pat);
+    xp.xp_pattern = xp.line_slice(pat);
     xp.xp_context = EXPAND_FILES;
 
     if usefilter
@@ -3414,7 +3411,7 @@ fn set_context_for_wildcard_arg(
         {
             xp.xp_shell = true;
         }
-        if xp.xp_pattern.addr() == arg_skipped.as_ptr() as usize {
+        if std::ptr::eq(pat.as_ptr(), arg_skipped.as_ptr()) {
             xp.xp_context = EXPAND_SHELLCMD;
         }
     }
@@ -3437,7 +3434,7 @@ fn set_context_for_wildcard_arg(
             p_check = p_check.wrapping_add(1);
         }
         if p_check.is_empty()
-            && p_check.addr() > xp.xp_pattern.wrapping_add(1).addr()
+            && p_check.offset() > xp.xp_pattern.wrapping_add(1).offset()
             && match_user(xp.xp_pattern.wrapping_add(1).as_bytes()) >= 1
         {
             xp.xp_context = EXPAND_USER;
@@ -3449,9 +3446,9 @@ fn set_context_for_wildcard_arg(
 /// Set the completion context for the "++opt=arg" argument.
 fn set_context_in_argopt(xp: &mut ExpandCtx, arg: &CStr) {
     if let Some(p) = vim_strchr(arg, b'=' as i32) {
-        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(p).wrapping_add(1);
+        xp.xp_pattern = xp.line_slice(p).wrapping_add(1);
     } else {
-        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
+        xp.xp_pattern = xp.line_slice(arg);
     }
 
     xp.xp_context = EXPAND_ARGOPT;
@@ -3577,7 +3574,7 @@ fn find_cmd_after_isearch_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&
 
 /// Set the completion context for the :unlet command.
 fn set_context_in_unlet_cmd(xp: &mut ExpandCtx, arg: &CStr) {
-    let mut p = crate::strings::OwnedSlice::from_cstr(arg);
+    let mut p = xp.line_slice(arg);
     while let Some(pos) = p.as_bytes().iter().position(|&b| b == b' ') {
         p = p.wrapping_add(pos + 1);
     }
@@ -3593,7 +3590,7 @@ fn set_context_in_unlet_cmd(xp: &mut ExpandCtx, arg: &CStr) {
 
 /// Set the completion context for the :language command.
 fn set_context_in_lang_cmd(xp: &mut ExpandCtx, arg: &CStr) {
-    let arg_slice = crate::strings::OwnedSlice::from_cstr(arg);
+    let arg_slice = xp.line_slice(arg);
     let bytes = arg_slice.as_bytes();
     let p_rem = crate::charset::skiptowhite_slice(bytes);
     if p_rem.is_empty() {
@@ -3618,7 +3615,7 @@ fn set_context_in_lang_cmd(xp: &mut ExpandCtx, arg: &CStr) {
 
 /// Set the completion context for the :breakadd command.
 fn set_context_in_breakadd_cmd(xp: &mut ExpandCtx, arg: &CStr, cmdidx: Cmdidx) {
-    let arg_slice = crate::strings::OwnedSlice::from_cstr(arg);
+    let arg_slice = xp.line_slice(arg);
     xp.xp_context = EXPAND_BREAKPOINT;
     xp.xp_pattern = arg_slice.clone();
 
@@ -3663,9 +3660,9 @@ fn set_context_in_breakadd_cmd(xp: &mut ExpandCtx, arg: &CStr, cmdidx: Cmdidx) {
 
 fn set_context_in_scriptnames_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     xp.xp_context = EXPAND_NOTHING;
-    xp.xp_pattern = crate::strings::OwnedSlice::NULL;
+    xp.xp_pattern = crate::option_vars::RcSlice::NULL;
 
-    let p = crate::strings::OwnedSlice::from_cstr(arg).skipwhite();
+    let p = xp.line_slice(arg).skipwhite();
     if ascii_isdigit(p.first_byte()) {
         return;
     }
@@ -3676,7 +3673,7 @@ fn set_context_in_scriptnames_cmd(xp: &mut ExpandCtx, arg: &CStr) {
 
 /// Set the completion context for the :filetype command.
 fn set_context_in_filetype_cmd(xp: &mut ExpandCtx, arg: &CStr) {
-    let arg_slice = crate::strings::OwnedSlice::from_cstr(arg);
+    let arg_slice = xp.line_slice(arg);
     xp.xp_context = EXPAND_FILETYPECMD;
     xp.xp_pattern = arg_slice.clone();
     CMDEXP_STATE.with(|s| s.filetype_expand_what.set(FiletypeExpandWhat::All));
@@ -3754,7 +3751,7 @@ fn set_context_by_cmdname<'a>(
     context: i32,
     forceit: bool,
 ) -> Option<&'a CStr> {
-    let mut arg = crate::strings::OwnedSlice::from_cstr(arg_cstr);
+    let mut arg = xp.line_slice(arg_cstr);
     match cmdidx {
         Cmdidx::CmdFind | Cmdidx::CmdSfind | Cmdidx::CmdTabfind => {
             if xp.xp_context == EXPAND_FILES {
@@ -4134,9 +4131,13 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
     let mut forceit = false;
     let mut usefilter = false;
 
+    let saved_line = std::mem::take(&mut xp.xp_line);
     expand_init(xp);
-    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(buff_cstr);
-    xp.xp_line = xp.xp_pattern.clone();
+    xp.xp_line = saved_line;
+    xp.xp_pattern = xp.line_slice(buff_cstr);
+    if xp.xp_line.is_null() {
+        xp.xp_line = xp.xp_pattern.clone();
+    }
     xp.xp_context = EXPAND_COMMANDS;
     ea.argt = 0;
 
@@ -4146,7 +4147,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
     {
         cmd = crate::memory::CStrSubslice::advance(cmd, 1);
     }
-    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(cmd);
+    xp.xp_pattern = xp.line_slice(cmd);
 
     if cmd.to_bytes().is_empty() {
         return None;
@@ -4157,7 +4158,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
     }
 
     cmd = skip_range(cmd, Some(&mut xp.xp_context));
-    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(cmd);
+    xp.xp_pattern = xp.line_slice(cmd);
     if cmd.to_bytes().is_empty() {
         return None;
     }
@@ -4280,7 +4281,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
 
     let buff_bytes = buff_cstr.to_bytes();
     let mut idx = 0usize;
-    let buff_slice = crate::strings::OwnedSlice::from_cstr(buff_cstr);
+    let buff_slice = xp.line_slice(buff_cstr);
     xp.xp_pattern = buff_slice.clone();
     while idx < buff_bytes.len() {
         if matches!(buff_bytes[idx], b' ' | TAB) {
@@ -4314,56 +4315,45 @@ pub fn set_cmd_context(xp: &mut ExpandCtx, str_buf: &[u8], len: i32, col: i32, u
         None
     };
     let work_slice: &[u8] = truncated_buf.as_deref().unwrap_or(str_buf);
+    let work_line = crate::option_vars::RcSlice::from_bytes(work_slice);
+    xp.xp_line = work_line.clone();
+    let work_cstr = work_line.as_cstr();
 
     CMDEXP_STATE.with(|s| s.filetype_expand_what.set(FiletypeExpandWhat::All));
     CMDEXP_STATE.with(|s| s.breakpt_expand_what.set(BreakptExpandWhat::Add));
 
     if use_ccline && ccline.cmdfirstc.get() == b'=' as i32 {
-        set_context_for_expression(
-            xp,
-            crate::memory::bytes_as_cstr(work_slice),
-            Cmdidx::CmdSize,
-        );
+        set_context_for_expression(xp, work_cstr, Cmdidx::CmdSize);
     } else if use_ccline && ccline.input_fn.get() != 0 {
         xp.xp_context = ccline.xp_context.get();
         xp.xp_pattern = ccline.cmdbuff();
         xp.xp_arg = ccline.xp_arg.borrow().clone();
         if xp.xp_context == EXPAND_SHELLCMDLINE {
             let mut context = xp.xp_context;
-            set_context_for_wildcard_arg(
-                None,
-                crate::memory::bytes_as_cstr(work_slice),
-                false,
-                xp,
-                &mut context,
-            );
+            set_context_for_wildcard_arg(None, work_cstr, false, xp, &mut context);
         }
     } else {
-        let mut nextcomm = Some(crate::memory::bytes_as_cstr(work_slice));
+        let mut nextcomm = Some(work_cstr);
         while let Some(comm) = nextcomm {
             nextcomm = set_one_cmd_context(xp, comm);
         }
     }
 
     xp.xp_col = col;
-    xp.xp_line = crate::strings::OwnedSlice::from_bytes(str_buf);
+    let full_line = if truncated_buf.is_none() {
+        work_line
+    } else {
+        crate::option_vars::RcSlice::from_bytes(str_buf)
+    };
     if !xp.xp_pattern.is_null() {
-        let work_base = work_slice.as_ptr() as usize;
-        let addr = xp.xp_pattern.addr();
-        if addr >= work_base && addr < work_base + work_slice.len() {
-            let offset = (addr - work_base).min(str_buf.len().saturating_sub(1));
-            xp.xp_pattern = xp.xp_line.wrapping_add(offset);
-        }
+        let offset = xp.xp_pattern.offset().min(str_buf.len().saturating_sub(1));
+        xp.xp_pattern = full_line.wrapping_add(offset);
     }
+    xp.xp_line = full_line;
 }
 
 /// Expand the command line "str" from context "xp".
-pub fn expand_cmdline(
-    xp: &mut ExpandCtx,
-    str_addr: usize,
-    col: i32,
-    matches: &mut Vec<CString>,
-) -> i32 {
+pub fn expand_cmdline(xp: &mut ExpandCtx, col: i32, matches: &mut Vec<CString>) -> i32 {
     let mut options = WILD_ADD_SLASH | WILD_SILENT;
 
     if xp.xp_context == EXPAND_UNSUCCESSFUL {
@@ -4374,9 +4364,7 @@ pub fn expand_cmdline(
         return EXPAND_NOTHING;
     }
 
-    xp.xp_pattern_len = str_addr
-        .wrapping_add(col as usize)
-        .saturating_sub(xp.xp_pattern.addr());
+    xp.xp_pattern_len = (col as usize).saturating_sub(xp.xp_pattern.offset());
     let file_str = if cmdline_fuzzy_completion_supported(xp) {
         xp.xp_pattern.to_cstring()
     } else {
@@ -5632,7 +5620,7 @@ fn wildmenu_process_key_menunames(cclp: &CmdlineInfo, mut key: i32, xp: &mut Exp
     } else if key == K_UP {
         let mut found = false;
 
-        let mut j = ((xp.xp_pattern).offset_from(cclp.cmdbuff()) as isize) as i32;
+        let mut j = xp.xp_pattern.offset() as i32;
         let mut i: i32 = 0;
         while {
             j -= 1;
@@ -5682,7 +5670,7 @@ fn wildmenu_process_key_filenames(cclp: &CmdlineInfo, mut key: i32, xp: &mut Exp
         let mut found = false;
 
         let mut j = cclp.cmdpos.get();
-        let i = ((xp.xp_pattern).offset_from(cclp.cmdbuff()) as isize) as i32;
+        let i = xp.xp_pattern.offset() as i32;
         while {
             j -= 1;
             j > i
@@ -5707,7 +5695,7 @@ fn wildmenu_process_key_filenames(cclp: &CmdlineInfo, mut key: i32, xp: &mut Exp
         let mut found = false;
 
         let mut j = cclp.cmdpos.get() - 1;
-        let mut i = ((xp.xp_pattern).offset_from(cclp.cmdbuff()) as isize) as i32;
+        let mut i = xp.xp_pattern.offset() as i32;
         while {
             j -= 1;
             j > i
@@ -5844,8 +5832,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         return;
     }
     let pattern_cstr = tv_get_string(&argvars[0]);
-    let pattern = pattern_cstr.as_ptr();
-    let mut pattern_start = pattern as usize;
+    let pattern_start: crate::option_vars::RcSlice;
 
     if type_str.to_bytes() == b"cmdline" {
         let cmdline_len = pattern_cstr.to_bytes().len() as i32;
@@ -5856,14 +5843,17 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             cmdline_len,
             false,
         );
-        pattern_start = xpc.xp_pattern.addr();
+        pattern_start = xpc.xp_pattern.clone();
         xpc.xp_pattern_len = (xpc.xp_pattern).len();
         xpc.xp_col = cmdline_len;
     } else {
-        let pat_slice = crate::strings::OwnedSlice::from_cstr(&pattern_cstr);
+        let pat_slice = crate::option_vars::RcSlice::from_cstr(&pattern_cstr);
         xpc.xp_pattern_len = pat_slice.len();
         xpc.xp_pattern = pat_slice.clone();
-        xpc.xp_line = pat_slice;
+        xpc.xp_line = pat_slice.clone();
+        pattern_start = pat_slice;
+        let pat_cstr_in_line = xpc.xp_line.clone();
+        let pat_cstr = pat_cstr_in_line.as_cstr();
 
         xpc.xp_context = cmdcomplete_str_to_type(type_str.to_bytes());
         match xpc.xp_context {
@@ -5886,25 +5876,21 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                 xpc.xp_arg = Some(type_str[11..].to_owned());
             }
             EXPAND_MENUS => {
-                set_context_in_menu_cmd(&mut xpc, c"menu", &pattern_cstr, false);
-                xpc.xp_pattern_len -=
-                    ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
+                set_context_in_menu_cmd(&mut xpc, c"menu", pat_cstr, false);
+                xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(&pattern_start);
             }
             EXPAND_SIGN => {
-                set_context_in_sign_cmd(&mut xpc, &pattern_cstr);
-                xpc.xp_pattern_len -=
-                    ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
+                set_context_in_sign_cmd(&mut xpc, pat_cstr);
+                xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(&pattern_start);
             }
             EXPAND_RUNTIME => {
-                set_context_in_runtime_cmd(&mut xpc, &pattern_cstr);
-                xpc.xp_pattern_len -=
-                    ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
+                set_context_in_runtime_cmd(&mut xpc, pat_cstr);
+                xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(&pattern_start);
             }
             EXPAND_SHELLCMDLINE => {
                 let mut context = EXPAND_SHELLCMDLINE;
-                set_context_for_wildcard_arg(None, &pattern_cstr, false, &mut xpc, &mut context);
-                xpc.xp_pattern_len -=
-                    ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
+                set_context_for_wildcard_arg(None, pat_cstr, false, &mut xpc, &mut context);
+                xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(&pattern_start);
             }
             EXPAND_FILETYPECMD => {
                 CMDEXP_STATE.with(|s| s.filetype_expand_what.set(FiletypeExpandWhat::All));
@@ -5919,7 +5905,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     if xpc.xp_context == EXPAND_LUA {
         xpc.xp_col = (xpc.xp_line).len() as i32;
         nlua_expand_pat(&mut xpc);
-        xpc.xp_pattern_len -= ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
+        xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(&pattern_start);
     }
     let pat = if cmdline_fuzzy_completion_supported(&xpc) {
         bytes_to_cstring(xpc.xp_pattern.slice(xpc.xp_pattern_len))

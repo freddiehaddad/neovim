@@ -1826,7 +1826,7 @@ impl Drop for Forinfo {
 }
 
 pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmdidx) {
-    let mut arg = crate::strings::OwnedSlice::from_cstr(arg_in);
+    let mut arg = xp.line_slice(arg_in);
     let mut got_eq = false;
 
     if cmdidx == Cmdidx::CmdLet || cmdidx == Cmdidx::CmdConst {
@@ -1862,7 +1862,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
             .as_bytes()
             .iter()
             .position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b))
-            .map_or(crate::strings::OwnedSlice::NULL, |i| arg.wrapping_add(i));
+            .map_or(crate::option_vars::RcSlice::NULL, |i| arg.wrapping_add(i));
         !xp.xp_pattern.is_null()
     } {
         let pat_bytes = xp.xp_pattern.as_bytes();
@@ -1944,9 +1944,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
     if cmd_has_expr_args(cmdidx) && xp.xp_context == EXPAND_EXPRESSION {
         loop {
             let n = arg.skiptowhite();
-            if n.addr() == arg.addr()
-                || ascii_iswhite_or_nul(n.skipwhite().first_byte() as std::ffi::c_char)
-            {
+            if n == arg || ascii_iswhite_or_nul(n.skipwhite().first_byte() as std::ffi::c_char) {
                 break;
             }
             arg = n.skipwhite();
@@ -2070,13 +2068,13 @@ pub fn eval0(
             && let Some(nextcmd) = check_nextcmd(p)
             && nextcmd.to_bytes().first() != Some(&b'|')
         {
-            eap.as_deref_mut().unwrap().nextcmd = crate::strings::OwnedSlice::from_cstr(nextcmd);
+            eap.as_deref_mut().unwrap().nextcmd = crate::option_vars::RcSlice::from_cstr(nextcmd);
         }
         return false;
     }
 
     if let Some(eap) = eap {
-        eap.nextcmd = crate::strings::OwnedSlice::from_opt_cstr(check_nextcmd(p));
+        eap.nextcmd = crate::option_vars::RcSlice::from_opt_cstr(check_nextcmd(p));
     }
 
     ret

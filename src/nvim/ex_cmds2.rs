@@ -886,9 +886,7 @@ pub fn ex_drop(eap: &mut Exarg) {
 
     if split {
         eap.cmdidx = Cmdidx::CmdSfirst;
-        if let Some(b) = eap.cmd.cstr_buf_mut().first_mut() {
-            *b = b's';
-        }
+        eap.set_cmd_byte(0, b's');
     } else {
         eap.cmdidx = Cmdidx::CmdFirst;
     }

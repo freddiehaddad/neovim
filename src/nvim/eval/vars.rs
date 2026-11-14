@@ -1186,7 +1186,7 @@ pub fn heredoc_get(
         }
     }
     if heredoc_in_string {
-        eap.nextcmd = crate::strings::OwnedSlice::from_opt_cstr(line_arg_cstr);
+        eap.nextcmd = crate::option_vars::RcSlice::from_opt_cstr(line_arg_cstr);
     }
     drop(theline_owned);
     drop(text_indent);
@@ -1982,7 +1982,7 @@ fn ex_unletlock(
         }
     }
 
-    eap.nextcmd = crate::strings::OwnedSlice::from_opt_cstr(check_nextcmd(arg));
+    eap.nextcmd = crate::option_vars::RcSlice::from_opt_cstr(check_nextcmd(arg));
 }
 
 /// Unlet a variable indicated by `lp`.

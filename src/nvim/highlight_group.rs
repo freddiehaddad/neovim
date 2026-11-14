@@ -1130,7 +1130,7 @@ fn set_gui_color(idx: i32, init: bool, arg: &CStr, which: u8) -> bool {
 }
 
 pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
-    let mut line = crate::strings::OwnedSlice::from_cstr(line_in);
+    let mut line = crate::option_vars::RcSlice::from_cstr(line_in);
     {
         if !init && ends_excmd(i32::from(line.first_byte())) != 0 {
             msg_ext_set_kind(c"list_cmd");
@@ -1354,7 +1354,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                         .as_bytes()
                         .iter()
                         .position(|&b| b == b'\'')
-                        .map_or(crate::strings::OwnedSlice::NULL, |i| linep.wrapping_add(i));
+                        .map_or(crate::option_vars::RcSlice::NULL, |i| linep.wrapping_add(i));
                     if linep.is_null() {
                         semsg!(gettext(E_INVARG2), &key_start);
                         error = true;
@@ -1364,7 +1364,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                     arg_start = linep.clone();
                     linep = linep.skiptowhite();
                 }
-                if linep.addr() == arg_start.addr() {
+                if linep == arg_start {
                     semsg!(gettext(E_MISSING_ARGUMENT_STR), &key_start);
                     error = true;
                     break;
@@ -2440,7 +2440,7 @@ pub fn highlight_changed() {
 }
 
 pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
-    let mut arg = crate::strings::OwnedSlice::from_cstr(arg_in);
+    let mut arg = xp.line_slice(arg_in);
     {
         xp.xp_context = EXPAND_HIGHLIGHT;
         xp.xp_pattern = arg.clone();

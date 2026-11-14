@@ -1114,7 +1114,7 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
         } else {
             EXPAND_MENUS
         };
-        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg_in).wrapping_add(after_dot_idx);
+        xp.xp_pattern = xp.line_slice(arg_in).wrapping_add(after_dot_idx);
         EXPAND_MENU_PATH.with(|cell| {
             *cell.borrow_mut() = Some(menu_path);
         });

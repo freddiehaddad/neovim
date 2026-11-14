@@ -2150,7 +2150,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
     let mut nested = false;
     let mut once = false;
     let group = if arg.to_bytes().first() == Some(&b'|') {
-        eap.nextcmd = crate::strings::OwnedSlice::from_cstr(arg).wrapping_add(1);
+        eap.nextcmd = crate::option_vars::RcSlice::from_cstr(arg).wrapping_add(1);
         arg = c"";
         AUGROUP_ALL
     } else {
@@ -2164,7 +2164,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
     let mut pat = crate::charset::skipwhite(pat_after_ev);
     'run: {
         if pat.to_bytes().first() == Some(&b'|') {
-            eap.nextcmd = crate::strings::OwnedSlice::from_cstr(pat).wrapping_add(1);
+            eap.nextcmd = crate::option_vars::RcSlice::from_cstr(pat).wrapping_add(1);
             pat = c"";
             cmd = c"";
         } else {
@@ -3636,7 +3636,7 @@ pub fn aucmd_set_expand_context<'a>(
             AU_STATE.with(|s| s.autocmd_include_groups.set(true));
         }
         xp.xp_context = EXPAND_EVENTS;
-        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
+        xp.xp_pattern = xp.line_slice(arg);
         return None;
     }
 
