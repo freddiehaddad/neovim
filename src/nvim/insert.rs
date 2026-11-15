@@ -517,7 +517,6 @@ fn insert_enter(s: &mut InsertState) {
         g_st().ins_global.borrow_mut().moved = K_INS_NONE;
     }
 
-    g_st().need_start_insertmode.set(false);
     g_st().ins_global.borrow_mut().need_undo = true;
     {
         let mut v = g_st().where_paste_started.get();

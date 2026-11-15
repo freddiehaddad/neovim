@@ -399,6 +399,7 @@ struct NvCmd {
 struct NormalModuleState {
     visual_mode_orig: std::cell::Cell<i32>,
     current_oap: std::cell::Cell<Option<Oparg>>,
+    showcmd_buf: std::cell::Cell<[u8; SHOWCMD_BUFLEN]>,
     old_showcmd_buf: std::cell::Cell<[u8; SHOWCMD_BUFLEN]>,
     showcmd_is_clear: std::cell::Cell<bool>,
     showcmd_visual: std::cell::Cell<bool>,
@@ -415,6 +416,7 @@ impl NormalModuleState {
         Self {
             visual_mode_orig: std::cell::Cell::new(0),
             current_oap: std::cell::Cell::new(None),
+            showcmd_buf: std::cell::Cell::new([0; SHOWCMD_BUFLEN]),
             old_showcmd_buf: std::cell::Cell::new([0; SHOWCMD_BUFLEN]),
             showcmd_is_clear: std::cell::Cell::new(true),
             showcmd_visual: std::cell::Cell::new(false),
@@ -2791,6 +2793,21 @@ pub fn may_clear_cmdline() {
     }
 }
 
+#[inline]
+pub(crate) fn showcmd_buf_bytes() -> [u8; SHOWCMD_BUFLEN] {
+    norm_st(|st| st.showcmd_buf.get())
+}
+
+#[inline]
+fn with_showcmd_buf_mut<R>(f: impl FnOnce(&mut [u8; SHOWCMD_BUFLEN]) -> R) -> R {
+    norm_st(|st| {
+        let mut buf = st.showcmd_buf.get();
+        let r = f(&mut buf);
+        st.showcmd_buf.set(buf);
+        r
+    })
+}
+
 pub fn clear_showcmd() {
     if !opt_vars().p_sc.get() {
         return;
@@ -2832,16 +2849,20 @@ pub fn clear_showcmd() {
             g_st().visual_global.borrow_mut().start = v_start;
             opt_vars().p_sbr.set(saved_sbr);
             curwin().w_onebuf_opt.wo_sbr.set(saved_w_sbr);
-            format_to_buf!(
-                &mut *g_st().showcmd_buf.borrow_mut(),
-                c"%lldx%lld",
-                lines as i64,
-                (i64::from(rightcol) - i64::from(leftcol) + 1) as i64,
-            );
+            with_showcmd_buf_mut(|sc| {
+                format_to_buf!(
+                    sc,
+                    c"%lldx%lld",
+                    lines as i64,
+                    (i64::from(rightcol) - i64::from(leftcol) + 1) as i64,
+                );
+            });
         } else if g_st().visual_global.borrow().mode == b'V' as i32
             || g_st().visual_global.borrow().start.lnum != curwin().w_cursor.get().lnum
         {
-            format_to_buf!(&mut *g_st().showcmd_buf.borrow_mut(), c"%lld", lines as i64);
+            with_showcmd_buf_mut(|sc| {
+                format_to_buf!(sc, c"%lld", lines as i64);
+            });
         } else {
             let (s_cstr, e_cstr) = if cursor_bot {
                 (
@@ -2876,26 +2897,23 @@ pub fn clear_showcmd() {
                 chars += 1;
                 off += l as usize;
             }
-            if bytes == chars {
-                format_to_buf!(&mut *g_st().showcmd_buf.borrow_mut(), c"%d", chars);
-            } else {
-                format_to_buf!(
-                    &mut *g_st().showcmd_buf.borrow_mut(),
-                    c"%d-%d",
-                    chars,
-                    bytes
-                );
-            }
+            with_showcmd_buf_mut(|sc| {
+                if bytes == chars {
+                    format_to_buf!(sc, c"%d", chars);
+                } else {
+                    format_to_buf!(sc, c"%d-%d", chars, bytes);
+                }
+            });
         }
         let limit = if ui_has(K_UIMESSAGES) {
             SHOWCMD_BUFLEN - 1
         } else {
             SHOWCMD_COLS
         };
-        g_st().showcmd_buf.borrow_mut()[limit] = 0;
+        with_showcmd_buf_mut(|sc| sc[limit] = 0);
         norm_st(|st| st.showcmd_visual.set(true));
     } else {
-        g_st().showcmd_buf.borrow_mut()[0] = 0;
+        with_showcmd_buf_mut(|sc| sc[0] = 0);
         norm_st(|st| st.showcmd_visual.set(false));
 
         if norm_st(|st| st.showcmd_is_clear.get()) {
@@ -2943,7 +2961,7 @@ pub fn add_to_showcmd(c: i32) -> bool {
     }
 
     if norm_st(|st| st.showcmd_visual.replace(false)) {
-        g_st().showcmd_buf.borrow_mut()[0] = 0;
+        with_showcmd_buf_mut(|sc| sc[0] = 0);
     }
 
     if is_special(c) && IGNORE.contains(&c) {
@@ -2961,7 +2979,6 @@ pub fn add_to_showcmd(c: i32) -> bool {
         crate::memory::bytes_as_cstr(&mbyte_buf)
     };
 
-    let old_len = crate::memory::bytes_until_nul(&*g_st().showcmd_buf.borrow()).len();
     let p_bytes = p_cstr.to_bytes_with_nul();
     let extra_len = p_bytes.len() - 1;
     let limit = if ui_has(K_UIMESSAGES) {
@@ -2969,17 +2986,17 @@ pub fn add_to_showcmd(c: i32) -> bool {
     } else {
         SHOWCMD_COLS
     };
-    let dst_pos = if old_len + extra_len > limit {
-        let overflow = old_len + extra_len - limit;
-        g_st()
-            .showcmd_buf
-            .borrow_mut()
-            .copy_within(overflow..=old_len, 0);
-        old_len - overflow
-    } else {
-        old_len
-    };
-    g_st().showcmd_buf.borrow_mut()[dst_pos..dst_pos + p_bytes.len()].copy_from_slice(p_bytes);
+    with_showcmd_buf_mut(|sc| {
+        let old_len = crate::memory::bytes_until_nul(sc).len();
+        let dst_pos = if old_len + extra_len > limit {
+            let overflow = old_len + extra_len - limit;
+            sc.copy_within(overflow..=old_len, 0);
+            old_len - overflow
+        } else {
+            old_len
+        };
+        sc[dst_pos..dst_pos + p_bytes.len()].copy_from_slice(p_bytes);
+    });
 
     if char_avail() {
         return false;
@@ -2998,9 +3015,11 @@ fn del_from_showcmd(mut len: i32) {
     if !opt_vars().p_sc.get() {
         return;
     }
-    let old_len = crate::memory::bytes_until_nul(&*g_st().showcmd_buf.borrow()).len() as i32;
-    len = len.min(old_len);
-    g_st().showcmd_buf.borrow_mut()[(old_len - len) as usize] = 0;
+    with_showcmd_buf_mut(|sc| {
+        let old_len = crate::memory::bytes_until_nul(sc).len() as i32;
+        len = len.min(old_len);
+        sc[(old_len - len) as usize] = 0;
+    });
 
     if !char_avail() {
         display_showcmd();
@@ -3009,8 +3028,7 @@ fn del_from_showcmd(mut len: i32) {
 
 pub fn push_showcmd() {
     if opt_vars().p_sc.get() {
-        let buf = *g_st().showcmd_buf.borrow();
-        norm_st(|st| st.old_showcmd_buf.set(buf));
+        norm_st(|st| st.old_showcmd_buf.set(st.showcmd_buf.get()));
     }
 }
 
@@ -3018,13 +3036,12 @@ pub fn pop_showcmd() {
     if !opt_vars().p_sc.get() {
         return;
     }
-    *g_st().showcmd_buf.borrow_mut() = norm_st(|st| st.old_showcmd_buf.get());
+    norm_st(|st| st.showcmd_buf.set(st.old_showcmd_buf.get()));
     display_showcmd();
 }
 
 pub fn showcmd_update_clear_state() {
-    let is_clear = g_st().showcmd_buf.borrow()[0] == 0;
-    norm_st(|st| st.showcmd_is_clear.set(is_clear));
+    norm_st(|st| st.showcmd_is_clear.set(st.showcmd_buf.get()[0] == 0));
 }
 
 pub fn display_showcmd() {
@@ -3056,7 +3073,7 @@ pub fn display_showcmd() {
 
     let mut mc_buf: [u8; 16] = [0; 16];
     let mc_len = mc_showcmd(&mut mc_buf);
-    let sc_buf = *g_st().showcmd_buf.borrow();
+    let sc_buf = showcmd_buf_bytes();
     let sc_cstr = crate::memory::bytes_as_cstr(&sc_buf);
 
     if ui_has(K_UIMESSAGES) {

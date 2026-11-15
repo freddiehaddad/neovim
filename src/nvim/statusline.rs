@@ -1168,9 +1168,10 @@ pub fn draw_tabline() {
             let sc_width = 10.min(n);
 
             if sc_width > 0 {
+                let sc_buf = crate::normal::showcmd_buf_bytes();
                 grid_line_puts(
                     g_st().columns_global.get() - sc_width - i32::from(tabcount > 1) * 2,
-                    crate::memory::bytes_as_cstr(&*g_st().showcmd_buf.borrow()),
+                    crate::memory::bytes_as_cstr(&sc_buf),
                     sc_width,
                     attr_nosel,
                 );
@@ -2183,7 +2184,7 @@ pub fn build_stl_str_hl_slice(
                     && (opt_idx == K_OPT_INVALID
                         || find_option(&opt_vars().p_sloc.as_bytes()) == opt_idx)
                 {
-                    let sc = *g_st().showcmd_buf.borrow();
+                    let sc = crate::normal::showcmd_buf_bytes();
                     buf_tmp[..sc.len()].copy_from_slice(&sc);
                     str_slice = Some(&buf_tmp[..sc.len()]);
                 }

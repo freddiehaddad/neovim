@@ -192,6 +192,7 @@ struct DiffState {
     f_diff_hlid_change_start: std::cell::Cell<i32>,
     f_diff_hlid_change_end: std::cell::Cell<i32>,
     f_diff_hlid_hl_id: std::cell::Cell<Hlf>,
+    diff_foldcolumn: std::cell::Cell<i32>,
 }
 
 impl DiffState {
@@ -219,6 +220,7 @@ impl DiffState {
             f_diff_hlid_change_start: std::cell::Cell::new(0),
             f_diff_hlid_change_end: std::cell::Cell::new(0),
             f_diff_hlid_hl_id: std::cell::Cell::new(0),
+            diff_foldcolumn: std::cell::Cell::new(2),
         }
     }
 }
@@ -1445,8 +1447,9 @@ pub fn diff_win_options(wp: &WinInfoInfo, addbuf: bool) {
             .wo_fdc_save
             .set(wp.w_onebuf_opt.wo_fdc.clone());
     }
-    debug_assert!(g_st().diff_foldcolumn.get() >= 0 && g_st().diff_foldcolumn.get() <= 9);
-    let fdc_buf: [u8; 1] = [b'0' + (g_st().diff_foldcolumn.get() as u8)];
+    let fdc = diff_st(|st| st.diff_foldcolumn.get());
+    debug_assert!((0..=9).contains(&fdc));
+    let fdc_buf: [u8; 1] = [b'0' + (fdc as u8)];
     wp.w_onebuf_opt.wo_fdc.set_option_bytes(&fdc_buf);
     wp.w_onebuf_opt.wo_fen.set(true);
     wp.w_onebuf_opt.wo_fdl.set(0);
@@ -2399,17 +2402,16 @@ pub fn diffopt_changed() -> bool {
             st.diff_flags.set(flags);
             st.linematch_lines.set(lm_lines);
             st.diff_algorithm.set(algorithm);
+            st.diff_foldcolumn
+                .set(if has_dip_key(v, KEYSET_OPTIDX_DIP_FOLDCOLUMN) {
+                    v.foldcolumn as i32
+                } else {
+                    2
+                });
         });
         g_st()
             .diff_context
             .set(if context == 0 { 1 } else { context });
-        g_st()
-            .diff_foldcolumn
-            .set(if has_dip_key(v, KEYSET_OPTIDX_DIP_FOLDCOLUMN) {
-                v.foldcolumn as i32
-            } else {
-                2
-            });
         diff_redraw(true);
         check_scrollbind(0, 0);
     }

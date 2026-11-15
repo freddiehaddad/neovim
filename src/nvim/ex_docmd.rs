@@ -650,6 +650,8 @@ struct ExDocmdState {
     filetype_detect: std::cell::Cell<TriState>,
     filetype_plugin: std::cell::Cell<TriState>,
     filetype_indent: std::cell::Cell<TriState>,
+    check_cstack: std::cell::Cell<bool>,
+    did_emsg_syntax: std::cell::Cell<bool>,
 }
 
 impl ExDocmdState {
@@ -660,6 +662,8 @@ impl ExDocmdState {
             filetype_detect: std::cell::Cell::new(K_NONE),
             filetype_plugin: std::cell::Cell::new(K_NONE),
             filetype_indent: std::cell::Cell::new(K_NONE),
+            check_cstack: std::cell::Cell::new(false),
+            did_emsg_syntax: std::cell::Cell::new(false),
         }
     }
 }
@@ -4917,8 +4921,7 @@ fn save_dbg_stuff(dsp: &mut DbgStuff) {
     g_st().did_throw.set(false);
     dsp.need_rethrow = i32::from(g_st().need_rethrow.get());
     g_st().need_rethrow.set(false);
-    dsp.check_cstack = i32::from(g_st().check_cstack.get());
-    g_st().check_cstack.set(false);
+    dsp.check_cstack = i32::from(DOCMD_STATE.with(|s| s.check_cstack.replace(false)));
     dsp.current_exception = g_st().current_exception.take();
 }
 
@@ -4933,7 +4936,7 @@ fn restore_dbg_stuff(dsp: &mut DbgStuff) {
     g_st().got_int.set(dsp.got_int != 0);
     g_st().did_throw.set(dsp.did_throw);
     g_st().need_rethrow.set(dsp.need_rethrow != 0);
-    g_st().check_cstack.set(dsp.check_cstack != 0);
+    DOCMD_STATE.with(|s| s.check_cstack.set(dsp.check_cstack != 0));
     g_st().current_exception.set(dsp.current_exception.take());
 }
 
@@ -5386,7 +5389,7 @@ pub fn do_cmdline(cmdline: Option<&[u8]>, fgetline: LineGetter, flags: i32) -> b
                 || g_st().did_throw.get())
                 && cstack.cs_trylevel == 0)
                 && !(g_st().did_emsg.get() != 0
-                    && (cstack.cs_trylevel == 0 || g_st().did_emsg_syntax.get())
+                    && (cstack.cs_trylevel == 0 || DOCMD_STATE.with(|s| s.did_emsg_syntax.get()))
                     && used_getline
                     && fgetline.is_exline())
                 && (next_cmdline.is_some() || cstack.cs_idx >= 0 || (flags & DOCMD_REPEAT) != 0);
@@ -5396,7 +5399,7 @@ pub fn do_cmdline(cmdline: Option<&[u8]>, fgetline: LineGetter, flags: i32) -> b
         }
 
         drop(cmdline_buf);
-        g_st().did_emsg_syntax.set(false);
+        DOCMD_STATE.with(|s| s.did_emsg_syntax.set(false));
         drop(cmd_loop_cookie);
 
         if cstack.cs_idx >= 0 {
@@ -5461,7 +5464,7 @@ pub fn do_cmdline(cmdline: Option<&[u8]>, fgetline: LineGetter, flags: i32) -> b
                 .is_some_and(|fcp| g_st().ex_nesting_level.get() > func_level(&fcp) + 1)
         {
             if !g_st().did_throw.get() {
-                g_st().check_cstack.set(true);
+                DOCMD_STATE.with(|s| s.check_cstack.set(true));
             }
         } else {
             if fgetline.is_func() {
@@ -6567,7 +6570,7 @@ fn do_one_cmd(
                 errormsg = Some(std::borrow::Cow::Owned(crate::memory::cstring_until_nul(
                     &iobuff,
                 )));
-                g_st().did_emsg_syntax.set(true);
+                DOCMD_STATE.with(|s| s.did_emsg_syntax.set(true));
                 verify_command(cmdname);
             }
             break 'doend;
@@ -6779,7 +6782,7 @@ fn do_one_cmd(
 
         if g_st().need_rethrow.get() {
             do_throw(ea.cstack_mut());
-        } else if g_st().check_cstack.get() {
+        } else if DOCMD_STATE.with(|s| s.check_cstack.get()) {
             if source_finished(&fgetline) {
                 do_finish(&mut ea, true);
             } else if fgetline.is_func() && current_func_returned() != 0 {
@@ -6787,7 +6790,7 @@ fn do_one_cmd(
             }
         }
         g_st().need_rethrow.set(false);
-        g_st().check_cstack.set(false);
+        DOCMD_STATE.with(|s| s.check_cstack.set(false));
     }
 
     *cstack = ea.cstack.take().unwrap();

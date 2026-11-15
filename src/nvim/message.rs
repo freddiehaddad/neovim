@@ -1134,13 +1134,13 @@ pub fn emsg_multiline(
                 return true;
             }
 
-            if g_st().in_assert_fails.get() && g_st().emsg_assert_fails_msg.get().is_none() {
-                g_st().emsg_assert_fails_msg.set(Some(s.to_owned()));
-                g_st().emsg_assert_fails_lnum.set(sourcing_lnum() as i64);
+            if g_st().in_assert_fails.get() {
                 let sname = sourcing_name();
-                g_st()
-                    .emsg_assert_fails_context
-                    .set(Some(sname.unwrap_or_default().to_owned()));
+                crate::testing::record_assert_fails_emsg(
+                    s,
+                    sourcing_lnum() as i64,
+                    Some(sname.unwrap_or_default().to_owned()),
+                );
             }
 
             // set "v:errmsg", also when using ":silent! cmd"

@@ -2563,7 +2563,6 @@ fn vgetorpeek(advance: bool) -> i32 {
 
     if advance {
         g_st().key_stuffed.set(0);
-        g_st().typebuf_was_empty.set(false);
     }
 
     init_typebuf();
@@ -2794,9 +2793,6 @@ fn vgetorpeek(advance: bool) -> i32 {
                     };
                     INP_STATE.with(|s| s.vgetorpeek_tc.set(c));
 
-                    if advance {
-                        g_st().typebuf_was_empty.set(true);
-                    }
                     g_st().typebuf.tb_no_abbr_cnt.set(0);
                     break;
                 }
@@ -2984,7 +2980,6 @@ fn inchar(tb_idx: usize, maxlen: i32, wait_time: i64) -> i32 {
     }
 
     if g_st().state_global.get() != MODE_HITRETURN {
-        g_st().did_outofmem_msg.set(false);
         g_st().did_swapwrite_msg.set(false);
     }
 

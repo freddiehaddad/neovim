@@ -160,6 +160,8 @@ struct MouseModuleState {
     prev_row: std::cell::Cell<i32>,
     prev_col: std::cell::Cell<i32>,
     did_drag: std::cell::Cell<i32>,
+    mouse_past_bottom: std::cell::Cell<bool>,
+    mouse_past_eol: std::cell::Cell<bool>,
 }
 
 impl MouseModuleState {
@@ -184,6 +186,8 @@ impl MouseModuleState {
             prev_row: std::cell::Cell::new(-1),
             prev_col: std::cell::Cell::new(-1),
             did_drag: std::cell::Cell::new(0),
+            mouse_past_bottom: std::cell::Cell::new(false),
+            mouse_past_eol: std::cell::Cell::new(false),
         }
     }
 }
@@ -1007,10 +1011,10 @@ pub fn do_mouse(
         }
         let mut reg: Option<crate::register::RegIdx> = None;
         if yank_register_mline(regname, &mut reg) {
-            if g_st().mouse_past_bottom.get() {
+            if mouse_st(|st| st.mouse_past_bottom.get()) {
                 dir = FORWARD;
             }
-        } else if g_st().mouse_past_eol.get() {
+        } else if mouse_st(|st| st.mouse_past_eol.get()) {
             dir = FORWARD;
         }
 
@@ -1425,8 +1429,10 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
     let mut grid = g_st().mouse_grid.get();
     let keep_focus = (flags & MOUSE_FOCUS) != 0;
 
-    g_st().mouse_past_bottom.set(false);
-    g_st().mouse_past_eol.set(false);
+    mouse_st(|st| {
+        st.mouse_past_bottom.set(false);
+        st.mouse_past_eol.set(false);
+    });
 
     if (flags & MOUSE_RELEASED) != 0 {
         mouse_st(|st| {
@@ -1576,7 +1582,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                 resolved = wp.clone().clone();
                 let past_bottom =
                     mouse_resolve(&wp, row, col, &mut lnum, &mut vcol, &mut mouse_fold_flags);
-                g_st().mouse_past_bottom.set(past_bottom);
+                mouse_st(|st| st.mouse_past_bottom.set(past_bottom));
             }
             if stop_visual {
                 end_visual_mode();
@@ -1733,7 +1739,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
             &mut vcol,
             &mut mouse_fold_flags,
         );
-        g_st().mouse_past_bottom.set(past_bottom);
+        mouse_st(|st| st.mouse_past_bottom.set(past_bottom));
     }
     curwin().w_cursor.set_lnum(lnum);
 
@@ -1755,7 +1761,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         if let Some(inclusive) = inclusive {
             *inclusive = true;
         }
-        g_st().mouse_past_eol.set(true);
+        mouse_st(|st| st.mouse_past_eol.set(true));
     } else if let Some(inclusive) = inclusive {
         *inclusive = false;
     }

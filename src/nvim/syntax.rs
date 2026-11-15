@@ -1644,8 +1644,6 @@ fn syn_current_attr_ctx(
 
     save_chartab_ctx(syn_buf, syn_blk, &mut buf_chartab);
 
-    let gst = g_st();
-
     loop {
         found_match = false;
         keep_next_list = false;
@@ -1854,7 +1852,7 @@ fn syn_current_attr_ctx(
                                 0,
                             );
 
-                            cur_extmatch = gst.re_extmatch_out.take();
+                            cur_extmatch = crate::regexp::take_re_extmatch_out();
 
                             flags = 0;
                             eoe_pos.lnum = 0;
@@ -2085,7 +2083,7 @@ fn syn_current_attr_ctx(
 
     drop(zero_width_next_ga);
 
-    gst.re_extmatch_out.set(None);
+    crate::regexp::clear_re_extmatch_out();
     drop(cur_extmatch);
 
     s.current_attr.get()
@@ -2556,8 +2554,7 @@ fn find_endpos_ctx(
         None
     };
 
-    let gst = g_st();
-    gst.re_extmatch_in.set(start_ext);
+    crate::regexp::set_re_extmatch_in(start_ext);
 
     let mut matchcol = startpos.col;
     let start_idx = idx;
@@ -2698,7 +2695,7 @@ fn find_endpos_ctx(
 
     restore_chartab_ctx(syn_buf, syn_blk, &buf_chartab);
 
-    gst.re_extmatch_in.set(None);
+    crate::regexp::set_re_extmatch_in(None);
 }
 
 fn limit_pos(pos: &mut Lpos, limit: &mut Lpos) {
@@ -4402,12 +4399,12 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
             let mut synp = Synpat::new();
 
             if item == ITEM_START {
-                g_st().reg_do_extmatch.set(REX_SET);
+                crate::regexp::set_reg_do_extmatch(REX_SET);
             } else {
-                g_st().reg_do_extmatch.set(REX_USE);
+                crate::regexp::set_reg_do_extmatch(REX_USE);
             }
             rest_opt = get_syn_pattern(rest_opt, &mut synp);
-            g_st().reg_do_extmatch.set(0);
+            crate::regexp::set_reg_do_extmatch(0);
             if item == ITEM_END && vim_regcomp_had_eol() && (syn_opt_arg.flags & HL_EXCLUDENL) == 0
             {
                 synp.sp_flags |= HL_HAS_EOL;

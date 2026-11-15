@@ -56,6 +56,8 @@ struct UiClientState {
     restart_args: crate::api::private::validate::CloneCell<Array>,
     restart_pending: std::cell::Cell<bool>,
     restart_args_after_crash_exit: crate::api::private::validate::CloneCell<Array>,
+    grid_line_buf_char: std::cell::RefCell<Vec<crate::grid::Schar>>,
+    grid_line_buf_attr: std::cell::RefCell<Vec<crate::grid::Sattr>>,
 }
 
 impl UiClientState {
@@ -71,8 +73,21 @@ impl UiClientState {
             restart_args_after_crash_exit: crate::api::private::validate::CloneCell::new(
                 ARRAY_INIT,
             ),
+            grid_line_buf_char: std::cell::RefCell::new(Vec::new()),
+            grid_line_buf_attr: std::cell::RefCell::new(Vec::new()),
         }
     }
+}
+
+pub(crate) fn grid_line_buf_len() -> usize {
+    UIC_STATE.with(|s| s.grid_line_buf_char.borrow().len())
+}
+
+pub(crate) fn set_grid_line_buf_cell(off: usize, sc: crate::grid::Schar, attr: crate::grid::Sattr) {
+    UIC_STATE.with(|s| {
+        s.grid_line_buf_char.borrow_mut()[off] = sc;
+        s.grid_line_buf_attr.borrow_mut()[off] = attr;
+    });
 }
 
 thread_local! {
@@ -388,10 +403,12 @@ pub fn ui_client_event_grid_resize(args: Array) {
     with_tui_mut(|tui| tui_grid_resize(tui, grid, width, height));
 
     let cols = width as usize;
-    if g_st().grid_line_buf_char.borrow().len() < cols {
-        *g_st().grid_line_buf_char.borrow_mut() = vec![0; cols];
-        *g_st().grid_line_buf_attr.borrow_mut() = vec![0; cols];
-    }
+    UIC_STATE.with(|s| {
+        if s.grid_line_buf_char.borrow().len() < cols {
+            *s.grid_line_buf_char.borrow_mut() = vec![0; cols];
+            *s.grid_line_buf_attr.borrow_mut() = vec![0; cols];
+        }
+    });
 }
 
 pub fn ui_client_event_grid_line(_args: Array) {
@@ -407,18 +424,20 @@ pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
     let lineflags = if g.wrap { K_LINE_FLAG_WRAP } else { 0 };
 
     with_tui_mut(|tui| {
-        tui_raw_line(
-            tui,
-            Integer::from(grid),
-            Integer::from(row),
-            Integer::from(startcol),
-            endcol,
-            clearcol,
-            Integer::from(g.cur_attr),
-            lineflags,
-            &g_st().grid_line_buf_char.borrow(),
-            &g_st().grid_line_buf_attr.borrow(),
-        );
+        UIC_STATE.with(|s| {
+            tui_raw_line(
+                tui,
+                Integer::from(grid),
+                Integer::from(row),
+                Integer::from(startcol),
+                endcol,
+                clearcol,
+                Integer::from(g.cur_attr),
+                lineflags,
+                &s.grid_line_buf_char.borrow(),
+                &s.grid_line_buf_attr.borrow(),
+            );
+        });
     });
 }
 
@@ -657,9 +676,11 @@ pub fn ui_client_event_error_exit(args: Array) {
 pub fn ui_client_free_all_mem() {
     let tui = UIC_STATE.with(|s| s.tui.borrow_mut().take());
     tui_free_all_mem(tui);
-    UIC_STATE.with(|s| *s.detached_addr.borrow_mut() = None);
-    *g_st().grid_line_buf_char.borrow_mut() = Vec::new();
-    *g_st().grid_line_buf_attr.borrow_mut() = Vec::new();
+    UIC_STATE.with(|s| {
+        *s.detached_addr.borrow_mut() = None;
+        *s.grid_line_buf_char.borrow_mut() = Vec::new();
+        *s.grid_line_buf_attr.borrow_mut() = Vec::new();
+    });
 }
 
 #[derive(Copy, Clone)]

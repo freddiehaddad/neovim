@@ -294,6 +294,7 @@ struct RuntimeState {
     runtime_search_path_valid: std::cell::Cell<bool>,
     runtime_search_path_valid_thread: std::cell::Cell<bool>,
     runtime_expand_flags: std::cell::Cell<i32>,
+    did_source_packages: std::cell::Cell<bool>,
 }
 
 impl RuntimeState {
@@ -304,6 +305,7 @@ impl RuntimeState {
             runtime_search_path_valid: std::cell::Cell::new(false),
             runtime_search_path_valid_thread: std::cell::Cell::new(false),
             runtime_expand_flags: std::cell::Cell::new(0),
+            did_source_packages: std::cell::Cell::new(false),
         }
     }
 }
@@ -1684,7 +1686,7 @@ fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
 
 /// Load plugins from all packages in the "start" directory.
 pub fn load_start_packages() {
-    g_st().did_source_packages.set(true);
+    RT_STATE.with(|s| s.did_source_packages.set(true));
     let p_pp = opt_vars().p_pp.to_owned();
     do_in_path(
         &p_pp,
@@ -1712,7 +1714,7 @@ pub fn load_start_packages() {
 
 /// ":packloadall"
 pub fn ex_packloadall(eap: &mut Exarg) {
-    if !g_st().did_source_packages.get() || eap.forceit {
+    if !RT_STATE.with(|s| s.did_source_packages.get()) || eap.forceit {
         add_pack_start_dirs();
         load_start_packages();
     }
@@ -1724,7 +1726,7 @@ pub fn load_plugins() {
         let mut rtp_copy_owned: Option<std::ffi::CString> = None;
         let plugin_pattern = c"plugin/**/*";
 
-        if !g_st().did_source_packages.get() {
+        if !RT_STATE.with(|s| s.did_source_packages.get()) {
             let copy = opt_vars().p_rtp.to_owned();
             rtp_copy_owned = Some(copy);
             add_pack_start_dirs();
@@ -1737,7 +1739,7 @@ pub fn load_plugins() {
             time_msg(c"loading rtp plugins", None);
         }
 
-        if !g_st().did_source_packages.get() {
+        if !RT_STATE.with(|s| s.did_source_packages.get()) {
             drop(rtp_copy_owned);
             load_start_packages();
         }
@@ -1763,7 +1765,7 @@ pub fn ex_packadd(eap: &mut Exarg) {
         PackAddAction::Both
     };
 
-    if !g_st().did_source_packages.get() {
+    if !RT_STATE.with(|s| s.did_source_packages.get()) {
         format_to_buf!(&mut pat_vec[..len], c"pack/*/%s/%s", c"start", eap.arg);
         res = do_in_path(
             &opt_vars().p_pp.as_cstr(),

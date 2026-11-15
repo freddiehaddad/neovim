@@ -1314,6 +1314,7 @@ struct AutocmdState {
     focusgained_recursive: std::cell::Cell<bool>,
     focusgained_last_time: std::cell::Cell<Timestamp>,
     ft_recursive: std::cell::Cell<i32>,
+    deferred_events: crate::globals::CloneCell<crate::event::multiqueue::MultiQueue>,
 }
 
 impl AutocmdState {
@@ -1336,6 +1337,9 @@ impl AutocmdState {
             focusgained_recursive: std::cell::Cell::new(false),
             focusgained_last_time: std::cell::Cell::new(0),
             ft_recursive: std::cell::Cell::new(0),
+            deferred_events: crate::globals::CloneCell::new(
+                crate::event::multiqueue::MultiQueue::NULL,
+            ),
         }
     }
 }
@@ -1540,11 +1544,11 @@ fn event_name2nr_hash(s: &[u8]) -> Option<usize> {
 
 pub fn autocmd_init() {
     let events = loop_queues(crate::event::r#loop::main_loop_ptr()).events;
-    g_st().deferred_events.set(multiqueue_new_child(events));
+    AU_STATE.with(|s| s.deferred_events.set(multiqueue_new_child(events)));
 }
 
 pub fn autocmd_free_all_mem() {
-    multiqueue_free(g_st().deferred_events.get());
+    multiqueue_free(AU_STATE.with(|s| s.deferred_events.get()));
 }
 
 fn augroup_map_del(id: i32, name: Option<&CStr>) {
@@ -2654,7 +2658,10 @@ pub fn aucmd_defer(
         data: data.map(|d| copy_object(d.clone())),
     });
 
-    multiqueue_put_event(g_st().deferred_events.get(), Event::AutoCmdDeferred(evdata));
+    multiqueue_put_event(
+        AU_STATE.with(|s| s.deferred_events.get()),
+        Event::AutoCmdDeferred(evdata),
+    );
 }
 
 pub fn deferred_event(mut e: AutoCmdEvent) {
@@ -2730,7 +2737,7 @@ pub fn aucmd_defer_modified(buf: &FileBuf, new_val: bool) {
         return;
     }
     multiqueue_put_event(
-        g_st().deferred_events.get(),
+        AU_STATE.with(|s| s.deferred_events.get()),
         Event::AutoCmdOptionSetModified {
             bufnr: buf.b_fnum.get(),
             new_val,

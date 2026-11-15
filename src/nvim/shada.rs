@@ -2163,7 +2163,7 @@ fn shada_read_when_writing(
                         &mut wms.numbered_marks[u_idx - 26]
                     };
                     if mark.entry_type == ShadaEntryType::SDItemMissing
-                        && g_st().namedfm.borrow()[u_idx].fmark.timestamp >= entry.timestamp
+                        && crate::mark::global_mark_timestamp(u_idx) >= entry.timestamp
                     {
                         shada_free_shada_entry(&mut entry);
                         continue;

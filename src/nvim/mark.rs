@@ -253,6 +253,26 @@ pub fn setmark(c: i32) -> bool {
     setmark_pos(c, &mut pos, curbuf().b_fnum.get(), Some(&view))
 }
 
+thread_local! {
+    static NAMEDFM: std::cell::RefCell<[Xfmark; NGLOBALMARKS]> =
+        const { std::cell::RefCell::new([const { Xfmark::ZERO }; NGLOBALMARKS]) };
+}
+
+#[inline]
+fn with_namedfm<R>(f: impl FnOnce(&[Xfmark; NGLOBALMARKS]) -> R) -> R {
+    NAMEDFM.with(|m| f(&m.borrow()))
+}
+
+#[inline]
+fn with_namedfm_mut<R>(f: impl FnOnce(&mut [Xfmark; NGLOBALMARKS]) -> R) -> R {
+    NAMEDFM.with(|m| f(&mut m.borrow_mut()))
+}
+
+#[inline]
+pub(crate) fn global_mark_timestamp(idx: usize) -> Timestamp {
+    with_namedfm(|m| m[idx].fmark.timestamp)
+}
+
 /// Free `Xfmark` item (`free_xfmark`).
 pub fn free_xfmark(fm: &mut Xfmark) {
     fm.fname = None;
@@ -394,7 +414,7 @@ pub fn setmark_pos(c: i32, pos: &mut CursorPos, fnum: i32, view_pt: Option<&Fmar
         } else {
             (c - b'A' as i32) as usize
         };
-        reset_xfmark(&mut g_st().namedfm.borrow_mut()[i], *pos, fnum, view, None);
+        with_namedfm_mut(|m| reset_xfmark(&mut m[i], *pos, fnum, view, None));
         do_markset_autocmd(c as u8, pos, &buf);
         return true;
     }
@@ -610,11 +630,11 @@ pub fn mark_get_global(resolve: bool, mut name: i32) -> Xfmark {
         debug_assert!(false);
     }
     let idx = name as usize;
-    if resolve && g_st().namedfm.borrow()[idx].fmark.fnum == 0 {
-        let xfm = g_st().namedfm.borrow()[idx].clone();
+    if resolve && with_namedfm(|m| m[idx].fmark.fnum == 0) {
+        let xfm = with_namedfm(|m| m[idx].clone());
         fname2fnum(&xfm);
     }
-    g_st().namedfm.borrow()[idx].clone()
+    with_namedfm(|m| m[idx].clone())
 }
 
 /// Get a local mark (`mark_get_local`).
@@ -887,7 +907,7 @@ pub fn fmarks_check_names(buf: &FileBuf) {
     };
 
     for i in 0..NGLOBALMARKS {
-        fmarks_check_one(&mut g_st().namedfm.borrow_mut()[i], &name, buf);
+        with_namedfm_mut(|m| fmarks_check_one(&mut m[i], &name, buf));
     }
 
     for wp in win_iter_ptr(first_win_in_tab(&curtab())) {
@@ -1080,15 +1100,18 @@ pub fn ex_delmarks(eap: &mut Exarg) {
                         } else {
                             (i - b'A' as i32) as usize
                         };
-                        if g_st().namedfm.borrow()[n].fmark.mark.lnum != 0 {
-                            let buf = buflist_findnr_opt(g_st().namedfm.borrow()[n].fmark.fnum)
-                                .unwrap_or_else(curbuf);
+                        let (lnum, fnum) =
+                            with_namedfm(|m| (m[n].fmark.mark.lnum, m[n].fmark.fnum));
+                        if lnum != 0 {
+                            let buf = buflist_findnr_opt(fnum).unwrap_or_else(curbuf);
                             do_markset_autocmd(i as u8, &pos, &buf);
                         }
-                        g_st().namedfm.borrow_mut()[n].fmark.mark.lnum = 0;
-                        g_st().namedfm.borrow_mut()[n].fmark.fnum = 0;
-                        g_st().namedfm.borrow_mut()[n].fmark.timestamp = timestamp;
-                        g_st().namedfm.borrow_mut()[n].fname = None;
+                        with_namedfm_mut(|m| {
+                            m[n].fmark.mark.lnum = 0;
+                            m[n].fmark.fnum = 0;
+                            m[n].fmark.timestamp = timestamp;
+                            m[n].fname = None;
+                        });
                     }
                 }
             } else {
@@ -1375,16 +1398,20 @@ pub fn mark_adjust_buf(
                 amount,
                 amount_after,
             );
-            let fm = &mut g_st().namedfm.borrow_mut()[i];
-            if fm.fmark.fnum == fnum {
-                one_adjust_nodel(&mut fm.fmark.mark.lnum, line1, line2, amount, amount_after);
-            }
+            with_namedfm_mut(|m| {
+                let fm = &mut m[i];
+                if fm.fmark.fnum == fnum {
+                    one_adjust_nodel(&mut fm.fmark.mark.lnum, line1, line2, amount, amount_after);
+                }
+            });
         }
         for i in NMARKS..NGLOBALMARKS {
-            let fm = &mut g_st().namedfm.borrow_mut()[i];
-            if fm.fmark.fnum == fnum {
-                one_adjust_nodel(&mut fm.fmark.mark.lnum, line1, line2, amount, amount_after);
-            }
+            with_namedfm_mut(|m| {
+                let fm = &mut m[i];
+                if fm.fmark.fnum == fnum {
+                    one_adjust_nodel(&mut fm.fmark.mark.lnum, line1, line2, amount, amount_after);
+                }
+            });
         }
 
         one_adjust(
@@ -1621,30 +1648,34 @@ pub fn mark_col_adjust(
             col_amount,
             spaces_removed,
         );
-        let fm = &mut g_st().namedfm.borrow_mut()[i];
-        if fm.fmark.fnum == fnum {
-            col_adjust(
-                &mut fm.fmark.mark,
-                lnum,
-                mincol,
-                lnum_amount,
-                col_amount,
-                spaces_removed,
-            );
-        }
+        with_namedfm_mut(|m| {
+            let fm = &mut m[i];
+            if fm.fmark.fnum == fnum {
+                col_adjust(
+                    &mut fm.fmark.mark,
+                    lnum,
+                    mincol,
+                    lnum_amount,
+                    col_amount,
+                    spaces_removed,
+                );
+            }
+        });
     }
     for i in NMARKS..NGLOBALMARKS {
-        let fm = &mut g_st().namedfm.borrow_mut()[i];
-        if fm.fmark.fnum == fnum {
-            col_adjust(
-                &mut fm.fmark.mark,
-                lnum,
-                mincol,
-                lnum_amount,
-                col_amount,
-                spaces_removed,
-            );
-        }
+        with_namedfm_mut(|m| {
+            let fm = &mut m[i];
+            if fm.fmark.fnum == fnum {
+                col_adjust(
+                    &mut fm.fmark.mark,
+                    lnum,
+                    mincol,
+                    lnum_amount,
+                    col_amount,
+                    spaces_removed,
+                );
+            }
+        });
     }
 
     col_adjust(
@@ -1861,28 +1892,29 @@ pub fn mark_jumplist_iter(
 /// Iterate over global marks (`mark_global_iter`).
 pub fn mark_global_iter(iter: Option<usize>, name: &mut u8, fm: &mut Xfmark) -> Option<usize> {
     *name = 0;
-    let marks = &*g_st().namedfm.borrow();
-    let mut idx = iter.unwrap_or(0);
-    while idx < NGLOBALMARKS && marks[idx].fmark.mark.lnum == 0 {
-        idx += 1;
-    }
-    if idx >= NGLOBALMARKS || marks[idx].fmark.mark.lnum == 0 {
-        return None;
-    }
-    *name = if idx < NMARKS {
-        b'A' + idx as u8
-    } else {
-        b'0' + (idx - NMARKS) as u8
-    };
-    *fm = marks[idx].clone();
-    idx += 1;
-    while idx < NGLOBALMARKS {
-        if marks[idx].fmark.mark.lnum != 0 {
-            return Some(idx);
+    with_namedfm(|marks| {
+        let mut idx = iter.unwrap_or(0);
+        while idx < NGLOBALMARKS && marks[idx].fmark.mark.lnum == 0 {
+            idx += 1;
         }
+        if idx >= NGLOBALMARKS || marks[idx].fmark.mark.lnum == 0 {
+            return None;
+        }
+        *name = if idx < NMARKS {
+            b'A' + idx as u8
+        } else {
+            b'0' + (idx - NMARKS) as u8
+        };
+        *fm = marks[idx].clone();
         idx += 1;
-    }
-    None
+        while idx < NGLOBALMARKS {
+            if marks[idx].fmark.mark.lnum != 0 {
+                return Some(idx);
+            }
+            idx += 1;
+        }
+        None
+    })
 }
 
 #[inline]
@@ -1939,15 +1971,17 @@ pub fn mark_set_global(name: u8, fm: Xfmark, update: bool) -> bool {
     let Some(idx) = mark_global_index(name) else {
         return false;
     };
-    let fm_tgt = &mut g_st().namedfm.borrow_mut()[idx];
-    if update && fm.fmark.timestamp <= fm_tgt.fmark.timestamp {
-        return false;
-    }
-    if fm_tgt.fmark.mark.lnum != 0 {
-        free_xfmark(fm_tgt);
-    }
-    *fm_tgt = fm;
-    true
+    with_namedfm_mut(|m| {
+        let fm_tgt = &mut m[idx];
+        if update && fm.fmark.timestamp <= fm_tgt.fmark.timestamp {
+            return false;
+        }
+        if fm_tgt.fmark.mark.lnum != 0 {
+            free_xfmark(fm_tgt);
+        }
+        *fm_tgt = fm;
+        true
+    })
 }
 
 /// Set local mark (`mark_set_local`).
@@ -1993,12 +2027,14 @@ pub fn set_last_cursor(win: &WinInfoInfo) {
 }
 
 pub fn free_all_marks() {
-    for fm in &mut *g_st().namedfm.borrow_mut() {
-        if fm.fmark.mark.lnum != 0 {
-            free_xfmark(fm);
+    with_namedfm_mut(|m| {
+        for fm in m.iter_mut() {
+            if fm.fmark.mark.lnum != 0 {
+                free_xfmark(fm);
+            }
+            *fm = INIT_XFMARK;
         }
-        *fm = INIT_XFMARK;
-    }
+    });
 }
 
 /// Adjust position to point to the first byte of a multi-byte character (`mark_mb_adjustpos`).
@@ -2126,28 +2162,24 @@ pub fn get_buf_local_marks(buf: &FileBuf, l: &TvList) {
 /// Get a global mark (`get_raw_global_mark`).
 #[cfg(test)]
 pub fn get_raw_global_mark(name: u8) -> Xfmark {
-    g_st().namedfm.borrow()[mark_global_index(name).unwrap()].clone()
+    with_namedfm(|m| m[mark_global_index(name).unwrap()].clone())
 }
 
 /// Get information about global marks (`get_global_marks`).
 pub fn get_global_marks(l: &TvList) {
     let mut mname: [u8; 3] = [b'\'', b' ', 0];
 
-    for (i, fm) in g_st().namedfm.borrow()[..(NMARKS + EXTRA_MARKS)]
-        .iter()
-        .enumerate()
-    {
-        let owned_name = if fm.fmark.fnum != 0 {
-            buflist_nr2name(fm.fmark.fnum, 1, 1)
+    for i in 0..(NMARKS + EXTRA_MARKS) {
+        let (fnum, mark_pos, fname_owned) = with_namedfm(|m| {
+            let fm = &m[i];
+            (fm.fmark.fnum, fm.fmark.mark, fm.fname.clone())
+        });
+        let owned_name = if fnum != 0 {
+            buflist_nr2name(fnum, 1, 1)
         } else {
-            None
+            fname_owned
         };
-        let name = if fm.fmark.fnum != 0 {
-            owned_name.as_deref()
-        } else {
-            fm.fname_cstr()
-        };
-        if let Some(name) = name {
+        if let Some(ref name) = owned_name {
             mname[1] = if i >= NMARKS {
                 b'0' + (i - NMARKS) as u8
             } else {
@@ -2157,8 +2189,8 @@ pub fn get_global_marks(l: &TvList) {
             add_mark(
                 l,
                 CStr::from_bytes_with_nul(&mname).unwrap_or_default(),
-                &fm.fmark.mark,
-                fm.fmark.fnum,
+                &mark_pos,
+                fnum,
                 Some(name),
             );
         }

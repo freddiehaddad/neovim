@@ -225,6 +225,8 @@ struct HighlightModuleState {
     ns_hl_attr: std::cell::RefCell<crate::memory::FxHashMap<i32, std::rc::Rc<NSHlAttr>>>,
     get_attr_entry_recursive: std::cell::Cell<bool>,
     ns_get_hl_recursive: std::cell::Cell<i32>,
+    ns_hl_win: std::cell::Cell<NS>,
+    hl_attr_active: crate::globals::CloneCell<Option<std::rc::Rc<NSHlAttr>>>,
 }
 
 impl HighlightModuleState {
@@ -242,6 +244,8 @@ impl HighlightModuleState {
             ns_hl_attr: std::cell::RefCell::new(crate::memory::fx_hashmap()),
             get_attr_entry_recursive: std::cell::Cell::new(false),
             ns_get_hl_recursive: std::cell::Cell::new(0),
+            ns_hl_win: std::cell::Cell::new(-1),
+            hl_attr_active: crate::globals::CloneCell::new(None),
         }
     }
 }
@@ -283,7 +287,7 @@ pub fn win_hl_attr(wp: &WinInfoInfo, hlf: i32) -> i32 {
 
 #[inline]
 pub fn hl_attr(n: i32) -> i32 {
-    if let Some(ref tbl) = g_st().hl_attr_active.get() {
+    if let Some(ref tbl) = hl_st(|st| st.hl_attr_active.get()) {
         tbl[n as usize].get()
     } else {
         g_st().highlight_attr[n as usize].get()
@@ -550,10 +554,11 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
 }
 
 pub fn hl_check_ns() -> bool {
+    let ns_hl_win = hl_st(|st| st.ns_hl_win.get());
     let ns = if g_st().ns_hl_fast.get() > 0 {
         g_st().ns_hl_fast.get()
-    } else if g_st().ns_hl_win.get() >= 0 {
-        g_st().ns_hl_win.get()
+    } else if ns_hl_win >= 0 {
+        ns_hl_win
     } else {
         g_st().ns_hl_global.get()
     };
@@ -562,18 +567,20 @@ pub fn hl_check_ns() -> bool {
     }
 
     g_st().ns_hl_active.set(ns);
-    g_st().hl_attr_active.set(None);
+    hl_st(|st| st.hl_attr_active.set(None));
     if ns > 0 {
         update_ns_hl(ns);
-        if let Some(hl_def) = hl_st(|st| st.ns_hl_attr.borrow().get(&ns).cloned()) {
-            g_st().hl_attr_active.set(Some(hl_def));
-        }
+        hl_st(|st| {
+            if let Some(hl_def) = st.ns_hl_attr.borrow().get(&ns).cloned() {
+                st.hl_attr_active.set(Some(hl_def));
+            }
+        });
     }
     true
 }
 
 pub fn win_check_ns_hl(wp: Option<&WinInfoInfo>) -> bool {
-    g_st().ns_hl_win.set(wp.map_or(-1, |wp| wp.w_ns_hl.get()));
+    hl_st(|st| st.ns_hl_win.set(wp.map_or(-1, |wp| wp.w_ns_hl.get())));
     hl_check_ns()
 }
 

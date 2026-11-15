@@ -166,20 +166,54 @@ pub struct KeyDictNsOpts {
     pub wins: Array,
 }
 
+struct ExtmarkNamespaceState {
+    namespace_ids: std::cell::RefCell<Vec<(std::ffi::CString, i32)>>,
+    namespace_localscope: std::cell::RefCell<crate::memory::FxHashSet<u32>>,
+    next_namespace_id: std::cell::Cell<crate::msgpack_rpc::packer::ObjHandle>,
+}
+
+impl ExtmarkNamespaceState {
+    fn new() -> Self {
+        Self {
+            namespace_ids: std::cell::RefCell::new(Vec::new()),
+            namespace_localscope: std::cell::RefCell::new(crate::memory::fx_hashset()),
+            next_namespace_id: std::cell::Cell::new(1),
+        }
+    }
+}
+
+std::thread_local! {
+    static NS_STATE: ExtmarkNamespaceState = ExtmarkNamespaceState::new();
+}
+
+#[inline]
+pub(crate) fn find_namespace_id_by_name(name: &std::ffi::CStr) -> Option<i32> {
+    NS_STATE.with(|s| {
+        s.namespace_ids
+            .borrow()
+            .iter()
+            .find_map(|(k, v)| (k.as_c_str() == name).then_some(*v))
+    })
+}
+
 #[inline]
 pub fn ns_in_win(ns_id: u32, wp: &WinInfoInfo) -> bool {
-    let localscope = g_st().namespace_localscope.borrow();
-    if localscope.is_empty() || !localscope.contains(&ns_id) {
+    let is_local = NS_STATE.with(|s| {
+        let localscope = s.namespace_localscope.borrow();
+        !localscope.is_empty() && localscope.contains(&ns_id)
+    });
+    if !is_local {
         return true;
     }
-    drop(localscope);
     wp.w_ns_set.borrow().contains(&ns_id)
 }
 
 // DLLEXPORT void api_extmark_free_all_mem(void);
 pub fn api_extmark_free_all_mem() {
-    *g_st().namespace_ids.borrow_mut() = Vec::new();
-    *g_st().namespace_localscope.borrow_mut() = crate::memory::fx_hashset();
+    NS_STATE.with(|s| {
+        *s.namespace_ids.borrow_mut() = Vec::new();
+        *s.namespace_localscope.borrow_mut() = crate::memory::fx_hashset();
+    });
 }
 
 /// Creates a new namespace or gets an existing one. [namespace]()
@@ -197,26 +231,26 @@ pub fn api_extmark_free_all_mem() {
 //   FUNC_API_SINCE(5);
 pub fn nvim_create_namespace(name: NvimString) -> Integer {
     let name_bytes = name.as_bytes();
-    if !name_bytes.is_empty()
-        && let Some((_, id)) = g_st()
-            .namespace_ids
-            .borrow()
-            .iter()
-            .find(|(k, _)| k.as_bytes() == name_bytes)
-    {
-        return i64::from(*id);
-    }
-    let id = g_st().next_namespace_id.get();
-    g_st()
-        .next_namespace_id
-        .set(g_st().next_namespace_id.get() + (1));
-    if !name_bytes.is_empty() {
-        g_st().namespace_ids.borrow_mut().push((
-            std::ffi::CString::new(name_bytes.to_vec()).unwrap_or_default(),
-            id,
-        ));
-    }
-    i64::from(id)
+    NS_STATE.with(|s| {
+        if !name_bytes.is_empty()
+            && let Some((_, id)) = s
+                .namespace_ids
+                .borrow()
+                .iter()
+                .find(|(k, _)| k.as_bytes() == name_bytes)
+        {
+            return i64::from(*id);
+        }
+        let id = s.next_namespace_id.get();
+        s.next_namespace_id.set(id + 1);
+        if !name_bytes.is_empty() {
+            s.namespace_ids.borrow_mut().push((
+                std::ffi::CString::new(name_bytes.to_vec()).unwrap_or_default(),
+                id,
+            ));
+        }
+        i64::from(id)
+    })
 }
 
 /// Gets existing, non-anonymous |namespace|s.
@@ -225,15 +259,18 @@ pub fn nvim_create_namespace(name: NvimString) -> Integer {
 // DLLEXPORT DictOf(Integer) nvim_get_namespaces(Arena *arena)
 //   FUNC_API_SINCE(5);
 pub fn nvim_get_namespaces() -> Dict {
-    let mut retval = Dict::with_capacity(g_st().namespace_ids.borrow().len());
-    for (name, id) in &*g_st().namespace_ids.borrow() {
-        *retval.next_slot_mut() = KeyValuePair {
-            key: cstr_as_string(Some(name)),
-            value: integer_obj(i64::from(*id)),
-        };
-        retval.size += 1;
-    }
-    retval
+    NS_STATE.with(|s| {
+        let ids = s.namespace_ids.borrow();
+        let mut retval = Dict::with_capacity(ids.len());
+        for (name, id) in &*ids {
+            *retval.next_slot_mut() = KeyValuePair {
+                key: cstr_as_string(Some(name)),
+                value: integer_obj(i64::from(*id)),
+            };
+            retval.size += 1;
+        }
+        retval
+    })
 }
 
 // DLLEXPORT const char *describe_ns(NS ns_id, const char *unknown);
@@ -241,12 +278,14 @@ pub fn describe_ns<'a>(
     ns_id: NS,
     unknown: &'a std::ffi::CStr,
 ) -> std::borrow::Cow<'a, std::ffi::CStr> {
-    for (name, id) in &*g_st().namespace_ids.borrow() {
-        if *id == ns_id && !name.as_bytes().is_empty() {
-            return std::borrow::Cow::Owned(name.clone());
+    NS_STATE.with(|s| {
+        for (name, id) in &*s.namespace_ids.borrow() {
+            if *id == ns_id && !name.as_bytes().is_empty() {
+                return std::borrow::Cow::Owned(name.clone());
+            }
         }
-    }
-    std::borrow::Cow::Borrowed(unknown)
+        std::borrow::Cow::Borrowed(unknown)
+    })
 }
 
 // DLLEXPORT bool ns_initialized(uint32_t ns);
@@ -254,7 +293,7 @@ pub fn ns_initialized(ns: u32) -> bool {
     if ns < 1 {
         return false;
     }
-    ns < g_st().next_namespace_id.get() as u32
+    ns < NS_STATE.with(|s| s.next_namespace_id.get() as u32)
 }
 
 // DLLEXPORT Array virt_text_to_array(VirtText vt, bool hl_name, Arena *arena);
@@ -1638,17 +1677,14 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDictNsOpts) -> Result<(), Error
         }
     }
 
-    if (set_scoped
-        && g_st()
-            .namespace_localscope
-            .borrow_mut()
-            .insert(ns_id as u32))
-        || (!set_scoped
-            && g_st()
-                .namespace_localscope
-                .borrow_mut()
-                .remove(&(ns_id as u32)))
-    {
+    let scope_changed = NS_STATE.with(|s| {
+        if set_scoped {
+            s.namespace_localscope.borrow_mut().insert(ns_id as u32)
+        } else {
+            s.namespace_localscope.borrow_mut().remove(&(ns_id as u32))
+        }
+    });
+    if scope_changed {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(&tp) {
                 if wp.buf().b_extmark_ns.borrow().contains_key(&(ns_id as u32)) {
@@ -1675,11 +1711,7 @@ pub fn nvim_ns_get(ns_id: Integer) -> Result<KeyDictNsOpts, Error> {
         return Err(api_err_invalid(c"ns_id", None, ns_id, false));
     }
 
-    if !g_st()
-        .namespace_localscope
-        .borrow()
-        .contains(&(ns_id as u32))
-    {
+    if !NS_STATE.with(|s| s.namespace_localscope.borrow().contains(&(ns_id as u32))) {
         return Ok(opts);
     }
 

@@ -1019,7 +1019,7 @@ fn nfa_regatom() -> bool {
                         return true;
                     }
                     b'1'..=b'9' => {
-                        if (g_st().reg_do_extmatch.get() & REX_USE) == 0 {
+                        if (re_s.reg_do_extmatch.get() & REX_USE) == 0 {
                             emsg(tr(E_Z1_NOT_ALLOWED));
                             g_st().rc_did_emsg.set(true);
                             return false;
@@ -1029,7 +1029,7 @@ fn nfa_regatom() -> bool {
                         return true;
                     }
                     b'(' => {
-                        if g_st().reg_do_extmatch.get() != REX_SET {
+                        if re_s.reg_do_extmatch.get() != REX_SET {
                             emsg(tr(E_Z_NOT_ALLOWED));
                             g_st().rc_did_emsg.set(true);
                             return false;
@@ -3147,7 +3147,7 @@ fn match_backref(re_s: &RegexpState, sub: &mut Regsub, subidx: i32, bytelen: &mu
 fn match_zref(subidx: i32, bytelen: &mut i32) -> bool {
     cleanup_zsubexpr();
     let idx = subidx as usize;
-    let Some(ref em) = g_st().re_extmatch_in.get() else {
+    let Some(ref em) = RE_STATE.with(|s| s.re_extmatch_in.get()) else {
         *bytelen = 0;
         return true;
     };
@@ -4770,7 +4770,7 @@ fn nfa_regtry(
             }
         }
 
-        g_st().re_extmatch_out.set(None);
+        re_s.re_extmatch_out.set(None);
 
         if prog.reghasz == REX_SET {
             cleanup_zsubexpr();
@@ -4799,7 +4799,7 @@ fn nfa_regtry(
                         .with_slice(len, cstring_from_bytes);
                 }
             }
-            g_st().re_extmatch_out.set(Some(std::rc::Rc::new(extmatch)));
+            re_s.re_extmatch_out.set(Some(std::rc::Rc::new(extmatch)));
         }
 
         1 + re_s.rex.lnum.get()

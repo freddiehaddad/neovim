@@ -37,6 +37,7 @@ struct ProfileModuleState {
     pexpand_what: std::cell::Cell<i32>,
     startuptime_buf: std::cell::RefCell<Vec<u8>>,
     profile_fname: std::cell::RefCell<Option<CString>>,
+    time_fd: std::cell::RefCell<Option<crate::os::fs::CFile>>,
 }
 
 impl ProfileModuleState {
@@ -50,6 +51,7 @@ impl ProfileModuleState {
             pexpand_what: std::cell::Cell::new(PEXP_SUBCMD),
             startuptime_buf: std::cell::RefCell::new(Vec::new()),
             profile_fname: std::cell::RefCell::new(None),
+            time_fd: std::cell::RefCell::new(None),
         }
     }
 }
@@ -61,6 +63,11 @@ std::thread_local! {
 #[inline]
 fn prof_st<R>(f: impl FnOnce(&ProfileModuleState) -> R) -> R {
     PROF_STATE.with(f)
+}
+
+#[inline(always)]
+pub fn has_time_fd() -> bool {
+    prof_st(|st| st.time_fd.borrow().is_some())
 }
 
 const PEXPAND_CMDS: [&CStr; 7] = [
@@ -371,29 +378,29 @@ pub fn ex_profile(eap: &mut Exarg) {
     if len == 5 && &arg_bytes[..5] == b"start" && !e.is_empty() {
         let fname = expand_env_save_opt(e.as_cstr(), true, None);
         prof_st(|st| *st.profile_fname.borrow_mut() = Some(fname));
-        g_st().do_profiling.set(PROF_YES);
+        g_st().exc.do_profiling.set(PROF_YES);
         profile_set_wait(profile_zero());
         set_vim_var_nr(VV_PROFILING, 1);
-    } else if g_st().do_profiling.get() == PROF_NONE {
+    } else if g_st().exc.do_profiling.get() == PROF_NONE {
         emsg(c"E750: First use \":profile start {fname}\"");
     } else if arg_bytes == b"stop" {
         profile_dump();
-        g_st().do_profiling.set(PROF_NONE);
+        g_st().exc.do_profiling.set(PROF_NONE);
         set_vim_var_nr(VV_PROFILING, 0);
         profile_reset();
     } else if arg_bytes == b"pause" {
-        if g_st().do_profiling.get() == PROF_YES {
+        if g_st().exc.do_profiling.get() == PROF_YES {
             let now = profile_start();
             prof_st(|st| st.pause_time.set(now));
         }
-        g_st().do_profiling.set(PROF_PAUSED);
+        g_st().exc.do_profiling.set(PROF_PAUSED);
     } else if arg_bytes == b"continue" {
-        if g_st().do_profiling.get() == PROF_PAUSED {
+        if g_st().exc.do_profiling.get() == PROF_PAUSED {
             let elapsed = profile_end(prof_st(|st| st.pause_time.get()));
             prof_st(|st| st.pause_time.set(elapsed));
             profile_set_wait(profile_add(profile_get_wait(), elapsed));
         }
-        g_st().do_profiling.set(PROF_YES);
+        g_st().exc.do_profiling.set(PROF_YES);
     } else if arg_bytes == b"dump" {
         profile_dump();
     } else {
@@ -452,8 +459,8 @@ pub fn prof_input_end() {
 
 /// Returns `true` when a function defined in the current script should be profiled (`prof_def_func`).
 pub fn prof_def_func() -> bool {
-    if g_st().current_sctx.get().sc_sid > 0 {
-        with_script_item(g_st().current_sctx.get().sc_sid, |si| si.sn_pr_force)
+    if g_st().exc.current_sctx.get().sc_sid > 0 {
+        with_script_item(g_st().exc.current_sctx.get().sc_sid, |si| si.sn_pr_force)
     } else {
         false
     }
@@ -717,8 +724,8 @@ pub fn profile_init(si: &mut Scriptitem) {
 /// Save time when starting to invoke another script or function (`script_prof_save`).
 pub fn script_prof_save(tm: &mut Proftime) {
     {
-        if script_id_valid(g_st().current_sctx.get().sc_sid) {
-            with_script_item_mut(g_st().current_sctx.get().sc_sid, |si| {
+        if script_id_valid(g_st().exc.current_sctx.get().sc_sid) {
+            with_script_item_mut(g_st().exc.current_sctx.get().sc_sid, |si| {
                 if si.sn_prof_on {
                     let prev_nest = si.sn_pr_nest;
                     si.sn_pr_nest += 1;
@@ -736,11 +743,11 @@ pub fn script_prof_save(tm: &mut Proftime) {
 
 /// Count time spent in children after invoking another script or function (`script_prof_restore`).
 pub fn script_prof_restore(tm: &Proftime) {
-    if !script_id_valid(g_st().current_sctx.get().sc_sid) {
+    if !script_id_valid(g_st().exc.current_sctx.get().sc_sid) {
         return;
     }
 
-    with_script_item_mut(g_st().current_sctx.get().sc_sid, |si| {
+    with_script_item_mut(g_st().exc.current_sctx.get().sc_sid, |si| {
         if si.sn_prof_on {
             si.sn_pr_nest -= 1;
             if si.sn_pr_nest == 0 {
@@ -830,11 +837,11 @@ pub fn profile_dump() {
 
 /// Called when starting to read a script line (`script_line_start`).
 pub fn script_line_start() {
-    if !script_id_valid(g_st().current_sctx.get().sc_sid) {
+    if !script_id_valid(g_st().exc.current_sctx.get().sc_sid) {
         return;
     }
     let slnum = sourcing_lnum();
-    with_script_item_mut(g_st().current_sctx.get().sc_sid, |si| {
+    with_script_item_mut(g_st().exc.current_sctx.get().sc_sid, |si| {
         if si.sn_prof_on && slnum >= 1 {
             si.sn_prl_idx = slnum - 1;
             if si.sn_prl_ga.len() < slnum as usize {
@@ -857,10 +864,10 @@ pub fn script_line_start() {
 
 /// Called when actually executing a script line (`script_line_exec`).
 pub fn script_line_exec() {
-    if !script_id_valid(g_st().current_sctx.get().sc_sid) {
+    if !script_id_valid(g_st().exc.current_sctx.get().sc_sid) {
         return;
     }
-    with_script_item_mut(g_st().current_sctx.get().sc_sid, |si| {
+    with_script_item_mut(g_st().exc.current_sctx.get().sc_sid, |si| {
         if si.sn_prof_on && si.sn_prl_idx >= 0 {
             si.sn_prl_execed = 1;
         }
@@ -869,10 +876,10 @@ pub fn script_line_exec() {
 
 /// Called when done with a script line (`script_line_end`).
 pub fn script_line_end() {
-    if !script_id_valid(g_st().current_sctx.get().sc_sid) {
+    if !script_id_valid(g_st().exc.current_sctx.get().sc_sid) {
         return;
     }
-    with_script_item_mut(g_st().current_sctx.get().sc_sid, |si| {
+    with_script_item_mut(g_st().exc.current_sctx.get().sc_sid, |si| {
         if si.sn_prof_on && si.sn_prl_idx >= 0 && (si.sn_prl_idx as usize) < si.sn_prl_ga.len() {
             if si.sn_prl_execed != 0 {
                 let prl_idx = si.sn_prl_idx as usize;
@@ -903,73 +910,99 @@ pub fn time_pop(tp: Proftime) {
 fn time_diff(then: Proftime, now: Proftime) {
     let diff = profile_sub(now, then);
     let s = CString::new(format!("{:07.3}", (diff as f64) / 1.0e6)).unwrap();
-    if let Some(ref tf) = *g_st().time_fd.borrow() {
-        fprintf!(tf, c"%s", &s);
-    }
+    prof_st(|st| {
+        if let Some(ref tf) = *st.time_fd.borrow() {
+            fprintf!(tf, c"%s", &s);
+        }
+    });
 }
 
 /// Initializes the startuptime code (`time_start`).
 pub fn time_start(message: &std::ffi::CStr) {
-    let Some(ref tf) = *g_st().time_fd.borrow() else {
+    if !has_time_fd() {
         return;
-    };
+    }
 
     let now = profile_start();
     prof_st(|st| {
         st.g_start_time.set(now);
         st.g_prev_time.set(now);
+        if let Some(ref tf) = *st.time_fd.borrow() {
+            fprintf!(tf, c"\ntimes in msec\n");
+            fprintf!(tf, c" clock   self+sourced   self:  sourced script\n",);
+            fprintf!(tf, c" clock   elapsed:              other lines\n\n",);
+        }
     });
-
-    fprintf!(tf, c"\ntimes in msec\n");
-    fprintf!(tf, c" clock   self+sourced   self:  sourced script\n",);
-    fprintf!(tf, c" clock   elapsed:              other lines\n\n",);
 
     time_msg(message, None);
 }
 
 /// Prints out timing info (`time_msg`).
 pub fn time_msg(mesg: &CStr, start: Option<&Proftime>) {
-    let Some(ref tf) = *g_st().time_fd.borrow() else {
+    if !has_time_fd() {
         return;
-    };
+    }
 
     let now = profile_start();
     time_diff(prof_st(|st| st.g_start_time.get()), now);
 
     if let Some(start) = start {
-        fprintf!(tf, c"  ");
+        prof_st(|st| {
+            if let Some(ref tf) = *st.time_fd.borrow() {
+                fprintf!(tf, c"  ");
+            }
+        });
         time_diff(*start, now);
     }
 
-    fprintf!(tf, c"  ");
-    let prev = prof_st(|st| st.g_prev_time.replace(now));
+    let prev = prof_st(|st| {
+        if let Some(ref tf) = *st.time_fd.borrow() {
+            fprintf!(tf, c"  ");
+        }
+        st.g_prev_time.replace(now)
+    });
     time_diff(prev, now);
 
-    fprintf!(tf, c": %s\n", mesg);
+    prof_st(|st| {
+        if let Some(ref tf) = *st.time_fd.borrow() {
+            fprintf!(tf, c": %s\n", mesg);
+        }
+    });
 }
 
 /// Initializes the `time_fd` stream for `--startuptime` (`time_init`).
 pub fn time_init(fname: &CStr, proc_name: &CStr) {
     const BUFSIZE: usize = 8192;
-    *g_st().time_fd.borrow_mut() = CFile::open_libc(fname, c"a");
-    let Some(ref tf) = *g_st().time_fd.borrow() else {
+    prof_st(|st| *st.time_fd.borrow_mut() = CFile::open_libc(fname, c"a"));
+    if !has_time_fd() {
         let fname_str = fname.to_string_lossy();
         eprint!("E484: Can't open file {fname_str}");
         return;
-    };
+    }
     let r = prof_st(|st| {
         let mut buf = st.startuptime_buf.borrow_mut();
         *buf = vec![0; BUFSIZE + 1];
-        tf.setvbuf(&mut buf, IOFBF)
+        st.time_fd
+            .borrow()
+            .as_ref()
+            .map_or(-1, |tf| tf.setvbuf(&mut buf, IOFBF))
     });
     if r != 0 {
-        prof_st(|st| *st.startuptime_buf.borrow_mut() = Vec::new());
-        *g_st().time_fd.borrow_mut() = None;
+        prof_st(|st| {
+            let prev_fd = st.time_fd.take();
+            drop(prev_fd);
+            let prev_buf = st.startuptime_buf.take();
+            drop(prev_buf);
+        });
         let err_str = uv_err_name(r).to_string_lossy();
         eprint!("time_init: setvbuf failed: {r} {err_str}");
         return;
     }
-    fprintf!(tf, c"--- Startup times for process: %s ---\n", proc_name,);
+    prof_st(|st| {
+        if let Some(ref tf) = *st.time_fd.borrow() {
+            fprintf!(tf, c"--- Startup times for process: %s ---\n", proc_name,);
+        }
+    });
 }
 
 /// Flushes the startuptimes to disk for the current process (`time_finish`).
@@ -980,9 +1013,12 @@ pub fn time_finish() {
     assert!(prof_st(|st| !st.startuptime_buf.borrow().is_empty()));
     time_msg(c"--- NVIM STARTED ---\n", None);
 
-    *g_st().time_fd.borrow_mut() = None;
-
-    prof_st(|st| *st.startuptime_buf.borrow_mut() = Vec::new());
+    prof_st(|st| {
+        let prev_fd = st.time_fd.take();
+        drop(prev_fd);
+        let prev_buf = st.startuptime_buf.take();
+        drop(prev_buf);
+    });
 }
 
 #[cfg(test)]

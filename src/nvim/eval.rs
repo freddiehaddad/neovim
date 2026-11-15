@@ -237,6 +237,7 @@ pub(crate) struct EvalModuleState {
     current_copy_id: std::cell::Cell<i32>,
     eval7_recurse: std::cell::Cell<i32>,
     var_item_copy_recurse: std::cell::Cell<i32>,
+    pub(super) provider_call_nesting: std::cell::Cell<i32>,
 }
 
 impl EvalModuleState {
@@ -249,6 +250,7 @@ impl EvalModuleState {
             current_copy_id: std::cell::Cell::new(0),
             eval7_recurse: std::cell::Cell::new(0),
             var_item_copy_recurse: std::cell::Cell::new(0),
+            provider_call_nesting: std::cell::Cell::new(0),
         }
     }
 }
@@ -264,7 +266,28 @@ pub(crate) fn set_eval_lavars_used(val: Option<bool>) {
 }
 
 thread_local! {
-    static EVAL_STATE: EvalModuleState = const { EvalModuleState::new() };
+    pub(super) static EVAL_STATE: EvalModuleState = const { EvalModuleState::new() };
+    pub(super) static PROVIDER_CALLER_SCOPE: std::cell::RefCell<CallerScope> = const {
+        std::cell::RefCell::new(CallerScope {
+            script_ctx: crate::runtime::Sctx {
+                sc_sid: 0,
+                sc_seq: 0,
+                sc_lnum: 0,
+                sc_chan: 0,
+            },
+            es_entry: crate::profile::Estack {
+                es_lnum: 0,
+                es_name: None,
+                es_type: 0,
+                es_info: crate::profile::EStackInfo::None,
+            },
+            autocmd_fname: None,
+            autocmd_match: None,
+            autocmd_fname_full: false,
+            autocmd_bufnr: 0,
+            funccalp: crate::eval::userfunc::FunccalId::NULL,
+        })
+    };
     static EVAL_TIMERS: std::cell::RefCell<std::collections::BTreeMap<u64, std::rc::Rc<VimTimer>>> =
         const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
 }
@@ -6633,13 +6656,12 @@ pub fn eval_call_provider(
         autocmd_bufnr: g_st().autocmd_bufnr.get(),
         funccalp: get_current_funccal().into(),
     };
-    let saved_provider_caller_scope = g_st().provider_caller_scope.replace(new_scope);
+    EVAL_STATE.with(|s| {
+        s.provider_call_nesting
+            .set(s.provider_call_nesting.get() + 1);
+    });
+    let saved_provider_caller_scope = PROVIDER_CALLER_SCOPE.with(|sc| sc.replace(new_scope));
     save_funccal();
-    {
-        g_st()
-            .provider_call_nesting
-            .set(g_st().provider_call_nesting.get() + (1));
-    }
 
     let mut argvars = [
         TypVal {
@@ -6680,13 +6702,13 @@ pub fn eval_call_provider(
 
     tv_list_unref(Some(arguments));
     restore_funccal();
-    {
-        *g_st().provider_caller_scope.borrow_mut() = saved_provider_caller_scope;
-        g_st()
-            .provider_call_nesting
-            .set(g_st().provider_call_nesting.get() - (1));
-        debug_assert!(g_st().provider_call_nesting.get() >= 0);
-    }
+    let prev = PROVIDER_CALLER_SCOPE.with(|sc| sc.replace(saved_provider_caller_scope));
+    drop(prev);
+    EVAL_STATE.with(|s| {
+        s.provider_call_nesting
+            .set(s.provider_call_nesting.get() - 1);
+        debug_assert!(s.provider_call_nesting.get() >= 0);
+    });
 
     if discard {
         tv_clear(&mut rettv);

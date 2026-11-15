@@ -80,7 +80,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-    let l_provider_call_nesting = g_st().provider_call_nesting.get();
+    let l_provider_call_nesting = super::EVAL_STATE.with(|s| s.provider_call_nesting.get());
 
     if check_secure() {
         return;
@@ -123,24 +123,26 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         save_autocmd_bufnr = g_st().autocmd_bufnr.get();
         save_funccal();
 
-        g_st()
-            .current_sctx
-            .set(g_st().provider_caller_scope.borrow().script_ctx);
-        let es_entry = g_st().provider_caller_scope.borrow().es_entry.clone();
+        let (script_ctx, es_entry, au_fname, au_match, au_full, au_bufnr, funccalp) =
+            super::PROVIDER_CALLER_SCOPE.with(|s| {
+                let sc = s.borrow();
+                (
+                    sc.script_ctx,
+                    sc.es_entry.clone(),
+                    sc.autocmd_fname.clone(),
+                    sc.autocmd_match.clone(),
+                    sc.autocmd_fname_full,
+                    sc.autocmd_bufnr,
+                    sc.funccalp,
+                )
+            });
+        g_st().current_sctx.set(script_ctx);
         crate::runtime::estack_push_entry(es_entry);
-        g_st()
-            .autocmd_fname
-            .set(g_st().provider_caller_scope.borrow().autocmd_fname.clone());
-        g_st()
-            .autocmd_match
-            .set(g_st().provider_caller_scope.borrow().autocmd_match.clone());
-        g_st()
-            .autocmd_fname_full
-            .set(g_st().provider_caller_scope.borrow().autocmd_fname_full);
-        g_st()
-            .autocmd_bufnr
-            .set(g_st().provider_caller_scope.borrow().autocmd_bufnr);
-        set_current_funccal(g_st().provider_caller_scope.borrow().funccalp);
+        g_st().autocmd_fname.set(au_fname);
+        g_st().autocmd_match.set(au_match);
+        g_st().autocmd_fname_full.set(au_full);
+        g_st().autocmd_bufnr.set(au_bufnr);
+        set_current_funccal(funccalp);
     }
 
     let chan_id = argvars[0].vval.v_number() as u64;

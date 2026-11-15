@@ -134,12 +134,7 @@ fn find_ns_by_name(group: Option<&CStr>) -> i32 {
     let Some(group_cstr) = group else {
         return 0;
     };
-    g_st()
-        .namespace_ids
-        .borrow()
-        .iter()
-        .find_map(|(k, v)| (k.as_c_str() == group_cstr).then_some(*v))
-        .unwrap_or(0)
+    crate::api::extmark::find_namespace_id_by_name(group_cstr).unwrap_or(0)
 }
 
 fn group_get_ns(group: Option<&CStr>) -> i64 {

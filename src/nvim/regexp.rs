@@ -2127,6 +2127,9 @@ pub(super) struct RegexpState {
     pub(super) nfa_endp: std::cell::Cell<Option<SaveSe>>,
     pub(super) nfa_ll_index: std::cell::Cell<usize>,
     pub(super) regexp_engine: std::cell::Cell<i32>,
+    pub(super) reg_do_extmatch: std::cell::Cell<i32>,
+    pub(super) re_extmatch_in: crate::globals::CloneCell<Option<std::rc::Rc<RegExtmatch>>>,
+    pub(super) re_extmatch_out: crate::globals::CloneCell<Option<std::rc::Rc<RegExtmatch>>>,
 }
 
 impl RegexpState {
@@ -2177,8 +2180,31 @@ impl RegexpState {
             nfa_endp: std::cell::Cell::new(None),
             nfa_ll_index: std::cell::Cell::new(0),
             regexp_engine: std::cell::Cell::new(0),
+            reg_do_extmatch: std::cell::Cell::new(0),
+            re_extmatch_in: crate::globals::CloneCell::new(None),
+            re_extmatch_out: crate::globals::CloneCell::new(None),
         }
     }
+}
+
+#[inline]
+pub(crate) fn set_reg_do_extmatch(v: i32) {
+    RE_STATE.with(|s| s.reg_do_extmatch.set(v));
+}
+
+#[inline]
+pub(crate) fn set_re_extmatch_in(v: Option<std::rc::Rc<RegExtmatch>>) {
+    RE_STATE.with(|s| s.re_extmatch_in.set(v));
+}
+
+#[inline]
+pub(crate) fn take_re_extmatch_out() -> Option<std::rc::Rc<RegExtmatch>> {
+    RE_STATE.with(|s| s.re_extmatch_out.take())
+}
+
+#[inline]
+pub(crate) fn clear_re_extmatch_out() {
+    RE_STATE.with(|s| s.re_extmatch_out.set(None));
 }
 
 struct CachedRegprog {
@@ -4389,7 +4415,7 @@ pub fn vim_regcomp_had_eol() -> bool {
 
 #[inline]
 pub fn vim_regcomp_cached(expr_arg: &[u8], re_flags: i32) -> Option<Box<Regprog>> {
-    if g_st().reg_do_extmatch.get() != 0 || opt_vars().p_verbose.get() != 0 {
+    if RE_STATE.with(|s| s.reg_do_extmatch.get()) != 0 || opt_vars().p_verbose.get() != 0 {
         return None;
     }
     let mut expr_bytes = crate::memory::bytes_until_nul(expr_arg);
@@ -4463,7 +4489,7 @@ pub fn vim_regcomp(expr_arg: &[u8], re_flags: i32) -> Option<Box<Regprog>> {
     let engine = re_s.regexp_engine.get();
     let cpo_lit = crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL);
     let chartab = re_s.rex.reg_chartab.get();
-    let can_cache = g_st().reg_do_extmatch.get() == 0
+    let can_cache = re_s.reg_do_extmatch.get() == 0
         && opt_vars().p_verbose.get() == 0
         && !expr_bytes.contains(&b'~')
         && !expr_bytes.windows(2).any(|w| w == b"[:");
@@ -4703,9 +4729,9 @@ pub fn vim_regexec_multi(
         opt_vars().p_re.set(OptInt::from(BACKTRACKING_ENGINE));
 
         report_re_switch(pat_owned.as_bytes());
-        g_st().reg_do_extmatch.set(REX_ALL);
+        RE_STATE.with(|s| s.reg_do_extmatch.set(REX_ALL));
         let new_prog = vim_regcomp(pat_owned.as_bytes(), re_flags);
-        g_st().reg_do_extmatch.set(0);
+        RE_STATE.with(|s| s.reg_do_extmatch.set(0));
 
         if let Some(new_prog) = new_prog {
             rmp.regprog.replace_from(&new_prog);

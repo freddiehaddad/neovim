@@ -6,7 +6,6 @@ use crate::api::private::helpers::{api_error, nil_obj};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
 };
-use crate::globals::*;
 use crate::lua::converter::{Boolean, FieldHashfn};
 use crate::mpack::mpack_core::{
     MPACK_OK, MpackTokbuf, MpackToken, MpackTokenType, mpack_read, mpack_rtoken, mpack_tokbuf_init,
@@ -697,14 +696,12 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
             } else {
                 let sc = crate::grid::schar_from_bytes(cell_bytes);
                 for _ in 0..repeat {
-                    if p.grid_line_event.coloff >= (g_st().grid_line_buf_char.borrow().len() as i32)
-                    {
+                    if p.grid_line_event.coloff >= (crate::ui_client::grid_line_buf_len() as i32) {
                         p.state = -1;
                         return false;
                     }
                     let off = p.grid_line_event.coloff as usize;
-                    g_st().grid_line_buf_char.borrow_mut()[off] = sc;
-                    g_st().grid_line_buf_attr.borrow_mut()[off] = p.grid_line_event.cur_attr;
+                    crate::ui_client::set_grid_line_buf_cell(off, sc, p.grid_line_event.cur_attr);
                     p.grid_line_event.coloff += 1;
                 }
             }

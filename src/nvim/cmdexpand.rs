@@ -1826,6 +1826,8 @@ struct CmdexpandState {
     arg1_lua_names: crate::api::private::validate::CloneCell<Object>,
     arg1_lua_last_gen: std::cell::Cell<u32>,
     first_match: std::cell::Cell<i32>,
+    save_p_ls: std::cell::Cell<i32>,
+    save_p_wmh: std::cell::Cell<i32>,
 }
 
 impl CmdexpandState {
@@ -1853,6 +1855,8 @@ impl CmdexpandState {
             }),
             arg1_lua_last_gen: std::cell::Cell::new(0),
             first_match: std::cell::Cell::new(0),
+            save_p_ls: std::cell::Cell::new(-1),
+            save_p_wmh: std::cell::Cell::new(-1),
         }
     }
 }
@@ -2477,8 +2481,10 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
                 g_st().wild_menu_showing.set(WM_SCROLLED);
             } else {
                 if lastwin().w_status_height.get() == 0 && global_stl_height() == 0 {
-                    g_st().save_p_ls.set(opt_vars().p_ls.get() as i32);
-                    g_st().save_p_wmh.set(opt_vars().p_wmh.get() as i32);
+                    CMDEXP_STATE.with(|s| {
+                        s.save_p_ls.set(opt_vars().p_ls.get() as i32);
+                        s.save_p_wmh.set(opt_vars().p_wmh.get() as i32);
+                    });
                     opt_vars().p_ls.set(2);
                     opt_vars().p_wmh.set(0);
                     last_status(false);
@@ -5791,13 +5797,13 @@ pub fn wildmenu_cleanup(cclp: &CmdlineInfo) {
         g_st().cmdline_row.set(g_st().cmdline_row.get() - (1));
         redrawcmd();
         g_st().wild_menu_showing.set(0);
-    } else if g_st().save_p_ls.get() != -1 {
-        opt_vars().p_ls.set(OptInt::from(g_st().save_p_ls.get()));
-        opt_vars().p_wmh.set(OptInt::from(g_st().save_p_wmh.get()));
+    } else if CMDEXP_STATE.with(|s| s.save_p_ls.get()) != -1 {
+        let (ls, wmh) = CMDEXP_STATE.with(|s| (s.save_p_ls.replace(-1), s.save_p_wmh.get()));
+        opt_vars().p_ls.set(OptInt::from(ls));
+        opt_vars().p_wmh.set(OptInt::from(wmh));
         last_status(false);
         update_screen();
         redrawcmd();
-        g_st().save_p_ls.set(-1);
         g_st().wild_menu_showing.set(0);
     } else {
         win_redraw_last_status(&topframe());

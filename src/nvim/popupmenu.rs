@@ -1856,13 +1856,7 @@ fn pum_execute_menu(menu: &mut Vimmenu, path_name: Option<&CStr>, mode: i32) {
         if let Some(fresh) = menu_find(path_name) {
             *menu = fresh;
         }
-    } else if let Some(fresh) = g_st()
-        .root_menu
-        .borrow()
-        .iter()
-        .find(|m| m.name == menu.name)
-        .cloned()
-    {
+    } else if let Some(fresh) = crate::menu::find_root_menu_by_name(menu.name.as_c_str()) {
         *menu = fresh;
     }
     let mut idx: i32 = 0;

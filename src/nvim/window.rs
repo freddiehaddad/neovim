@@ -906,6 +906,7 @@ struct WindowModuleState {
     winclosed_recursive: std::cell::Cell<bool>,
     tabclosedpre_recursive: std::cell::Cell<bool>,
     win_scrolled_resized_recursive: std::cell::Cell<bool>,
+    skip_win_fix_scroll: std::cell::Cell<bool>,
 }
 
 impl WindowModuleState {
@@ -924,6 +925,7 @@ impl WindowModuleState {
             winclosed_recursive: std::cell::Cell::new(false),
             tabclosedpre_recursive: std::cell::Cell::new(false),
             win_scrolled_resized_recursive: std::cell::Cell::new(false),
+            skip_win_fix_scroll: std::cell::Cell::new(false),
         }
     }
 }
@@ -5483,9 +5485,9 @@ pub fn goto_tabpage_tp(
     let tp = crate::globals::TabpagePtr::from(tp_in);
     set_keep_msg(None, 0);
 
-    g_st().skip_win_fix_scroll.set(true);
+    WIN_STATE.with(|s| s.skip_win_fix_scroll.set(true));
     let Some(tp_ref) = tp.opt() else {
-        g_st().skip_win_fix_scroll.set(false);
+        WIN_STATE.with(|s| s.skip_win_fix_scroll.set(false));
         return;
     };
     let new_curbuf = tp_ref.curwin().w_buffer.get();
@@ -5506,7 +5508,7 @@ pub fn goto_tabpage_tp(
             );
         }
     }
-    g_st().skip_win_fix_scroll.set(false);
+    WIN_STATE.with(|s| s.skip_win_fix_scroll.set(false));
 }
 
 pub fn goto_tabpage_lastused() -> bool {
@@ -6329,7 +6331,7 @@ pub fn win_new_screen_rows() {
     compute_cmdrow();
     curtab().tp_ch_used.set(opt_vars().p_ch.get());
 
-    if !g_st().skip_win_fix_scroll.get() {
+    if !WIN_STATE.with(|s| s.skip_win_fix_scroll.get()) {
         win_fix_scroll(true);
     }
 }

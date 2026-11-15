@@ -1049,7 +1049,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
             c = no_magic(getchr());
             match c as u8 {
                 b'(' => {
-                    if (g_st().reg_do_extmatch.get() & REX_SET) == 0 {
+                    if (RE_STATE.with(|s| s.reg_do_extmatch.get()) & REX_SET) == 0 {
                         emsg(tr(E_Z_NOT_ALLOWED));
                         g_st().rc_did_emsg.set(true);
                         return None;
@@ -1073,7 +1073,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                     return ret;
                 }
                 b'1'..=b'9' => {
-                    if (g_st().reg_do_extmatch.get() & REX_USE) == 0 {
+                    if (RE_STATE.with(|s| s.reg_do_extmatch.get()) & REX_USE) == 0 {
                         emsg(tr(E_Z1_NOT_ALLOWED));
                         g_st().rc_did_emsg.set(true);
                         return None;
@@ -3512,7 +3512,7 @@ fn regmatch_inner(
                         x if (ZREF + 1..=ZREF + 9).contains(&x) => {
                             cleanup_zsubexpr();
                             let no = (op - ZREF) as usize;
-                            let ext_in = gst.re_extmatch_in.get().clone();
+                            let ext_in = re_s.re_extmatch_in.get();
                             if let Some(ref em) = ext_in
                                 && let Some(ref m_cstr) = em.matches[no]
                             {
@@ -4100,7 +4100,7 @@ fn regtry(
             }
         }
 
-        g_st().re_extmatch_out.set(None);
+        re_s.re_extmatch_out.set(None);
 
         if prog.reghasz == REX_SET as u8 {
             cleanup_zsubexpr();
@@ -4127,7 +4127,7 @@ fn regtry(
                     }
                 }
             }
-            g_st().re_extmatch_out.set(Some(std::rc::Rc::new(extmatch)));
+            re_s.re_extmatch_out.set(Some(std::rc::Rc::new(extmatch)));
         }
         1 + re_s.rex.lnum.get()
     }

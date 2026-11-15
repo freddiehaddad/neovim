@@ -42,6 +42,36 @@ enum AssertType {
     Other,
 }
 
+struct TestingState {
+    emsg_assert_fails_msg: crate::globals::CloneCell<Option<std::ffi::CString>>,
+    emsg_assert_fails_lnum: std::cell::Cell<i64>,
+    emsg_assert_fails_context: crate::globals::CloneCell<Option<std::ffi::CString>>,
+}
+
+impl TestingState {
+    const fn new() -> Self {
+        Self {
+            emsg_assert_fails_msg: crate::globals::CloneCell::new(None),
+            emsg_assert_fails_lnum: std::cell::Cell::new(0),
+            emsg_assert_fails_context: crate::globals::CloneCell::new(None),
+        }
+    }
+}
+
+std::thread_local! {
+    static TESTING_STATE: TestingState = const { TestingState::new() };
+}
+
+pub(crate) fn record_assert_fails_emsg(msg: &CStr, lnum: i64, context: Option<std::ffi::CString>) {
+    TESTING_STATE.with(|s| {
+        if s.emsg_assert_fails_msg.get().is_none() {
+            s.emsg_assert_fails_msg.set(Some(msg.to_owned()));
+            s.emsg_assert_fails_lnum.set(lnum);
+            s.emsg_assert_fails_context.set(context);
+        }
+    });
+}
+
 #[inline]
 pub fn ga_concat_literal(gap: &mut Vec<u8>, s: &[u8]) {
     gap.extend_from_slice(s);
@@ -542,7 +572,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         let mut expected_str: Option<std::ffi::CString> = None;
         let mut error_found = false;
         let mut error_found_index: usize = 1;
-        let actual_owned = g_st().emsg_assert_fails_msg.get().clone();
+        let actual_owned = TESTING_STATE.with(|s| s.emsg_assert_fails_msg.get());
         let mut actual_cstr: &CStr = actual_owned.as_deref().unwrap_or(c"[unknown]");
 
         let arg1 = &argvars[1];
@@ -621,7 +651,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 wrong_arg_msg = Some(c"E1115: \"assert_fails()\" fourth argument must be a number");
                 valid_args = false;
             } else if arg3.vval.v_number() >= 0 && {
-                let expected: i64 = g_st().emsg_assert_fails_lnum.get() as _;
+                let expected: i64 = TESTING_STATE.with(|s| s.emsg_assert_fails_lnum.get());
                 arg3.vval.v_number() != expected
             } {
                 error_found = true;
@@ -636,9 +666,8 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 } else if !arg4.vval.v_string_is_null()
                     && !pattern_match(
                         arg4.vval.v_string_cstr_or_empty().to_bytes(),
-                        g_st()
-                            .emsg_assert_fails_context
-                            .get()
+                        TESTING_STATE
+                            .with(|s| s.emsg_assert_fails_context.get())
                             .as_deref()
                             .map(CStr::to_bytes),
                         false,
@@ -662,13 +691,15 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 actual_tv.v_type = VarType::VarNumber;
                 {
                     actual_tv.vval = crate::eval::typval::TypvalVval::Number(
-                        g_st().emsg_assert_fails_lnum.get() as _,
+                        TESTING_STATE.with(|s| s.emsg_assert_fails_lnum.get()),
                     );
                 }
             } else if error_found_index == 4 {
                 actual_tv.v_type = VarType::VarString;
                 actual_tv.vval = crate::eval::typval::TypvalVval::from_opt_cstr(
-                    g_st().emsg_assert_fails_context.get().as_deref(),
+                    TESTING_STATE
+                        .with(|s| s.emsg_assert_fails_context.get())
+                        .as_deref(),
                 );
             } else {
                 actual_tv.v_type = VarType::VarString;
@@ -717,7 +748,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     g_st().emsg_on_display.set(false);
     msg_reset_scroll();
     g_st().lines_left.set(g_st().rows_global.get());
-    g_st().emsg_assert_fails_msg.set(None);
+    TESTING_STATE.with(|s| s.emsg_assert_fails_msg.set(None));
     drop(tofree);
     set_vim_var_string(VV_ERRMSG, None, 0);
     if let Some(msg) = wrong_arg_msg {
