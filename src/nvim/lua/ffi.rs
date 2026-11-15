@@ -615,6 +615,17 @@ pub fn lua_tolstring_bytes(lstate: *mut lua_State, idx: i32) -> &'static [u8] {
 }
 
 #[inline]
+pub fn lua_tolstring_bytes_with_nul(lstate: *mut lua_State, idx: i32) -> &'static [u8] {
+    let mut len = 0usize;
+    let ptr = unsafe { lua_tolstring(lstate, idx, &mut len) };
+    if ptr.is_null() || len == 0 {
+        b"\0"
+    } else {
+        unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len + 1) }
+    }
+}
+
+#[inline]
 pub fn lua_tolstring_opt_cstr(lstate: *mut lua_State, idx: i32) -> Option<&'static std::ffi::CStr> {
     let ptr = unsafe { lua_tolstring(lstate, idx, std::ptr::null_mut()) };
     (!ptr.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(ptr) })

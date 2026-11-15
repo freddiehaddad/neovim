@@ -2324,6 +2324,49 @@ describe('api/buf', function()
       eq(0, get_offset(0, 0))
       eq(5, get_offset(0, 1))
     end)
+
+    it(
+      'updates line2byte and offsets across multi-chunk splits, merges, and interior NULs',
+      function()
+        eq(-1, fn.line2byte(1))
+        api.nvim_buf_set_lines(0, 0, -1, false, { '' })
+        eq(1, fn.line2byte(1))
+        eq(0, get_offset(0, 0))
+        eq(1, get_offset(0, 1))
+
+        -- Populate >1600 lines (multiple 400..800 line chunks), including >22 byte strings with interior NULs
+        exec_lua([[
+        local lines = {}
+        for i = 1, 1700 do
+          lines[i] = string.format('chunk-line-%04d-padding-text', i)
+        end
+        lines[500] = 'interior-nul-beyond-22-bytes-\0-tail'
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+      ]])
+        eq(1700, api.nvim_buf_line_count(0))
+        eq('interior-nul-beyond-22-bytes-\n-tail', fn.getline(500))
+
+        -- Top-of-buffer insertions and deletions across chunk boundaries
+        for i = 1, 250 do
+          api.nvim_buf_set_lines(0, 0, 0, false, { 'top-insert-' .. i })
+        end
+        eq(1950, api.nvim_buf_line_count(0))
+        eq('top-insert-250', fn.getline(1))
+        api.nvim_set_option_value('fileformat', 'unix', { buf = 0 })
+        local off_1000 = fn.line2byte(1000)
+        eq(1000, fn.byte2line(off_1000))
+        eq(off_1000 - 1, get_offset(0, 999))
+        api.nvim_set_option_value('fileformat', 'dos', { buf = 0 })
+        eq(off_1000 + 999, fn.line2byte(1000))
+        eq(1000, fn.byte2line(off_1000 + 999))
+        eq(off_1000 - 1, get_offset(0, 999))
+
+        command('silent g/^top-insert-/d _')
+        eq(1700, api.nvim_buf_line_count(0))
+        eq('chunk-line-0001-padding-text', fn.getline(1))
+        eq('chunk-line-1700-padding-text', fn.getline(1700))
+      end
+    )
   end)
 
   describe('nvim_buf_get_var, nvim_buf_set_var, nvim_buf_del_var', function()

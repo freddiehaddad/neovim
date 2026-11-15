@@ -460,6 +460,18 @@ pub fn nvim_buf_set_lines(
                 ));
             }
 
+            if let Some(rc_cstr) = item.data.to_rc_cstr_if_clean() {
+                let len = rc_cstr.to_bytes().len();
+                if !crate::memline::ml_replace_buf_cstr(&b, lnum as Linenr, rc_cstr) {
+                    return Err(api_error!(
+                        ErrorType::ErrorTypeException,
+                        c"Failed to replace line",
+                    ));
+                }
+                inserted_bytes += len as Bcount + 1;
+                continue;
+            }
+
             let raw = item.data.as_bytes();
             let line: &[u8] = if raw.contains(&0) {
                 scratch.clear();
@@ -504,6 +516,19 @@ pub fn nvim_buf_set_lines(
                     c"%s",
                     c"Index out of bounds",
                 ));
+            }
+
+            if let Some(rc_cstr) = item.data.to_rc_cstr_if_clean() {
+                let len = rc_cstr.to_bytes().len();
+                if !crate::memline::ml_append_buf_cstr(&b, lnum as Linenr, rc_cstr, false) {
+                    return Err(api_error!(
+                        ErrorType::ErrorTypeException,
+                        c"Failed to insert line",
+                    ));
+                }
+                inserted_bytes += len as Bcount + 1;
+                extra += 1;
+                continue;
             }
 
             let raw = item.data.as_bytes();
@@ -1686,8 +1711,9 @@ pub fn buf_collect_lines(
 ) {
     for i in 0..n {
         let lnum = start + (i as Linenr);
-        let line_bytes = crate::memline::ml_get_buf_slice(buf, lnum);
-        push_linestr(lstate, l, &line_bytes, start_idx + (i as i32), replace_nl);
+        crate::memline::with_ml_buf_line(buf, lnum, |line_bytes| {
+            push_linestr(lstate, l, line_bytes, start_idx + (i as i32), replace_nl);
+        });
     }
 }
 

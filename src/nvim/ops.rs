@@ -1117,7 +1117,7 @@ fn mb_adjust_opend(oap: &mut Oparg) {
 fn pbyte(mut lp: CursorPos, c: i32) {
     debug_assert!(c <= u8::MAX as i32);
     crate::memline::with_ml_get_buf_mut_slice(&curbuf(), lp.lnum, |slice| {
-        let len = curbuf().b_ml.ml_line_textlen.get();
+        let len = (slice.len() + 1) as Colnr;
 
         if lp.col >= len {
             lp.col = if len > 1 { len - 2 } else { 0 };

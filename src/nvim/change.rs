@@ -41,8 +41,8 @@ use crate::mbyte::{
 };
 use crate::mcursor::mc_replaying;
 use crate::memline::{
-    ml_add_deleted_len, ml_append, ml_delete_flags, ml_get, ml_get_len, ml_line_alloced,
-    ml_open_file, ml_replace, ml_setflags,
+    ml_append, ml_delete_flags, ml_get, ml_get_len, ml_line_alloced, ml_open_file, ml_replace,
+    ml_setflags,
 };
 use crate::message::{
     msg_clr_eos, msg_delay, msg_end, msg_ext_set_kind, msg_puts_hl, msg_source, msg_start, siemsg,
@@ -903,20 +903,15 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
         drop(newp_vec);
     } else {
-        let ml = &curbuf().b_ml;
-        {
-            let lb = ml.ml_line_buf.borrow();
-            ml_add_deleted_len(&lb[..oldlen as usize]);
-        }
-
-        ml.ml_line_buf.borrow_mut().copy_within(
-            (col + count) as usize..(col + count + movelen) as usize,
+        let cb = curbuf();
+        cb.b_ml.delete_dirty_line_bytes(
+            &cb,
             col as usize,
+            count as usize,
+            movelen as usize,
+            oldlen as usize,
+            newlen,
         );
-
-        ml.ml_line_textlen.set(newlen + 1);
-        ml.ml_line_cstr.set(None);
-        ml.ml_line_buf.borrow_mut().truncate((newlen + 1) as usize);
     }
 
     inserted_bytes(lnum, col, count, 0);

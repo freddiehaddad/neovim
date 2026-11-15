@@ -9,8 +9,14 @@ use crate::syntax::{IdlCache, Keyentry, SynCluster, SynTime, Synpat, Synstate};
 use crate::window::K_WIN_OPT_COUNT;
 
 #[inline]
-fn rc_cstr_from_clean_bytes(clean: &[u8]) -> std::rc::Rc<std::ffi::CStr> {
-    if clean.len() < 512 {
+pub(crate) fn rc_cstr_from_clean_bytes(clean: &[u8]) -> std::rc::Rc<std::ffi::CStr> {
+    if clean.len() < 128 {
+        let mut stack = [0u8; 128];
+        stack[..clean.len()].copy_from_slice(clean);
+        let cstr = std::ffi::CStr::from_bytes_with_nul(&stack[..=clean.len()])
+            .expect("stack buffer is NUL-terminated without interior NULs");
+        std::rc::Rc::from(cstr)
+    } else if clean.len() < 512 {
         let mut stack = [0u8; 512];
         stack[..clean.len()].copy_from_slice(clean);
         let cstr = std::ffi::CStr::from_bytes_with_nul(&stack[..=clean.len()])
@@ -120,6 +126,22 @@ impl RcCStr {
     }
 
     #[inline(always)]
+    pub fn into_bytes_slice(self) -> RcSlice {
+        match self {
+            Self::Static(s) => RcSlice {
+                buf: RcSliceBuf::Static(s),
+                start: 0,
+                with_nul: false,
+            },
+            Self::Shared(rc, start) => RcSlice {
+                buf: RcSliceBuf::SharedCStr(rc),
+                start,
+                with_nul: false,
+            },
+        }
+    }
+
+    #[inline(always)]
     pub fn to_bytes_with_nul_slice(&self) -> RcSlice {
         match self {
             Self::Static(s) => RcSlice {
@@ -130,6 +152,22 @@ impl RcCStr {
             Self::Shared(rc, start) => RcSlice {
                 buf: RcSliceBuf::SharedCStr(rc.clone()),
                 start: *start,
+                with_nul: true,
+            },
+        }
+    }
+
+    #[inline(always)]
+    pub fn into_bytes_with_nul_slice(self) -> RcSlice {
+        match self {
+            Self::Static(s) => RcSlice {
+                buf: RcSliceBuf::Static(s),
+                start: 0,
+                with_nul: true,
+            },
+            Self::Shared(rc, start) => RcSlice {
+                buf: RcSliceBuf::SharedCStr(rc),
+                start,
                 with_nul: true,
             },
         }

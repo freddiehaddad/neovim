@@ -52,8 +52,9 @@ Follow these rules strictly when modifying `src/nvim/`:
    - Keep `#[repr(C)]` only on types that cross C FFI (`lua/ffi.rs`, `event/ffi.rs`, `os/`, swapfile/undo binary headers, and `#[unsafe(no_mangle)]` / `#[unsafe(export_name = ...)]` LuaJIT `ffi.C` shims).
    - Note that LuaJIT's `ffi.C` tests declare several types (such as `Error`) as 0-byte `typedef struct {}`; exported `extern "C"` shims must not write larger Rust structs through such pointers.
    - In `src/nvim/event/`, `libuv` callbacks mutate `Proc` and `Stream` fields through raw C pointers (`handle.data`). Polling loops must take `*mut Proc` and read shared state via `VolatileCell` / `std::ptr::read_volatile`, never holding `&mut Proc` across `uv_run`.
-5. **Preserve NUL-termination invariants on C-string buffers**:
+5. **Preserve NUL-termination invariants on C-string buffers and use `Memline` chunk APIs**:
    - Use `RcCStr`, `RcSlice`, `CString`, or `c"..."` literals for NUL-terminated strings; never pass `Vec::new().as_ptr()` to C functions expecting a valid NUL-terminated `*const c_char`.
+   - `Memline` (`src/nvim/memline.rs`) stores in-memory buffer lines in `Vec<LineChunk>` (400–800 `RcCStr` lines per chunk with `start_lnum`, `totalsize`, and cached `swap_blocks`) and serializes dirty chunks into 4KB `PointerBlock`/`DataBlock` pages on demand when syncing `.swp` files (`ml_sync_swap_blocks`). Use `with_ml_buf_line` and `with_ml_buf_bytes_with_nul` for borrowed line slice access.
 6. **Always validate nontrivial core changes in `--release` mode**:
    - Test core changes with `cargo xtask functionaltest --release` to validate both optimized codegen and runtime `RefCell` invariants.
 

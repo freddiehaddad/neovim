@@ -31,7 +31,8 @@ use crate::globals::*;
 use crate::insert::buf_prompt_text;
 use crate::mark::mark_adjust_buf;
 use crate::memline::{
-    ml_append, ml_delete_buf, ml_delete_flags, ml_get_buf, ml_replace, ml_replace_buf,
+    ml_append, ml_append_buf_cstr, ml_delete_buf, ml_delete_flags, ml_get_buf, ml_replace_buf,
+    ml_replace_buf_cstr,
 };
 use crate::r#move::update_topline;
 use crate::path::path_with_url;
@@ -197,7 +198,7 @@ fn set_buffer_lines(
         }
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
-        let Some(ref line_cstr) = line else {
+        let Some(line_cstring) = line.take() else {
             break;
         };
         if lnum > curbuf().b_ml.ml_line_count.get() + 1 {
@@ -210,18 +211,29 @@ fn set_buffer_lines(
         }
 
         if !append && lnum <= curbuf().b_ml.ml_line_count.get() {
-            let old_len = crate::memline::ml_get_len(lnum);
-            if u_savesub(lnum) && ml_replace(lnum, line_cstr.to_bytes(), true) {
-                let new_len = line_cstr.to_bytes().len() as i32;
-                inserted_bytes(lnum, 0, old_len, new_len);
-                if is_curbuf && lnum == curwin().w_cursor.get().lnum {
-                    check_cursor_col(&curwin());
+            let new_len = line_cstring.to_bytes().len() as i32;
+            if u_savesub(lnum) {
+                let old_len = crate::memline::ml_get_len(lnum);
+                if ml_replace_buf_cstr(
+                    &curbuf(),
+                    lnum,
+                    crate::option_vars::RcCStr::from_cstring(line_cstring),
+                ) {
+                    inserted_bytes(lnum, 0, old_len, new_len);
+                    if is_curbuf && lnum == curwin().w_cursor.get().lnum {
+                        check_cursor_col(&curwin());
+                    }
+                    rettv.vval = crate::eval::typval::TypvalVval::Number(0); // OK
                 }
-                rettv.vval = crate::eval::typval::TypvalVval::Number(0); // OK
             }
         } else if added > 0 || u_save(lnum - 1, lnum) {
             added += 1;
-            if ml_append(lnum - 1, line_cstr.to_bytes(), 0, false) {
+            if ml_append_buf_cstr(
+                &curbuf(),
+                lnum - 1,
+                crate::option_vars::RcCStr::from_cstring(line_cstring),
+                false,
+            ) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0); // OK
             }
         }
@@ -815,17 +827,15 @@ fn get_buffer_lines(
         }
         tv_list_alloc_ret(&mut *rettv, (end - start + 1) as isize);
         while start <= end {
-            crate::eval::typval::tv_list_append_bytes(
-                rettv.vval.v_list_ref(),
-                &crate::memline::ml_get_buf_slice(buf.unwrap(), start),
-            );
+            crate::memline::with_ml_buf_line(buf.unwrap(), start, |line_bytes| {
+                crate::eval::typval::tv_list_append_bytes(rettv.vval.v_list_ref(), line_bytes);
+            });
             start += 1;
         }
     } else if start >= 1 && start <= buf.unwrap().b_ml.ml_line_count.get() {
-        crate::eval::typval::tv_set_string_len(
-            &mut *rettv,
-            Some(&crate::memline::ml_get_buf_slice(buf.unwrap(), start)),
-        );
+        crate::memline::with_ml_buf_line(buf.unwrap(), start, |line_bytes| {
+            crate::eval::typval::tv_set_string_len(&mut *rettv, Some(line_bytes));
+        });
     } else {
         rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;

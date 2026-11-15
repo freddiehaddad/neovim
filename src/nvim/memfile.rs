@@ -25,7 +25,7 @@ pub(crate) const MIN_SWAP_PAGE_SIZE: u32 = 1048;
 const MAX_SWAP_PAGE_SIZE: u64 = 50000;
 
 pub(crate) const BH_DIRTY: u32 = 1;
-const BH_LOCKED: u32 = 2;
+pub(crate) const BH_LOCKED: u32 = 2;
 
 const MF_DIRTY_NO: Mfdirty = 0;
 
@@ -46,7 +46,7 @@ const S_IREAD: i32 = 0o400;
 const S_IWRITE: i32 = 0o200;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BhdrId(usize);
+pub struct BhdrId(pub(crate) usize);
 
 pub struct Bhdr {
     pub bh_bnum: Blocknr,
@@ -116,31 +116,6 @@ impl Memfile {
         self.mf_hash.remove(&bhdr.bh_bnum);
         self.mf_free_slots.push(id.0);
         Some(bhdr)
-    }
-
-    pub fn copy_bhdr_data(
-        &mut self,
-        src_id: BhdrId,
-        src_start: usize,
-        dst_id: BhdrId,
-        dst_start: usize,
-        len: usize,
-    ) {
-        if src_id == dst_id {
-            self.bhdr_mut(src_id)
-                .bh_data
-                .copy_within(src_start..src_start + len, dst_start);
-        } else if src_id.0 < dst_id.0 {
-            let (left, right) = self.mf_blocks.split_at_mut(dst_id.0);
-            let src = &left[src_id.0].as_ref().unwrap().bh_data[src_start..src_start + len];
-            let dst = &mut right[0].as_mut().unwrap().bh_data[dst_start..dst_start + len];
-            dst.copy_from_slice(src);
-        } else {
-            let (left, right) = self.mf_blocks.split_at_mut(src_id.0);
-            let src = &right[0].as_ref().unwrap().bh_data[src_start..src_start + len];
-            let dst = &mut left[dst_id.0].as_mut().unwrap().bh_data[dst_start..dst_start + len];
-            dst.copy_from_slice(src);
-        }
     }
 }
 
@@ -371,18 +346,21 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
 
     let mut status = true;
     let mut completed_all = true;
-    let blocks: Vec<BhdrId> = mfp.mf_hash.values().copied().collect();
+    let block_len = mfp.mf_blocks.len();
 
-    for hp_id in blocks {
-        let (bh_bnum, bh_flags) = {
-            let hp = mfp.bhdr(hp_id);
-            (hp.bh_bnum, hp.bh_flags)
+    for idx in 0..block_len {
+        let Some(hp) = mfp.mf_blocks[idx].as_ref() else {
+            continue;
         };
+        let bh_bnum = hp.bh_bnum;
+        let bh_flags = hp.bh_flags;
+        let hp_id = BhdrId(idx);
         if ((flags & MFS_ALL) != 0 || bh_bnum >= 0)
             && (bh_flags & BH_DIRTY) != 0
             && (status || (bh_bnum >= 0 && bh_bnum < mfp.mf_infile_count))
         {
             if (flags & MFS_ZERO) != 0 && bh_bnum != 0 {
+                completed_all = false;
                 continue;
             }
             if !mf_write(mfp, hp_id) {
@@ -407,7 +385,7 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
         }
     }
 
-    if completed_all || !status {
+    if (flags & MFS_ZERO) == 0 && (completed_all || !status) {
         mfp.mf_dirty = MF_DIRTY_NO;
     }
 
@@ -606,6 +584,7 @@ fn mf_trans_add(mfp: &mut Memfile, hp_id: BhdrId) -> bool {
 }
 
 /// Lookup translation from trans list and delete the entry.
+#[cfg(test)]
 pub fn mf_trans_del(mfp: &mut Memfile, old_nr: Blocknr) -> Blocknr {
     let Some(new_bnum) = mfp.mf_trans.remove(&old_nr) else {
         return old_nr;
@@ -642,11 +621,6 @@ pub fn mf_fullname(mut mfp: Option<&mut Memfile>) {
 
         mfp.unwrap().mf_fname = mfp.as_deref_mut().unwrap().mf_ffname.take();
     }
-}
-
-/// Return true if there are any translations pending for memfile.
-pub fn mf_need_trans(mfp: &Memfile) -> bool {
-    mfp.mf_fname.is_some() && mfp.mf_neg_count > 0
 }
 
 fn mf_do_open(mfp: &mut Memfile, fname: std::ffi::CString, mut flags: i32) -> bool {

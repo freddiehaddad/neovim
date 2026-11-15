@@ -47,7 +47,7 @@ use crate::mbyte::{
     Vimconv, convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes,
     mb_utflen, string_convert, utf_cp_bounds, utf_ptr2len_len,
 };
-use crate::memline::{ml_get_buf, ml_get_buf_len, with_ml_get_buf_mut_slice};
+use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::str2special;
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::path::path_with_url;
@@ -76,11 +76,10 @@ fn regex_check(lstate: *mut lua_State) -> &'static mut LuaRegex {
     luaL_checkudata_typed::<LuaRegex>(lstate, 1, c"nvim_regex")
 }
 
-fn regex_match(lstate: *mut lua_State, regex: &mut LuaRegex, str_: &CStr) -> i32 {
+fn regex_match_slice(lstate: *mut lua_State, regex: &mut LuaRegex, str_bytes: &[u8]) -> i32 {
     let mut rm: Regmatch = Regmatch::new();
     rm.regprog = regex.prog.clone();
     rm.rm_ic = false;
-    let str_bytes = str_.to_bytes();
     let matched = vim_regexec(&mut rm, str_bytes, 0);
 
     if matched {
@@ -94,7 +93,7 @@ fn regex_match(lstate: *mut lua_State, regex: &mut LuaRegex, str_: &CStr) -> i32
 extern "C-unwind" fn regex_match_str(lstate: *mut lua_State) -> i32 {
     let regex = regex_check(lstate);
     let str_ = luaL_checkstring(lstate, 2);
-    let nret = regex_match(lstate, regex, str_);
+    let nret = regex_match_slice(lstate, regex, str_.to_bytes());
 
     if regex.prog.is_null() {
         return luaL_error_cstr(lstate, c"regex: internal error");
@@ -147,27 +146,18 @@ extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
         return luaL_error_cstr(lstate, c"invalid start");
     }
 
-    let mut save = 0u8;
-    if end >= 0 {
-        if end > len || end < start {
-            return luaL_error_cstr(lstate, c"invalid end");
-        }
-        if end < len {
-            with_ml_get_buf_mut_slice(buf_ref, rownr + 1, |line_slice| {
-                save = line_slice[end as usize];
-                line_slice[end as usize] = 0;
-            });
-        }
+    if end >= 0 && (end > len || end < start) {
+        return luaL_error_cstr(lstate, c"invalid end");
     }
 
     let line_cstr = ml_get_buf(buf_ref, rownr + 1);
-    let nret = regex_match(lstate, regex, &line_cstr[start as usize..]);
-
-    if end >= 0 && end < len {
-        with_ml_get_buf_mut_slice(buf_ref, rownr + 1, |line_restore| {
-            line_restore[end as usize] = save;
-        });
-    }
+    let line_bytes = line_cstr.to_bytes();
+    let end_idx = if end >= 0 {
+        (end as usize).min(line_bytes.len())
+    } else {
+        line_bytes.len()
+    };
+    let nret = regex_match_slice(lstate, regex, &line_bytes[start as usize..end_idx]);
 
     if regex.prog.is_null() {
         return luaL_error_cstr(lstate, c"regex: internal error");

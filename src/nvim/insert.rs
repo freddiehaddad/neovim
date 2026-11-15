@@ -3975,10 +3975,10 @@ fn ins_tab() -> bool {
             let i = cursor_pos.col - fpos.col;
             if i > 0 {
                 if !is_vreplace {
-                    let newp_len = (curbuf().b_ml.ml_line_textlen.get() - i) as usize;
                     let col = fpos.col as usize;
-                    let tail_len = newp_len.saturating_sub(col + 1);
                     let new_line = curbuf().b_ml.with_current_line_slice(|line_slice| {
+                        let newp_len = line_slice.len().saturating_sub(i as usize);
+                        let tail_len = newp_len.saturating_sub(col + 1);
                         let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));
                         new_line.extend_from_slice(&line_slice[..col]);
                         new_line.extend_from_slice(

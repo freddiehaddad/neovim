@@ -474,6 +474,21 @@ describe('lua: nvim_buf_attach on_lines', function()
       { 'test1', 'lines', 1, 14, 1, 1, 2, 0 },
     }
   end)
+
+  it('reports accurate deleted_bytes when replacing an unflushed insert-mode line', function()
+    local check_events = setup_eventcheck(false, nil, {})
+    feed('iabcde')
+    check_events {
+      { 'test1', 'lines', 1, 4, 0, 1, 1, 1 },
+    }
+    -- Line 1 ("abcde", 6 bytes with EOL) is still dirty in ml_line_buf during Insert mode.
+    -- Replacing it via setline() / nvim_buf_set_lines() must report 6 deleted bytes, not 1.
+    fn.setline(1, 'twenty-three-char-replacement')
+    check_events {
+      { 'test1', 'lines', 1, 5, 0, 1, 1, 6 },
+    }
+    feed('<Esc>')
+  end)
 end)
 
 describe('lua: nvim_buf_attach on_bytes', function()

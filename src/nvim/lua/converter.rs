@@ -1169,8 +1169,8 @@ pub fn nlua_pop_string(lstate: *mut lua_State) -> Result<NvimString, Error> {
             c"Expected Lua string",
         ));
     }
-    let slice = lua_tolstring_bytes(lstate, -1);
-    let ret = NvimString::from_bytes(slice);
+    let slice_with_nul = crate::lua::ffi::lua_tolstring_bytes_with_nul(lstate, -1);
+    let ret = NvimString::from_bytes_with_nul(slice_with_nul);
     lua_pop(lstate, 1);
     Ok(ret)
 }
@@ -1447,10 +1447,10 @@ pub fn nlua_pop_object(lstate: *mut lua_State, ref_: bool) -> Result<Object, Err
                 };
             }
             LUA_TSTRING => {
-                let s_bytes = lua_tolstring_bytes(lstate, -1);
+                let s_bytes = crate::lua::ffi::lua_tolstring_bytes_with_nul(lstate, -1);
                 cur_obj = Object {
                     obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(NvimString::from_bytes(s_bytes)),
+                    data: ObjectData::String(NvimString::from_bytes_with_nul(s_bytes)),
                 };
             }
             LUA_TNUMBER => {

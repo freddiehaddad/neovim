@@ -36,6 +36,7 @@ Because the codebase was ported module-for-module and function-for-function, ups
 | Upstream path (`neovim/neovim`) | Path in this repository | How to port |
 |---|---|---|
 | `src/nvim/<path>.c`, `src/nvim/<path>.h`, `src/nvim/<path>_defs.h` | `src/nvim/<path>.rs` | Locate the matching function/struct by name in `src/nvim/<path>.rs` and port the logic to idiomatic Rust. |
+| `src/nvim/memline.c`, `src/nvim/memline_defs.h` | `src/nvim/memline.rs` | In-memory buffer lines live in `Memline::ml_chunks` (`Vec<LineChunk>`, 400–800 `LineEntry`s per chunk with `start_lnum` and `totalsize`); 4KB `PointerBlock`/`DataBlock` pages are serialized on demand in `ml_sync_swap_blocks` during `.swp` sync/preserve and read during `ml_recover`. |
 | `src/nvim/globals.h` | `src/nvim/globals.rs` (`EditorState` subsystems) or module `thread_local!` | Single-module globals live in their owning module's `thread_local!` state; cross-module globals live in one of the 9 `EditorState` domain subsystems (see table below). |
 | `src/nvim/version.c` (`patches_*` arrays) | `src/nvim/version.rs` (`PATCHES_*` slices & `NUM_PATCHES`) | Add newly merged Vim patch numbers to the matching `PATCHES_*` slice and increment `NUM_PATCHES`. |
 | `cmake.deps/deps.txt` | `deps.txt` | Update the corresponding `*_URL` and `*_SHA256` entries in `deps.txt`. |

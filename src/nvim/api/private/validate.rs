@@ -72,6 +72,7 @@ pub enum NvimStringData {
     Null,
     Static(&'static [u8]),
     Inline([u8; NVIM_STRING_INLINE_CAP + 1]),
+    SharedCStr(Rc<std::ffi::CStr>),
     Owned(Rc<Vec<u8>>),
 }
 
@@ -123,7 +124,47 @@ impl NvimString {
 
     #[inline]
     pub fn from_cstr(s: &std::ffi::CStr) -> Self {
-        Self::from_bytes(s.to_bytes())
+        let bytes = s.to_bytes();
+        let size = bytes.len();
+        if size == 0 {
+            Self::empty_cstr()
+        } else if size <= NVIM_STRING_INLINE_CAP {
+            let mut buf = [0u8; NVIM_STRING_INLINE_CAP + 1];
+            buf[..size].copy_from_slice(bytes);
+            Self {
+                data: NvimStringData::Inline(buf),
+                size,
+            }
+        } else {
+            Self {
+                data: NvimStringData::SharedCStr(Rc::from(s)),
+                size,
+            }
+        }
+    }
+
+    #[inline]
+    pub fn from_bytes_with_nul(bytes_with_nul: &[u8]) -> Self {
+        let size = bytes_with_nul.len().saturating_sub(1);
+        if size == 0 {
+            return Self::empty_cstr();
+        }
+        if size <= NVIM_STRING_INLINE_CAP {
+            let mut buf = [0u8; NVIM_STRING_INLINE_CAP + 1];
+            buf[..size].copy_from_slice(&bytes_with_nul[..size]);
+            return Self {
+                data: NvimStringData::Inline(buf),
+                size,
+            };
+        }
+        if let Ok(cstr) = std::ffi::CStr::from_bytes_with_nul(&bytes_with_nul[..=size]) {
+            Self {
+                data: NvimStringData::SharedCStr(Rc::from(cstr)),
+                size,
+            }
+        } else {
+            Self::from_bytes_len(&bytes_with_nul[..size], size)
+        }
     }
 
     #[inline]
@@ -162,6 +203,13 @@ impl NvimString {
                 data: NvimStringData::Inline(buf),
                 size,
             }
+        } else if copy_len == size && !bytes[..size].contains(&0) {
+            Self {
+                data: NvimStringData::SharedCStr(crate::option_vars::rc_cstr_from_clean_bytes(
+                    &bytes[..size],
+                )),
+                size,
+            }
         } else {
             let mut v = vec![0u8; size + 1];
             v[..copy_len].copy_from_slice(&bytes[..copy_len]);
@@ -193,6 +241,7 @@ impl NvimString {
             NvimStringData::Null => false,
             NvimStringData::Static(s) => s.get(self.size) == Some(&0),
             NvimStringData::Inline(b) => b.get(self.size) == Some(&0),
+            NvimStringData::SharedCStr(c) => c.to_bytes().len() == self.size,
             NvimStringData::Owned(v) => v.get(self.size) == Some(&0),
         }
     }
@@ -208,7 +257,24 @@ impl NvimString {
             NvimStringData::Null => b"",
             NvimStringData::Static(s) => &s[..self.size.min(s.len())],
             NvimStringData::Inline(b) => &b[..self.size.min(b.len())],
+            NvimStringData::SharedCStr(c) => {
+                let b = c.to_bytes();
+                &b[..self.size.min(b.len())]
+            }
             NvimStringData::Owned(v) => &v[..self.size.min(v.len())],
+        }
+    }
+
+    #[inline(always)]
+    pub fn to_rc_cstr_if_clean(&self) -> Option<crate::option_vars::RcCStr> {
+        match &self.data {
+            NvimStringData::Static(s) if self.size == 0 && *s == b"\0" => {
+                Some(crate::option_vars::RcCStr::EMPTY)
+            }
+            NvimStringData::SharedCStr(rc) if rc.to_bytes().len() == self.size => {
+                Some(crate::option_vars::RcCStr::Shared(rc.clone(), 0))
+            }
+            _ => None,
         }
     }
 
@@ -233,6 +299,12 @@ impl NvimString {
                 v[..s.len()].copy_from_slice(s);
                 self.data = NvimStringData::Owned(Rc::new(v));
             }
+        }
+        if let NvimStringData::SharedCStr(c) = &self.data {
+            let s = c.to_bytes_with_nul();
+            let mut v = vec![0u8; (self.size + 1).max(s.len())];
+            v[..s.len()].copy_from_slice(s);
+            self.data = NvimStringData::Owned(Rc::new(v));
         }
         if let NvimStringData::Inline(b) = &self.data
             && self.size > NVIM_STRING_INLINE_CAP
@@ -290,6 +362,13 @@ impl NvimString {
             NvimStringData::Null => return None,
             NvimStringData::Static(s) => s,
             NvimStringData::Inline(b) => &b[..(self.size + 1).min(b.len())],
+            NvimStringData::SharedCStr(c) => {
+                if c.to_bytes().len() == self.size {
+                    return Some(c);
+                }
+                let s = c.to_bytes_with_nul();
+                &s[..(self.size + 1).min(s.len())]
+            }
             NvimStringData::Owned(v) => &v[..(self.size + 1).min(v.len())],
         };
         Some(crate::memory::bytes_as_cstr(raw))
@@ -790,6 +869,14 @@ impl ObjectData {
         }
     }
 
+    #[inline(always)]
+    pub fn to_rc_cstr_if_clean(&self) -> Option<crate::option_vars::RcCStr> {
+        match self {
+            Self::String(s) => s.to_rc_cstr_if_clean(),
+            _ => None,
+        }
+    }
+
     #[inline]
     pub fn cstr_bytes(&self) -> &[u8] {
         match self {
@@ -1213,8 +1300,27 @@ mod tests {
         assert_eq!(s22.as_cstr().to_bytes(), b"1234567890123456789012");
 
         let s23 = NvimString::from_bytes(b"12345678901234567890123");
-        assert!(matches!(s23.data, NvimStringData::Owned(_)));
+        assert!(matches!(s23.data, NvimStringData::SharedCStr(_)));
         assert_eq!(s23.as_bytes(), b"12345678901234567890123");
+        assert_eq!(
+            s23.to_rc_cstr_if_clean().unwrap().to_bytes(),
+            b"12345678901234567890123"
+        );
+
+        let s_with_interior_nul = NvimString::from_bytes_with_nul(b"1234567890\x001234567890123\0");
+        assert!(matches!(s_with_interior_nul.data, NvimStringData::Owned(_)));
+        assert!(s_with_interior_nul.to_rc_cstr_if_clean().is_none());
+        assert_eq!(
+            s_with_interior_nul.as_bytes(),
+            b"1234567890\x001234567890123"
+        );
+        assert_eq!(s_with_interior_nul.cstr_bytes(), b"1234567890");
+
+        let mut s_mut = NvimString::from_bytes_with_nul(b"12345678901234567890123\0");
+        assert!(s_mut.to_rc_cstr_if_clean().is_some());
+        s_mut.as_bytes_with_nul_mut()[5] = 0;
+        assert!(s_mut.to_rc_cstr_if_clean().is_none());
+        assert_eq!(s_mut.as_bytes(), b"12345\x0078901234567890123");
 
         let mut z = NvimString::zeroed(5);
         assert!(matches!(z.data, NvimStringData::Inline(_)));
