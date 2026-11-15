@@ -1295,10 +1295,10 @@ pub fn linesize_fast(csarg: &CharsizeArg<'_>, mut vcol_arg: i32, len: Colnr) -> 
 
 fn virt_text_cursor_off(csarg: &CharsizeArg<'_>, on_nul: bool) -> i32 {
     let mut off = 0;
-    if !on_nul || (g_st().state_global.get() & MODE_NORMAL) == 0 {
+    if !on_nul || (g_st().edit.state_global.get() & MODE_NORMAL) == 0 {
         off += csarg.cur_text_width_left;
     }
-    if !on_nul && (g_st().state_global.get() & MODE_NORMAL) != 0 {
+    if !on_nul && (g_st().edit.state_global.get() & MODE_NORMAL) != 0 {
         off += csarg.cur_text_width_right;
     }
     off
@@ -1425,12 +1425,12 @@ pub fn getvcol(
             if cursor.is_some() {
                 if ci.chr.value == TAB
                     && !concealed
-                    && (g_st().state_global.get() & MODE_NORMAL) != 0
+                    && (g_st().edit.state_global.get() & MODE_NORMAL) != 0
                     && !wp.w_onebuf_opt.wo_list.get()
                     && !virtual_active(wp)
-                    && !(g_st().visual_global.borrow().active
+                    && !(g_st().edit.visual_global.active.get()
                         && (opt_vars().p_sel.first_byte() == b'e'
-                            || ltoreq(*pos, g_st().visual_global.borrow().start)))
+                            || ltoreq(*pos, g_st().edit.visual_global.start.get())))
                 {
                     *cursor.as_deref_mut().unwrap() = vcol + incr - char_size.hidden - 1 - off;
                 } else {
@@ -1664,7 +1664,7 @@ pub fn plines_win_col(wp: &WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
 
         let mut col = vcol;
         if ci.chr.value == TAB
-            && (g_st().state_global.get() & MODE_NORMAL) != 0
+            && (g_st().edit.state_global.get() & MODE_NORMAL) != 0
             && csarg.use_tabstop
         {
             let cs = win_charsize(cstype, raw_vcol, ci.cstr(), ci.chr.value, csarg, 1);

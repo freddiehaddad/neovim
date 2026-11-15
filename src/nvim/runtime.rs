@@ -2368,8 +2368,8 @@ fn cmd_source(fname: &std::ffi::CStr, mut eap: Option<&mut Exarg>) {
     {
         openscript(
             fname,
-            g_st().global_busy.get() != 0
-                || g_st().listcmd_busy.get()
+            g_st().cmdline.global_busy.get() != 0
+                || g_st().cmdline.listcmd_busy.get()
                 || !eap.nextcmd.is_null()
                 || eap.cstack().cs_idx >= 0,
         );
@@ -2389,7 +2389,7 @@ pub fn ex_options(_eap: &mut Exarg) {
     let mut buf = Vec::new();
     let mut multi_mods = false;
 
-    add_win_cmd_modifiers(&mut buf, &g_st().cmdmod.borrow(), &mut multi_mods);
+    add_win_cmd_modifiers(&mut buf, &g_st().cmdline.snapshot_cmdmod(), &mut multi_mods);
     buf.push(0);
 
     os_setenv(c"OPTWIN_CMD", crate::memory::bytes_as_cstr(&buf), 1);
@@ -2470,7 +2470,7 @@ fn do_source_buffer_init(
     eap: Option<&Exarg>,
     ex_lua: bool,
 ) -> Option<std::ffi::CString> {
-    if g_st().curbuf.get().is_null() {
+    if g_st().workspace.curbuf.get().is_null() {
         return None;
     }
 
@@ -2555,7 +2555,7 @@ fn do_source_ext(
     let mut cookie = SourceCookie::new();
     let mut firstline: Option<std::ffi::CString> = None;
     let mut retval = false;
-    let save_debug_break_level = g_st().debug_break_level.get();
+    let save_debug_break_level = g_st().exc.debug_break_level.get();
     let mut has_si = false;
     let mut wait_start: Proftime = 0;
     let mut trigger_source_post = false;
@@ -2704,8 +2704,8 @@ fn do_source_ext(
 
         cookie.breakpoint = dbg_find_breakpoint(true, &fname_exp_owned, 0);
         cookie.fname = Some(fname_exp_owned.clone());
-        cookie.dbg_tick = g_st().debug_tick.get();
-        cookie.level = g_st().ex_nesting_level.get();
+        cookie.dbg_tick = g_st().exc.debug_tick.get();
+        cookie.level = g_st().exc.ex_nesting_level.get();
 
         let mut rel_time: Proftime = 0;
         let mut start_time: Proftime = 0;
@@ -2714,23 +2714,23 @@ fn do_source_ext(
             time_push(&mut rel_time, &mut start_time);
         }
 
-        let l_do_profiling = g_st().do_profiling.get();
+        let l_do_profiling = g_st().exc.do_profiling.get();
         if l_do_profiling == PROF_YES {
             prof_child_enter(&mut wait_start);
         }
 
         save_funccal();
 
-        let save_current_sctx = g_st().current_sctx.get();
+        let save_current_sctx = g_st().exc.current_sctx.get();
 
         RT_STATE.with(|s| {
             s.last_current_sid_seq
                 .set(s.last_current_sid_seq.get() + (1))
         });
         {
-            let mut v = g_st().current_sctx.get();
+            let mut v = g_st().exc.current_sctx.get();
             v.sc_seq = RT_STATE.with(|s| s.last_current_sid_seq.get());
-            g_st().current_sctx.set(v);
+            g_st().exc.current_sctx.set(v);
         }
 
         if sid > 0 {
@@ -2746,16 +2746,16 @@ fn do_source_ext(
         }
         debug_assert_eq!(has_si, str_opt.is_none());
 
-        if str_opt.is_none() || !script_is_lua(g_st().current_sctx.get().sc_sid) {
+        if str_opt.is_none() || !script_is_lua(g_st().exc.current_sctx.get().sc_sid) {
             {
-                let mut v = g_st().current_sctx.get();
+                let mut v = g_st().exc.current_sctx.get();
                 v.sc_sid = sid;
-                g_st().current_sctx.set(v);
+                g_st().exc.current_sctx.set(v);
             }
             {
-                let mut v = g_st().current_sctx.get();
+                let mut v = g_st().exc.current_sctx.get();
                 v.sc_lnum = 0;
-                g_st().current_sctx.set(v);
+                g_st().exc.current_sctx.set(v);
             }
         }
 
@@ -2853,7 +2853,7 @@ fn do_source_ext(
         retval = true;
 
         if l_do_profiling == PROF_YES && has_si {
-            with_script_item_mut(g_st().current_sctx.get().sc_sid, |si_mut| {
+            with_script_item_mut(g_st().exc.current_sctx.get().sc_sid, |si_mut| {
                 if si_mut.sn_prof_on {
                     si_mut.sn_pr_start = profile_end(si_mut.sn_pr_start);
                     si_mut.sn_pr_start = profile_sub_wait(wait_start, si_mut.sn_pr_start);
@@ -2864,7 +2864,7 @@ fn do_source_ext(
             });
         }
 
-        if g_st().got_int.get() {
+        if g_st().input.got_int.get() {
             emsg(gettext(E_INTERR));
         }
         estack_pop();
@@ -2884,19 +2884,20 @@ fn do_source_ext(
             time_pop(rel_time);
         }
 
-        if !g_st().got_int.get() {
+        if !g_st().input.got_int.get() {
             trigger_source_post = true;
         }
 
-        if save_debug_break_level > g_st().ex_nesting_level.get()
-            && g_st().debug_break_level.get() == g_st().ex_nesting_level.get()
+        if save_debug_break_level > g_st().exc.ex_nesting_level.get()
+            && g_st().exc.debug_break_level.get() == g_st().exc.ex_nesting_level.get()
         {
             g_st()
+                .exc
                 .debug_break_level
-                .set(g_st().debug_break_level.get() + (1));
+                .set(g_st().exc.debug_break_level.get() + (1));
         }
 
-        g_st().current_sctx.set(save_current_sctx);
+        g_st().exc.current_sctx.set(save_current_sctx);
         restore_funccal();
         if l_do_profiling == PROF_YES {
             prof_child_exit(&mut wait_start);
@@ -2989,13 +2990,13 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
     let mut i = 1;
     let mut name_buff = [0u8; MAXPATHL];
     let mut iobuff = [0u8; IOSIZE];
-    while i <= script_items_len() && !g_st().got_int.get() {
+    while i <= script_items_len() && !g_st().input.got_int.get() {
         if let Some(sn) = script_item_name(i) {
             home_replace(None, Some(sn.as_c_str()), &mut name_buff, true);
             format_to_buf!(&mut iobuff, c"%3d: %s", i, &name_buff);
             let iobuff_cstr = crate::memory::bytes_as_cstr(&iobuff);
             if !message_filtered(iobuff_cstr) {
-                if g_st().msg_col.get() > 0 {
+                if g_st().msg.msg_col.get() > 0 {
                     msg_putchar(b'\n' as i32);
                 }
                 msg_outtrans(iobuff_cstr, 0, false);
@@ -3164,12 +3165,12 @@ pub fn getsourceline(
     _indent: i32,
     do_concat: bool,
 ) -> Option<std::ffi::CString> {
-    if sp.dbg_tick < g_st().debug_tick.get() && !sp.source_from_buf_or_str {
+    if sp.dbg_tick < g_st().exc.debug_tick.get() && !sp.source_from_buf_or_str {
         let fname_cstr = sp.fname.as_deref().unwrap_or(c"");
         sp.breakpoint = dbg_find_breakpoint(true, fname_cstr, sourcing_lnum());
-        sp.dbg_tick = g_st().debug_tick.get();
+        sp.dbg_tick = g_st().exc.debug_tick.get();
     }
-    if g_st().do_profiling.get() == PROF_YES {
+    if g_st().exc.do_profiling.get() == PROF_YES {
         script_line_end();
     }
     set_sourcing_lnum(sp.sourcing_lnum + 1);
@@ -3181,7 +3182,7 @@ pub fn getsourceline(
     } else {
         get_one_sourceline(sp)
     };
-    if line_vec.is_some() && g_st().do_profiling.get() == PROF_YES {
+    if line_vec.is_some() && g_st().exc.do_profiling.get() == PROF_YES {
         script_line_start();
     }
 
@@ -3226,7 +3227,7 @@ pub fn getsourceline(
         let fname_cstr = sp.fname.as_deref();
         dbg_breakpoint(fname_cstr, sourcing_lnum());
         sp.breakpoint = dbg_find_breakpoint(true, fname_cstr.unwrap_or(c""), sourcing_lnum());
-        sp.dbg_tick = g_st().debug_tick.get();
+        sp.dbg_tick = g_st().exc.debug_tick.get();
     }
 
     line

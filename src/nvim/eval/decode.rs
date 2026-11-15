@@ -1253,8 +1253,9 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         crate::globals::g_st()
+            .msg
             .emsg_skip
-            .set(crate::globals::g_st().emsg_skip.get() + (1));
+            .set(crate::globals::g_st().msg.emsg_skip.get() + (1));
         let mut rettv = TypVal {
             v_type: VarType::VarUnknown,
             v_lock: VAR_UNLOCKED,
@@ -1319,7 +1320,8 @@ mod tests {
         tv_clear(&mut rettv);
 
         crate::globals::g_st()
+            .msg
             .emsg_skip
-            .set(crate::globals::g_st().emsg_skip.get() - (1));
+            .set(crate::globals::g_st().msg.emsg_skip.get() - (1));
     }
 }

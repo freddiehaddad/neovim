@@ -714,7 +714,10 @@ pub fn evalvars_init() {
     );
     set_vim_var_nr(VV_MAXCOL, MAXCOL);
 
-    set_vim_var_nr(VV_ECHOSPACE, Varnumber::from(g_st().sc_col.get() - 1));
+    set_vim_var_nr(
+        VV_ECHOSPACE,
+        Varnumber::from(g_st().screen.sc_col.get() - 1),
+    );
 
     let vvlua_pt = crate::eval::typval::tv_partial_alloc();
     vvlua_pt.set_name(Some(std::ffi::CString::default()));
@@ -792,13 +795,13 @@ pub fn eval_charconvert(
     fname_from: &[u8],
     fname_to: &[u8],
 ) -> bool {
-    let saved_sctx = g_st().current_sctx.get();
+    let saved_sctx = g_st().exc.current_sctx.get();
     set_vim_var_bytes(VV_CC_FROM, crate::memory::bytes_until_nul(enc_from));
     set_vim_var_bytes(VV_CC_TO, crate::memory::bytes_until_nul(enc_to));
     set_vim_var_bytes(VV_FNAME_IN, crate::memory::bytes_until_nul(fname_from));
     set_vim_var_bytes(VV_FNAME_OUT, crate::memory::bytes_until_nul(fname_to));
     let ctx = get_option_sctx(K_OPT_CHARCONVERT);
-    g_st().current_sctx.set(ctx);
+    g_st().exc.current_sctx.set(ctx);
 
     let mut err = false;
     let mut tv: TypVal = TypVal::new();
@@ -816,19 +819,19 @@ pub fn eval_charconvert(
     set_vim_var_string(VV_CC_TO, None, -1);
     set_vim_var_string(VV_FNAME_IN, None, -1);
     set_vim_var_string(VV_FNAME_OUT, None, -1);
-    g_st().current_sctx.set(saved_sctx);
+    g_st().exc.current_sctx.set(saved_sctx);
 
     !err
 }
 
 pub fn eval_diff(origfile: &[u8], newfile: &[u8], outfile: &[u8]) {
-    let saved_sctx = g_st().current_sctx.get();
+    let saved_sctx = g_st().exc.current_sctx.get();
     set_vim_var_bytes(VV_FNAME_IN, crate::memory::bytes_until_nul(origfile));
     set_vim_var_bytes(VV_FNAME_NEW, crate::memory::bytes_until_nul(newfile));
     set_vim_var_bytes(VV_FNAME_OUT, crate::memory::bytes_until_nul(outfile));
 
     let ctx = get_option_sctx(K_OPT_DIFFEXPR);
-    g_st().current_sctx.set(ctx);
+    g_st().exc.current_sctx.set(ctx);
 
     let mut tv: TypVal = TypVal::new();
     let mut argv: [TypVal; 1] = [TypVal::new()];
@@ -839,17 +842,17 @@ pub fn eval_diff(origfile: &[u8], newfile: &[u8], outfile: &[u8]) {
     set_vim_var_string(VV_FNAME_IN, None, -1);
     set_vim_var_string(VV_FNAME_NEW, None, -1);
     set_vim_var_string(VV_FNAME_OUT, None, -1);
-    g_st().current_sctx.set(saved_sctx);
+    g_st().exc.current_sctx.set(saved_sctx);
 }
 
 pub fn eval_patch(origfile: &[u8], difffile: &[u8], outfile: &[u8]) {
-    let saved_sctx = g_st().current_sctx.get();
+    let saved_sctx = g_st().exc.current_sctx.get();
     set_vim_var_bytes(VV_FNAME_IN, crate::memory::bytes_until_nul(origfile));
     set_vim_var_bytes(VV_FNAME_DIFF, crate::memory::bytes_until_nul(difffile));
     set_vim_var_bytes(VV_FNAME_OUT, crate::memory::bytes_until_nul(outfile));
 
     let ctx = get_option_sctx(K_OPT_PATCHEXPR);
-    g_st().current_sctx.set(ctx);
+    g_st().exc.current_sctx.set(ctx);
 
     let mut tv: TypVal = TypVal::new();
     let mut argv: [TypVal; 1] = [TypVal::new()];
@@ -860,7 +863,7 @@ pub fn eval_patch(origfile: &[u8], difffile: &[u8], outfile: &[u8]) {
     set_vim_var_string(VV_FNAME_IN, None, -1);
     set_vim_var_string(VV_FNAME_DIFF, None, -1);
     set_vim_var_string(VV_FNAME_OUT, None, -1);
-    g_st().current_sctx.set(saved_sctx);
+    g_st().exc.current_sctx.set(saved_sctx);
 }
 
 /// Evaluate an expression to a list with suggestions.
@@ -869,15 +872,15 @@ pub fn eval_spell_expr(badword: &[u8], expr: &[u8]) -> Option<crate::eval::typva
     let mut rettv: TypVal = TypVal::new();
     let mut list = crate::eval::typval::ListId::NULL;
     let mut p = crate::charset::skipwhite_slice(crate::memory::bytes_until_nul(expr));
-    let saved_sctx = g_st().current_sctx.get();
+    let saved_sctx = g_st().exc.current_sctx.get();
 
     prepare_vimvar(VV_VAL, &mut save_val);
     set_vim_var_bytes(VV_VAL, crate::memory::bytes_until_nul(badword));
     if opt_vars().p_verbose.get() == 0 {
-        g_st().emsg_off.set(g_st().emsg_off.get() + (1));
+        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
     }
     let ctx = get_option_sctx(K_OPT_SPELLSUGGEST);
-    g_st().current_sctx.set(ctx);
+    g_st().exc.current_sctx.set(ctx);
 
     let r = may_call_simple_func(p, &mut rettv)
         .unwrap_or_else(|| eval1(&mut p, &mut rettv, Some(&mut Evalarg { eval_flags: 1 })));
@@ -890,11 +893,11 @@ pub fn eval_spell_expr(badword: &[u8], expr: &[u8]) -> Option<crate::eval::typva
     }
 
     if opt_vars().p_verbose.get() == 0 {
-        g_st().emsg_off.set(g_st().emsg_off.get() - (1));
+        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
     }
     get_vim_var_tv(VV_VAL).clear_tv();
     restore_vimvar(VV_VAL, &mut save_val);
-    g_st().current_sctx.set(saved_sctx);
+    g_st().exc.current_sctx.set(saved_sctx);
 
     if list.is_null() { None } else { Some(list) }
 }
@@ -953,9 +956,9 @@ fn list_vim_vars(first: &mut i32) {
 
 /// List script-local variables, if there is a script.
 fn list_script_vars(first: &mut i32) {
-    if crate::runtime::script_id_valid(g_st().current_sctx.get().sc_sid) {
+    if crate::runtime::script_id_valid(g_st().exc.current_sctx.get().sc_sid) {
         list_hashtable_vars(
-            &script_vars_dict(g_st().current_sctx.get().sc_sid).dv_hashtab,
+            &script_vars_dict(g_st().exc.current_sctx.get().sc_sid).dv_hashtab,
             c"s:",
             false as i32,
             &mut *first,
@@ -1299,13 +1302,13 @@ pub fn ex_let(eap: &mut Exarg) {
     expr = crate::charset::skipwhite_slice(expr);
 
     if eap.skip {
-        g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
+        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() + (1));
     }
     let mut evalarg = Evalarg::new();
     fill_evalarg_from_eap(&mut evalarg, eap.skip);
     let eval_res = eval0(expr, &mut rettv, Some(&mut *eap), &mut evalarg);
     if eap.skip {
-        g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
+        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() - (1));
     }
 
     if !eap.skip && eval_res {
@@ -1466,7 +1469,7 @@ fn skip_var_one(arg_in: &[u8]) -> &[u8] {
 /// List variables for hashtab "ht" with prefix "prefix".
 pub fn list_hashtable_vars(ht: &Hashtab, prefix: &std::ffi::CStr, empty: i32, first: &mut i32) {
     for (_, di) in ht.iter_items_mut() {
-        if g_st().got_int.get() {
+        if g_st().input.got_int.get() {
             break;
         }
         let mut buf = [0u8; IOSIZE];
@@ -1525,12 +1528,14 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a [u8], first: &mut i32) -> &'a 
     let mut error = false;
     let mut tv: TypVal = TypVal::new();
 
-    while ends_excmd(i32::from(arg.first().copied().unwrap_or(0))) == 0 && !g_st().got_int.get() {
+    while ends_excmd(i32::from(arg.first().copied().unwrap_or(0))) == 0
+        && !g_st().input.got_int.get()
+    {
         if error || eap.skip {
             arg = find_name_end(arg, None, FNE_INCL_BR | FNE_CHECK_START);
             let b0 = arg.first().copied().unwrap_or(0);
             if !ascii_iswhite(b0) && ends_excmd(i32::from(b0)) == 0 {
-                g_st().emsg_severe.set(true);
+                g_st().msg.emsg_severe.set(true);
                 semsg!(gettext(E_TRAILING_ARG), bytes_to_cstring(arg).as_c_str());
                 break;
             }
@@ -1541,7 +1546,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a [u8], first: &mut i32) -> &'a 
             let len = get_name_len(&mut arg, &mut tofree, true, true);
             if len <= 0 {
                 if len < 0 && !aborting() {
-                    g_st().emsg_severe.set(true);
+                    g_st().msg.emsg_severe.set(true);
                     semsg!(gettext(E_INVARG2), bytes_to_cstring(arg).as_c_str());
                     break;
                 }
@@ -2005,7 +2010,7 @@ fn ex_unletlock(
             };
             let ne_b0 = ne.first().copied().unwrap_or(0);
             if !ascii_iswhite(ne_b0) && ends_excmd(i32::from(ne_b0)) == 0 {
-                g_st().emsg_severe.set(true);
+                g_st().msg.emsg_severe.set(true);
                 semsg!(gettext(E_TRAILING_ARG), bytes_to_cstring(ne).as_c_str());
                 break;
             }
@@ -2738,7 +2743,7 @@ pub fn find_var_in_ht(
 ) -> Option<crate::eval::typval::DictitemId> {
     if varname_len == 0 {
         let id = match htname as u8 {
-            b's' => script_item_vars(g_st().current_sctx.get().sc_sid).0,
+            b's' => script_item_vars(g_st().exc.current_sctx.get().sc_sid).0,
             b'g' => get_globvars_var(),
             b'v' => get_vimvars_var(),
             b'b' => curbuf().b_bufvar.clone(),
@@ -2823,17 +2828,17 @@ fn find_var_ht_dict<'a>(
         b'v' => dict_ptr = get_vimvar_dict(),
         b'a' => dict_ptr = get_funccal_args_dict().unwrap_or(crate::eval::typval::DictId::NULL),
         b'l' => dict_ptr = get_funccal_local_dict().unwrap_or(crate::eval::typval::DictId::NULL),
-        b's' if (g_st().current_sctx.get().sc_sid > 0
-            || g_st().current_sctx.get().sc_sid == SID_STR
-            || g_st().current_sctx.get().sc_sid == SID_LUA)
-            && g_st().current_sctx.get().sc_sid <= crate::runtime::script_items_len() =>
+        b's' if (g_st().exc.current_sctx.get().sc_sid > 0
+            || g_st().exc.current_sctx.get().sc_sid == SID_STR
+            || g_st().exc.current_sctx.get().sc_sid == SID_LUA)
+            && g_st().exc.current_sctx.get().sc_sid <= crate::runtime::script_items_len() =>
         {
-            let mut sctx = g_st().current_sctx.get();
+            let mut sctx = g_st().exc.current_sctx.get();
             nlua_set_sctx(&mut sctx);
             if sctx.sc_sid == SID_STR || sctx.sc_sid == SID_LUA {
                 new_script_item(None, &mut sctx.sc_sid);
             }
-            g_st().current_sctx.set(sctx);
+            g_st().exc.current_sctx.set(sctx);
             dict_ptr = script_item_vars(sctx.sc_sid).1;
         }
         _ => {}
@@ -3036,7 +3041,7 @@ pub fn before_set_vvar(
         if varname.to_bytes() == b"searchforward" {
             set_search_direction(if n != 0 { b'/' as i32 } else { b'?' as i32 });
         } else if varname.to_bytes() == b"hlsearch" {
-            g_st().search_global.no_hlsearch.set(n == 0);
+            g_st().search.search_global.no_hlsearch.set(n == 0);
             redraw_all_later(UPD_SOME_VALID);
         }
         if watched {
@@ -3181,7 +3186,7 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
 pub fn var_check_ro(flags: i32, name_in: &[u8], mut name_len: usize) -> bool {
     let error_message = if (flags as u8 & DI_FLAGS_RO) != 0 {
         Some(E_CANNOT_CHANGE_READONLY_VARIABLE_STR)
-    } else if (flags as u8 & DI_FLAGS_RO_SBX) != 0 && g_st().sandbox.get() != 0 {
+    } else if (flags as u8 & DI_FLAGS_RO_SBX) != 0 && g_st().input.sandbox.get() != 0 {
         Some(E_CANNOT_SET_VARIABLE_IN_SANDBOX_STR)
     } else {
         None
@@ -3303,7 +3308,7 @@ fn get_var_from(
     let mut done = false;
     let do_change_curbuf = !buf.is_null() && htname == b'b' as i32;
 
-    g_st().emsg_off.set(g_st().emsg_off.get() + (1));
+    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
 
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
@@ -3313,7 +3318,8 @@ fn get_var_from(
         && !win.is_null()
         && (htname != b'b' as i32 || !buf.is_null())
     {
-        let need_switch_win = !(tp == g_st().curtab.get() && win == curwin()) && !do_change_curbuf;
+        let need_switch_win =
+            !(tp == g_st().workspace.curtab.get() && win == curwin()) && !do_change_curbuf;
         let mut switchwin: CtxSwitch = CtxSwitch::new();
         if !need_switch_win
             || ctx_switch(
@@ -3325,10 +3331,10 @@ fn get_var_from(
             )
         {
             if varname_cstr.to_bytes().first() == Some(&b'&') && htname != b't' as i32 {
-                let save_curbuf = g_st().curbuf.get();
+                let save_curbuf = g_st().workspace.curbuf.get();
 
                 if do_change_curbuf {
-                    g_st().curbuf.set(buf);
+                    g_st().workspace.curbuf.set(buf);
                 }
 
                 if varname_cstr.to_bytes().len() == 1 {
@@ -3342,7 +3348,7 @@ fn get_var_from(
                     }
                 }
 
-                g_st().curbuf.set(save_curbuf);
+                g_st().workspace.curbuf.set(save_curbuf);
             } else if varname_cstr.to_bytes().is_empty() {
                 let v = if htname == b'b' as i32 {
                     buf.b_bufvar.clone()
@@ -3384,7 +3390,7 @@ fn get_var_from(
         tv_copy(&*deftv, rettv);
     }
 
-    g_st().emsg_off.set(g_st().emsg_off.get() - (1));
+    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
 }
 
 /// getwinvar() and gettabwinvar().
@@ -3393,7 +3399,7 @@ fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
     let tp = if off == 1 {
         crate::globals::TabpagePtr::from(find_tabpage(tv_get_number_chk(&head[0], None) as i32))
     } else {
-        g_st().curtab.get().clone()
+        g_st().workspace.curtab.get().clone()
     };
     let win =
         crate::globals::WinPtr::from(tp.opt().and_then(|tp| find_win_by_nr(&head[off], Some(tp))));
@@ -3557,7 +3563,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
     let tp = if off == 1 {
         crate::globals::TabpagePtr::from(find_tabpage(tv_get_number_chk(&head[0], None) as i32))
     } else {
-        g_st().curtab.get().clone()
+        g_st().workspace.curtab.get().clone()
     };
     let win =
         crate::globals::WinPtr::from(tp.opt().and_then(|tp| find_win_by_nr(&head[off], Some(tp))));
@@ -3570,7 +3576,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
         return;
     };
 
-    let need_switch_win = !(g_st().curtab.get() == tp && win == curwin());
+    let need_switch_win = !(g_st().workspace.curtab.get() == tp && win == curwin());
     let mut switchwin: CtxSwitch = CtxSwitch::new();
     if !need_switch_win
         || ctx_switch(
@@ -3690,8 +3696,8 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
         return false;
     }
 
-    let called_emsg_before = g_st().called_emsg.get();
-    g_st().did_emsg.set(0);
+    let called_emsg_before = g_st().msg.called_emsg.get();
+    g_st().msg.did_emsg.set(0);
     let mut tv = TypVal {
         v_type: VarType::VarString,
         v_lock: 0,
@@ -3704,7 +3710,7 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
         set_var_lval(&mut lval, endp_bytes, &mut tv, true, false, Some(c"="));
     }
     drop(lval);
-    if g_st().called_emsg.get() > called_emsg_before {
+    if g_st().msg.called_emsg.get() > called_emsg_before {
         REDIR_ENDP.with(|c| *c.borrow_mut() = None);
         var_redir_stop();
         return false;
@@ -3781,8 +3787,8 @@ pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut win = crate::globals::WinPtr::NULL;
 
     if let Some(tp_ref) = tp.opt() {
-        win = if g_st().curtab.get() == tp_ref || tp_ref.tp_firstwin.get().is_null() {
-            g_st().firstwin.get()
+        win = if g_st().workspace.curtab.get() == tp_ref || tp_ref.tp_firstwin.get().is_null() {
+            g_st().workspace.firstwin.get()
         } else {
             tp_ref.tp_firstwin.get()
         };
@@ -3850,8 +3856,8 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     tabvarname.push(b':');
     tabvarname.extend_from_slice(varname.to_bytes_with_nul());
 
-    let save_curtab = g_st().curtab.get().clone();
-    let save_lu_tp = g_st().lastused_tabpage.get().clone();
+    let save_curtab = g_st().workspace.curtab.get().clone();
+    let save_lu_tp = g_st().workspace.lastused_tabpage.get().clone();
     goto_tabpage_tp(Some(&tp_ref), false, false);
 
     set_var(&tabvarname[..varname_len + 2], arg2, true);
@@ -3859,7 +3865,7 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     if valid_tabpage(save_curtab.opt()) {
         goto_tabpage_tp(save_curtab.opt(), false, false);
         if valid_tabpage(save_lu_tp.opt()) {
-            g_st().lastused_tabpage.set(save_lu_tp);
+            g_st().workspace.lastused_tabpage.set(save_lu_tp);
         }
     }
 }
@@ -3899,12 +3905,12 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     } else {
         let varname_len = varname.to_bytes().len();
         let mut bufvarname = Vec::with_capacity(varname_len + 3);
-        let save_curbuf = g_st().curbuf.get();
-        g_st().curbuf.set(buf);
+        let save_curbuf = g_st().workspace.curbuf.get();
+        g_st().workspace.curbuf.set(buf);
         bufvarname.push(b'b');
         bufvarname.push(b':');
         bufvarname.extend_from_slice(varname.to_bytes_with_nul());
         set_var(&bufvarname[..varname_len + 2], arg2, true);
-        g_st().curbuf.set(save_curbuf);
+        g_st().workspace.curbuf.set(save_curbuf);
     }
 }

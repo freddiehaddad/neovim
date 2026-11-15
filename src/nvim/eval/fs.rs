@@ -942,7 +942,7 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             cur_scope = K_CD_SCOPE_GLOBAL;
         }
     }
-    let gdir_owned = g_st().globaldir.get();
+    let gdir_owned = g_st().workspace.globaldir.get();
     if cur_scope == K_CD_SCOPE_GLOBAL {
         if let Some(ref gdir) = gdir_owned {
             from = Some(gdir.as_c_str());
@@ -1988,8 +1988,8 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
     } else if argvars[0].v_type != VarType::VarBlob
         && !(argvars[0].v_type == VarType::VarString
-            && (script_is_lua(g_st().current_sctx.get().sc_sid)
-                || g_st().current_sctx.get().sc_sid == SID_API_CLIENT))
+            && (script_is_lua(g_st().exc.current_sctx.get().sc_sid)
+                || g_st().exc.current_sctx.get().sc_sid == SID_API_CLIENT))
     {
         semsg!(
             gettext(E_INVARG2),

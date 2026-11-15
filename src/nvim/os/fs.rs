@@ -1946,8 +1946,8 @@ pub fn os_dup_cloexec(fd: i32) -> i32 {
 
 /// Open the file descriptor for stdin.
 pub fn os_open_stdin_fd() -> i32 {
-    if g_st().stdin_fd.get() > 0 {
-        g_st().stdin_fd.get()
+    if g_st().exc.stdin_fd.get() > 0 {
+        g_st().exc.stdin_fd.get()
     } else {
         let fd = os_dup(STDIN_FILENO);
         #[cfg(windows)]
@@ -2165,7 +2165,11 @@ pub fn os_fsync(fd: i32) -> i32 {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fsync(ptr::null_mut(), &raw mut req, fd, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
-        g_st().g_stats.fsync.set(g_st().g_stats.fsync.get() + (1));
+        g_st()
+            .exc
+            .g_stats
+            .fsync
+            .set(g_st().exc.g_stats.fsync.get() + (1));
         r
     }
 }

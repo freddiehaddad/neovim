@@ -543,12 +543,12 @@ pub fn nvim_buf_set_lines(
             K_EXTMARK_NOOP,
         );
 
-        if g_st().visual_global.borrow().active
-            && g_st().curbuf.get() == b
-            && g_st().visual_global.borrow().start.lnum >= (start as Linenr)
+        if g_st().edit.visual_global.active.get()
+            && g_st().workspace.curbuf.get() == b
+            && g_st().edit.visual_global.start.get().lnum >= (start as Linenr)
         {
-            if g_st().visual_global.borrow().start.lnum >= (end as Linenr) {
-                g_st().visual_global.borrow_mut().start.lnum += extra as Linenr;
+            if g_st().edit.visual_global.start.get().lnum >= (end as Linenr) {
+                g_st().edit.visual_global.start.add_lnum(extra as Linenr);
             }
             check_visual_pos();
         }
@@ -852,11 +852,11 @@ pub fn nvim_buf_set_text(
             K_EXTMARK_NOOP,
         );
 
-        if g_st().visual_global.borrow().active
-            && b_ptr == g_st().curbuf.get().as_ptr()
-            && g_st().visual_global.borrow().mode != CTRL_V_CONST
+        if g_st().edit.visual_global.active.get()
+            && b_ptr == g_st().workspace.curbuf.get().as_ptr()
+            && g_st().edit.visual_global.mode.get() != CTRL_V_CONST
         {
-            let mut vstart = g_st().visual_global.borrow().start;
+            let mut vstart = g_st().edit.visual_global.start.get();
             fix_pos_col(
                 &b,
                 &mut vstart,
@@ -868,7 +868,7 @@ pub fn nvim_buf_set_text(
                 last_item.size as Colnr,
                 1,
             );
-            g_st().visual_global.borrow_mut().start = vstart;
+            g_st().edit.visual_global.start.set(vstart);
 
             check_visual_pos();
         }
@@ -1213,8 +1213,9 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString) -> Result<(), Error> {
         let save_acd = opt_vars().p_acd.get();
         if !is_curbuf {
             g_st()
+                .screen
                 .redrawing_disabled
-                .set(g_st().redrawing_disabled.get() + (1));
+                .set(g_st().screen.redrawing_disabled.get() + (1));
             opt_vars().p_acd.set(false);
         }
 
@@ -1225,8 +1226,9 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString) -> Result<(), Error> {
 
         if !is_curbuf {
             g_st()
+                .screen
                 .redrawing_disabled
-                .set(g_st().redrawing_disabled.get() - (1));
+                .set(g_st().screen.redrawing_disabled.get() - (1));
             opt_vars().p_acd.set(save_acd);
         }
     })?;
@@ -1596,7 +1598,7 @@ fn fix_cursor_cols(
     new_rows: Linenr,
     new_cols_at_end_row: Colnr,
 ) {
-    let mode_col_adj = if win == curwin() && (g_st().state_global.get() & MODE_INSERT) != 0 {
+    let mode_col_adj = if win == curwin() && (g_st().edit.state_global.get() & MODE_INSERT) != 0 {
         0
     } else {
         1

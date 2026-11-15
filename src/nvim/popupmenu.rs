@@ -271,7 +271,7 @@ fn pum_compute_vertical_placement(
     {
         PUM.with(|s| s.above.set(true));
 
-        if (g_st().state_global.get() & MODE_CMDLINE) != 0 && target_win.is_none() {
+        if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0 && target_win.is_none() {
             context_lines = 0;
         } else {
             context_lines =
@@ -309,7 +309,7 @@ fn pum_compute_vertical_placement(
     } else {
         PUM.with(|s| s.above.set(false));
 
-        if (g_st().state_global.get() & MODE_CMDLINE) != 0 && target_win.is_none() {
+        if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0 && target_win.is_none() {
             context_lines = 0;
         } else {
             validate_cheight(target_win.unwrap());
@@ -331,7 +331,7 @@ fn pum_compute_vertical_placement(
         }
 
         if PUM.with(|s| s.row.get()) + PUM.with(|s| s.height.get()) + pum_border_size
-            >= g_st().cmdline_row.get()
+            >= g_st().cmdline.cmdline_row.get()
         {
             PUM.with(|s| s.height.set(s.height.get() - (pum_border_size)));
         }
@@ -379,6 +379,7 @@ fn pum_compute_horizontal_placement(
     border_width: i32,
 ) {
     let max_col = g_st()
+        .screen
         .columns_global
         .get()
         .max(if let Some(target_win) = target_win {
@@ -470,7 +471,7 @@ pub fn pum_display(
         PUM.with(|s| {
             s.external.set(
                 ui_has(K_UIPOPUPMENU_CONST)
-                    || ((g_st().state_global.get() & MODE_CMDLINE) != 0
+                    || ((g_st().edit.state_global.get() & MODE_CMDLINE) != 0
                         && ui_has(K_UIWILDMENU_CONST)),
             )
         });
@@ -478,7 +479,8 @@ pub fn pum_display(
 
     PUM.with(|s| {
         s.rl.set(
-            (g_st().state_global.get() & MODE_CMDLINE) == 0 && curwin().w_onebuf_opt.wo_rl.get(),
+            (g_st().edit.state_global.get() & MODE_CMDLINE) == 0
+                && curwin().w_onebuf_opt.wo_rl.get(),
         )
     });
 
@@ -489,14 +491,15 @@ pub fn pum_display(
         validate_cursor_col(&curwin());
         let mut above_row: i32 = 0;
         let mut below_row = g_st()
+            .cmdline
             .cmdline_row
             .get()
             .max(curwin().w_winrow.get() + curwin().w_view_height.get());
-        if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
-            below_row = g_st().cmdline_row.get();
+        if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0 {
+            below_row = g_st().cmdline.cmdline_row.get();
         }
-        let target_win = if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
-            g_st().cmdline_win.get()
+        let target_win = if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0 {
+            g_st().cmdline.cmdline_win.get()
         } else {
             curwin()
         };
@@ -506,20 +509,21 @@ pub fn pum_display(
         let mut pum_win_row: i32;
         let mut cursor_col: i32;
 
-        if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
-            let cw_ptr = g_st().cmdline_win.get();
+        if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0 {
+            let cw_ptr = g_st().cmdline.cmdline_win.get();
             let cmdline_win_ref = cw_ptr.opt();
             pum_win_row = if let Some(cw) = cmdline_win_ref {
                 cw.w_wrow.get()
             } else if ui_has(K_UICMDLINE) {
                 0
             } else {
-                g_st().cmdline_row.get()
+                g_st().cmdline.cmdline_row.get()
             };
             cursor_col =
                 cmdline_win_ref.map_or(0, |cw| cw.w_config.borrow()._cmdline_offset) + cmd_startcol;
-            cursor_col %=
-                cmdline_win_ref.map_or(g_st().columns_global.get(), |cw| cw.w_view_width.get());
+            cursor_col %= cmdline_win_ref.map_or(g_st().screen.columns_global.get(), |cw| {
+                cw.w_view_width.get()
+            });
             PUM.with(|s| {
                 s.anchor_grid.set(if ui_has(K_UICMDLINE) {
                     -1
@@ -651,9 +655,10 @@ pub fn pum_display(
     }
 
     g_st()
+        .screen
         .pum_grid
         .zindex
-        .set(if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
+        .set(if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0 {
             K_ZINDEX_CMDLINE_POPUP_MENU
         } else {
             K_ZINDEX_POPUP_MENU
@@ -676,14 +681,14 @@ fn pum_compute_text_attrs(
     }
 
     let leader: Option<std::borrow::Cow<'_, std::ffi::CStr>> =
-        if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
+        if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0 {
             cmdline_compl_pattern().map(std::borrow::Cow::Owned)
         } else {
             ins_compl_leader().map(std::borrow::Cow::Owned)
         };
     let leader = leader.filter(|s| !s.is_empty())?;
 
-    let in_fuzzy = if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
+    let in_fuzzy = if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0 {
         cmdline_compl_is_fuzzy()
     } else {
         (get_cot_flags() & K_OPT_COT_FLAG_FUZZY) != 0
@@ -842,7 +847,7 @@ pub fn pum_redraw() {
     let mut extra_space = false;
     if PUM.with(|s| s.rl.get()) {
         col_off = PUM.with(|s| s.width.get()) - 1;
-        debug_assert!((g_st().state_global.get() & MODE_CMDLINE) == 0);
+        debug_assert!((g_st().edit.state_global.get() & MODE_CMDLINE) == 0);
         let win_end_col = curwin().w_wincol.get() + curwin().w_view_width.get();
         if PUM.with(|s| s.col.get()) < win_end_col - 1 {
             grid_width += 1;
@@ -905,15 +910,16 @@ pub fn pum_redraw() {
         }
     }
     g_st()
+        .screen
         .pum_grid
         .blending
         .set(opt_vars().p_pb.get() > 0 || fconfig.shadow);
-    grid_assign_handle(&g_st().pum_grid);
+    grid_assign_handle(&g_st().screen.pum_grid);
 
     PUM.with(|s| s.left_col.set(PUM.with(|s| s.col.get()) - col_off));
     PUM.with(|s| s.right_col.set(PUM.with(|s| s.left_col.get()) + grid_width));
     let moved = ui_comp_put_grid(
-        &g_st().pum_grid,
+        &g_st().screen.pum_grid,
         PUM.with(|s| s.row.get()),
         PUM.with(|s| s.left_col.get()),
         PUM.with(|s| s.height.get()) + border_width,
@@ -923,26 +929,26 @@ pub fn pum_redraw() {
     );
     let invalid_grid = moved || PUM.with(|s| s.invalid.get());
     PUM.with(|s| s.invalid.set(false));
-    g_st().must_redraw_pum.set(false);
+    g_st().screen.must_redraw_pum.set(false);
 
-    if !crate::grid::grid_allocated(&g_st().pum_grid)
-        || g_st().pum_grid.rows.get() != PUM.with(|s| s.height.get()) + border_width
-        || g_st().pum_grid.cols.get() != grid_width + border_width
+    if !crate::grid::grid_allocated(&g_st().screen.pum_grid)
+        || g_st().screen.pum_grid.rows.get() != PUM.with(|s| s.height.get()) + border_width
+        || g_st().screen.pum_grid.cols.get() != grid_width + border_width
     {
         grid_alloc(
-            &g_st().pum_grid,
+            &g_st().screen.pum_grid,
             PUM.with(|s| s.height.get()) + border_width,
             grid_width + border_width,
             !invalid_grid,
             false,
         );
         ui_call_grid_resize(
-            i64::from(g_st().pum_grid.handle.get()),
-            i64::from(g_st().pum_grid.cols.get()),
-            i64::from(g_st().pum_grid.rows.get()),
+            i64::from(g_st().screen.pum_grid.handle.get()),
+            i64::from(g_st().screen.pum_grid.cols.get()),
+            i64::from(g_st().screen.pum_grid.rows.get()),
         );
     } else if invalid_grid {
-        grid_invalidate(&g_st().pum_grid);
+        grid_invalidate(&g_st().screen.pum_grid);
     }
     if ui_has(K_UIMULTIGRID) {
         pum_pos_ui_flush(true);
@@ -950,7 +956,7 @@ pub fn pum_redraw() {
 
     let scroll_range = PUM.with(|s| s.size.get()) - PUM.with(|s| s.height.get());
     if fconfig.border {
-        grid_draw_border(&g_st().pum_grid, &mut fconfig, None, 0, None, 0);
+        grid_draw_border(&g_st().screen.pum_grid, &mut fconfig, None, 0, None, 0);
         if !fconfig.shadow {
             row += 1;
             col_off += 1;
@@ -979,7 +985,7 @@ pub fn pum_redraw() {
         let mut attr = win_hl_attr(&curwin(), hlf);
         attr = hl_combine_attr(win_hl_attr(&curwin(), HLF_PNI), attr);
 
-        screengrid_line_start(&g_st().pum_grid, row, 0);
+        screengrid_line_start(&g_st().screen.pum_grid, row, 0);
 
         if extra_space {
             if PUM.with(|s| s.rl.get()) {
@@ -1177,36 +1183,38 @@ pub fn pum_redraw() {
         }
 
         if PUM.with(|s| s.rl.get()) {
-            let lcol = col_off - PUM.with(|s| s.width.get()) + 1;
+            let pum_width = PUM.with(|s| s.width.get());
+            let lcol = col_off - pum_width + 1;
             grid_line_fill(lcol, grid_col + 1, schar_from_ascii(b' '), orig_attr);
             if need_fcs_trunc {
-                g_st().linebuf_char.borrow_mut()[lcol as usize] = if fcs_trunc != 0 {
-                    fcs_trunc
-                } else {
-                    schar_from_ascii(b'<')
-                };
-                g_st().linebuf_attr.borrow_mut()[lcol as usize] = trunc_attr;
-                if PUM.with(|s| s.width.get()) > 1
-                    && g_st().linebuf_char.borrow()[(lcol + 1) as usize] == 0
-                {
-                    g_st().linebuf_char.borrow_mut()[(lcol + 1) as usize] = schar_from_ascii(b' ');
-                }
+                g_st().screen.with_linebuf_mut(|lb| {
+                    lb.chars[lcol as usize] = if fcs_trunc != 0 {
+                        fcs_trunc
+                    } else {
+                        schar_from_ascii(b'<')
+                    };
+                    lb.attrs[lcol as usize] = trunc_attr;
+                    if pum_width > 1 && lb.chars[(lcol + 1) as usize] == 0 {
+                        lb.chars[(lcol + 1) as usize] = schar_from_ascii(b' ');
+                    }
+                });
             }
         } else {
-            let rcol = col_off + PUM.with(|s| s.width.get());
+            let pum_width = PUM.with(|s| s.width.get());
+            let rcol = col_off + pum_width;
             grid_line_fill(grid_col, rcol, schar_from_ascii(b' '), orig_attr);
             if need_fcs_trunc {
-                if PUM.with(|s| s.width.get()) > 1
-                    && g_st().linebuf_char.borrow()[(rcol - 1) as usize] == 0
-                {
-                    g_st().linebuf_char.borrow_mut()[(rcol - 2) as usize] = schar_from_ascii(b' ');
-                }
-                g_st().linebuf_char.borrow_mut()[(rcol - 1) as usize] = if fcs_trunc != 0 {
-                    fcs_trunc
-                } else {
-                    schar_from_ascii(b'>')
-                };
-                g_st().linebuf_attr.borrow_mut()[(rcol - 1) as usize] = trunc_attr;
+                g_st().screen.with_linebuf_mut(|lb| {
+                    if pum_width > 1 && lb.chars[(rcol - 1) as usize] == 0 {
+                        lb.chars[(rcol - 2) as usize] = schar_from_ascii(b' ');
+                    }
+                    lb.chars[(rcol - 1) as usize] = if fcs_trunc != 0 {
+                        fcs_trunc
+                    } else {
+                        schar_from_ascii(b'>')
+                    };
+                    lb.attrs[(rcol - 1) as usize] = trunc_attr;
+                });
             }
         }
 
@@ -1275,10 +1283,10 @@ fn pum_preview_set_text(
         }
     }
 
-    let original_textlock = g_st().textlock.get();
-    g_st().textlock.set(0);
+    let original_textlock = g_st().input.textlock.get();
+    g_st().input.textlock.set(0);
     let set_lines_res = nvim_buf_set_lines(0, buf.b_fnum.get(), 0, -1, false, replacement.clone());
-    g_st().textlock.set(original_textlock);
+    g_st().input.textlock.set(original_textlock);
     if let Err(err) = set_lines_res {
         emsg(err.msg_cstr().unwrap_or(c""));
     }
@@ -1293,7 +1301,7 @@ fn pum_adjust_info_position(wp: &WinInfoInfo, width: i32) -> bool {
         + PUM.with(|s| s.width.get())
         + 1
         + border_width.max(PUM.with(|s| s.scrollbar.get()));
-    let right_extra = g_st().columns_global.get() - col;
+    let right_extra = g_st().screen.columns_global.get() - col;
     let left_extra = PUM.with(|s| s.col.get()) - 2;
 
     let max_extra = right_extra.max(left_extra);
@@ -1321,7 +1329,12 @@ fn pum_adjust_info_position(wp: &WinInfoInfo, width: i32) -> bool {
     wp.w_config.borrow_mut().anchor = 0;
     let count = wp.buf().b_ml.ml_line_count.get();
     wp.w_view_width.set(wp.w_config.borrow().width);
-    let height = plines_m_win(wp, wp.w_topline.get(), count, g_st().rows_global.get());
+    let height = plines_m_win(
+        wp,
+        wp.w_topline.get(),
+        count,
+        g_st().screen.rows_global.get(),
+    );
     wp.w_config.borrow_mut().height = height;
     wp.w_config.borrow_mut().row = f64::from(PUM.with(|s| s.row.get()));
     wp.w_config.borrow_mut().hide = false;
@@ -1337,9 +1350,10 @@ pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<crate::globals
     }
     block_autocmds();
     g_st()
+        .screen
         .redrawing_disabled
-        .set(g_st().redrawing_disabled.get() + (1));
-    g_st().no_u_sync.set(g_st().no_u_sync.get() + (1));
+        .set(g_st().screen.redrawing_disabled.get() + (1));
+    g_st().edit.no_u_sync.set(g_st().edit.no_u_sync.get() + (1));
     let wp_ref = if let Some(wp) = win_float_find(K_WIN_INFO) {
         wp
     } else {
@@ -1351,10 +1365,11 @@ pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<crate::globals
     let mut lnum: Linenr = 0;
     let mut max_info_width: i32 = 0;
     pum_preview_set_text(&wp_ref, info, &mut lnum, &mut max_info_width);
-    g_st().no_u_sync.set(g_st().no_u_sync.get() - (1));
+    g_st().edit.no_u_sync.set(g_st().edit.no_u_sync.get() - (1));
     g_st()
+        .screen
         .redrawing_disabled
-        .set(g_st().redrawing_disabled.get() - (1));
+        .set(g_st().screen.redrawing_disabled.get() - (1));
     redraw_later(Some(&wp_ref), UPD_NOT_VALID);
 
     let ok = pum_adjust_info_position(&wp_ref, max_info_width);
@@ -1439,29 +1454,33 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
         });
 
         if pum_item(PUM.with(|s| s.selected.get())).pum_info.is_some()
-            && g_st().rows_global.get() > 10
+            && g_st().screen.rows_global.get() > 10
             && repeat <= 1
             && (cur_cot_flags & (K_OPT_COT_FLAG_POPUP | K_OPT_COT_FLAG_PREVIEW)) != 0
             && !((cur_cot_flags & K_OPT_COT_FLAG_PREVIEW) != 0
-                && !g_st().cmdwin_buf.get().is_null())
+                && !g_st().cmdline.cmdwin_buf.get().is_null())
         {
             let curwin_save = curwin();
-            let curtab_save = g_st().curtab.get().clone();
+            let curtab_save = g_st().workspace.curtab.get().clone();
 
             if use_float {
                 block_autocmds();
             }
 
-            g_st().g_do_tagpreview.set(3);
+            g_st().search.g_do_tagpreview.set(3);
             if opt_vars().p_pvh.get() > 0
-                && opt_vars().p_pvh.get() < i64::from(g_st().g_do_tagpreview.get())
+                && opt_vars().p_pvh.get() < i64::from(g_st().search.g_do_tagpreview.get())
             {
-                g_st().g_do_tagpreview.set(opt_vars().p_pvh.get() as i32);
+                g_st()
+                    .search
+                    .g_do_tagpreview
+                    .set(opt_vars().p_pvh.get() as i32);
             }
             g_st()
+                .screen
                 .redrawing_disabled
-                .set(g_st().redrawing_disabled.get() + (1));
-            g_st().no_u_sync.set(g_st().no_u_sync.get() + (1));
+                .set(g_st().screen.redrawing_disabled.get() + (1));
+            g_st().edit.no_u_sync.set(g_st().edit.no_u_sync.get() + (1));
 
             if !use_float {
                 resized = prepare_tagpreview(false, false);
@@ -1471,11 +1490,12 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                 resized = true;
             }
 
-            g_st().no_u_sync.set(g_st().no_u_sync.get() - (1));
+            g_st().edit.no_u_sync.set(g_st().edit.no_u_sync.get() - (1));
             g_st()
+                .screen
                 .redrawing_disabled
-                .set(g_st().redrawing_disabled.get() - (1));
-            g_st().g_do_tagpreview.set(0);
+                .set(g_st().screen.redrawing_disabled.get() - (1));
+            g_st().search.g_do_tagpreview.set(0);
 
             if curwin().w_onebuf_opt.wo_pvw.get() || curwin().w_kind.get() == K_WIN_INFO {
                 let mut res = true;
@@ -1487,9 +1507,9 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                 {
                     buf_clear();
                 } else {
-                    g_st().no_u_sync.set(g_st().no_u_sync.get() + (1));
+                    g_st().edit.no_u_sync.set(g_st().edit.no_u_sync.get() + (1));
                     res = do_ecmd(0, None, None, None, ECMD_ONE, 0, None);
-                    g_st().no_u_sync.set(g_st().no_u_sync.get() - (1));
+                    g_st().edit.no_u_sync.set(g_st().edit.no_u_sync.get() - (1));
 
                     if res {
                         set_option_value_give_err(K_OPT_SWAPFILE, boolean_obj(false), OPT_LOCAL);
@@ -1546,9 +1566,12 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                     }
 
                     if (curwin() != curwin_save && win_valid(curwin_save.opt()))
-                        || (g_st().curtab.get() != curtab_save && valid_tabpage(curtab_save.opt()))
+                        || (g_st().workspace.curtab.get() != curtab_save
+                            && valid_tabpage(curtab_save.opt()))
                     {
-                        if g_st().curtab.get() != curtab_save && valid_tabpage(curtab_save.opt()) {
+                        if g_st().workspace.curtab.get() != curtab_save
+                            && valid_tabpage(curtab_save.opt())
+                        {
                             goto_tabpage_tp(curtab_save.opt(), false, false);
                         }
 
@@ -1560,9 +1583,9 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                         redraw_later(Some(&crate::globals::curwin()), UPD_SOME_VALID);
 
                         if resized && win_valid(curwin_save.opt()) {
-                            g_st().no_u_sync.set(g_st().no_u_sync.get() + (1));
+                            g_st().edit.no_u_sync.set(g_st().edit.no_u_sync.get() + (1));
                             win_enter(curwin_save.borrow(), true);
-                            g_st().no_u_sync.set(g_st().no_u_sync.get() - (1));
+                            g_st().edit.no_u_sync.set(g_st().edit.no_u_sync.get() - (1));
                             update_topline(&curwin());
                         }
 
@@ -1575,9 +1598,9 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                         PUM.with(|s| s.is_drawn.set(save_pum_is_drawn));
 
                         if !resized && win_valid(curwin_save.opt()) {
-                            g_st().no_u_sync.set(g_st().no_u_sync.get() + (1));
+                            g_st().edit.no_u_sync.set(g_st().edit.no_u_sync.get() + (1));
                             win_enter(curwin_save.borrow(), true);
-                            g_st().no_u_sync.set(g_st().no_u_sync.get() - (1));
+                            g_st().edit.no_u_sync.set(g_st().edit.no_u_sync.get() - (1));
                         }
 
                         PUM.with(|s| s.is_visible.set(false));
@@ -1602,7 +1625,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
 pub fn pum_undisplay(immediate: bool) {
     PUM.with(|s| s.is_visible.set(false));
     PUM_ITEMS.with(|c| *c.borrow_mut() = None);
-    g_st().must_redraw_pum.set(false);
+    g_st().screen.must_redraw_pum.set(false);
 
     if immediate {
         pum_check_clear();
@@ -1614,12 +1637,12 @@ pub fn pum_check_clear() {
         if PUM.with(|s| s.external.get()) {
             ui_call_popupmenu_hide();
         } else {
-            ui_comp_remove_grid(&g_st().pum_grid);
+            ui_comp_remove_grid(&g_st().screen.pum_grid);
             if ui_has(K_UIMULTIGRID) {
-                ui_call_win_close(i64::from(g_st().pum_grid.handle.get()));
-                ui_call_grid_destroy(i64::from(g_st().pum_grid.handle.get()));
+                ui_call_win_close(i64::from(g_st().screen.pum_grid.handle.get()));
+                ui_call_grid_destroy(i64::from(g_st().screen.pum_grid.handle.get()));
             }
-            grid_free(&g_st().pum_grid);
+            grid_free(&g_st().screen.pum_grid);
         }
         PUM.with(|s| s.is_drawn.set(false));
         PUM.with(|s| s.external.set(false));
@@ -1651,10 +1674,10 @@ pub fn pum_ext_select_item(item: i32, insert: bool, finish: bool) {
     if !pum_visible() || item < -1 || item >= PUM.with(|s| s.size.get()) {
         return;
     }
-    g_st().pum_want.active.set(true);
-    g_st().pum_want.item.set(item);
-    g_st().pum_want.insert.set(insert);
-    g_st().pum_want.finish.set(finish);
+    g_st().screen.pum_want.active.set(true);
+    g_st().screen.pum_want.item.set(item);
+    g_st().screen.pum_want.insert.set(insert);
+    g_st().screen.pum_want.finish.set(finish);
 }
 
 /// Gets the height of the menu (`pum_get_height`).
@@ -1702,11 +1725,11 @@ pub fn pum_set_event_info(dict: &TvDict) {
 fn pum_position_at_mouse(min_width: i32) {
     let min_row: i32 = 0;
     let min_col: i32 = 0;
-    let mut max_row = g_st().rows_global.get();
-    let mut max_col = g_st().columns_global.get();
-    let mut grid = g_st().mouse_grid.get();
-    let mut row = g_st().mouse_row.get();
-    let mut col = g_st().mouse_col.get();
+    let mut max_row = g_st().screen.rows_global.get();
+    let mut max_col = g_st().screen.columns_global.get();
+    let mut grid = g_st().input.mouse_grid.get();
+    let mut row = g_st().input.mouse_row.get();
+    let mut col = g_st().input.mouse_col.get();
     PUM.with(|s| s.win_row_offset.set(0));
     PUM.with(|s| s.win_col_offset.set(0));
 
@@ -1722,13 +1745,13 @@ fn pum_position_at_mouse(min_width: i32) {
         PUM.with(|s| s.win_col_offset.set(wp.w_wincol.get()));
 
         if wp.w_view_height.get() > 0 || wp.w_view_width.get() > 0 {
-            max_row = (g_st().rows_global.get() - wp.w_winrow.get())
+            max_row = (g_st().screen.rows_global.get() - wp.w_winrow.get())
                 .max(wp.w_winrow.get() + wp.w_view_height.get());
-            max_col = (g_st().columns_global.get() - wp.w_wincol.get())
+            max_col = (g_st().screen.columns_global.get() - wp.w_wincol.get())
                 .max(wp.w_wincol.get() + wp.w_view_width.get());
         }
     }
-    if g_st().pum_grid.handle.get() != 0 && grid == g_st().pum_grid.handle.get() {
+    if g_st().screen.pum_grid.handle.get() != 0 && grid == g_st().screen.pum_grid.handle.get() {
         row += PUM.with(|s| s.row.get());
         col += PUM.with(|s| s.left_col.get());
     } else {
@@ -1807,15 +1830,15 @@ fn pum_position_at_mouse(min_width: i32) {
 
 /// Select the pum entry at the mouse position (`pum_select_mouse_pos`).
 fn pum_select_mouse_pos() {
-    let mut grid = g_st().mouse_grid.get();
-    let mut row = g_st().mouse_row.get();
-    let mut col = g_st().mouse_col.get();
+    let mut grid = g_st().input.mouse_grid.get();
+    let mut row = g_st().input.mouse_row.get();
+    let mut col = g_st().input.mouse_col.get();
 
     if grid == 0 {
         mouse_find_win_outer(&mut grid, &mut row, &mut col);
     }
 
-    if grid == g_st().pum_grid.handle.get() {
+    if grid == g_st().screen.pum_grid.handle.get() {
         let border_offset = if pum_border_width() == 2 { 1 } else { 0 };
         let item = row - border_offset;
         PUM.with(|s| {
@@ -1923,7 +1946,11 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu, path_name: Option<&CStr>) {
     loop {
         PUM.with(|s| s.is_visible.set(true));
         PUM.with(|s| s.is_drawn.set(true));
-        g_st().pum_grid.zindex.set(K_ZINDEX_CMDLINE_POPUP_MENU);
+        g_st()
+            .screen
+            .pum_grid
+            .zindex
+            .set(K_ZINDEX_CMDLINE_POPUP_MENU);
         pum_redraw();
         setcursor_mayforce(&curwin(), true);
 
@@ -1982,9 +2009,10 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu, path_name: Option<&CStr>) {
 pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
     if !use_mouse_pos {
         g_st()
+            .input
             .mouse_row
             .set(curwin().w_grid.row_offset.get() + curwin().w_wrow.get());
-        g_st().mouse_col.set(
+        g_st().input.mouse_col.set(
             curwin().w_grid.col_offset.get()
                 + if curwin().w_onebuf_opt.wo_rl.get() {
                     curwin().w_view_width.get() - curwin().w_wcol.get() - 1
@@ -1994,16 +2022,19 @@ pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
         );
         if ui_has(K_UIMULTIGRID) {
             g_st()
+                .input
                 .mouse_grid
                 .set(curwin().w_grid.target.get().borrow().handle.get());
         } else if curwin().w_grid.target.get() != crate::grid::GridTarget::Default {
-            g_st().mouse_grid.set(0);
+            g_st().input.mouse_grid.set(0);
             g_st()
+                .input
                 .mouse_row
-                .set(g_st().mouse_row.get() + (curwin().w_winrow.get()));
+                .set(g_st().input.mouse_row.get() + (curwin().w_winrow.get()));
             g_st()
+                .input
                 .mouse_col
-                .set(g_st().mouse_col.get() + (curwin().w_wincol.get()));
+                .set(g_st().input.mouse_col.get() + (curwin().w_wincol.get()));
         }
     }
 
@@ -2017,8 +2048,8 @@ pub fn pum_pos_ui_flush(force: bool) {
         || (ui_has(K_UIMULTIGRID)
             && PUM.with(|s| s.is_drawn.get())
             && !PUM.with(|s| s.external.get())
-            && g_st().pum_grid.handle.get() != 0
-            && g_st().pum_grid.pending_comp_index_update.get())
+            && g_st().screen.pum_grid.handle.get() != 0
+            && g_st().screen.pum_grid.pending_comp_index_update.get())
     {
         let anchor = if PUM.with(|s| s.above.get()) {
             c"SW"
@@ -2031,18 +2062,18 @@ pub fn pum_pos_ui_flush(force: bool) {
             0
         };
         ui_call_win_float_pos(
-            i64::from(g_st().pum_grid.handle.get()),
+            i64::from(g_st().screen.pum_grid.handle.get()),
             -1,
             cstr_as_string(Some(anchor)),
             i64::from(PUM.with(|s| s.anchor_grid.get())),
             f64::from(PUM.with(|s| s.row.get()) - row_off - PUM.with(|s| s.win_row_offset.get())),
             f64::from(PUM.with(|s| s.left_col.get()) - PUM.with(|s| s.win_col_offset.get())),
             false,
-            i64::from(g_st().pum_grid.zindex.get()),
-            g_st().pum_grid.comp_index.get() as i64,
-            i64::from(g_st().pum_grid.comp_row.get()),
-            i64::from(g_st().pum_grid.comp_col.get()),
+            i64::from(g_st().screen.pum_grid.zindex.get()),
+            g_st().screen.pum_grid.comp_index.get() as i64,
+            i64::from(g_st().screen.pum_grid.comp_row.get()),
+            i64::from(g_st().screen.pum_grid.comp_col.get()),
         );
-        g_st().pum_grid.pending_comp_index_update.set(false);
+        g_st().screen.pum_grid.pending_comp_index_update.set(false);
     }
 }

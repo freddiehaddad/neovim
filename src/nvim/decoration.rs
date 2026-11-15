@@ -688,8 +688,8 @@ pub fn buf_put_decor(buf: &FileBuf, decor: DecorInline, row: i32, mut row2: i32)
 
 fn may_force_numberwidth_recompute(buf: &FileBuf, unplace: bool) {
     for tp in for_all_tabpages_ptr() {
-        for wp in win_iter_ptr(if g_st().curtab.get() == tp {
-            g_st().firstwin.get()
+        for wp in win_iter_ptr(if g_st().workspace.curtab.get() == tp {
+            g_st().workspace.firstwin.get()
         } else {
             tp.tp_firstwin.get()
         }) {
@@ -759,7 +759,10 @@ pub fn decor_free(decor: DecorInline) {
     let vt = ext.vt;
     let mut idx = ext.sh_idx;
 
-    if g_st().decor_state.borrow().running_decor_provider {
+    if g_st()
+        .screen
+        .with_decor_state(|ds| ds.running_decor_provider)
+    {
         if !vt.is_null() {
             TO_FREE_VIRT.with(|cell| cell.borrow_mut().push(vt));
         }
@@ -802,13 +805,12 @@ fn decor_free_sh(first_idx: u32) {
 
 pub fn decor_state_invalidate(buf: &FileBuf) {
     let same_buf = g_st()
-        .decor_state
-        .borrow()
-        .win
-        .opt()
-        .is_some_and(|win| win.w_buffer.get() == buf);
+        .screen
+        .with_decor_state(|ds| ds.win.opt().is_some_and(|win| win.w_buffer.get() == buf));
     if same_buf {
-        g_st().decor_state.borrow_mut().itr_valid = false;
+        g_st()
+            .screen
+            .with_decor_state_mut(|ds| ds.itr_valid = false);
     }
 }
 
@@ -860,13 +862,19 @@ pub fn decor_extconceal_char(
 }
 
 pub fn decor_check_to_be_deleted() {
-    assert!(!g_st().decor_state.borrow().running_decor_provider);
+    assert!(
+        !g_st()
+            .screen
+            .with_decor_state(|ds| ds.running_decor_provider)
+    );
     while let Some(vt) = TO_FREE_VIRT.with(|cell| cell.borrow_mut().pop()) {
         decor_free_vt(vt);
     }
     decor_free_sh(DECOR_MOD_STATE.with(|s| s.to_free_sh.get()));
     DECOR_MOD_STATE.with(|s| s.to_free_sh.set(DECOR_ID_INVALID));
-    g_st().decor_state.borrow_mut().win = crate::globals::WinPtr::NULL;
+    g_st()
+        .screen
+        .with_decor_state_mut(|ds| ds.win = crate::globals::WinPtr::NULL);
 }
 
 pub fn decor_check_invalid_glyphs() {

@@ -320,12 +320,12 @@ pub fn undo_allowed(buf: &FileBuf) -> bool {
         return false;
     }
 
-    if g_st().sandbox.get() != 0 {
+    if g_st().input.sandbox.get() != 0 {
         emsg(gettext(E_SANDBOX));
         return false;
     }
 
-    if g_st().textlock.get() != 0 || expr_map_locked() {
+    if g_st().input.textlock.get() != 0 || expr_map_locked() {
         emsg(gettext(E_TEXTLOCK));
         return false;
     }
@@ -355,7 +355,7 @@ pub fn u_savecommon(buf: &FileBuf, top: Linenr, bot: Linenr, newbot: Linenr, rel
             return false;
         }
 
-        if (std::ptr::from_ref(buf).cast_mut()) == g_st().curbuf.get().as_ptr() {
+        if (std::ptr::from_ref(buf).cast_mut()) == g_st().workspace.curbuf.get().as_ptr() {
             change_warning(buf, 0);
         }
 
@@ -531,7 +531,7 @@ pub fn u_savecommon(buf: &FileBuf, top: Linenr, bot: Linenr, newbot: Linenr, rel
         uep.ue_array.reserve(size as usize);
         for i in 0..size {
             fast_breakcheck();
-            if g_st().got_int.get() {
+            if g_st().input.got_int.get() {
                 uhp_mut(buf, newhead).uh_getbot_entry = false;
                 return false;
             }
@@ -1271,7 +1271,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
                 0
             };
             let mut bi = Bufinfo {
-                bi_buf: g_st().curbuf.get(),
+                bi_buf: g_st().workspace.curbuf.get(),
                 bi_fp,
                 bi_fsize: fsize,
             };
@@ -1852,7 +1852,7 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
     }
 
     if uhp.is_some() || target == 0 {
-        while !g_st().got_int.get() {
+        while !g_st().input.got_int.get() {
             change_warning(&curbuf(), 0);
 
             uhp = if let Some(ch) = curbuf().b_u_curhead.get() {
@@ -1876,7 +1876,7 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
         }
 
         if target > 0 {
-            while !g_st().got_int.get() {
+            while !g_st().input.got_int.get() {
                 change_warning(&curbuf(), 0);
 
                 let Some(mut uh) = curbuf().b_u_curhead.get() else {
@@ -2237,11 +2237,11 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
 }
 
 fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
-    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_UNDO) != 0 && g_st().key_typed.get() {
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_UNDO) != 0 && g_st().input.key_typed.get() {
         fold_open_cursor();
     }
 
-    if quiet || g_st().global_busy.get() != 0 || !messaging() || shortmess(K_SHM_UNDO) {
+    if quiet || g_st().cmdline.global_busy.get() != 0 || !messaging() || shortmess(K_SHM_UNDO) {
         return;
     }
 
@@ -2295,15 +2295,15 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
     }
 
     for wp in for_all_windows_ptr() {
-        if wp.w_buffer.get() == g_st().curbuf.get() && wp.w_onebuf_opt.wo_cole.get() > 0 {
+        if wp.w_buffer.get() == g_st().workspace.curbuf.get() && wp.w_onebuf_opt.wo_cole.get() > 0 {
             redraw_later(Some(&wp), UPD_NOT_VALID);
         }
     }
 
-    if g_st().visual_global.borrow().active {
-        let mut vstart = g_st().visual_global.borrow().start;
+    if g_st().edit.visual_global.active.get() {
+        let mut vstart = g_st().edit.visual_global.start.get();
         check_pos(&curbuf(), &mut vstart);
-        g_st().visual_global.borrow_mut().start = vstart;
+        g_st().edit.visual_global.start.set(vstart);
     }
 
     smsg_keep!(
@@ -2352,7 +2352,7 @@ pub fn undo_fmt_time(buf: &mut [u8], tt: time_t) {
 
 /// `u_sync`: stop adding to the current entry list.
 pub fn u_sync(force: bool) {
-    if curbuf().b_u_synced.get() || (!force && g_st().no_u_sync.get() > 0) {
+    if curbuf().b_u_synced.get() || (!force && g_st().edit.no_u_sync.get() > 0) {
         return;
     }
 
@@ -2444,11 +2444,11 @@ pub fn ex_undolist(_eap: &mut Exarg) {
             false,
         );
         for line in &lines {
-            if g_st().got_int.get() {
+            if g_st().input.got_int.get() {
                 break;
             }
             msg_putchar(b'\n' as i32);
-            if g_st().got_int.get() {
+            if g_st().input.got_int.get() {
                 break;
             }
             msg_puts(line);
@@ -3059,7 +3059,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         {
             crate::main_init::ensure_test_editor_init();
-            g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
+            g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() + (1));
 
             let mut cwd_buf = [0u8; MAXPATHL];
             assert!(os_dirname(&mut cwd_buf));
@@ -3118,7 +3118,7 @@ mod tests {
             close_buffer(None, Some(&buf), DOBUF_WIPE, false, false, false);
             opt_vars().p_udir.set(save_udir);
             let _ = std::fs::remove_dir_all(&base);
-            g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
+            g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() - (1));
         }
     }
 }

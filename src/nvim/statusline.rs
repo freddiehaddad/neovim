@@ -336,7 +336,7 @@ pub fn win_redr_status(wp: &WinInfoInfo) {
     let is_stl_global = global_stl_height() > 0;
 
     if with_stl_state(|st| st.redr_status_busy.get())
-        || (g_st().wild_menu_showing.get() != 0 && !ui_has(K_UIWILDMENU_CONST))
+        || (g_st().cmdline.wild_menu_showing.get() != 0 && !ui_has(K_UIWILDMENU_CONST))
     {
         return;
     }
@@ -348,7 +348,7 @@ pub fn win_redr_status(wp: &WinInfoInfo) {
     let is_stl_curwin = stl_curwin == wp;
 
     if wp.w_status_height.get() == 0 && !(is_stl_global && is_stl_curwin) {
-        g_st().redraw_cmdline.set(true);
+        g_st().cmdline.redraw_cmdline.set(true);
     } else if !redrawing() {
         wp.w_redr_status.set(true);
     } else if !wp.w_onebuf_opt.wo_stl.is_empty()
@@ -366,7 +366,7 @@ pub fn win_redr_status(wp: &WinInfoInfo) {
             wp.w_p_fcs_chars.get().vert
         };
         let attr = win_hl_attr(wp, group);
-        grid_line_start(&g_st().default_gridview, w_endrow(wp));
+        grid_line_start(&g_st().screen.default_gridview, w_endrow(wp));
         grid_line_put_schar(w_endcol(wp), fillchar, attr);
         grid_line_flush();
     }
@@ -525,7 +525,7 @@ fn win_redr_stl_expr(
     };
     if let Some(save_curwin) = save_curwin {
         set_curwin(save_curwin);
-        g_st().curbuf.set(curwin().w_buffer.get());
+        g_st().workspace.curbuf.set(curwin().w_buffer.get());
     }
 
     if wp.is_null() {
@@ -534,7 +534,7 @@ fn win_redr_stl_expr(
         fillchar = schar_from_ascii(b' ');
         group = HLF_TPF;
         attr = hl_attr(group);
-        maxwidth = g_st().columns_global.get();
+        maxwidth = g_st().screen.columns_global.get();
         opt_idx = K_OPT_TABLINE;
         click_defs_target = ClickDefsTarget::Tabline;
     } else if draw_winbar {
@@ -567,7 +567,7 @@ fn win_redr_stl_expr(
             with_stl_state(|st| st.stl_expr_entered.set(false));
             if !restore_curwin.is_null() {
                 set_curwin(&restore_curwin);
-                g_st().curbuf.set(restore_curwin.w_buffer.get());
+                g_st().workspace.curbuf.set(restore_curwin.w_buffer.get());
             }
             return;
         }
@@ -582,7 +582,7 @@ fn win_redr_stl_expr(
     } else if draw_ruler && ui_event {
         stl_cstr = opt_vars().p_ruf.as_cstr().to_owned().as_cstr().to_owned();
         opt_idx = K_OPT_RULERFORMAT;
-        maxwidth = g_st().columns_global.get() / 2;
+        maxwidth = g_st().screen.columns_global.get() / 2;
         fillchar = schar_from_ascii(b' ');
         group = HLF_MSG;
         attr = hl_attr(group);
@@ -613,11 +613,15 @@ fn win_redr_stl_expr(
             }
         }
         stl_cstr = stl.to_owned();
-        row = g_st().rows_global.get() - 1;
-        col = g_st().ru_col.get().max(g_st().columns_global.get() / 2);
-        let _ = grid_adjust(&g_st().msg_grid_adj, &mut row, &mut col);
+        row = g_st().screen.rows_global.get() - 1;
+        col = g_st()
+            .screen
+            .ru_col
+            .get()
+            .max(g_st().screen.columns_global.get() / 2);
+        let _ = grid_adjust(&g_st().msg.msg_grid_adj, &mut row, &mut col);
         grid_target = StlGridTarget::MsgAdj;
-        maxwidth = g_st().columns_global.get() - col;
+        maxwidth = g_st().screen.columns_global.get() - col;
         fillchar = schar_from_ascii(b' ');
         group = HLF_MSG;
         attr = hl_attr(group);
@@ -642,14 +646,14 @@ fn win_redr_stl_expr(
             0
         };
         if is_stl_global {
-            row = g_st().rows_global.get() - (opt_vars().p_ch.get() as i32) - 1;
+            row = g_st().screen.rows_global.get() - (opt_vars().p_ch.get() as i32) - 1;
             col = 0;
-            maxwidth = g_st().columns_global.get();
+            maxwidth = g_st().screen.columns_global.get();
         } else if wp_ref.w_status_height.get() == 0 {
             with_stl_state(|st| st.stl_expr_entered.set(false));
             if !restore_curwin.is_null() {
                 set_curwin(&restore_curwin);
-                g_st().curbuf.set(restore_curwin.w_buffer.get());
+                g_st().workspace.curbuf.set(restore_curwin.w_buffer.get());
             }
             return;
         } else if wp_ref.w_floating.get() {
@@ -688,30 +692,47 @@ fn win_redr_stl_expr(
             None,
         );
         let maxwidth_u = maxwidth as usize;
-        let mut tab_defs_guard = if click_defs_target == ClickDefsTarget::Tabline {
-            Some(g_st().tab_page_click_defs.borrow_mut())
-        } else {
-            None
-        };
-        let click_defs_slice = match click_defs_target {
-            ClickDefsTarget::None => None,
-            ClickDefsTarget::Tabline => {
-                let defs = tab_defs_guard.as_deref_mut().unwrap();
-                (defs.len() >= maxwidth_u).then(|| &mut defs[..maxwidth_u])
-            }
-            ClickDefsTarget::Winbar => Some(&mut wp.w_winbar_click_defs.borrow_mut()[..maxwidth_u]),
-            ClickDefsTarget::Status => Some(&mut wp.w_status_click_defs.borrow_mut()[..maxwidth_u]),
-        };
         with_stl_state(|st| {
-            stl_fill_click_defs(
-                click_defs_slice,
-                st.stl_tabtab_vec.borrow().as_slice(),
-                crate::memory::bytes_as_cstr(&buf),
-                maxwidth,
-                wp.is_null(),
-            );
+            let tabtab = st.stl_tabtab_vec.borrow();
+            let buf_cstr = crate::memory::bytes_as_cstr(&buf);
+            match click_defs_target {
+                ClickDefsTarget::None => {
+                    stl_fill_click_defs(None, tabtab.as_slice(), buf_cstr, maxwidth, wp.is_null());
+                }
+                ClickDefsTarget::Tabline => {
+                    g_st().screen.with_tab_page_click_defs_mut(|defs| {
+                        let slice = (defs.len() >= maxwidth_u).then(|| &mut defs[..maxwidth_u]);
+                        stl_fill_click_defs(
+                            slice,
+                            tabtab.as_slice(),
+                            buf_cstr,
+                            maxwidth,
+                            wp.is_null(),
+                        );
+                    });
+                }
+                ClickDefsTarget::Winbar => {
+                    let mut defs = wp.w_winbar_click_defs.borrow_mut();
+                    stl_fill_click_defs(
+                        Some(&mut defs[..maxwidth_u]),
+                        tabtab.as_slice(),
+                        buf_cstr,
+                        maxwidth,
+                        wp.is_null(),
+                    );
+                }
+                ClickDefsTarget::Status => {
+                    let mut defs = wp.w_status_click_defs.borrow_mut();
+                    stl_fill_click_defs(
+                        Some(&mut defs[..maxwidth_u]),
+                        tabtab.as_slice(),
+                        buf_cstr,
+                        maxwidth,
+                        wp.is_null(),
+                    );
+                }
+            }
         });
-        drop(tab_defs_guard);
 
         drop(stl_cstr);
         ewp.w_onebuf_opt.wo_crb.set(p_crb_save);
@@ -721,8 +742,8 @@ fn win_redr_stl_expr(
 
         if !ui_event {
             let grid_ref = match grid_target {
-                StlGridTarget::Default => crate::grid::GridRef::Static(&g_st().default_grid),
-                StlGridTarget::MsgAdj => g_st().msg_grid_adj.target.get().borrow(),
+                StlGridTarget::Default => crate::grid::GridRef::Static(&g_st().screen.default_grid),
+                StlGridTarget::MsgAdj => g_st().msg.msg_grid_adj.target.get().borrow(),
                 StlGridTarget::WinGrid(w) => w.w_grid.target.get().borrow(),
                 StlGridTarget::WinAlloc(w) => crate::grid::GridRef::Win(w),
             };
@@ -791,9 +812,9 @@ fn win_redr_stl_expr(
                 curgroup = -sp_ref.userhl;
             } else {
                 let userhl = if !wp.is_null() && wp != curwin() && wp.w_status_height.get() != 0 {
-                    &g_st().highlight_stlnc
+                    &g_st().screen.highlight_stlnc
                 } else {
-                    &g_st().highlight_user
+                    &g_st().screen.highlight_user
                 };
                 let userbuf: [u8; 5] = [b'U', b's', b'e', b'r', sp_ref.userhl as u8 + b'0'];
 
@@ -825,7 +846,7 @@ fn win_redr_stl_expr(
 
     if !restore_curwin.is_null() {
         set_curwin(&restore_curwin);
-        g_st().curbuf.set(restore_curwin.w_buffer.get());
+        g_st().workspace.curbuf.set(restore_curwin.w_buffer.get());
     }
 }
 pub fn win_redr_winbar(wp: &WinInfoInfo) {
@@ -868,7 +889,7 @@ pub fn redraw_ruler() {
         return;
     }
 
-    if wp.w_status_height.get() == 0 && !is_stl_global && g_st().edit_submode.get().is_some() {
+    if wp.w_status_height.get() == 0 && !is_stl_global && g_st().edit.edit_submode.get().is_some() {
         return;
     }
 
@@ -889,14 +910,14 @@ pub fn fillchar_status(group: &mut Hlf, wp: &WinInfoInfo) -> Schar {
 
 fn ui_ext_tabline_update() {
     let mut n_tabs: usize = 0;
-    let mut tp = g_st().first_tabpage.get().clone();
+    let mut tp = g_st().workspace.first_tabpage.get().clone();
     while !tp.is_null() {
         n_tabs += 1;
         tp = tp.tp_next.get();
     }
 
     let mut tabs = Array::with_capacity(n_tabs);
-    tp = g_st().first_tabpage.get().clone();
+    tp = g_st().workspace.first_tabpage.get().clone();
     while !tp.is_null() {
         let mut tab_info = Dict::with_capacity(2);
 
@@ -909,7 +930,7 @@ fn ui_ext_tabline_update() {
             },
         );
 
-        let cwp = if g_st().curtab.get() == tp {
+        let cwp = if g_st().workspace.curtab.get() == tp {
             curwin()
         } else {
             tp.tp_curwin.get()
@@ -941,7 +962,7 @@ fn ui_ext_tabline_update() {
     }
 
     let mut n_buffers: usize = 0;
-    let mut buf = g_st().firstbuf.get();
+    let mut buf = g_st().workspace.firstbuf.get();
     while !buf.is_null() {
         if buf.b_p_bl.get() {
             n_buffers += 1;
@@ -950,7 +971,7 @@ fn ui_ext_tabline_update() {
     }
 
     let mut buffers = Array::with_capacity(n_buffers);
-    buf = g_st().firstbuf.get();
+    buf = g_st().workspace.firstbuf.get();
     while !buf.is_null() {
         let b = buf.borrow();
         if b.b_p_bl.get() {
@@ -998,12 +1019,12 @@ fn ui_ext_tabline_update() {
 pub fn draw_tabline() {
     let attr_fill = hl_attr(HLF_TPF);
     let attr_nosel = hl_combine_attr(attr_fill, hl_attr(HLF_TP));
-    let use_sep_chars = g_st().t_colors.get() < 8;
+    let use_sep_chars = g_st().screen.t_colors.get() < 8;
 
-    if !crate::grid::grid_allocated(&g_st().default_grid) {
+    if !crate::grid::grid_allocated(&g_st().screen.default_grid) {
         return;
     }
-    g_st().redraw_tabline.set(false);
+    g_st().workspace.redraw_tabline.set(false);
 
     if ui_has(K_UITABLINE) {
         ui_ext_tabline_update();
@@ -1015,24 +1036,27 @@ pub fn draw_tabline() {
     }
 
     debug_assert!(
-        g_st().tab_page_click_defs.borrow().len() >= g_st().columns_global.get() as usize
+        g_st().screen.with_tab_page_click_defs(|defs| defs.len())
+            >= g_st().screen.columns_global.get() as usize
     );
-    stl_clear_click_defs(&mut g_st().tab_page_click_defs.borrow_mut());
+    g_st()
+        .screen
+        .with_tab_page_click_defs_mut(|defs| stl_clear_click_defs(defs));
 
     if !opt_vars().p_tal.is_empty() {
         win_redr_stl_expr(None, false, false, false);
     } else {
         let mut tabcount: i32 = 0;
         let mut col: i32 = 0;
-        grid_line_start(&g_st().default_gridview, 0);
-        let mut tp = g_st().first_tabpage.get().clone();
+        grid_line_start(&g_st().screen.default_gridview, 0);
+        let mut tp = g_st().workspace.first_tabpage.get().clone();
         while !tp.is_null() {
             tabcount += 1;
             tp = tp.tp_next.get();
         }
 
         let tabwidth = (if tabcount > 0 {
-            (g_st().columns_global.get() - 1 + tabcount / 2) / tabcount
+            (g_st().screen.columns_global.get() - 1 + tabcount / 2) / tabcount
         } else {
             0
         })
@@ -1041,20 +1065,20 @@ pub fn draw_tabline() {
         let mut attr = attr_nosel;
         tabcount = 0;
 
-        tp = g_st().first_tabpage.get().clone();
+        tp = g_st().workspace.first_tabpage.get().clone();
         while !tp.is_null() {
-            if col >= g_st().columns_global.get() - 4 {
+            if col >= g_st().screen.columns_global.get() - 4 {
                 break;
             }
 
             let mut scol = col;
-            let (cwp, mut wp) = if g_st().curtab.get() == tp {
-                (curwin(), g_st().firstwin.get())
+            let (cwp, mut wp) = if g_st().workspace.curtab.get() == tp {
+                (curwin(), g_st().workspace.firstwin.get())
             } else {
                 (tp.tp_curwin.get(), tp.tp_firstwin.get())
             };
 
-            if tp.tp_topframe.get() == g_st().topframe.get() {
+            if tp.tp_topframe.get() == g_st().workspace.topframe.get() {
                 attr = hl_combine_attr(attr_fill, win_hl_attr(cwp.borrow(), HLF_TPS));
             }
             if use_sep_chars && col > 0 {
@@ -1062,7 +1086,7 @@ pub fn draw_tabline() {
                 col += 1;
             }
 
-            if tp.tp_topframe.get() != g_st().topframe.get() {
+            if tp.tp_topframe.get() != g_st().workspace.topframe.get() {
                 attr = hl_combine_attr(attr_fill, win_hl_attr(cwp.borrow(), HLF_TP));
             }
 
@@ -1087,7 +1111,7 @@ pub fn draw_tabline() {
                 if wincount > 1 {
                     let mut name_buff = [0u8; MAXPATHL];
                     let len = format_to_buf!(&mut name_buff, c"%d", wincount);
-                    if col + len >= g_st().columns_global.get() - 3 {
+                    if col + len >= g_st().screen.columns_global.get() - 3 {
                         break;
                     }
 
@@ -1123,7 +1147,7 @@ pub fn draw_tabline() {
                     let step = crate::mbyte::utfc_slice2len(b).max(1).min(b.len());
                     p_cstr = &p_cstr[step..];
                 }
-                let n = g_st().columns_global.get() - col - 1;
+                let n = g_st().screen.columns_global.get() - col - 1;
                 len = len.min(n);
 
                 grid_line_puts(col, p_cstr, -1, attr);
@@ -1134,43 +1158,47 @@ pub fn draw_tabline() {
 
             tabcount += 1;
             while scol < col {
-                g_st().tab_page_click_defs.borrow_mut().as_mut_slice()[scol as usize] =
+                g_st().screen.set_tab_page_click_def(
+                    scol as usize,
                     StlClickDefinition {
                         type_: K_STL_CLICK_TAB_SWITCH,
                         tabnr: tabcount,
                         func: None,
-                    };
+                    },
+                );
                 scol += 1;
             }
 
             tp = tp.tp_next.get();
         }
 
-        for scol in col..g_st().columns_global.get() {
-            g_st().tab_page_click_defs.borrow_mut().as_mut_slice()[scol as usize] =
+        for scol in col..g_st().screen.columns_global.get() {
+            g_st().screen.set_tab_page_click_def(
+                scol as usize,
                 StlClickDefinition {
                     type_: K_STL_CLICK_TAB_SWITCH,
                     tabnr: 0,
                     func: None,
-                };
+                },
+            );
         }
 
         let c = if use_sep_chars { b'_' } else { b' ' };
         grid_line_fill(
             col,
-            g_st().columns_global.get(),
+            g_st().screen.columns_global.get(),
             schar_from_ascii(c),
             attr_fill,
         );
 
         if opt_vars().p_sc.get() && opt_vars().p_sloc.first_byte() == b't' {
-            let n = g_st().columns_global.get() - col - i32::from(tabcount > 1) * 3;
+            let n = g_st().screen.columns_global.get() - col - i32::from(tabcount > 1) * 3;
             let sc_width = 10.min(n);
 
             if sc_width > 0 {
                 let sc_buf = crate::normal::showcmd_buf_bytes();
                 grid_line_puts(
-                    g_st().columns_global.get() - sc_width - i32::from(tabcount > 1) * 2,
+                    g_st().screen.columns_global.get() - sc_width - i32::from(tabcount > 1) * 2,
                     crate::memory::bytes_as_cstr(&sc_buf),
                     sc_width,
                     attr_nosel,
@@ -1181,22 +1209,24 @@ pub fn draw_tabline() {
 
         if tabcount > 1 {
             grid_line_put_schar(
-                g_st().columns_global.get() - 1,
+                g_st().screen.columns_global.get() - 1,
                 schar_from_ascii(b'X'),
                 attr_nosel,
             );
-            g_st().tab_page_click_defs.borrow_mut().as_mut_slice()
-                [(g_st().columns_global.get() - 1) as usize] = StlClickDefinition {
-                type_: K_STL_CLICK_TAB_CLOSE,
-                tabnr: 999,
-                func: None,
-            };
+            g_st().screen.set_tab_page_click_def(
+                (g_st().screen.columns_global.get() - 1) as usize,
+                StlClickDefinition {
+                    type_: K_STL_CLICK_TAB_CLOSE,
+                    tabnr: 999,
+                    func: None,
+                },
+            );
         }
 
         grid_line_flush();
     }
 
-    g_st().redraw_tabline.set(false);
+    g_st().workspace.redraw_tabline.set(false);
 }
 
 /// Build the `'statuscolumn'` string for line `lnum`.
@@ -1548,13 +1578,13 @@ pub fn build_stl_str_hl_slice(
         Some(f) => f.to_bytes_with_nul().to_vec(),
         None => vec![0],
     };
-    let save_redraw_not_allowed = g_st().redraw_not_allowed.get();
+    let save_redraw_not_allowed = g_st().screen.redraw_not_allowed.get();
     #[allow(non_snake_case)]
-    let save_KeyTyped = g_st().key_typed.get();
-    let did_emsg_before = g_st().did_emsg.get();
+    let save_KeyTyped = g_st().input.key_typed.get();
+    let did_emsg_before = g_st().msg.did_emsg.get();
 
-    if g_st().updating_screen.get() {
-        g_st().redraw_not_allowed.set(true);
+    if g_st().screen.updating_screen.get() {
+        g_st().screen.redraw_not_allowed.set(true);
     }
 
     const INIT_LEN: usize = 20;
@@ -2054,22 +2084,22 @@ pub fn build_stl_str_hl_slice(
                         crate::memory::bytes_as_cstr(&buf_tmp),
                     );
 
-                    let save_curbuf = g_st().curbuf.get();
+                    let save_curbuf = g_st().workspace.curbuf.get();
                     let save_curwin = curwin();
                     #[allow(non_snake_case)]
-                    let save_VIsual_active = g_st().visual_global.borrow().active;
+                    let save_VIsual_active = g_st().edit.visual_global.active.get();
                     set_curwin(&wp);
-                    g_st().curbuf.set(wp.w_buffer.get());
+                    g_st().workspace.curbuf.set(wp.w_buffer.get());
                     if curwin() != save_curwin {
-                        g_st().visual_global.borrow_mut().active = false;
+                        g_st().edit.visual_global.active.set(false);
                     }
 
                     owned_str = eval_to_string_safe(&out_buf[out_idx..], use_sandbox, false);
                     str_slice = owned_str.as_deref().map(std::ffi::CStr::to_bytes_with_nul);
 
                     set_curwin(save_curwin);
-                    g_st().curbuf.set(save_curbuf);
-                    g_st().visual_global.borrow_mut().active = save_VIsual_active;
+                    g_st().workspace.curbuf.set(save_curbuf);
+                    g_st().edit.visual_global.active.set(save_VIsual_active);
 
                     do_unlet(b"g:actual_curbuf", true);
                     do_unlet(b"g:actual_curwin", true);
@@ -2152,7 +2182,7 @@ pub fn build_stl_str_hl_slice(
                 num = (*wp).buf().b_ml.ml_line_count.get();
             }
             STL_COLUMN => {
-                num = if (g_st().state_global.get() & MODE_INSERT) == 0 && empty_line {
+                num = if (g_st().edit.state_global.get() & MODE_INSERT) == 0 && empty_line {
                     0
                 } else {
                     wp.w_cursor.get().col + 1
@@ -2160,7 +2190,7 @@ pub fn build_stl_str_hl_slice(
             }
             STL_VIRTCOL | STL_VIRTCOL_ALT => {
                 let virtcol = wp.w_virtcol.get() + 1;
-                let col_1 = if (g_st().state_global.get() & MODE_INSERT) == 0 && empty_line {
+                let col_1 = if (g_st().edit.state_global.get() & MODE_INSERT) == 0 && empty_line {
                     0
                 } else {
                     wp.w_cursor.get().col + 1
@@ -2217,7 +2247,7 @@ pub fn build_stl_str_hl_slice(
                     0
                 } else {
                     l + 1
-                        + if (g_st().state_global.get() & MODE_INSERT) == 0 && empty_line {
+                        + if (g_st().edit.state_global.get() & MODE_INSERT) == 0 && empty_line {
                             0
                         } else {
                             wp.w_cursor.get().col
@@ -2706,15 +2736,18 @@ pub fn build_stl_str_hl_slice(
         });
     }
 
-    g_st().redraw_not_allowed.set(save_redraw_not_allowed);
+    g_st()
+        .screen
+        .redraw_not_allowed
+        .set(save_redraw_not_allowed);
 
-    if opt_idx != K_OPT_INVALID && g_st().did_emsg.get() > did_emsg_before {
+    if opt_idx != K_OPT_INVALID && g_st().msg.did_emsg.get() > did_emsg_before {
         let def = get_option_default(opt_idx, opt_scope);
         set_option_direct(opt_idx, def.clone(), opt_scope, SID_ERROR);
         optval_free_read(opt_idx, def);
     }
 
-    g_st().key_typed.set(save_KeyTyped);
+    g_st().input.key_typed.set(save_KeyTyped);
     width
 }
 
@@ -2744,7 +2777,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         {
             crate::main_init::ensure_test_editor_init();
-            g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
+            g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() + (1));
 
             let check = |max_cells: i32,
                          pat: &str,
@@ -2909,7 +2942,7 @@ mod tests {
             check(3, "abc%%abcabc", "<bc", None, None, None);
             check(1, "%%", "%", None, None, None);
 
-            g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
+            g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() - (1));
         }
     }
 }

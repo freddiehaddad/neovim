@@ -3064,7 +3064,7 @@ pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
                 c"\\"
             },
         );
-        g_st().rc_did_emsg.set(true);
+        g_st().msg.rc_did_emsg.set(true);
         return false;
     }
     if (!reverse && *minval > *maxval) || (reverse && *minval < *maxval) {
@@ -3181,23 +3181,23 @@ pub(super) fn reg_prev_class() -> i32 {
 pub(super) fn reg_match_visual() -> bool {
     let reg_win = RE_STATE.with(|s| s.rex.reg_win.get());
     let wp = if reg_win.is_null() { curwin() } else { reg_win };
-    if RE_STATE.with(|s| s.rex.reg_buf.get()) != g_st().curbuf.get()
-        || g_st().visual_global.borrow().start.lnum == 0
+    if RE_STATE.with(|s| s.rex.reg_buf.get()) != g_st().workspace.curbuf.get()
+        || g_st().edit.visual_global.start.get().lnum == 0
         || !reg_multi()
     {
         return false;
     }
 
-    let (top, bot, mode, curswant) = if g_st().visual_global.borrow().active {
-        let (t, b) = if lt(g_st().visual_global.borrow().start, wp.w_cursor.get()) {
-            (g_st().visual_global.borrow().start, wp.w_cursor.get())
+    let (top, bot, mode, curswant) = if g_st().edit.visual_global.active.get() {
+        let (t, b) = if lt(g_st().edit.visual_global.start.get(), wp.w_cursor.get()) {
+            (g_st().edit.visual_global.start.get(), wp.w_cursor.get())
         } else {
-            (wp.w_cursor.get(), g_st().visual_global.borrow().start)
+            (wp.w_cursor.get(), g_st().edit.visual_global.start.get())
         };
         (
             t,
             b,
-            g_st().visual_global.borrow().mode,
+            g_st().edit.visual_global.mode.get(),
             wp.w_curswant.get(),
         )
     } else {
@@ -3404,7 +3404,7 @@ pub(super) fn match_with_backref(
         *bytelen = 0;
         clnum += 1;
         ccol = 0;
-        if g_st().got_int.get() {
+        if g_st().input.got_int.get() {
             return RegAction::Fail;
         }
     }
@@ -3414,7 +3414,7 @@ pub(super) fn match_with_backref(
 pub(super) fn re_mult_next(what: &std::ffi::CStr) -> bool {
     if re_multi_type(peekchr()) == MULTI_MULT {
         semsg!(tr(c"E888: (NFA regexp) cannot repeat %s"), what);
-        g_st().rc_did_emsg.set(true);
+        g_st().msg.rc_did_emsg.set(true);
         return false;
     }
     true
@@ -3679,7 +3679,7 @@ pub fn vim_regsub(
         s.rex.bt_magic_wrong.set(rmp.regprog.bt_magic_wrong());
     });
     RE_STATE.with(|s| s.rex.reg_maxline.set(0));
-    RE_STATE.with(|s| s.rex.set_buf(g_st().curbuf.get()));
+    RE_STATE.with(|s| s.rex.set_buf(g_st().workspace.curbuf.get()));
     RE_STATE.with(|s| s.rex.reg_line_lbr.set(true));
     let result = vim_regsub_both(Some(source), expr, dest, flags);
 
@@ -3710,7 +3710,7 @@ pub fn vim_regsub_multi(
         s.rex.load_mmatch(rmp);
         s.rex.bt_magic_wrong.set(rmp.regprog.bt_magic_wrong());
     });
-    RE_STATE.with(|s| s.rex.set_buf(g_st().curbuf.get()));
+    RE_STATE.with(|s| s.rex.set_buf(g_st().workspace.curbuf.get()));
     RE_STATE.with(|s| s.rex.reg_firstlnum.set(lnum));
     RE_STATE.with(|s| {
         s.rex
@@ -4380,7 +4380,7 @@ pub(super) fn seen_endbrace(refnum: i32) -> bool {
         });
         if !has_lookbehind {
             emsg(tr(c"E65: Illegal back reference"));
-            g_st().rc_did_emsg.set(true);
+            g_st().msg.rc_did_emsg.set(true);
             return false;
         }
     }
@@ -4455,7 +4455,7 @@ pub fn vim_regcomp_cached(expr_arg: &[u8], re_flags: i32) -> Option<Box<Regprog>
     let (prog, had_eol) = cached?;
     RE_STATE.with(|re_s| {
         re_s.regexp_engine.set(engine);
-        re_s.rex.set_buf(g_st().curbuf.get());
+        re_s.rex.set_buf(g_st().workspace.curbuf.get());
         re_s.had_eol.set(had_eol);
     });
     Some(Box::new(prog))
@@ -4484,7 +4484,7 @@ pub fn vim_regcomp(expr_arg: &[u8], re_flags: i32) -> Option<Box<Regprog>> {
         }
     }
 
-    re_s.rex.set_buf(g_st().curbuf.get());
+    re_s.rex.set_buf(g_st().workspace.curbuf.get());
 
     let engine = re_s.regexp_engine.get();
     let cpo_lit = crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL);
@@ -4515,7 +4515,7 @@ pub fn vim_regcomp(expr_arg: &[u8], re_flags: i32) -> Option<Box<Regprog>> {
         }
     }
 
-    let called_emsg_before = g_st().called_emsg.get();
+    let called_emsg_before = g_st().msg.called_emsg.get();
     let mut prog_opt = if engine != BACKTRACKING_ENGINE {
         nfa_regcomp(
             expr_bytes,
@@ -4548,7 +4548,7 @@ pub fn vim_regcomp(expr_arg: &[u8], re_flags: i32) -> Option<Box<Regprog>> {
 
     if prog_opt.is_none()
         && re_s.regexp_engine.get() == AUTOMATIC_ENGINE
-        && g_st().called_emsg.get() == called_emsg_before
+        && g_st().msg.called_emsg.get() == called_emsg_before
     {
         re_s.regexp_engine.set(BACKTRACKING_ENGINE);
         report_re_switch(expr_bytes);
@@ -4564,7 +4564,7 @@ pub fn vim_regcomp(expr_arg: &[u8], re_flags: i32) -> Option<Box<Regprog>> {
 
     if let Some(ref prog) = prog_opt
         && can_cache
-        && g_st().called_emsg.get() == called_emsg_before
+        && g_st().msg.called_emsg.get() == called_emsg_before
     {
         LAST_REGPROG.with(|cell| {
             *cell.borrow_mut() = Some(CachedRegprog {

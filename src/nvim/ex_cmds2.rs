@@ -134,7 +134,7 @@ pub fn autowrite_all() {
         return;
     }
 
-    let mut buf = g_st().firstbuf.get();
+    let mut buf = g_st().workspace.firstbuf.get();
     while let Some(buf_ref) = buf.opt() {
         if buf_is_changed_fn(buf_ref) && !buf_ref.b_p_ro.get() && !bt_dontwrite(Some(buf_ref)) {
             let mut bufref: Bufref = Bufref::new();
@@ -143,7 +143,7 @@ pub fn autowrite_all() {
             buf_write_all(buf_ref, false);
 
             if !bufref_valid(Some(&bufref)) {
-                buf = g_st().firstbuf.get();
+                buf = g_st().workspace.firstbuf.get();
                 continue;
             }
         }
@@ -163,7 +163,7 @@ pub fn check_changed(buf: &FileBuf, flags: i32) -> bool {
         && ((flags & CCGD_MULTWIN) != 0 || buf.b_nwindows.get() <= 1)
         && ((flags & CCGD_AW) == 0 || !autowrite(buf, forceit))
     {
-        if (opt_vars().p_confirm.get() || (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0)
+        if (opt_vars().p_confirm.get() || (g_st().cmdline.cmod_flags() & CMOD_CONFIRM) != 0)
             && opt_vars().p_write.get()
         {
             let mut count: i32 = 0;
@@ -229,7 +229,7 @@ pub fn dialog_changed(buf: &FileBuf, checkall: bool) {
     } else if ret == VIM_NO {
         unchanged(buf, true, false);
     } else if ret == VIM_ALL {
-        let mut buf2 = g_st().firstbuf.get();
+        let mut buf2 = g_st().workspace.firstbuf.get();
         while let Some(buf2_ref) = buf2.opt() {
             if buf_is_changed_fn(buf2_ref)
                 && buf2_ref.b_ffname.get().is_some()
@@ -252,7 +252,7 @@ pub fn dialog_changed(buf: &FileBuf, checkall: bool) {
                     buf_write_all(buf2.borrow(), false);
                 }
                 if !bufref_valid(Some(&bufref)) {
-                    buf2 = g_st().firstbuf.get();
+                    buf2 = g_st().workspace.firstbuf.get();
                     continue;
                 }
             }
@@ -306,13 +306,13 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
     bufnrs.push(curbuf().b_fnum.get());
 
     for wp in for_all_windows_ptr() {
-        if wp.w_buffer.get() != g_st().curbuf.get() {
+        if wp.w_buffer.get() != g_st().workspace.curbuf.get() {
             add_bufnum(&mut bufnrs, wp.buf().b_fnum.get());
         }
     }
 
     for tp in for_all_tabpages_ptr() {
-        if g_st().curtab.get() != tp {
+        if g_st().workspace.curtab.get() != tp {
             for wp2 in win_iter_ptr(first_win_in_tab(&tp)) {
                 add_bufnum(&mut bufnrs, wp2.buf().b_fnum.get());
             }
@@ -348,12 +348,12 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
     if i < bufnrs.len() {
         let buf_ref = buf.borrow();
         ret = true;
-        g_st().exiting.set(false);
-        if !opt_vars().p_confirm.get() && (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) == 0 {
-            if g_st().vgetc_busy.get() > 0 {
-                g_st().msg_row.set(g_st().cmdline_row.get());
-                g_st().msg_col.set(0);
-                g_st().msg_didout.set(false);
+        g_st().exc.exiting.set(false);
+        if !opt_vars().p_confirm.get() && (g_st().cmdline.cmod_flags() & CMOD_CONFIRM) == 0 {
+            if g_st().input.vgetc_busy.get() > 0 {
+                g_st().msg.msg_row.set(g_st().cmdline.cmdline_row.get());
+                g_st().msg.msg_col.set(0);
+                g_st().msg.msg_didout.set(false);
             }
             let shown = if !buf_ref.terminal.get().is_null()
                 && channel_job_running(buf_ref.b_p_channel.get() as u64)
@@ -369,20 +369,20 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                     sp.unwrap_or_else(|| buf_ref.fname_cstr()),
                 )
             };
-            if shown && g_st().msg_didany.get() {
-                let save = g_st().no_wait_return.get();
-                g_st().no_wait_return.set(0);
+            if shown && g_st().msg.msg_didany.get() {
+                let save = g_st().msg.no_wait_return.get();
+                g_st().msg.no_wait_return.set(0);
                 if !ui_has(K_UIMESSAGES) {
                     wait_return(0);
                 }
-                g_st().no_wait_return.set(save);
+                g_st().msg.no_wait_return.set(save);
             }
         }
 
         let mut wiped = false;
-        if buf != g_st().curbuf.get().as_ptr() {
+        if buf != g_st().workspace.curbuf.get().as_ptr() {
             let mut found = false;
-            let mut tp = g_st().first_tabpage.get().clone();
+            let mut tp = g_st().workspace.first_tabpage.get().clone();
             while let Some(tp_ref) = tp.opt()
                 && !found
             {
@@ -405,7 +405,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
             }
         }
 
-        if !wiped && buf != g_st().curbuf.get().as_ptr() {
+        if !wiped && buf != g_st().workspace.curbuf.get().as_ptr() {
             set_curbuf(
                 buf.borrow(),
                 if unload { DOBUF_UNLOAD } else { DOBUF_GOTO },
@@ -428,7 +428,7 @@ pub fn check_fname() -> bool {
 
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
 pub fn buf_write_all(buf: &FileBuf, forceit: bool) -> bool {
-    let old_curbuf = g_st().curbuf.get();
+    let old_curbuf = g_st().workspace.curbuf.get();
     let ffname = buf.ffname_opt().as_deref().map(CStr::to_owned);
     let fname = buf.fname_opt().as_deref().map(CStr::to_owned);
     let line_count = buf.b_ml.ml_line_count.get();
@@ -444,7 +444,7 @@ pub fn buf_write_all(buf: &FileBuf, forceit: bool) -> bool {
         true,
         false,
     );
-    if g_st().curbuf.get() != old_curbuf {
+    if g_st().workspace.curbuf.get() != old_curbuf {
         msg_source(HLF_W);
         msg(
             gettext(c"Warning: Entered other buffer unexpectedly (check autocommands)"),
@@ -483,8 +483,9 @@ pub fn ex_listdo(eap: &mut Exarg) {
     let mut save_ei: Option<std::ffi::CString> = None;
 
     g_st()
+        .msg
         .msg_listdo_overwrite
-        .set(g_st().msg_listdo_overwrite.get() + (1));
+        .set(g_st().msg.msg_listdo_overwrite.get() + (1));
 
     if eap.cmdidx != Cmdidx::CmdWindo && eap.cmdidx != Cmdidx::CmdTabdo {
         save_ei = Some(au_event_disable(c",Syntax"));
@@ -504,8 +505,8 @@ pub fn ex_listdo(eap: &mut Exarg) {
     {
         let mut next_fnum: i32 = 0;
         let mut i: i32 = 0;
-        let mut wp = g_st().firstwin.get();
-        let mut tp = g_st().first_tabpage.get().clone();
+        let mut wp = g_st().workspace.firstwin.get();
+        let mut tp = g_st().workspace.first_tabpage.get().clone();
         match eap.cmdidx {
             Cmdidx::CmdWindo => {
                 while !wp.is_null() && i + 1 < eap.line1 {
@@ -527,11 +528,11 @@ pub fn ex_listdo(eap: &mut Exarg) {
             _ => {}
         }
 
-        let mut buf = g_st().curbuf.get();
+        let mut buf = g_st().workspace.curbuf.get();
         let mut qf_size: usize = 0;
 
         if eap.cmdidx == Cmdidx::CmdBufdo {
-            buf = g_st().firstbuf.get();
+            buf = g_st().workspace.firstbuf.get();
             while let Some(buf_ref) = buf.opt()
                 && (buf_ref.b_fnum.get() < eap.line1 || !buf_ref.b_p_bl.get())
             {
@@ -557,7 +558,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             } else {
                 ex_cc(eap);
 
-                buf = g_st().curbuf.get();
+                buf = g_st().workspace.curbuf.get();
                 i = eap.line1 - 1;
                 if eap.addr_count <= 0 {
                     debug_assert!(qf_size < MAXLNUM);
@@ -567,9 +568,9 @@ pub fn ex_listdo(eap: &mut Exarg) {
         } else {
             setpcmark();
         }
-        g_st().listcmd_busy.set(true);
+        g_st().cmdline.listcmd_busy.set(true);
 
-        while !g_st().got_int.get() && !buf.is_null() {
+        while !g_st().input.got_int.get() && !buf.is_null() {
             let mut execute = true;
             if eap.cmdidx == Cmdidx::CmdArgdo {
                 if i == curwin_argcount() {
@@ -680,24 +681,25 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 break;
             }
         }
-        g_st().listcmd_busy.set(false);
+        g_st().cmdline.listcmd_busy.set(false);
     }
 
     g_st()
+        .msg
         .msg_listdo_overwrite
-        .set(g_st().msg_listdo_overwrite.get() - (1));
+        .set(g_st().msg.msg_listdo_overwrite.get() - (1));
     if save_ei.is_some() {
         let mut aco: CtxSwitch = CtxSwitch::new();
 
         au_event_restore(save_ei);
 
-        let mut buf = g_st().firstbuf.get();
+        let mut buf = g_st().workspace.firstbuf.get();
         while let Some(buf_ref) = buf.opt() {
             let mut bnext = buf_ref.b_next.get();
             if buf_ref.b_nwindows.get() > 0 && (buf_ref.b_flags.get() & BF_SYN_SET) != 0 {
                 buf_ref.b_flags.set(buf_ref.b_flags.get() & (!BF_SYN_SET));
 
-                if buf == g_st().curbuf.get().as_ptr() {
+                if buf == g_st().workspace.curbuf.get().as_ptr() {
                     let b_p_syn = curbuf().b_p_syn.to_owned();
                     let b_fname = curbuf().fname_opt().as_deref().map(CStr::to_owned);
                     apply_autocmds(
@@ -723,7 +725,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     ctx_restore(&mut aco);
                 }
 
-                bnext = g_st().firstbuf.get();
+                bnext = g_st().workspace.firstbuf.get();
             }
             buf = bnext;
         }
@@ -778,15 +780,18 @@ pub fn ex_compiler(eap: &mut Exarg) {
 
 /// `:checktime [buffer]` (`ex_checktime`).
 pub fn ex_checktime(eap: &mut Exarg) {
-    let save_no_check_timestamps = g_st().no_check_timestamps.get();
+    let save_no_check_timestamps = g_st().workspace.no_check_timestamps.get();
 
-    g_st().no_check_timestamps.set(0);
+    g_st().workspace.no_check_timestamps.set(0);
     if eap.addr_count == 0 {
         check_timestamps(0);
     } else if let Some(buf) = crate::buffer::buflist_findnr_opt(eap.line2) {
         buf_check_timestamp(&buf);
     }
-    g_st().no_check_timestamps.set(save_no_check_timestamps);
+    g_st()
+        .workspace
+        .no_check_timestamps
+        .set(save_no_check_timestamps);
 }
 
 fn script_host_execute(name: &std::ffi::CStr, eap: &mut Exarg) {
@@ -842,9 +847,9 @@ pub fn ex_drop(eap: &mut Exarg) {
         return;
     }
 
-    if g_st().cmdmod.borrow().cmod_tab != 0 {
+    if g_st().cmdline.cmod_tab() != 0 {
         ex_all(eap);
-        g_st().cmdmod.borrow_mut().cmod_tab = 0;
+        g_st().cmdline.set_cmod_tab(0);
         ex_rewind(eap);
         return;
     }
@@ -883,9 +888,9 @@ pub fn ex_drop(eap: &mut Exarg) {
     }
 
     if !buf_hide(&curbuf()) {
-        g_st().emsg_off.set(g_st().emsg_off.get() + (1));
+        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
         split = check_changed(&curbuf(), CCGD_AW | CCGD_EXCMD);
-        g_st().emsg_off.set(g_st().emsg_off.get() - (1));
+        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
     }
 
     if split {

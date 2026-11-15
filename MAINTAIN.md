@@ -36,12 +36,29 @@ Because the codebase was ported module-for-module and function-for-function, ups
 | Upstream path (`neovim/neovim`) | Path in this repository | How to port |
 |---|---|---|
 | `src/nvim/<path>.c`, `src/nvim/<path>.h`, `src/nvim/<path>_defs.h` | `src/nvim/<path>.rs` | Locate the matching function/struct by name in `src/nvim/<path>.rs` and port the logic to idiomatic Rust. |
+| `src/nvim/globals.h` | `src/nvim/globals.rs` (`EditorState` subsystems) or module `thread_local!` | Single-module globals live in their owning module's `thread_local!` state; cross-module globals live in one of the 9 `EditorState` domain subsystems (see table below). |
 | `src/nvim/version.c` (`patches_*` arrays) | `src/nvim/version.rs` (`PATCHES_*` slices & `NUM_PATCHES`) | Add newly merged Vim patch numbers to the matching `PATCHES_*` slice and increment `NUM_PATCHES`. |
 | `cmake.deps/deps.txt` | `deps.txt` | Update the corresponding `*_URL` and `*_SHA256` entries in `deps.txt`. |
 | `runtime/**` | `runtime/**` | Apply changes directly (`git show <sha> -- runtime/`). |
 | `test/functional/**`, `test/old/testdir/**` | `test/functional/**`, `test/old/testdir/**` | Apply test additions/updates directly. |
 | `test/unit/**` (LuaJIT FFI C unit tests) | `#[cfg(test)] mod tests` in `src/nvim/<module>.rs` | Port unit test assertions to the module's Rust `#[cfg(test)]` block. |
 | `CMakeLists.txt`, `cmake/**`, `build.zig*` | `Cargo.toml`, `build.rs`, `src/xtask/main.rs` | Skip CMake/Zig-only changes unless they alter build definitions, version metadata, or generated runtime steps. |
+
+#### `src/nvim/globals.h` -> `EditorState` Domain Subsystem Mapping
+
+Cross-module state in `src/nvim/globals.rs` is partitioned into 9 domain subsystems on `EditorState` (`g_st()`):
+
+| Subsystem accessor | Struct | Upstream `globals.h` domain |
+|---|---|---|
+| `g_st().workspace` | `WorkspaceState` | Window/buffer/tabpage/frame graph (`firstwin`, `lastwin`, `prevwin`, `topframe`, `first_tabpage`, `curtab`, `lastused_tabpage`, `firstbuf`, `lastbuf`, `curbuf`), handle registries (`find_buffer`, `find_window`, `find_tabpage`), diff/scrollbind flags, working directory (`globaldir`, `last_chdir_reason`), swapfile prompts (`swap_exists_*`), and timestamp checks. |
+| `g_st().msg` | `MessageGlobalState` | Message grid/scrolling (`msg_col`, `msg_row`, `msg_scrolled*`, `msg_grid*`, `keep_msg*`), error/warning suppression (`emsg_off`, `emsg_skip`, `emsg_silent`, `msg_silent`, `did_emsg`, `called_emsg`), hit-enter state (`need_wait_return`, `no_wait_return`), and `:redir` state (`redir_*`, `capture_ga`). |
+| `g_st().exc` | `ExceptionGlobalState` | Exception and `:try` stack (`current_exception`, `did_throw`, `need_rethrow`, `trylevel`, `force_abort`, `msg_list`, `push_caught`/`pop_caught`/`peek_caught`), debugger/profiler (`debug_*`, `do_profiling`, `ex_nesting_level`), script/GC context (`current_sctx`, `may_garbage_collect`, `want_garbage_collect`), and process lifecycle (`exiting`, `v_dying`, `readonlymode`, `recoverymode`, `headless_mode`, `embedded_mode`, `g_stats`). |
+| `g_st().screen` | `ScreenGlobalState` | Screen dimensions (`rows_global`, `columns_global`), redraw flags (`must_redraw`, `skip_redraw`, `do_redraw`, `updating_screen`, `redrawing_disabled`), grids and line buffers (`default_grid*`, `with_linebuf*`, `pum_grid`, `pum_want`), highlight tables (`highlight_attr*`, `normal_fg`/`bg`/`sp`, `ns_hl_*`), decorations (`with_decor_state*`, `push_win_extmark`, `with_tab_page_click_defs*`), and UI state (`current_ui`, `ui_client_*`, `resize_events`). |
+| `g_st().input` | `InputGlobalState` | Typeahead buffer (`typebuf`, `vgetc_*`, `mod_mask`, `key_typed`, `key_stuffed`, `maptick`), macro recording/execution (`reg_recording`, `reg_executing`, `exec_from_reg`), mapping/interrupt controls (`no_mapping`, `allow_keys`, `mapped_ctrl_c`, `got_int`), `-W` script output (`with_scriptout_mut`, `set_scriptout`, `close_scriptout`), mouse coordinates (`mouse_grid`, `mouse_row`, `mouse_col`, `mouse_dragging`), and security locks (`sandbox`, `textlock`, `allbuf_lock`, `secure`, `expr_map_lock`). |
+| `g_st().cmdline` | `CmdlineGlobalState` | Command-line UI (`cmdline_row`, `redraw_cmdline`, `redraw_mode`, `clear_cmdline`, `mode_displayed`, `cmdline_star`), Ex/command modifiers (`cmod_flags`, `cmod_split`, `cmod_tab`, `take_cmdmod`/`set_cmdmod`, `exmode_active`, `silent_mode`, `cmdpreview`, `global_busy`, `listcmd_busy`), command history (`last_cmdline`, `repeat_cmdline`, `new_last_cmdline`), wildmenu (`wild_menu_showing`, `wim_flags`), and command-line window (`cmdwin_type`, `cmdwin_buf`, `cmdline_win`). |
+| `g_st().autocmd` | `AutocmdGlobalState` | Autocommand execution state (`autocmd_busy`, `autocmd_no_enter`, `autocmd_no_leave`, `au_new_curbuf`, `autocmd_fname*`, `autocmd_bufnr`, `autocmd_match`), deferred buf/win free queues (`defer_free_buf`, `defer_free_win`, `clear_pending_frees`), and `CursorMoved`/`CursorHold` tracking (`last_cursormoved*`, `did_cursorhold`). |
+| `g_st().search` | `SearchGlobalState` | Search engine state (`search_global`, `with_screen_search_hl*`, `search_hl_has_cursor_lnum`), `:substitute` counters (`sub_nsubs`, `sub_nlines`), and tag preview flags (`g_do_tagpreview`, `g_tag_at_cursor`). |
+| `g_st().edit` | `EditGlobalState` | Editor mode (`state_global`, `last_mode`, `edit_submode*`), Visual/Select state (`visual_global`, `km_stopsel`, `km_startsel`, `virtual_op`), Insert/Replace state (`ins_global`, `where_paste_started`, `saved_cursor`, `old_indent`, `replace_offset`, `append_last_insert`/`with_last_insert`), Normal/Operator state (`opcount`, `motion_force`, `finish_op`, `dollar_vcol`), and undo sync (`no_u_sync`, `u_sync_once`). |
 
 ### 3. Validation & recording the sync
 

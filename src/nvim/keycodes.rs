@@ -2705,13 +2705,13 @@ pub fn replace_termcodes_vec(
             // Change <SID>Func to K_SNR <script-nr> _Func. This name is used
             // for script-local user functions.
             if rest.len() >= 5 && rest[..5].eq_ignore_ascii_case(b"<SID>") {
-                if sid_arg < 0 || (sid_arg == 0 && g_st().current_sctx.get().sc_sid <= 0) {
+                if sid_arg < 0 || (sid_arg == 0 && g_st().exc.current_sctx.get().sc_sid <= 0) {
                     emsg(E_USINGSID);
                 } else {
                     let sid: Scid = if sid_arg != 0 {
                         sid_arg
                     } else {
-                        g_st().current_sctx.get().sc_sid
+                        g_st().exc.current_sctx.get().sc_sid
                     };
                     pos += 5;
                     temp_buf.extend_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR]);

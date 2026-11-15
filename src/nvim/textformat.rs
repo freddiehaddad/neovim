@@ -122,31 +122,61 @@ impl Default for Oparg {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct InsState {
-    pub start: CursorPos,
-    pub start_orig: CursorPos,
-    pub start_textlen: Colnr,
-    pub start_blank_vcol: Colnr,
-    pub moved: InsArrow,
-    pub stop_insert_mode: bool,
-    pub can_cindent: bool,
-    pub need_undo: bool,
-    pub did_ai: bool,
-    pub ai_col: Colnr,
-    pub end_comment_pending: i32,
-    pub did_si: bool,
-    pub can_si: bool,
-    pub can_si_back: bool,
-    pub update_start_orig: bool,
-    pub new_insert_skip: i32,
-    pub did_restart_edit: i32,
-    pub revins_on: bool,
-    pub revins_chars: i32,
-    pub revins_legal: i32,
-    pub revins_scol: i32,
-    pub dont_sync_undo: TriState,
-    pub o_lnum: Linenr,
+    pub start: std::cell::Cell<CursorPos>,
+    pub start_orig: std::cell::Cell<CursorPos>,
+    pub start_textlen: std::cell::Cell<Colnr>,
+    pub start_blank_vcol: std::cell::Cell<Colnr>,
+    pub moved: std::cell::Cell<InsArrow>,
+    pub stop_insert_mode: std::cell::Cell<bool>,
+    pub can_cindent: std::cell::Cell<bool>,
+    pub need_undo: std::cell::Cell<bool>,
+    pub did_ai: std::cell::Cell<bool>,
+    pub ai_col: std::cell::Cell<Colnr>,
+    pub end_comment_pending: std::cell::Cell<i32>,
+    pub did_si: std::cell::Cell<bool>,
+    pub can_si: std::cell::Cell<bool>,
+    pub can_si_back: std::cell::Cell<bool>,
+    pub update_start_orig: std::cell::Cell<bool>,
+    pub new_insert_skip: std::cell::Cell<i32>,
+    pub did_restart_edit: std::cell::Cell<i32>,
+    pub revins_on: std::cell::Cell<bool>,
+    pub revins_chars: std::cell::Cell<i32>,
+    pub revins_legal: std::cell::Cell<i32>,
+    pub revins_scol: std::cell::Cell<i32>,
+    pub dont_sync_undo: std::cell::Cell<TriState>,
+    pub o_lnum: std::cell::Cell<Linenr>,
+}
+
+impl InsState {
+    #[inline]
+    pub fn restore_from(&self, other: &Self) {
+        self.start.set(other.start.get());
+        self.start_orig.set(other.start_orig.get());
+        self.start_textlen.set(other.start_textlen.get());
+        self.start_blank_vcol.set(other.start_blank_vcol.get());
+        self.moved.set(other.moved.get());
+        self.stop_insert_mode.set(other.stop_insert_mode.get());
+        self.can_cindent.set(other.can_cindent.get());
+        self.need_undo.set(other.need_undo.get());
+        self.did_ai.set(other.did_ai.get());
+        self.ai_col.set(other.ai_col.get());
+        self.end_comment_pending
+            .set(other.end_comment_pending.get());
+        self.did_si.set(other.did_si.get());
+        self.can_si.set(other.can_si.get());
+        self.can_si_back.set(other.can_si_back.get());
+        self.update_start_orig.set(other.update_start_orig.get());
+        self.new_insert_skip.set(other.new_insert_skip.get());
+        self.did_restart_edit.set(other.did_restart_edit.get());
+        self.revins_on.set(other.revins_on.get());
+        self.revins_chars.set(other.revins_chars.get());
+        self.revins_legal.set(other.revins_legal.get());
+        self.revins_scol.set(other.revins_scol.get());
+        self.dont_sync_undo.set(other.dont_sync_undo.get());
+        self.o_lnum.set(other.o_lnum.get());
+    }
 }
 
 std::thread_local! {
@@ -194,7 +224,7 @@ pub fn internal_format(
 
     curwin().w_onebuf_opt.wo_lbr.set(false);
 
-    if !curbuf().b_p_ai.get() && (g_st().state_global.get() & VREPLACE_FLAG) == 0 {
+    if !curbuf().b_p_ai.get() && (g_st().edit.state_global.get() & VREPLACE_FLAG) == 0 {
         cc = gchar_cursor();
         if ascii_iswhite(cc) {
             save_char = cc as u8;
@@ -202,7 +232,7 @@ pub fn internal_format(
         }
     }
 
-    while !g_st().got_int.get() {
+    while !g_st().input.got_int.get() {
         let mut startcol: i32;
         let mut foundcol: i32;
         let mut end_foundcol: i32 = 0;
@@ -263,8 +293,8 @@ pub fn internal_format(
 
         while (!fo_ins_blank && !has_format_option(K_FO_INS_VI))
             || (flags & INSCHAR_FORMAT) != 0
-            || curwin().w_cursor.get().lnum != g_st().ins_global.borrow().start.lnum
-            || curwin().w_cursor.get().col >= g_st().ins_global.borrow().start.col
+            || curwin().w_cursor.get().lnum != g_st().edit.ins_global.start.get().lnum
+            || curwin().w_cursor.get().col >= g_st().edit.ins_global.start.get().col
         {
             if curwin().w_cursor.get().col == startcol && c != 0 {
                 cc = c;
@@ -416,10 +446,10 @@ pub fn internal_format(
 
         undisplay_dollar();
 
-        if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
+        if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0 {
             orig_col = startcol;
         } else {
-            g_st().replace_offset.set(startcol - end_foundcol);
+            g_st().edit.replace_offset.set(startcol - end_foundcol);
         }
 
         curwin().w_cursor.set_col(foundcol);
@@ -433,7 +463,7 @@ pub fn internal_format(
         startcol -= curwin().w_cursor.get().col;
         startcol = startcol.max(0);
 
-        if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
+        if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0 {
             let rem = get_cursor_pos_slice();
             let keep_len = (startcol as usize).min(rem.len());
             saved_text.reserve_exact(keep_len + 1);
@@ -463,26 +493,26 @@ pub fn internal_format(
             if (flags & INSCHAR_COM_LIST) != 0 {
                 second_indent
             } else {
-                g_st().old_indent.get()
+                g_st().edit.old_indent.get()
             },
             Some(&mut did_do_comment),
         );
         if (flags & INSCHAR_COM_LIST) == 0 {
-            g_st().old_indent.set(0);
+            g_st().edit.old_indent.set(0);
         }
 
         if did_do_comment {
             no_leader = false;
         }
 
-        g_st().replace_offset.set(0);
+        g_st().edit.replace_offset.set(0);
         if first_line {
             if (flags & INSCHAR_COM_LIST) == 0 {
                 if second_indent < 0 && has_format_option(K_FO_QNUMBER) {
                     second_indent = get_number_indent(curwin().w_cursor.get().lnum - 1);
                 }
                 if second_indent >= 0 {
-                    if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
+                    if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0 {
                         change_indent(INDENT_SET, second_indent, 0, true);
                     } else if leader_len > 0 && second_indent - leader_len > 0 {
                         let padding = second_indent - leader_len;
@@ -497,7 +527,7 @@ pub fn internal_format(
             first_line = false;
         }
 
-        if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
+        if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0 {
             ins_bytes(&saved_text);
         } else {
             curwin().w_cursor.add_col(startcol);
@@ -509,10 +539,10 @@ pub fn internal_format(
 
         haveto_redraw = true;
         set_can_cindent(true);
-        g_st().ins_global.borrow_mut().did_ai = false;
-        g_st().ins_global.borrow_mut().did_si = false;
-        g_st().ins_global.borrow_mut().can_si = false;
-        g_st().ins_global.borrow_mut().can_si_back = false;
+        g_st().edit.ins_global.did_ai.set(false);
+        g_st().edit.ins_global.did_si.set(false);
+        g_st().edit.ins_global.can_si.set(false);
+        g_st().edit.ins_global.can_si_back.set(false);
         line_breakcheck();
     }
 
@@ -711,7 +741,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         && !trailblank
         && !wasatend
         && pos.col > 0
-        && (g_st().state_global.get() & MODE_INSERT) != 0
+        && (g_st().edit.state_global.get() & MODE_INSERT) != 0
         && crate::cursor::get_cursor_line_slice()
             .get((pos.col - 1) as usize)
             .is_some_and(|&b| whitechar(b))
@@ -734,13 +764,13 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         }
     }
 
-    g_st().saved_cursor.set(pos);
+    g_st().edit.saved_cursor.set(pos);
     format_lines(-1, false);
-    curwin().w_cursor.set(g_st().saved_cursor.get());
+    curwin().w_cursor.set(g_st().edit.saved_cursor.get());
     {
-        let mut v = g_st().saved_cursor.get();
+        let mut v = g_st().edit.saved_cursor.get();
         v.lnum = 0;
-        g_st().saved_cursor.set(v);
+        g_st().edit.saved_cursor.set(v);
     }
 
     if curwin().w_cursor.get().lnum > curbuf().b_ml.ml_line_count.get() {
@@ -830,12 +860,12 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
         redraw_curbuf_later(UPD_INVERTED);
     }
 
-    if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
+    if (g_st().cmdline.cmod_flags() & CMOD_LOCKMARKS) == 0 {
         curbuf().b_op_start.set(oap.start);
     }
 
     if keep_cursor {
-        g_st().saved_cursor.set(oap.cursor_start);
+        g_st().edit.saved_cursor.set(oap.cursor_start);
     }
 
     format_lines(oap.line_count, keep_cursor);
@@ -847,16 +877,16 @@ pub fn op_format(oap: &mut Oparg, keep_cursor: bool) {
     old_line_count = curbuf().b_ml.ml_line_count.get() - old_line_count;
     msgmore(old_line_count);
 
-    if (g_st().cmdmod.borrow().cmod_flags & CMOD_LOCKMARKS) == 0 {
+    if (g_st().cmdline.cmod_flags() & CMOD_LOCKMARKS) == 0 {
         curbuf().b_op_end.set(curwin().w_cursor.get());
     }
 
     if keep_cursor {
-        curwin().w_cursor.set(g_st().saved_cursor.get());
+        curwin().w_cursor.set(g_st().edit.saved_cursor.get());
         {
-            let mut v = g_st().saved_cursor.get();
+            let mut v = g_st().edit.saved_cursor.get();
             v.lnum = 0;
-            g_st().saved_cursor.set(v);
+            g_st().edit.saved_cursor.set(v);
         }
         check_cursor(&curwin());
     }
@@ -891,20 +921,21 @@ pub fn op_formatexpr(oap: &mut Oparg) {
 pub fn fex_format(lnum: Linenr, count: i64, c: i32) -> i32 {
     let use_sandbox =
         was_set_insecurely(Some(&crate::globals::curwin()), K_OPT_FORMATEXPR, OPT_LOCAL);
-    let save_sctx = g_st().current_sctx.get();
+    let save_sctx = g_st().exc.current_sctx.get();
 
     set_vim_var_nr(VV_LNUM, i64::from(lnum));
     set_vim_var_nr(VV_COUNT, count as _);
     set_vim_var_char(c);
 
     g_st()
+        .exc
         .current_sctx
         .set(curbuf().b_p_script_ctx[K_BUF_OPT_FORMATEXPR].get());
 
     let r = eval_expr_option_number(&curbuf().b_p_fex, use_sandbox);
 
     set_vim_var_string(VV_CHAR, None, -1);
-    g_st().current_sctx.set(save_sctx);
+    g_st().exc.current_sctx.set(save_sctx);
 
     r
 }
@@ -926,7 +957,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
     let mut need_set_indent = true;
     let first_line = curwin().w_cursor.get().lnum;
     let mut force_format = false;
-    let old_state = g_st().state_global.get();
+    let old_state = g_st().edit.state_global.get();
 
     let max_len = comp_textwidth(true) * 3;
 
@@ -959,7 +990,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
 
     curwin().w_cursor.sub_lnum(1);
     let mut count = i64::from(line_count);
-    while count != 0 && !g_st().got_int.get() {
+    while count != 0 && !g_st().input.got_int.get() {
         if advance {
             curwin().w_cursor.add_lnum(1);
             prev_is_end_par = is_end_par;
@@ -1054,13 +1085,13 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                     set_indent(indent, SIN_CHANGED);
                 }
 
-                g_st().state_global.set(MODE_NORMAL);
+                g_st().edit.state_global.set(MODE_NORMAL);
                 coladvance(&curwin(), MAXCOL);
                 while curwin().w_cursor.get().col != 0 && ascii_isspace(gchar_cursor()) {
                     dec_cursor();
                 }
 
-                g_st().state_global.set(MODE_INSERT);
+                g_st().edit.state_global.set(MODE_INSERT);
                 let smd_save = opt_vars().p_smd.get();
                 opt_vars().p_smd.set(false);
 
@@ -1077,7 +1108,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                     second_indent,
                 );
 
-                g_st().state_global.set(old_state);
+                g_st().edit.state_global.set(old_state);
                 opt_vars().p_smd.set(smd_save);
                 ui_cursor_shape();
 
@@ -1120,5 +1151,37 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
         }
         line_breakcheck();
         count -= 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ins_state_restore_from_preserves_all_fields() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let edit = crate::globals::EditGlobalState::new();
+        edit.ins_global.start.set_lnum(12);
+        edit.ins_global.start_textlen.set(7);
+        edit.ins_global.need_undo.set(true);
+        edit.ins_global.did_ai.set(true);
+        edit.ins_global.revins_chars.set(3);
+        let snap = edit.ins_global.clone();
+
+        edit.ins_global.start.set_lnum(1);
+        edit.ins_global.start_textlen.set(0);
+        edit.ins_global.need_undo.set(false);
+        edit.ins_global.did_ai.set(false);
+        edit.ins_global.revins_chars.set(0);
+
+        edit.ins_global.restore_from(&snap);
+        assert_eq!(edit.ins_global.start.get().lnum, 12);
+        assert_eq!(edit.ins_global.start_textlen.get(), 7);
+        assert!(edit.ins_global.need_undo.get());
+        assert!(edit.ins_global.did_ai.get());
+        assert_eq!(edit.ins_global.revins_chars.get(), 3);
     }
 }

@@ -56,10 +56,10 @@ pub fn win_new_float(
 
         let win_tp = crate::globals::TabpagePtr::from(win_find_tabpage(&wp));
         debug_assert!(!win_tp.is_null());
-        if (win_tp == g_st().curtab.get()
-            && g_st().firstwin.get() == wp
+        if (win_tp == g_st().workspace.curtab.get()
+            && g_st().workspace.firstwin.get() == wp
             && lastwin_nofloating(None) == wp)
-            || win_tp != g_st().curtab.get()
+            || win_tp != g_st().workspace.curtab.get()
                 && win_tp.tp_firstwin.get() == wp
                 && lastwin_nofloating(win_tp.opt()) == wp
         {
@@ -68,7 +68,7 @@ pub fn win_new_float(
                 c"Cannot change last window into float",
             ));
         }
-        let tp = if win_tp == g_st().curtab.get() {
+        let tp = if win_tp == g_st().workspace.curtab.get() {
             crate::globals::TabpagePtr::NULL
         } else {
             win_tp.clone()
@@ -85,7 +85,7 @@ pub fn win_new_float(
 
         win_remove(&wp, tp.opt());
 
-        if win_tp == g_st().curtab.get() {
+        if win_tp == g_st().workspace.curtab.get() {
             last_status(false);
             win_comp_pos();
         }
@@ -94,7 +94,7 @@ pub fn win_new_float(
         wp
     } else {
         let mut tp_last = if last {
-            g_st().lastwin.get()
+            g_st().workspace.lastwin.get()
         } else {
             lastwin_nofloating(None)
         };
@@ -102,7 +102,7 @@ pub fn win_new_float(
             debug_assert!(!last);
             let parent_wp = find_window_by_handle(fconfig.window)?;
             let tp = win_find_tabpage(parent_wp.borrow()).unwrap();
-            tp_last = lastwin_nofloating(if tp == g_st().curtab.get() {
+            tp_last = lastwin_nofloating(if tp == g_st().workspace.curtab.get() {
                 None
             } else {
                 tp.opt()
@@ -224,9 +224,9 @@ pub fn win_config_float(wp: &WinInfoInfo, mut fconfig: WinConfig) {
         fconfig.col += curwin().w_wcol.get() as f64;
         fconfig.window = curwin().handle;
     } else if fconfig.relative == K_FLOAT_RELATIVE_MOUSE {
-        let mut row = g_st().mouse_row.get();
-        let mut col = g_st().mouse_col.get();
-        let mut grid = g_st().mouse_grid.get();
+        let mut row = g_st().input.mouse_row.get();
+        let mut col = g_st().input.mouse_col.get();
+        let mut grid = g_st().input.mouse_grid.get();
         if let Some(mouse_win) = mouse_find_win_inner(&mut grid, &mut row, &mut col) {
             fconfig.relative = K_FLOAT_RELATIVE_WINDOW;
             fconfig.row += row as f64;
@@ -256,9 +256,9 @@ pub fn win_config_float(wp: &WinInfoInfo, mut fconfig: WinConfig) {
         } else {
             0
         };
-        let max_h = g_st().rows_global.get() - win_border_height(wp) - above_ch;
+        let max_h = g_st().screen.rows_global.get() - win_border_height(wp) - above_ch;
         wp.w_height.set(wp.w_height.get().min(max_h));
-        let max_w = g_st().columns_global.get() - win_border_width(wp);
+        let max_w = g_st().screen.columns_global.get() - win_border_width(wp);
         wp.w_width.set(wp.w_width.get().min(max_w));
     }
 
@@ -385,7 +385,7 @@ pub fn win_float_find_altwin(
     tp: Option<&TabPageInfo>,
 ) -> crate::globals::WinPtr {
     let Some(tp) = tp else {
-        return if win_valid(g_st().prevwin.get().opt())
+        return if win_valid(g_st().workspace.prevwin.get().opt())
             && let Some(wp) = prevwin_opt()
             && wp != win
             && win_is_focusable(&wp)
@@ -396,7 +396,7 @@ pub fn win_float_find_altwin(
         };
     };
 
-    debug_assert!(g_st().curtab.get() != tp);
+    debug_assert!(g_st().workspace.curtab.get() != tp);
     let wp = if tabpage_win_valid(Some(tp), tp.tp_prevwin.get().opt()) {
         tp.tp_prevwin.get()
     } else {
@@ -530,12 +530,16 @@ pub fn win_float_update_preview(wp: &WinInfoInfo) {
 
     let border_h = win_border_height(wp);
     let border_w = win_border_width(wp);
-    let row = wp.w_wantline.get().max(0).min(g_st().rows_global.get() - 1);
+    let row = wp
+        .w_wantline
+        .get()
+        .max(0)
+        .min(g_st().screen.rows_global.get() - 1);
     let col = wp
         .w_wantcol
         .get()
         .max(0)
-        .min(g_st().columns_global.get() - 1);
+        .min(g_st().screen.columns_global.get() - 1);
 
     let v: OptKeyDictPvp = opt_keyset(&opt_vars().p_pvp.as_bytes(), K_OPT_PREVIEWPOPUP);
     let mut want_w = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
@@ -552,23 +556,23 @@ pub fn win_float_update_preview(wp: &WinInfoInfo) {
     // If a dimension is not given in 'previewpopup', autosize to the content.
     let last: Linenr = wp.buf().b_ml.ml_line_count.get();
     if want_w == 0 {
-        want_w = win_max_displaywidth(wp, 1, last, g_st().columns_global.get()).max(1);
+        want_w = win_max_displaywidth(wp, 1, last, g_st().screen.columns_global.get()).max(1);
     }
-    want_w = want_w.min(g_st().columns_global.get());
+    want_w = want_w.min(g_st().screen.columns_global.get());
 
     if want_h == 0 {
         let saved_view_width = wp.w_view_width.get();
         wp.w_view_width.set(want_w);
-        want_h = plines_m_win(wp, 1, last, g_st().rows_global.get()).max(1);
+        want_h = plines_m_win(wp, 1, last, g_st().screen.rows_global.get()).max(1);
         wp.w_view_width.set(saved_view_width);
     }
-    want_h = want_h.min(g_st().rows_global.get());
+    want_h = want_h.min(g_st().screen.rows_global.get());
 
     let need_h = want_h + border_h;
     let need_w = want_w + border_w;
-    let space_below = g_st().rows_global.get() - row - 1 - (opt_vars().p_ch.get() as i32);
+    let space_below = g_st().screen.rows_global.get() - row - 1 - (opt_vars().p_ch.get() as i32);
     let space_above = row - 1;
-    let space_right = g_st().columns_global.get() - col - 1;
+    let space_right = g_st().screen.columns_global.get() - col - 1;
     let space_left = col;
     // Prefer below/right; flip only if this side can't fit but the other can.
     let below = space_below >= need_h || space_above < need_h;

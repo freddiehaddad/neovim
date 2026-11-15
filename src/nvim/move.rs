@@ -108,7 +108,7 @@ fn comp_botline(wp: &WinInfoInfo) {
 
     let use_cache = redrawing()
         && !wp.buf().b_mod_set.get()
-        && g_st().dollar_vcol.get() == -1
+        && g_st().edit.dollar_vcol.get() == -1
         && wp.w_skipcol.get() == 0
         && !win_may_fill(wp)
         && wp.w_lines_valid.get() > 0
@@ -209,7 +209,8 @@ fn redraw_for_cursorcolumn(wp: &WinInfoInfo) {
         redraw_later(Some(wp), UPD_VALID);
     }
 
-    if g_st().visual_global.borrow().active && wp.w_buffer.get() == g_st().curbuf.get() {
+    if g_st().edit.visual_global.active.get() && wp.w_buffer.get() == g_st().workspace.curbuf.get()
+    {
         redraw_buf_later(&curbuf(), UPD_INVERTED);
     }
 }
@@ -280,11 +281,11 @@ fn scrolloffpad_eof_pressure(wp: &WinInfoInfo, lnum: Linenr, so: OptInt) -> bool
 
 /// Update `wp->w_topline` to move the cursor onto the screen.
 pub fn update_topline(wp: &WinInfoInfo) {
-    if g_st().skip_update_topline.get() {
+    if g_st().workspace.skip_update_topline.get() {
         return;
     }
 
-    if !crate::grid::grid_allocated(&g_st().default_grid) || wp.w_view_height.get() == 0 {
+    if !crate::grid::grid_allocated(&g_st().screen.default_grid) || wp.w_view_height.get() == 0 {
         check_cursor_lnum(wp);
         wp.w_topline.set(wp.w_cursor.get().lnum);
         wp.w_botline.set(wp.w_topline.get());
@@ -311,8 +312,8 @@ pub fn update_topline(wp: &WinInfoInfo) {
         opt_vars().p_so.get()
     };
 
-    let so = if g_st().mouse_dragging.get() > 0 {
-        let drag_so = i64::from(g_st().mouse_dragging.get() - 1);
+    let so = if g_st().input.mouse_dragging.get() > 0 {
+        let drag_so = i64::from(g_st().input.mouse_dragging.get() - 1);
         if use_win_so {
             wp.w_onebuf_opt.wo_so.set(drag_so);
         } else {
@@ -475,7 +476,7 @@ pub fn update_topline(wp: &WinInfoInfo) {
     win_check_anchored_floats(wp);
 
     if wp.w_topline.get() != old_topline || wp.w_topfill.get() != old_topfill {
-        g_st().dollar_vcol.set(-1);
+        g_st().edit.dollar_vcol.set(-1);
         redraw_later(Some(wp), UPD_VALID);
 
         if !wp.w_onebuf_opt.wo_sms.get() {
@@ -966,8 +967,8 @@ pub fn curs_columns(wp: &WinInfoInfo, may_scroll: bool) {
         disp_virtcol = cursor_disp_vcol(wp);
     }
 
-    if startcol > g_st().dollar_vcol.get() {
-        g_st().dollar_vcol.set(-1);
+    if startcol > g_st().edit.dollar_vcol.get() {
+        g_st().edit.dollar_vcol.set(-1);
     }
 
     let mut extra = win_col_off(wp);
@@ -1947,8 +1948,8 @@ pub fn scroll_cursor_top(wp: &WinInfoInfo, min_scroll: i32, always: i32) {
     let old_topline = wp.w_topline.get();
     let old_skipcol = wp.w_skipcol.get();
     let old_topfill = wp.w_topfill.get();
-    let off = if g_st().mouse_dragging.get() > 0 {
-        i64::from(g_st().mouse_dragging.get() - 1)
+    let off = if g_st().input.mouse_dragging.get() > 0 {
+        i64::from(g_st().input.mouse_dragging.get() - 1)
     } else {
         get_scrolloff_value(wp)
     };
@@ -2171,8 +2172,8 @@ pub fn scroll_cursor_bot(wp: &WinInfoInfo, min_scroll: i32, set_topbot: bool) {
 
     let mut extra: i32 = 0;
     let so = get_scrolloff_value(wp);
-    let eff_so = if g_st().mouse_dragging.get() > 0 {
-        i64::from(g_st().mouse_dragging.get() - 1)
+    let eff_so = if g_st().input.mouse_dragging.get() > 0 {
+        i64::from(g_st().input.mouse_dragging.get() - 1)
     } else {
         so
     };
@@ -2408,9 +2409,9 @@ pub fn scroll_cursor_halfway(wp: &WinInfoInfo, atend: bool, prefer_above: bool) 
 pub fn cursor_correct(wp: &WinInfoInfo) {
     let mut above_wanted = get_scrolloff_value(wp);
     let mut below_wanted = get_scrolloff_value(wp);
-    if g_st().mouse_dragging.get() > 0 {
-        above_wanted = i64::from(g_st().mouse_dragging.get() - 1);
-        below_wanted = i64::from(g_st().mouse_dragging.get() - 1);
+    if g_st().input.mouse_dragging.get() > 0 {
+        above_wanted = i64::from(g_st().input.mouse_dragging.get() - 1);
+        below_wanted = i64::from(g_st().input.mouse_dragging.get() - 1);
     }
     if wp.w_topline.get() == 1 {
         above_wanted = 0;
@@ -2419,7 +2420,7 @@ pub fn cursor_correct(wp: &WinInfoInfo) {
     }
     validate_botline_win(wp);
     if wp.w_botline.get() == wp.buf().b_ml.ml_line_count.get() + 1
-        && g_st().mouse_dragging.get() == 0
+        && g_st().input.mouse_dragging.get() == 0
     {
         below_wanted = 0;
         let max_off = i64::from((wp.w_view_height.get() - 1) / 2);
@@ -2641,10 +2642,10 @@ pub fn pagescroll(dir: Direction, mut count: i32, half: bool) -> bool {
             cursor_up_inner(&curwin(), curscount, true);
         }
     } else {
-        let one_window = g_st().firstwin.get() == g_st().lastwin.get();
+        let one_window = g_st().workspace.firstwin.get() == g_st().workspace.lastwin.get();
         count *= if one_window
             && opt_vars().p_window.get() > 0
-            && opt_vars().p_window.get() < i64::from(g_st().rows_global.get() - 1)
+            && opt_vars().p_window.get() < i64::from(g_st().screen.rows_global.get() - 1)
         {
             (opt_vars().p_window.get() as i32 - 2).max(1)
         } else {
@@ -2712,10 +2713,10 @@ pub fn do_check_cursorbind() {
             const { crate::globals::CloneCell::new(MoveCursorbindState::new()) };
     }
 
-    debug_assert!(!(curwin()).is_null() && !g_st().curbuf.get().is_null());
+    debug_assert!(!(curwin()).is_null() && !g_st().workspace.curbuf.get().is_null());
     let prev = MOVE_CB_STATE.with(|s| s.get());
     if prev.prev_curwin == curwin()
-        && prev.prev_curbuf == g_st().curbuf.get()
+        && prev.prev_curbuf == g_st().workspace.curbuf.get()
         && buf_get_changedtick(&curbuf()) == prev.prev_changedtick
         && equalpos(curwin().w_cursor.get(), prev.prev_cursor)
     {
@@ -2724,7 +2725,7 @@ pub fn do_check_cursorbind() {
     MOVE_CB_STATE.with(|s| {
         s.set(MoveCursorbindState {
             prev_curwin: crate::globals::curwin(),
-            prev_curbuf: g_st().curbuf.get(),
+            prev_curbuf: g_st().workspace.curbuf.get(),
             prev_changedtick: buf_get_changedtick(&curbuf()),
             prev_cursor: curwin().w_cursor.get(),
         });
@@ -2736,15 +2737,15 @@ pub fn do_check_cursorbind() {
     let curswant = curwin().w_curswant.get();
     let set_curswant = curwin().w_set_curswant.get();
     let old_curwin = curwin();
-    let old_curbuf = g_st().curbuf.get();
-    let old_visual_select = g_st().visual_global.borrow().select;
-    let old_visual_active = g_st().visual_global.borrow().active;
+    let old_curbuf = g_st().workspace.curbuf.get();
+    let old_visual_select = g_st().edit.visual_global.select.get();
+    let old_visual_active = g_st().edit.visual_global.active.get();
 
-    g_st().visual_global.borrow_mut().select = false;
-    g_st().visual_global.borrow_mut().active = false;
+    g_st().edit.visual_global.select.set(false);
+    g_st().edit.visual_global.active.set(false);
     for wp in for_all_windows_ptr() {
         set_curwin(wp);
-        g_st().curbuf.set(curwin().w_buffer.get());
+        g_st().workspace.curbuf.set(curwin().w_buffer.get());
         if curwin() != old_curwin && curwin().w_onebuf_opt.wo_crb.get() {
             if curwin().w_onebuf_opt.wo_diff.get() {
                 curwin()
@@ -2759,15 +2760,15 @@ pub fn do_check_cursorbind() {
             curwin().w_set_curswant.set(set_curswant);
 
             {
-                let restart_edit_save = g_st().restart_edit.get();
-                g_st().restart_edit.set(i32::from(true));
+                let restart_edit_save = g_st().edit.restart_edit.get();
+                g_st().edit.restart_edit.set(i32::from(true));
                 check_cursor(&curwin());
 
                 if !curwin().w_onebuf_opt.wo_scb.get() {
                     validate_cursor(&curwin());
                 }
 
-                g_st().restart_edit.set(restart_edit_save);
+                g_st().edit.restart_edit.set(restart_edit_save);
             }
             mb_adjust_cursor();
             redraw_later(Some(&crate::globals::curwin()), UPD_VALID);
@@ -2782,10 +2783,10 @@ pub fn do_check_cursorbind() {
         }
     }
 
-    g_st().visual_global.borrow_mut().select = old_visual_select;
-    g_st().visual_global.borrow_mut().active = old_visual_active;
+    g_st().edit.visual_global.select.set(old_visual_select);
+    g_st().edit.visual_global.active.set(old_visual_active);
     set_curwin(old_curwin);
-    g_st().curbuf.set(old_curbuf);
+    g_st().workspace.curbuf.set(old_curbuf);
 }
 
 #[cfg(test)]

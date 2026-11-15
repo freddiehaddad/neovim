@@ -41,8 +41,8 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage) -> Result<Array, Error> {
         return Ok(rv);
     }
 
-    let first = if g_st().curtab.get() == tab {
-        g_st().firstwin.get()
+    let first = if g_st().workspace.curtab.get() == tab {
+        g_st().workspace.firstwin.get()
     } else {
         tab.tp_firstwin.get()
     };
@@ -111,7 +111,7 @@ pub fn nvim_tabpage_get_win(tabpage: Tabpage) -> Result<Window, Error> {
     if !valid_tabpage(Some(&tab)) {
         return Ok(0);
     }
-    if g_st().curtab.get() == tab {
+    if g_st().workspace.curtab.get() == tab {
         return Ok(nvim_get_current_win());
     }
     for wp in win_iter_ptr(tab.tp_firstwin.get()) {
@@ -138,7 +138,7 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window) -> Result<(), Error> 
             tp.handle,
         ));
     }
-    if tp == g_st().curtab.get() {
+    if tp == g_st().workspace.curtab.get() {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         win_goto(wp.borrow());
@@ -230,22 +230,26 @@ pub fn nvim_open_tabpage(
         let au_no_enter_leave = curwin() != wp;
         if au_no_enter_leave {
             g_st()
+                .autocmd
                 .autocmd_no_enter
-                .set(g_st().autocmd_no_enter.get() + (1));
+                .set(g_st().autocmd.autocmd_no_enter.get() + (1));
             g_st()
+                .autocmd
                 .autocmd_no_leave
-                .set(g_st().autocmd_no_leave.get() + (1));
+                .set(g_st().autocmd.autocmd_no_leave.get() + (1));
         }
         if let Err(err) = win_set_buf(wp.borrow(), &b) {
             res = Err(err);
         }
         if au_no_enter_leave {
             g_st()
+                .autocmd
                 .autocmd_no_enter
-                .set(g_st().autocmd_no_enter.get() - (1));
+                .set(g_st().autocmd.autocmd_no_enter.get() - (1));
             g_st()
+                .autocmd
                 .autocmd_no_leave
-                .set(g_st().autocmd_no_leave.get() - (1));
+                .set(g_st().autocmd.autocmd_no_leave.get() - (1));
         }
         if !valid_tabpage(tp.opt()) {
             return Err(api_error!(

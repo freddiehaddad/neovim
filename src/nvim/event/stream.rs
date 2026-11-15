@@ -277,7 +277,7 @@ pub fn stream_close_handle(stream: &mut Stream) {
     let handle: *mut uv_handle_t = if stream.has_uvstream {
         let uv_s: *mut uv_stream_t = (&raw mut stream.uv).cast();
         let queued = unsafe { uv_stream_get_write_queue_size(uv_s) };
-        if !g_st().exiting.get() && queued > 0 {
+        if !g_st().exc.exiting.get() && queued > 0 {
             logmsg!(
                 LOGLVL_INF,
                 None,

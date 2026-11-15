@@ -464,7 +464,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
     'upward: loop {
         loop {
             os_breakcheck();
-            if g_st().got_int.get() {
+            if g_st().input.got_int.get() {
                 break;
             }
 
@@ -729,7 +729,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
 
         if !search_ctx.ffsc_start_dir.data.is_null()
             && !search_ctx.ffsc_stopdirs_v.is_empty()
-            && !g_st().got_int.get()
+            && !g_st().input.got_int.get()
         {
             let start_dir_bytes = search_ctx.ffsc_start_dir.as_bytes_with_nul_mut();
             let plen = path_end_off
@@ -1229,7 +1229,7 @@ pub fn find_file_in_path_option(
 /// Get the file name at the cursor.
 pub fn grab_file_name(count: i32, file_lnum: &mut Linenr) -> Option<std::ffi::CString> {
     let options = FNAME_MESS | FNAME_EXP | FNAME_REL | FNAME_UNESC;
-    let fname = if g_st().visual_global.borrow().active {
+    let fname = if g_st().edit.visual_global.active.get() {
         let (vis_cstr, len) = get_visual_text(None)?;
         let vis_bytes = vis_cstr.to_bytes();
         if vis_bytes.get(len) == Some(&b':')
@@ -1376,13 +1376,14 @@ fn eval_includeexpr(ptr_slice: &[u8]) -> Option<std::ffi::CString> {
     let ptr_cstr =
         std::ffi::CString::new(crate::memory::bytes_until_nul(ptr_slice)).unwrap_or_default();
     {
-        let save_sctx = g_st().current_sctx.get();
+        let save_sctx = g_st().exc.current_sctx.get();
         set_vim_var_string(
             VV_FNAME,
             Some(&ptr_cstr),
             ptr_cstr.as_bytes().len() as isize,
         );
         g_st()
+            .exc
             .current_sctx
             .set(curbuf().b_p_script_ctx[K_BUF_OPT_INCLUDEEXPR].get());
 
@@ -1400,7 +1401,7 @@ fn eval_includeexpr(ptr_slice: &[u8]) -> Option<std::ffi::CString> {
         }
 
         set_vim_var_string(VV_FNAME, None, 0);
-        g_st().current_sctx.set(save_sctx);
+        g_st().exc.current_sctx.set(save_sctx);
         res
     }
 }

@@ -694,13 +694,13 @@ pub fn clear_folding(win: &WinInfoInfo) {
 
 /// Update folds for changes in the buffer of a window.
 pub fn fold_update(wp: &WinInfoInfo, top: Linenr, bot: Linenr) {
-    if g_st().disable_fold_update.get() != 0
-        || ((g_st().state_global.get() & MODE_INSERT) != 0 && !foldmethod_is_indent(wp))
+    if g_st().workspace.disable_fold_update.get() != 0
+        || ((g_st().edit.state_global.get() & MODE_INSERT) != 0 && !foldmethod_is_indent(wp))
     {
         return;
     }
 
-    if g_st().need_diff_redraw.get() {
+    if g_st().workspace.need_diff_redraw.get() {
         return;
     }
 
@@ -722,10 +722,13 @@ pub fn fold_update(wp: &WinInfoInfo, top: Linenr, bot: Linenr) {
         || foldmethod_is_diff(wp)
         || foldmethod_is_syntax(wp)
     {
-        let save_got_int = g_st().got_int.get();
-        g_st().got_int.set(false);
+        let save_got_int = g_st().input.got_int.get();
+        g_st().input.got_int.set(false);
         fold_update_iems(wp, top, bot);
-        g_st().got_int.set(g_st().got_int.get() | (save_got_int));
+        g_st()
+            .input
+            .got_int
+            .set(g_st().input.got_int.get() | (save_got_int));
     }
 }
 
@@ -884,20 +887,29 @@ pub fn find_wl_entry(win: &WinInfoInfo, lnum: Linenr) -> Option<usize> {
 
 /// Adjust the Visual area to include any fold at the start or end completely.
 pub fn fold_adjust_visual() {
-    if !g_st().visual_global.borrow().active || !has_any_folding(&curwin()) {
+    if !g_st().edit.visual_global.active.get() || !has_any_folding(&curwin()) {
         return;
     }
 
-    let visual_before_cursor = ltoreq(g_st().visual_global.borrow().start, curwin().w_cursor.get());
+    let visual_before_cursor = ltoreq(
+        g_st().edit.visual_global.start.get(),
+        curwin().w_cursor.get(),
+    );
     let (mut start, mut end) = if visual_before_cursor {
-        (g_st().visual_global.borrow().start, curwin().w_cursor.get())
+        (
+            g_st().edit.visual_global.start.get(),
+            curwin().w_cursor.get(),
+        )
     } else {
-        (curwin().w_cursor.get(), g_st().visual_global.borrow().start)
+        (
+            curwin().w_cursor.get(),
+            g_st().edit.visual_global.start.get(),
+        )
     };
     if has_folding(&curwin(), start.lnum, Some(&mut start.lnum), None) {
         start.col = 0;
         if visual_before_cursor {
-            g_st().visual_global.borrow_mut().start = start;
+            g_st().edit.visual_global.start.set(start);
         } else {
             curwin().w_cursor.set(start);
         }
@@ -915,7 +927,7 @@ pub fn fold_adjust_visual() {
     if visual_before_cursor {
         curwin().w_cursor.set(end);
     } else {
-        g_st().visual_global.borrow_mut().start = end;
+        g_st().edit.visual_global.start.set(end);
     }
     mb_adjust_cursor();
 }
@@ -1161,7 +1173,7 @@ pub fn fold_mark_adjust(
     if line2 < line1 {
         line2 = line1;
     }
-    if (g_st().state_global.get() & MODE_INSERT) != 0 && amount == 1 && line2 == MAXLNUM {
+    if (g_st().edit.state_global.get() & MODE_INSERT) != 0 && amount == 1 && line2 == MAXLNUM {
         line1 -= 1;
     }
     fold_mark_adjust_recurse(
@@ -1184,11 +1196,12 @@ fn fold_mark_adjust_recurse(
         return;
     }
 
-    let top = if (g_st().state_global.get() & MODE_INSERT) != 0 && amount == 1 && line2 == MAXLNUM {
-        line1 + 1
-    } else {
-        line1
-    };
+    let top =
+        if (g_st().edit.state_global.get() & MODE_INSERT) != 0 && amount == 1 && line2 == MAXLNUM {
+            line1 + 1
+        } else {
+            line1
+        };
 
     let (_, mut i) = fold_find(gap, line1);
 
@@ -1483,7 +1496,7 @@ pub fn get_foldtext(
     vt: &mut VirtText,
 ) -> std::ffi::CString {
     let mut text: Option<std::ffi::CString> = None;
-    let save_did_emsg = g_st().did_emsg.get();
+    let save_did_emsg = g_st().msg.did_emsg.get();
 
     let mut got_fdt_error = FOLD_STATE.with(|st| {
         if st.last_wp.get() != wp || st.fdt_last_lnum.get() > lnum || st.fdt_last_lnum.get() == 0 {
@@ -1493,7 +1506,7 @@ pub fn get_foldtext(
     });
 
     if !got_fdt_error {
-        g_st().did_emsg.set(0);
+        g_st().msg.did_emsg.set(0);
     }
 
     if wp.w_onebuf_opt.wo_fdt.cb_type() != K_CALLBACK_NONE_CONST {
@@ -1514,15 +1527,16 @@ pub fn get_foldtext(
 
         if !got_fdt_error {
             let save_curwin = curwin();
-            let saved_sctx = g_st().current_sctx.get();
+            let saved_sctx = g_st().exc.current_sctx.get();
 
             set_curwin(wp);
-            g_st().curbuf.set(wp.w_buffer.get());
+            g_st().workspace.curbuf.set(wp.w_buffer.get());
             g_st()
+                .exc
                 .current_sctx
                 .set(wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDTEXT].get());
 
-            g_st().emsg_off.set(g_st().emsg_off.get() + (1));
+            g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
 
             let obj = eval_foldtext(wp);
             if obj.obj_type == ObjectType::ObjectTypeArray {
@@ -1537,16 +1551,16 @@ pub fn get_foldtext(
             }
             api_free_object(obj);
 
-            g_st().emsg_off.set(g_st().emsg_off.get() - (1));
+            g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
 
-            if text.is_none() || g_st().did_emsg.get() != 0 {
+            if text.is_none() || g_st().msg.did_emsg.get() != 0 {
                 got_fdt_error = true;
                 FOLD_STATE.with(|st| st.got_fdt_error.set(true));
             }
 
             set_curwin(save_curwin);
-            g_st().curbuf.set(curwin().w_buffer.get());
-            g_st().current_sctx.set(saved_sctx);
+            g_st().workspace.curbuf.set(curwin().w_buffer.get());
+            g_st().exc.current_sctx.set(saved_sctx);
         }
         let _ = got_fdt_error;
         let wp_ptr = crate::globals::WinPtr::from(wp);
@@ -1556,8 +1570,8 @@ pub fn get_foldtext(
         });
         set_vim_var_string(VV_FOLDDASHES, None, -1);
 
-        if g_st().did_emsg.get() == 0 && save_did_emsg != 0 {
-            g_st().did_emsg.set(save_did_emsg);
+        if g_st().msg.did_emsg.get() == 0 && save_did_emsg != 0 {
+            g_st().msg.did_emsg.set(save_did_emsg);
         }
 
         if let Some(t) = text.take() {
@@ -1705,12 +1719,12 @@ fn fold_update_iems(wp: &WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
     }
 
     if foldmethod_is_diff(wp) {
-        if top > g_st().diff_context.get() {
-            top -= g_st().diff_context.get();
+        if top > g_st().workspace.diff_context.get() {
+            top -= g_st().workspace.diff_context.get();
         } else {
             top = 1;
         }
-        bot += g_st().diff_context.get();
+        bot += g_st().workspace.diff_context.get();
     }
 
     top = top.min(wp.buf().b_ml.ml_line_count.get());
@@ -1776,7 +1790,7 @@ fn fold_update_iems(wp: &WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
         }
 
         fline.lvl = -1;
-        while !g_st().got_int.get() {
+        while !g_st().input.got_int.get() {
             fline.lvl_next = -1;
             call_getlevel(getlevel, &mut fline);
             if fline.lvl >= 0 {
@@ -1820,7 +1834,7 @@ fn fold_update_iems(wp: &WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
         end = start;
     }
 
-    while !g_st().got_int.get() {
+    while !g_st().input.got_int.get() {
         if fline.lnum > wp.buf().b_ml.ml_line_count.get() {
             break;
         }
@@ -1934,7 +1948,7 @@ fn fold_update_iemsrecurse(
     let linecount = flp.wp().buf().b_ml.ml_line_count.get() - flp.off;
 
     flp.lnum_save = flp.lnum;
-    while !g_st().got_int.get() {
+    while !g_st().input.got_int.get() {
         line_breakcheck();
 
         lvl = flp.lvl.min(MAX_LEVEL);
@@ -1982,7 +1996,7 @@ fn fold_update_iemsrecurse(
                 || flp.had_end <= MAX_LEVEL
                 || flp.lnum == linecount)
         {
-            while !g_st().got_int.get() {
+            while !g_st().input.got_int.get() {
                 let concat: Linenr = if flp.start != 0 || flp.had_end <= MAX_LEVEL {
                     0
                 } else {
@@ -2141,7 +2155,7 @@ fn fold_update_iemsrecurse(
         } else {
             flp.lnum = flp.lnum_save;
             let ll = flp.lnum + 1;
-            while !g_st().got_int.get() {
+            while !g_st().input.got_int.get() {
                 FOLD_STATE.with(|st| {
                     st.prev_lnum.set(flp.lnum);
                     st.prev_lnum_lvl.set(flp.lvl);
@@ -2494,7 +2508,7 @@ fn foldlevel_expr(flp: &mut Fline) {
 
     let win = curwin();
     set_curwin(flp.wp.clone());
-    g_st().curbuf.set(flp.wp().w_buffer.get());
+    g_st().workspace.curbuf.set(flp.wp().w_buffer.get());
     set_vim_var_nr(VV_LNUM, Varnumber::from(lnum));
 
     flp.start = 0;
@@ -2504,10 +2518,10 @@ fn foldlevel_expr(flp: &mut Fline) {
         flp.lvl = 0;
     }
 
-    let save_keytyped = g_st().key_typed.get();
+    let save_keytyped = g_st().input.key_typed.get();
     let mut c: i32 = 0;
     let n = eval_foldexpr(&flp.wp(), &mut c);
-    g_st().key_typed.set(save_keytyped);
+    g_st().input.key_typed.set(save_keytyped);
 
     match c as u8 {
         b'a' => {
@@ -2560,7 +2574,7 @@ fn foldlevel_expr(flp: &mut Fline) {
     }
 
     set_curwin(win);
-    g_st().curbuf.set(curwin().w_buffer.get());
+    g_st().workspace.curbuf.set(curwin().w_buffer.get());
 }
 
 fn parse_marker(wp: &WinInfoInfo) {

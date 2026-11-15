@@ -643,7 +643,7 @@ pub fn ml_open(buf: &FileBuf) -> bool {
     buf.b_ml.ml_chunksize.borrow_mut().clear();
     buf.b_ml.ml_usedchunks.set(0);
 
-    if (g_st().cmdmod.borrow().cmod_flags & CMOD_NOSWAPFILE) != 0 {
+    if (g_st().cmdline.cmod_flags() & CMOD_NOSWAPFILE) != 0 {
         buf.b_p_swf.set(false);
     }
 
@@ -753,8 +753,7 @@ pub fn ml_setname(buf: &FileBuf) {
         .mfp_ref()
         .map_or(0, |m| ptr::from_ref(&*m) as usize);
     if buf.b_ml.mfp_mut().mf_fd < 0 {
-        if opt_vars().p_uc.get() != 0 && (g_st().cmdmod.borrow().cmod_flags & CMOD_NOSWAPFILE) == 0
-        {
+        if opt_vars().p_uc.get() != 0 && (g_st().cmdline.cmod_flags() & CMOD_NOSWAPFILE) == 0 {
             ml_open_file(buf);
         }
         return;
@@ -843,7 +842,7 @@ pub fn ml_open_file(buf: &FileBuf) {
     };
     if mfp_fd >= 0
         || !buf.b_p_swf.get()
-        || (g_st().cmdmod.borrow().cmod_flags & CMOD_NOSWAPFILE) != 0
+        || (g_st().cmdline.cmod_flags() & CMOD_NOSWAPFILE) != 0
         || !buf.terminal.get().is_null()
     {
         return;
@@ -895,14 +894,20 @@ pub fn ml_open_file(buf: &FileBuf) {
     }
 
     if !opt_vars().p_dir.is_empty() && buf.b_ml.mfp_mut().mf_fname.is_none() {
-        g_st().need_wait_return.set(true);
-        g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
+        g_st().msg.need_wait_return.set(true);
+        g_st()
+            .msg
+            .no_wait_return
+            .set(g_st().msg.no_wait_return.get() + (1));
         let sp = buf_spname(buf);
         semsg!(
             tr(c"E303: Unable to open swap file for \"%s\", recovery impossible"),
             sp.unwrap_or_else(|| buf.fname_cstr()),
         );
-        g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
+        g_st()
+            .msg
+            .no_wait_return
+            .set(g_st().msg.no_wait_return.get() - (1));
     }
 
     buf.b_may_swap.set(false);
@@ -910,14 +915,14 @@ pub fn ml_open_file(buf: &FileBuf) {
 
 /// If still need to create a swapfile, create a swapfile now.
 pub fn check_need_swap(newfile: bool) {
-    let old_msg_silent = g_st().msg_silent.get();
-    g_st().msg_silent.set(0);
+    let old_msg_silent = g_st().msg.msg_silent.get();
+    g_st().msg.msg_silent.set(0);
 
     if curbuf().b_may_swap.get() && (!curbuf().b_p_ro.get() || !newfile) {
         ml_open_file(&curbuf());
     }
 
-    g_st().msg_silent.set(old_msg_silent);
+    g_st().msg.msg_silent.set(old_msg_silent);
 }
 
 /// Close memline for buffer `buf`.
@@ -1084,7 +1089,7 @@ pub fn ml_recover(checkext: bool) {
     let mut serious_error = true;
     let mut orig_file_status = None;
 
-    g_st().recoverymode.set(true);
+    g_st().exc.recoverymode.set(true);
     let called_from_main = curbuf().b_ml.ml_mfp.borrow().is_none();
 
     let fname_opt = curbuf().fname_opt();
@@ -1270,7 +1275,7 @@ pub fn ml_recover(checkext: bool) {
     }
 
     msg_ext_set_kind(c"wmsg");
-    g_st().msg_ext_skip_flush.set(true);
+    g_st().msg.msg_ext_skip_flush.set(true);
     let mf_fname = buf.b_ml.mf_fname_cstr();
     let mf_fname_cstr = mf_fname.as_deref().unwrap_or(c"");
     let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
@@ -1285,7 +1290,7 @@ pub fn ml_recover(checkext: bool) {
     msg_putchar(b'\n' as i32);
     smsg!(0, tr(c"Original file \"%s\""), &name_buff);
     msg_putchar(b'\n' as i32);
-    g_st().msg_ext_skip_flush.set(false);
+    g_st().msg.msg_ext_skip_flush.set(false);
 
     let mut org_file_info = FileInfo::new();
     let mut swp_file_info = FileInfo::new();
@@ -1362,7 +1367,7 @@ pub fn ml_recover(checkext: bool) {
     let mut cannot_open = curbuf().b_ffname.get().is_none();
 
     serious_error = false;
-    while !g_st().got_int.get() {
+    while !g_st().input.got_int.get() {
         if let Some(hp_id) = hp {
             mf_put(&mut buf.b_ml.mfp_mut(), hp_id, false, false);
         }
@@ -1650,18 +1655,27 @@ pub fn ml_recover(checkext: bool) {
         .set(curbuf().b_flags.get() | (BF_RECOVERED));
     check_cursor(&curwin());
 
-    g_st().msg_ext_skip_flush.set(!g_st().got_int.get());
-    g_st().recoverymode.set(false);
-    if g_st().got_int.get() {
+    g_st()
+        .msg
+        .msg_ext_skip_flush
+        .set(!g_st().input.got_int.get());
+    g_st().exc.recoverymode.set(false);
+    if g_st().input.got_int.get() {
         emsg(tr(c"E311: Recovery Interrupted"));
     } else if error != 0 {
-        g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
+        g_st()
+            .msg
+            .no_wait_return
+            .set(g_st().msg.no_wait_return.get() + (1));
         msg_ext_set_kind(c"emsg");
         msg(c">>>>>>>>>>>>>\n", 0);
         emsg(tr(
             c"E312: Errors detected while recovering; look for lines starting with ???",
         ));
-        g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
+        g_st()
+            .msg
+            .no_wait_return
+            .set(g_st().msg.no_wait_return.get() - (1));
         msg_putchar(b'\n' as i32);
         msg(tr(c"See \":help E312\" for more information."), 0);
         msg(c"\n>>>>>>>>>>>>>", 0);
@@ -1693,7 +1707,7 @@ pub fn ml_recover(checkext: bool) {
         if !ui_has(K_UIMESSAGES) {
             msg_puts(c"\n\n");
         }
-        g_st().cmdline_row.set(g_st().msg_row.get());
+        g_st().cmdline.cmdline_row.set(g_st().msg.msg_row.get());
     }
     redraw_curbuf_later(UPD_NOT_VALID);
 
@@ -1706,8 +1720,8 @@ fn ml_recover_theend(
     serious_error: bool,
     called_from_main: bool,
 ) {
-    g_st().msg_ext_skip_flush.set(false);
-    g_st().recoverymode.set(false);
+    g_st().msg.msg_ext_skip_flush.set(false);
+    g_st().exc.recoverymode.set(false);
     if let Some(ref b) = buf
         && let Some(mut mfp) = b.b_ml.mfp_opt()
     {
@@ -2106,8 +2120,8 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
                 || os_fileinfo_size(&file_info) != buf.b_orig_size.get()
             {
                 ml_preserve(&buf, false, do_fsync);
-                g_st().did_check_timestamps.set(false);
-                g_st().need_check_timestamps.set(true);
+                g_st().workspace.did_check_timestamps.set(false);
+                g_st().workspace.need_check_timestamps.set(true);
             }
         }
         if buf
@@ -2131,7 +2145,7 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
 
 /// Sync one buffer, including negative blocks.
 pub fn ml_preserve(buf: &FileBuf, message: bool, do_fsync: bool) {
-    let got_int_save = g_st().got_int.get();
+    let got_int_save = g_st().input.got_int.get();
 
     if buf.b_ml.mfp_ref().is_none_or(|m| m.mf_fname.is_none()) {
         if message {
@@ -2140,7 +2154,7 @@ pub fn ml_preserve(buf: &FileBuf, message: bool, do_fsync: bool) {
         return;
     };
 
-    g_st().got_int.set(false);
+    g_st().input.got_int.set(false);
 
     ml_flush_line(buf, false);
     ml_find_line(buf, 0, ML_FLUSH);
@@ -2151,7 +2165,7 @@ pub fn ml_preserve(buf: &FileBuf, message: bool, do_fsync: bool) {
 
     buf.b_ml.ml_stack_top.set(0);
 
-    if buf.b_ml.mfp_ref().is_some_and(|m| mf_need_trans(&m)) && !g_st().got_int.get() {
+    if buf.b_ml.mfp_ref().is_some_and(|m| mf_need_trans(&m)) && !g_st().input.got_int.get() {
         let mut lnum: Linenr = 1;
         while buf.b_ml.mfp_ref().is_some_and(|m| mf_need_trans(&m))
             && lnum <= buf.b_ml.ml_line_count.get()
@@ -2174,7 +2188,10 @@ pub fn ml_preserve(buf: &FileBuf, message: bool, do_fsync: bool) {
         }
     }
 
-    g_st().got_int.set(g_st().got_int.get() | (got_int_save));
+    g_st()
+        .input
+        .got_int
+        .set(g_st().input.got_int.get() | (got_int_save));
 
     if message {
         if status {
@@ -2421,7 +2438,7 @@ fn ml_load_line(buf: &FileBuf, mut lnum: Linenr, will_change: bool) -> bool {
         let deleted_len = buf
             .b_ml
             .with_current_line_slice(|s| crate::memory::bytes_until_nul(s).len());
-        if g_st().inhibit_delete_count.get() == 0 {
+        if g_st().edit.inhibit_delete_count.get() == 0 {
             buf.deleted_bytes
                 .set(buf.deleted_bytes.get() + (deleted_len + 1));
             buf.deleted_bytes2
@@ -2982,7 +2999,7 @@ pub fn ml_add_deleted_len(bytes: &[u8]) {
 }
 
 pub fn ml_add_deleted_len_buf(buf: &FileBuf, bytes: &[u8]) {
-    if g_st().inhibit_delete_count.get() != 0 {
+    if g_st().edit.inhibit_delete_count.get() != 0 {
         return;
     }
     let len = bytes.len();
@@ -3141,7 +3158,7 @@ fn ml_delete_int(buf: &FileBuf, lnum: Linenr, flags: i32) -> bool {
     assert!(line_size >= 1);
     let start = line_start as usize;
     let end = start + (line_size - 1) as usize;
-    if g_st().inhibit_delete_count.get() == 0 {
+    if g_st().edit.inhibit_delete_count.get() == 0 {
         let len = end - start;
         buf.deleted_bytes.set(buf.deleted_bytes.get() + (len + 1));
         buf.deleted_bytes2.set(buf.deleted_bytes2.get() + (len + 1));
@@ -3874,7 +3891,10 @@ fn do_swapexists(buf: &FileBuf, fname: &CStr) -> SeaChoice {
     set_vim_var_string(VV_SWAPNAME, Some(fname), -1);
     set_vim_var_string(VV_SWAPCHOICE, None, -1);
 
-    g_st().allbuf_lock.set(g_st().allbuf_lock.get() + (1));
+    g_st()
+        .input
+        .allbuf_lock
+        .set(g_st().input.allbuf_lock.get() + (1));
     apply_autocmds(
         EVENT_SWAPEXISTS,
         buf.fname_opt().as_deref(),
@@ -3882,7 +3902,10 @@ fn do_swapexists(buf: &FileBuf, fname: &CStr) -> SeaChoice {
         false,
         None,
     );
-    g_st().allbuf_lock.set(g_st().allbuf_lock.get() - (1));
+    g_st()
+        .input
+        .allbuf_lock
+        .set(g_st().input.allbuf_lock.get() - (1));
 
     set_vim_var_string(VV_SWAPNAME, None, -1);
 
@@ -3938,7 +3961,7 @@ fn findswapname(
 
         let fname_slice = &fvec[..n];
         if fname_slice.ends_with(b"wp")
-            && !g_st().recoverymode.get()
+            && !g_st().exc.recoverymode.get()
             && buf_fname.is_some()
             && !buf.b_help.get()
             && (buf.b_flags.get() & BF_DUMMY) == 0
@@ -4004,27 +4027,32 @@ fn findswapname(
                 }
 
                 if choice == SEA_CHOICE_NONE
-                    && g_st().swap_exists_action.get() != SEA_NONE
+                    && g_st().workspace.swap_exists_action.get() != SEA_NONE
                     && has_autocmd(EVENT_SWAPEXISTS, buf_fname.as_deref(), Some(buf))
                 {
                     choice = do_swapexists(buf, fname_cstr);
                 }
 
-                if choice == SEA_CHOICE_NONE && g_st().swap_exists_action.get() == SEA_READONLY {
+                if choice == SEA_CHOICE_NONE
+                    && g_st().workspace.swap_exists_action.get() == SEA_READONLY
+                {
                     choice = SEA_CHOICE_READONLY;
                 }
 
                 ml_st(|st| st.proc_running.set(0));
                 if choice == SEA_CHOICE_NONE {
-                    g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
+                    g_st()
+                        .msg
+                        .no_wait_return
+                        .set(g_st().msg.no_wait_return.get() + (1));
                     let mut msg_sb = Vec::<u8>::with_capacity(IOSIZE);
                     let fhname = home_replace_save(None, Some(fname_cstr));
                     attention_message(buf, fname_cstr, &fhname, &mut msg_sb);
 
-                    g_st().got_int.set(false);
+                    g_st().input.got_int.set(false);
                     flush_buffers(FLUSH_TYPEAHEAD);
 
-                    if g_st().swap_exists_action.get() != SEA_NONE {
+                    if g_st().workspace.swap_exists_action.get() != SEA_NONE {
                         sb_push_cstr(&mut msg_sb, tr(c"Swap file \""));
                         sb_push_cstr(&mut msg_sb, &fhname);
                         sb_push_cstr(&mut msg_sb, tr(c"\" already exists!"));
@@ -4061,7 +4089,10 @@ fn findswapname(
                             &mut need_clear,
                         );
                     }
-                    g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
+                    g_st()
+                        .msg
+                        .no_wait_return
+                        .set(g_st().msg.no_wait_return.get() - (1));
                 }
 
                 match choice {
@@ -4070,22 +4101,22 @@ fn findswapname(
                     }
                     SEA_CHOICE_EDIT => {}
                     SEA_CHOICE_RECOVER => {
-                        g_st().swap_exists_action.set(SEA_RECOVER);
+                        g_st().workspace.swap_exists_action.set(SEA_RECOVER);
                     }
                     SEA_CHOICE_DELETE => {
                         os_remove(fname_cstr);
                     }
                     SEA_CHOICE_QUIT => {
-                        g_st().swap_exists_action.set(SEA_QUIT);
+                        g_st().workspace.swap_exists_action.set(SEA_QUIT);
                     }
                     SEA_CHOICE_ABORT => {
-                        g_st().swap_exists_action.set(SEA_QUIT);
-                        g_st().got_int.set(true);
+                        g_st().workspace.swap_exists_action.set(SEA_QUIT);
+                        g_st().input.got_int.set(true);
                     }
                     SEA_CHOICE_NONE => {
                         msg_puts(c"\n");
-                        if g_st().msg_silent.get() == 0 {
-                            g_st().need_wait_return.set(true);
+                        if g_st().msg.msg_silent.get() == 0 {
+                            g_st().msg.need_wait_return.set(true);
                         }
                     }
                     _ => {}

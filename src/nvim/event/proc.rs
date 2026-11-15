@@ -308,11 +308,11 @@ pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<MultiQueue>) -> 
 
         (*proc_).refcount += 1;
         loop_process_events_until(main_loop_ptr(), events.opt(), i64::from(ms), || {
-            g_st().got_int.get() || ptr::read_volatile(&raw const (*proc_).refcount) == 1
+            g_st().input.got_int.get() || ptr::read_volatile(&raw const (*proc_).refcount) == 1
         });
 
-        if g_st().got_int.get() {
-            g_st().got_int.set(false);
+        if g_st().input.got_int.get() {
+            g_st().input.got_int.set(false);
             proc_stop(&mut *proc_);
             if ms == -1 {
                 loop_process_events_until(main_loop_ptr(), events.opt(), -1, || {
@@ -486,7 +486,7 @@ fn flush_stream(proc_in: &mut Proc, is_err: bool) {
 
         while !ptr::read_volatile(&raw const (*stream).s.closed)
             && ptr::read_volatile(&raw const (*stream).num_bytes) < max_bytes
-            && !g_st().got_int.get()
+            && !g_st().input.got_int.get()
         {
             let num_bytes = ptr::read_volatile(&raw const (*stream).num_bytes);
 
@@ -540,9 +540,9 @@ pub fn exit_event(status: i32) {
         return;
     }
 
-    if !g_st().exiting.get() {
-        if g_st().ui_client_channel_id.get() != 0 {
-            g_st().ui_client_exit_status.set(status);
+    if !g_st().exc.exiting.get() {
+        if g_st().screen.ui_client_channel_id.get() != 0 {
+            g_st().screen.ui_client_exit_status.set(status);
             os_exit(status);
         } else {
             debug_assert_eq!(status, 0);

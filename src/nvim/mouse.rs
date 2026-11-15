@@ -265,11 +265,13 @@ fn find_end_of_word(pos: &mut CursorPos) {
 /// Move the current tab to tab in same column as mouse or to end of the
 /// tabline if there is no tab there.
 fn move_tab_to_mouse() {
-    let tabnr =
-        g_st().tab_page_click_defs.borrow().as_slice()[g_st().mouse_col.get() as usize].tabnr;
+    let col = g_st().input.mouse_col.get() as usize;
+    let tabnr = g_st()
+        .screen
+        .with_tab_page_click_defs(|defs| defs[col].tabnr);
     if tabnr <= 0 {
         tabpage_move(9999);
-    } else if tabnr < tabpage_index(g_st().curtab.get().opt()) {
+    } else if tabnr < tabpage_index(g_st().workspace.curtab.get().opt()) {
         tabpage_move(tabnr - 1);
     } else {
         tabpage_move(tabnr);
@@ -279,11 +281,11 @@ fn move_tab_to_mouse() {
 /// Close the current or specified tab page.
 fn mouse_tab_close(c1: i32) {
     let tp = if c1 == 999 {
-        g_st().curtab.get().clone()
+        g_st().workspace.curtab.get().clone()
     } else {
         crate::globals::TabpagePtr::from(find_tabpage(c1))
     };
-    if g_st().curtab.get() == tp {
+    if g_st().workspace.curtab.get() == tp {
         if !crate::globals::first_tabpage().tp_next.get().is_null() {
             tabpage_close(false);
         }
@@ -295,11 +297,11 @@ fn mouse_tab_close(c1: i32) {
 /// Call click definition function for column "col" in the "click_defs" array for button
 /// "which_button".
 fn call_click_def_func(click_defs: &[StlClickDefinition], col: i32, which_button: i32) {
-    let clicks = if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
+    let clicks = if (g_st().input.mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
         4
-    } else if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
+    } else if (g_st().input.mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
         3
-    } else if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+    } else if (g_st().input.mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
         2
     } else {
         1
@@ -320,22 +322,22 @@ fn call_click_def_func(click_defs: &[StlClickDefinition], col: i32, which_button
     };
 
     let mod_str: [u8; 5] = [
-        if (g_st().mod_mask.get() & MOD_MASK_SHIFT) != 0 {
+        if (g_st().input.mod_mask.get() & MOD_MASK_SHIFT) != 0 {
             b's'
         } else {
             b' '
         },
-        if (g_st().mod_mask.get() & MOD_MASK_CTRL) != 0 {
+        if (g_st().input.mod_mask.get() & MOD_MASK_CTRL) != 0 {
             b'c'
         } else {
             b' '
         },
-        if (g_st().mod_mask.get() & MOD_MASK_ALT) != 0 {
+        if (g_st().input.mod_mask.get() & MOD_MASK_ALT) != 0 {
             b'a'
         } else {
             b' '
         },
-        if (g_st().mod_mask.get() & MOD_MASK_META) != 0 {
+        if (g_st().input.mod_mask.get() & MOD_MASK_META) != 0 {
             b'm'
         } else {
             b' '
@@ -386,9 +388,9 @@ fn get_fpos_of_mouse(
     mpos: &mut CursorPos,
     wpp: Option<&mut Option<crate::globals::WinPtr>>,
 ) -> i32 {
-    let mut grid = g_st().mouse_grid.get();
-    let mut row = g_st().mouse_row.get();
-    let mut col = g_st().mouse_col.get();
+    let mut grid = g_st().input.mouse_grid.get();
+    let mut row = g_st().input.mouse_row.get();
+    let mut col = g_st().input.mouse_col.get();
 
     if row < 0 || col < 0 {
         return IN_UNKNOWN;
@@ -419,11 +421,11 @@ fn get_fpos_of_mouse(
     }
 
     if winrow >= wp.w_view_height.get() + wp.w_status_height.get() {
-        if g_st().mouse_grid.get() <= 1
-            && i64::from(g_st().mouse_row.get())
-                < i64::from(g_st().rows_global.get()) - opt_vars().p_ch.get()
-            && i64::from(g_st().mouse_row.get())
-                >= i64::from(g_st().rows_global.get())
+        if g_st().input.mouse_grid.get() <= 1
+            && i64::from(g_st().input.mouse_row.get())
+                < i64::from(g_st().screen.rows_global.get()) - opt_vars().p_ch.get()
+            && i64::from(g_st().input.mouse_row.get())
+                >= i64::from(g_st().screen.rows_global.get())
                     - opt_vars().p_ch.get()
                     - i64::from(global_stl_height())
         {
@@ -453,32 +455,36 @@ fn get_fpos_of_mouse(
 fn do_popup(which_button: i32, m_pos_flag: i32, mut m_pos: CursorPos) -> i32 {
     let mut jump_flags = 0;
     if opt_vars().p_mousem.as_bytes() == b"popup_setpos" {
-        if g_st().visual_global.borrow().active {
+        if g_st().edit.visual_global.active.get() {
             if m_pos_flag != IN_BUFFER {
                 jump_flags = MOUSE_MAY_STOP_VIS;
-            } else if g_st().visual_global.borrow().mode == b'V' as i32 {
-                if (curwin().w_cursor.get().lnum <= g_st().visual_global.borrow().start.lnum
+            } else if g_st().edit.visual_global.mode.get() == b'V' as i32 {
+                if (curwin().w_cursor.get().lnum <= g_st().edit.visual_global.start.get().lnum
                     && (m_pos.lnum < curwin().w_cursor.get().lnum
-                        || g_st().visual_global.borrow().start.lnum < m_pos.lnum))
-                    || (g_st().visual_global.borrow().start.lnum < curwin().w_cursor.get().lnum
-                        && (m_pos.lnum < g_st().visual_global.borrow().start.lnum
+                        || g_st().edit.visual_global.start.get().lnum < m_pos.lnum))
+                    || (g_st().edit.visual_global.start.get().lnum < curwin().w_cursor.get().lnum
+                        && (m_pos.lnum < g_st().edit.visual_global.start.get().lnum
                             || curwin().w_cursor.get().lnum < m_pos.lnum))
                 {
                     jump_flags = MOUSE_MAY_STOP_VIS;
                 }
-            } else if (ltoreq(curwin().w_cursor.get(), g_st().visual_global.borrow().start)
-                && (lt(m_pos, curwin().w_cursor.get())
-                    || lt(g_st().visual_global.borrow().start, m_pos)))
-                || (lt(g_st().visual_global.borrow().start, curwin().w_cursor.get())
-                    && (lt(m_pos, g_st().visual_global.borrow().start)
-                        || lt(curwin().w_cursor.get(), m_pos)))
+            } else if (ltoreq(
+                curwin().w_cursor.get(),
+                g_st().edit.visual_global.start.get(),
+            ) && (lt(m_pos, curwin().w_cursor.get())
+                || lt(g_st().edit.visual_global.start.get(), m_pos)))
+                || (lt(
+                    g_st().edit.visual_global.start.get(),
+                    curwin().w_cursor.get(),
+                ) && (lt(m_pos, g_st().edit.visual_global.start.get())
+                    || lt(curwin().w_cursor.get(), m_pos)))
             {
                 jump_flags = MOUSE_MAY_STOP_VIS;
-            } else if g_st().visual_global.borrow().mode == CTRL_V_CONST {
+            } else if g_st().edit.visual_global.mode.get() == CTRL_V_CONST {
                 let mut leftcol: Colnr = 0;
                 let mut rightcol: Colnr = 0;
                 let mut cursor = curwin().w_cursor.get();
-                let mut vstart = g_st().visual_global.borrow().start;
+                let mut vstart = g_st().edit.visual_global.start.get();
                 getvcols(
                     &curwin(),
                     &mut cursor,
@@ -487,7 +493,7 @@ fn do_popup(which_button: i32, m_pos_flag: i32, mut m_pos: CursorPos) -> i32 {
                     &mut rightcol,
                     0,
                 );
-                g_st().visual_global.borrow_mut().start = vstart;
+                g_st().edit.visual_global.start.set(vstart);
                 curwin().w_cursor.set(cursor);
                 let mut col = m_pos.col;
                 getvcol(&curwin(), &mut m_pos, None, Some(&mut col), None, 0);
@@ -502,7 +508,7 @@ fn do_popup(which_button: i32, m_pos_flag: i32, mut m_pos: CursorPos) -> i32 {
     }
     if jump_flags != 0 {
         jump_flags = jump_to_mouse(jump_flags, None, which_button);
-        redraw_curbuf_later(if g_st().visual_global.borrow().active {
+        redraw_curbuf_later(if g_st().edit.visual_global.active.get() {
             UPD_INVERTED
         } else {
             UPD_VALID
@@ -530,19 +536,19 @@ pub fn do_mouse(
 
     loop {
         which_button = get_mouse_button(key2termcap1(c), &mut is_click, &mut is_drag);
-        if is_drag && g_st().key_stuffed.get() == 0 && vpeekc() != 0 {
-            let save_mouse_grid = g_st().mouse_grid.get();
-            let save_mouse_row = g_st().mouse_row.get();
-            let save_mouse_col = g_st().mouse_col.get();
+        if is_drag && g_st().input.key_stuffed.get() == 0 && vpeekc() != 0 {
+            let save_mouse_grid = g_st().input.mouse_grid.get();
+            let save_mouse_row = g_st().input.mouse_row.get();
+            let save_mouse_col = g_st().input.mouse_col.get();
 
             let nc = safe_vgetc();
             if c == nc {
                 continue;
             }
             vungetc(nc);
-            g_st().mouse_grid.set(save_mouse_grid);
-            g_st().mouse_row.set(save_mouse_row);
-            g_st().mouse_col.set(save_mouse_col);
+            g_st().input.mouse_grid.set(save_mouse_grid);
+            g_st().input.mouse_row.set(save_mouse_row);
+            g_st().input.mouse_col.set(save_mouse_col);
         }
         break;
     }
@@ -568,8 +574,9 @@ pub fn do_mouse(
         }
     }
 
-    if is_click && (g_st().mod_mask.get() & MOD_MASK_CTRL) != 0 && which_button == MOUSE_RIGHT {
-        if (g_st().state_global.get() & MODE_INSERT) != 0 {
+    if is_click && (g_st().input.mod_mask.get() & MOD_MASK_CTRL) != 0 && which_button == MOUSE_RIGHT
+    {
+        if (g_st().edit.state_global.get() & MODE_INSERT) != 0 {
             stuffchar_readbuff(CTRL_O);
         }
         if count > 1 {
@@ -577,25 +584,26 @@ pub fn do_mouse(
         }
         stuffchar_readbuff(CTRL_T_CONST);
         mouse_st(|st| st.got_click.set(false));
-        if (g_st().state_global.get() & MODE_INSERT) == 0 {
+        if (g_st().edit.state_global.get() & MODE_INSERT) == 0 {
             exec_stuffed(None);
         }
         return false;
     }
 
-    if (g_st().mod_mask.get() & MOD_MASK_CTRL) != 0 && which_button != MOUSE_LEFT {
+    if (g_st().input.mod_mask.get() & MOD_MASK_CTRL) != 0 && which_button != MOUSE_LEFT {
         return false;
     }
 
-    if (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL | MOD_MASK_ALT | MOD_MASK_META))
+    if (g_st().input.mod_mask.get()
+        & (MOD_MASK_SHIFT | MOD_MASK_CTRL | MOD_MASK_ALT | MOD_MASK_META))
         != 0
         && (!is_click
-            || (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) != 0
+            || (g_st().input.mod_mask.get() & MOD_MASK_MULTI_CLICK) != 0
             || which_button == MOUSE_MIDDLE)
-        && !((g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_ALT)) != 0
+        && !((g_st().input.mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_ALT)) != 0
             && mouse_model_popup()
             && which_button == MOUSE_LEFT)
-        && !((g_st().mod_mask.get() & MOD_MASK_ALT) != 0
+        && !((g_st().input.mod_mask.get() & MOD_MASK_ALT) != 0
             && !mouse_model_popup()
             && which_button == MOUSE_RIGHT)
     {
@@ -612,14 +620,14 @@ pub fn do_mouse(
         0
     };
     if which_button == MOUSE_MIDDLE {
-        if g_st().state_global.get() == MODE_NORMAL {
+        if g_st().edit.state_global.get() == MODE_NORMAL {
             if oap.is_some() && oap.as_deref_mut().unwrap().op_type != OP_NOP {
                 clearopbeep(oap.as_deref_mut().unwrap());
                 return false;
             }
 
-            if g_st().visual_global.borrow().active {
-                if g_st().visual_global.borrow().select {
+            if g_st().edit.visual_global.active.get() {
+                if g_st().edit.visual_global.select.get() {
                     stuffchar_readbuff(CTRL_G);
                     stuff_readbuff(c"\"+p");
                 } else {
@@ -633,11 +641,11 @@ pub fn do_mouse(
                 exec_stuffed(None);
                 return false;
             }
-        } else if (g_st().state_global.get() & MODE_INSERT) == 0 {
+        } else if (g_st().edit.state_global.get() & MODE_INSERT) == 0 {
             return false;
         }
 
-        if (g_st().state_global.get() & MODE_INSERT) != 0 {
+        if (g_st().edit.state_global.get() & MODE_INSERT) != 0 {
             if regname == b'.' as i32 {
                 insert_reg(regname, None, true);
             } else {
@@ -645,7 +653,7 @@ pub fn do_mouse(
                     regname = b'*' as i32;
                 }
                 let mut reg: Option<crate::register::RegIdx> = None;
-                if (g_st().state_global.get() & REPLACE_FLAG) != 0
+                if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0
                     && !yank_register_mline(regname, &mut reg)
                 {
                     insert_reg(regname, reg, true);
@@ -674,9 +682,12 @@ pub fn do_mouse(
     };
     let old_curwin = curwin();
 
-    if !g_st().tab_page_click_defs.borrow().is_empty() {
-        if g_st().mouse_grid.get() <= 1
-            && g_st().mouse_row.get() == 0
+    if g_st()
+        .screen
+        .with_tab_page_click_defs(|defs| !defs.is_empty())
+    {
+        if g_st().input.mouse_grid.get() <= 1
+            && g_st().input.mouse_row.get() == 0
             && firstwin().w_winrow.get() > 0
         {
             if is_drag {
@@ -686,19 +697,21 @@ pub fn do_mouse(
                 return false;
             }
 
-            if is_click && g_st().mouse_col.get() < g_st().columns_global.get() {
-                let (tabnr, click_type) = {
-                    let defs = g_st().tab_page_click_defs.borrow();
-                    let def = &defs.as_slice()[g_st().mouse_col.get() as usize];
+            if is_click && g_st().input.mouse_col.get() < g_st().screen.columns_global.get() {
+                let col = g_st().input.mouse_col.get() as usize;
+                let (tabnr, click_type) = g_st().screen.with_tab_page_click_defs(|defs| {
+                    let def = &defs[col];
                     (def.tabnr, def.type_)
-                };
+                });
                 mouse_st(|st| st.in_tab_line.set(true));
 
                 match click_type {
                     K_STL_CLICK_DISABLED => {}
                     K_STL_CLICK_TAB_SWITCH => {
                         if which_button != MOUSE_MIDDLE {
-                            if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+                            if (g_st().input.mod_mask.get() & MOD_MASK_MULTI_CLICK)
+                                == MOD_MASK_2CLICK
+                            {
                                 end_visual_mode();
                                 tabpage_new();
                                 tabpage_move(if tabnr == 0 { 9999 } else { tabnr - 1 });
@@ -716,10 +729,12 @@ pub fn do_mouse(
                         mouse_tab_close(tabnr);
                     }
                     K_STL_CLICK_FUNC_RUN => {
-                        let defs_clone = g_st().tab_page_click_defs.borrow().clone();
+                        let defs_clone = g_st()
+                            .screen
+                            .with_tab_page_click_defs(<[StlClickDefinition]>::to_vec);
                         call_click_def_func(
                             defs_clone.as_slice(),
-                            g_st().mouse_col.get(),
+                            g_st().input.mouse_col.get(),
                             which_button,
                         );
                     }
@@ -733,7 +748,8 @@ pub fn do_mouse(
         }
     }
 
-    if is_click && (g_st().mod_mask.get() & MOD_MASK_CTRL) != 0 && which_button == MOUSE_LEFT {
+    if is_click && (g_st().input.mod_mask.get() & MOD_MASK_CTRL) != 0 && which_button == MOUSE_LEFT
+    {
         let mut pos = ZERO_POS;
         let mut wp: Option<crate::globals::WinPtr> = None;
         if get_fpos_of_mouse(&mut pos, Some(&mut wp)) == IN_BUFFER
@@ -741,7 +757,7 @@ pub fn do_mouse(
             && !bt_quickfix(wp.buf_opt().as_deref())
         {
             mouse_st(|st| st.got_click.set(false));
-            if (g_st().state_global.get() & MODE_INSERT) == 0 {
+            if (g_st().edit.state_global.get() & MODE_INSERT) == 0 {
                 pos.coladd = 0;
 
                 mc_toggle(&wp.buf(), pos, false, K_NONE);
@@ -756,7 +772,7 @@ pub fn do_mouse(
         m_pos_flag = get_fpos_of_mouse(&mut m_pos, None);
         if (m_pos_flag & (IN_STATUS_LINE | MOUSE_WINBAR | MOUSE_STATUSCOL)) == 0
             && which_button == MOUSE_RIGHT
-            && (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
+            && (g_st().input.mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
         {
             if !is_click {
                 return false;
@@ -765,36 +781,40 @@ pub fn do_mouse(
         }
         if (m_pos_flag & (IN_STATUS_LINE | MOUSE_WINBAR | MOUSE_STATUSCOL)) == 0
             && which_button == MOUSE_LEFT
-            && (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_ALT)) != 0
+            && (g_st().input.mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_ALT)) != 0
         {
             which_button = MOUSE_RIGHT;
             g_st()
+                .input
                 .mod_mask
-                .set(g_st().mod_mask.get() & (!MOD_MASK_SHIFT));
+                .set(g_st().input.mod_mask.get() & (!MOD_MASK_SHIFT));
         }
     }
 
     let mut end_visual = ZERO_POS;
     let mut start_visual = ZERO_POS;
     let mouse_can_visual = ui_mouse_has(K_MOUSE_VISUAL);
-    if (g_st().state_global.get() & (MODE_NORMAL | MODE_INSERT)) != 0
-        && (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
+    if (g_st().edit.state_global.get() & (MODE_NORMAL | MODE_INSERT)) != 0
+        && (g_st().input.mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
     {
         if which_button == MOUSE_LEFT && mouse_can_visual {
             if is_click {
-                if g_st().visual_global.borrow().active {
+                if g_st().edit.visual_global.active.get() {
                     jump_flags |= MOUSE_MAY_STOP_VIS;
                 }
             } else {
                 jump_flags |= MOUSE_MAY_VIS;
             }
         } else if which_button == MOUSE_RIGHT && mouse_can_visual {
-            if is_click && g_st().visual_global.borrow().active {
-                if lt(curwin().w_cursor.get(), g_st().visual_global.borrow().start) {
+            if is_click && g_st().edit.visual_global.active.get() {
+                if lt(
+                    curwin().w_cursor.get(),
+                    g_st().edit.visual_global.start.get(),
+                ) {
                     start_visual = curwin().w_cursor.get();
-                    end_visual = g_st().visual_global.borrow().start;
+                    end_visual = g_st().edit.visual_global.start.get();
                 } else {
-                    start_visual = g_st().visual_global.borrow().start;
+                    start_visual = g_st().edit.visual_global.start.get();
                     end_visual = curwin().w_cursor.get();
                 }
             }
@@ -814,10 +834,10 @@ pub fn do_mouse(
         jump_flags |= MOUSE_RELEASED;
     }
 
-    let old_active = g_st().visual_global.borrow().active;
+    let old_active = g_st().edit.visual_global.active.get();
     let save_cursor = curwin().w_cursor.get();
 
-    if !g_st().visual_global.borrow().active || mouse_can_visual {
+    if !g_st().edit.visual_global.active.get() || mouse_can_visual {
         jump_flags = jump_to_mouse(
             jump_flags,
             oap.as_deref_mut().map(|o| &mut o.inclusive),
@@ -825,7 +845,7 @@ pub fn do_mouse(
         );
     }
 
-    if g_st().mod_mask.get() == 0
+    if g_st().input.mod_mask.get() == 0
         && !is_drag
         && (jump_flags & (MOUSE_FOLD_CLOSE | MOUSE_FOLD_OPEN)) != 0
         && which_button == MOUSE_LEFT
@@ -848,9 +868,9 @@ pub fn do_mouse(
     let in_sep_line = (jump_flags & IN_SEP_LINE) != 0;
 
     if (in_winbar || in_status_line || in_statuscol) && is_click {
-        let mut click_grid = g_st().mouse_grid.get();
-        let mut click_row = g_st().mouse_row.get();
-        let mut click_col = g_st().mouse_col.get();
+        let mut click_grid = g_st().input.mouse_grid.get();
+        let mut click_row = g_st().input.mouse_row.get();
+        let mut click_col = g_st().input.mouse_col.get();
         let Some(wp) = mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col) else {
             return false;
         };
@@ -858,7 +878,7 @@ pub fn do_mouse(
         let mut click_defs: Option<Vec<StlClickDefinition>> = if in_status_line {
             let stl_wp: &WinInfoInfo = if in_global_statusline { &curwin() } else { &wp };
             if in_global_statusline {
-                click_col = g_st().mouse_col.get();
+                click_col = g_st().input.mouse_col.get();
             }
             if click_col >= stl_wp.w_status_click_defs.borrow().len() as i32 {
                 return false;
@@ -905,7 +925,7 @@ pub fn do_mouse(
                     if in_statuscol
                         && mouse_model_popup()
                         && which_button == MOUSE_RIGHT
-                        && (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
+                        && (g_st().input.mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
                     {
                         do_popup(which_button, m_pos_flag, m_pos);
                     }
@@ -930,26 +950,26 @@ pub fn do_mouse(
         clearop(oap.as_deref_mut().unwrap());
     }
 
-    if g_st().visual_global.borrow().active && is_drag && get_scrolloff_value(&curwin()) != 0 {
-        if g_st().mouse_row.get() == 0 {
-            g_st().mouse_dragging.set(2);
+    if g_st().edit.visual_global.active.get() && is_drag && get_scrolloff_value(&curwin()) != 0 {
+        if g_st().input.mouse_row.get() == 0 {
+            g_st().input.mouse_dragging.set(2);
         } else {
-            g_st().mouse_dragging.set(1);
+            g_st().input.mouse_dragging.set(1);
         }
     }
 
-    if is_drag && g_st().mouse_row.get() < 0 && !in_status_line {
+    if is_drag && g_st().input.mouse_row.get() < 0 && !in_status_line {
         scroll_redraw(0, 1);
-        g_st().mouse_row.set(0);
+        g_st().input.mouse_row.set(0);
     }
 
-    let old_mode = g_st().visual_global.borrow().mode;
+    let old_mode = g_st().edit.visual_global.mode.get();
     if start_visual.lnum != 0 {
-        if (g_st().mod_mask.get() & MOD_MASK_ALT) != 0 {
-            g_st().visual_global.borrow_mut().mode = CTRL_V_CONST;
+        if (g_st().input.mod_mask.get() & MOD_MASK_ALT) != 0 {
+            g_st().edit.visual_global.mode.set(CTRL_V_CONST);
         }
 
-        if g_st().visual_global.borrow().mode == CTRL_V_CONST {
+        if g_st().edit.visual_global.mode.get() == CTRL_V_CONST {
             let mut leftcol: Colnr = 0;
             let mut rightcol: Colnr = 0;
             getvcols(
@@ -972,35 +992,36 @@ pub fn do_mouse(
             start_visual = curwin().w_cursor.get();
             curwin().w_cursor.set(end_visual);
             coladvance(&curwin(), end_visual.col);
-            g_st().visual_global.borrow_mut().start = curwin().w_cursor.get();
+            g_st().edit.visual_global.start.set(curwin().w_cursor.get());
             curwin().w_cursor.set(start_visual);
         } else if lt(curwin().w_cursor.get(), start_visual) {
-            g_st().visual_global.borrow_mut().start = end_visual;
+            g_st().edit.visual_global.start.set(end_visual);
         } else if lt(end_visual, curwin().w_cursor.get()) {
-            g_st().visual_global.borrow_mut().start = start_visual;
+            g_st().edit.visual_global.start.set(start_visual);
         } else if end_visual.lnum == start_visual.lnum {
             if curwin().w_cursor.get().col - start_visual.col
                 > end_visual.col - curwin().w_cursor.get().col
             {
-                g_st().visual_global.borrow_mut().start = start_visual;
+                g_st().edit.visual_global.start.set(start_visual);
             } else {
-                g_st().visual_global.borrow_mut().start = end_visual;
+                g_st().edit.visual_global.start.set(end_visual);
             }
         } else {
             let diff = (curwin().w_cursor.get().lnum - start_visual.lnum)
                 - (end_visual.lnum - curwin().w_cursor.get().lnum);
 
             if diff > 0 {
-                g_st().visual_global.borrow_mut().start = start_visual;
+                g_st().edit.visual_global.start.set(start_visual);
             } else if diff < 0
                 || curwin().w_cursor.get().col < (start_visual.col + end_visual.col) / 2
             {
-                g_st().visual_global.borrow_mut().start = end_visual;
+                g_st().edit.visual_global.start.set(end_visual);
             } else {
-                g_st().visual_global.borrow_mut().start = start_visual;
+                g_st().edit.visual_global.start.set(start_visual);
             }
         }
-    } else if (g_st().state_global.get() & MODE_INSERT) != 0 && g_st().visual_global.borrow().active
+    } else if (g_st().edit.state_global.get() & MODE_INSERT) != 0
+        && g_st().edit.visual_global.active.get()
     {
         stuffchar_readbuff(CTRL_O);
     }
@@ -1049,8 +1070,8 @@ pub fn do_mouse(
             },
         );
 
-        if g_st().restart_edit.get() != 0 {
-            g_st().where_paste_started.set(curwin().w_cursor.get());
+        if g_st().edit.restart_edit.get() != 0 {
+            g_st().edit.where_paste_started.set(curwin().w_cursor.get());
         }
         do_put(
             regname,
@@ -1059,8 +1080,8 @@ pub fn do_mouse(
             count,
             (if fixindent { PUT_FIXINDENT } else { 0 }) | PUT_CURSEND,
         );
-    } else if ((g_st().mod_mask.get() & MOD_MASK_CTRL) != 0
-        || (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK)
+    } else if ((g_st().input.mod_mask.get() & MOD_MASK_CTRL) != 0
+        || (g_st().input.mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK)
         && bt_quickfix(Some(&crate::globals::curbuf()))
     {
         if curwin().w_llist_ref.get().is_null() {
@@ -1070,19 +1091,19 @@ pub fn do_mouse(
         }
         mouse_st(|st| st.got_click.set(false));
     } else if curbuf().b_help.get()
-        && (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK
+        && (g_st().input.mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK
     {
-        if (g_st().state_global.get() & MODE_INSERT) != 0 {
+        if (g_st().edit.state_global.get() & MODE_INSERT) != 0 {
             stuffchar_readbuff(CTRL_O);
         }
         stuffchar_readbuff(CTRL_RSB_CONST);
         mouse_st(|st| st.got_click.set(false));
-        if (g_st().state_global.get() & MODE_INSERT) == 0 {
+        if (g_st().edit.state_global.get() & MODE_INSERT) == 0 {
             exec_stuffed(None);
         }
-    } else if (g_st().mod_mask.get() & MOD_MASK_SHIFT) != 0 {
-        if (g_st().state_global.get() & MODE_INSERT) != 0
-            || (g_st().visual_global.borrow().active && g_st().visual_global.borrow().select)
+    } else if (g_st().input.mod_mask.get() & MOD_MASK_SHIFT) != 0 {
+        if (g_st().edit.state_global.get() & MODE_INSERT) != 0
+            || (g_st().edit.visual_global.active.get() && g_st().edit.visual_global.select.get())
         {
             stuffchar_readbuff(CTRL_O);
         }
@@ -1091,39 +1112,39 @@ pub fn do_mouse(
         } else {
             stuffchar_readbuff(b'#' as i32);
         }
-        if (g_st().state_global.get() & MODE_INSERT) == 0 {
+        if (g_st().edit.state_global.get() & MODE_INSERT) == 0 {
             exec_stuffed(None);
         }
     } else if in_status_line || in_sep_line {
         // Do nothing if on status line or vertical separator
-    } else if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) != 0
-        && (g_st().state_global.get() & (MODE_NORMAL | MODE_INSERT)) != 0
+    } else if (g_st().input.mod_mask.get() & MOD_MASK_MULTI_CLICK) != 0
+        && (g_st().edit.state_global.get() & (MODE_NORMAL | MODE_INSERT)) != 0
         && mouse_can_visual
     {
-        if is_click || !g_st().visual_global.borrow().active {
-            if g_st().visual_global.borrow().active {
-                mouse_st(|st| st.orig_cursor.set(g_st().visual_global.borrow().start));
+        if is_click || !g_st().edit.visual_global.active.get() {
+            if g_st().edit.visual_global.active.get() {
+                mouse_st(|st| st.orig_cursor.set(g_st().edit.visual_global.start.get()));
             } else {
-                g_st().visual_global.borrow_mut().start = curwin().w_cursor.get();
-                mouse_st(|st| st.orig_cursor.set(g_st().visual_global.borrow().start));
-                g_st().visual_global.borrow_mut().active = true;
-                g_st().visual_global.borrow_mut().reselect = 1;
+                g_st().edit.visual_global.start.set(curwin().w_cursor.get());
+                mouse_st(|st| st.orig_cursor.set(g_st().edit.visual_global.start.get()));
+                g_st().edit.visual_global.active.set(true);
+                g_st().edit.visual_global.reselect.set(1);
                 may_start_select(b'o' as i32);
                 setmouse();
             }
-            if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
-                if (g_st().mod_mask.get() & MOD_MASK_ALT) != 0 {
-                    g_st().visual_global.borrow_mut().mode = CTRL_V_CONST;
+            if (g_st().input.mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+                if (g_st().input.mod_mask.get() & MOD_MASK_ALT) != 0 {
+                    g_st().edit.visual_global.mode.set(CTRL_V_CONST);
                 } else {
-                    g_st().visual_global.borrow_mut().mode = b'v' as i32;
+                    g_st().edit.visual_global.mode.set(b'v' as i32);
                 }
-            } else if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
-                g_st().visual_global.borrow_mut().mode = b'V' as i32;
-            } else if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
-                g_st().visual_global.borrow_mut().mode = CTRL_V_CONST;
+            } else if (g_st().input.mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
+                g_st().edit.visual_global.mode.set(b'V' as i32);
+            } else if (g_st().input.mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
+                g_st().edit.visual_global.mode.set(CTRL_V_CONST);
             }
         }
-        if (g_st().mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+        if (g_st().input.mod_mask.get() & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
             let mut pos: Option<CursorPos> = None;
 
             if is_click {
@@ -1135,19 +1156,25 @@ pub fn do_mouse(
                     oap.as_deref_mut().unwrap().motion_type = MT_CHAR_WISE;
                 }
                 if oap.is_some()
-                    && g_st().visual_global.borrow().mode == b'v' as i32
+                    && g_st().edit.visual_global.mode.get() == b'v' as i32
                     && !vim_iswordc(gchar_pos(&mut end_visual))
-                    && equalpos(curwin().w_cursor.get(), g_st().visual_global.borrow().start)
+                    && equalpos(
+                        curwin().w_cursor.get(),
+                        g_st().edit.visual_global.start.get(),
+                    )
                 {
                     pos = findmatch(oap.as_deref_mut(), 0);
                     if let Some(p) = pos {
                         curwin().w_cursor.set(p);
 
                         if oap.unwrap().motion_type == MT_LINE_WISE {
-                            g_st().visual_global.borrow_mut().mode = b'V' as i32;
+                            g_st().edit.visual_global.mode.set(b'V' as i32);
                         } else if opt_vars().p_sel.first_byte() == b'e' {
-                            if lt(curwin().w_cursor.get(), g_st().visual_global.borrow().start) {
-                                g_st().visual_global.borrow_mut().start.col += 1;
+                            if lt(
+                                curwin().w_cursor.get(),
+                                g_st().edit.visual_global.start.get(),
+                            ) {
+                                g_st().edit.visual_global.start.add_col(1);
                             } else {
                                 curwin().w_cursor.add_col(1);
                             }
@@ -1158,13 +1185,13 @@ pub fn do_mouse(
             if pos.is_none() && (is_click || is_drag) {
                 if lt(curwin().w_cursor.get(), mouse_st(|st| st.orig_cursor.get())) {
                     curwin().w_cursor.update_mut(find_start_of_word);
-                    let mut vstart = g_st().visual_global.borrow().start;
+                    let mut vstart = g_st().edit.visual_global.start.get();
                     find_end_of_word(&mut vstart);
-                    g_st().visual_global.borrow_mut().start = vstart;
+                    g_st().edit.visual_global.start.set(vstart);
                 } else {
-                    let mut vstart = g_st().visual_global.borrow().start;
+                    let mut vstart = g_st().edit.visual_global.start.get();
                     find_start_of_word(&mut vstart);
-                    g_st().visual_global.borrow_mut().start = vstart;
+                    g_st().edit.visual_global.start.set(vstart);
                     let cur_pos_slice = crate::cursor::get_cursor_pos_slice();
                     if opt_vars().p_sel.first_byte() == b'e' && !cur_pos_slice.is_empty() {
                         curwin()
@@ -1179,21 +1206,23 @@ pub fn do_mouse(
         if is_click {
             redraw_curbuf_later(UPD_INVERTED);
         }
-    } else if g_st().visual_global.borrow().active && !old_active {
-        if (g_st().mod_mask.get() & MOD_MASK_ALT) != 0 {
-            g_st().visual_global.borrow_mut().mode = CTRL_V_CONST;
+    } else if g_st().edit.visual_global.active.get() && !old_active {
+        if (g_st().input.mod_mask.get() & MOD_MASK_ALT) != 0 {
+            g_st().edit.visual_global.mode.set(CTRL_V_CONST);
         } else {
-            g_st().visual_global.borrow_mut().mode = b'v' as i32;
+            g_st().edit.visual_global.mode.set(b'v' as i32);
         }
     }
 
-    if (!g_st().visual_global.borrow().active && old_active && g_st().mode_displayed.get())
-        || (g_st().visual_global.borrow().active
+    if (!g_st().edit.visual_global.active.get()
+        && old_active
+        && g_st().cmdline.mode_displayed.get())
+        || (g_st().edit.visual_global.active.get()
             && opt_vars().p_smd.get()
-            && g_st().msg_silent.get() == 0
-            && (!old_active || g_st().visual_global.borrow().mode != old_mode))
+            && g_st().msg.msg_silent.get() == 0
+            && (!old_active || g_st().edit.visual_global.mode.get() != old_mode))
     {
-        g_st().redraw_cmdline.set(true);
+        g_st().cmdline.redraw_cmdline.set(true);
     }
 
     moved
@@ -1209,7 +1238,7 @@ pub fn ins_mouse(c: i32) {
 
         if curwin() != old_curwin && win_valid(old_curwin.opt()) {
             set_curwin(&old_curwin);
-            g_st().curbuf.set(curwin().w_buffer.get());
+            g_st().workspace.curbuf.set(curwin().w_buffer.get());
             if bt_prompt(Some(&crate::globals::curbuf())) {
                 curbuf().b_prompt_insert.set(b'A' as i32);
             }
@@ -1225,7 +1254,7 @@ pub fn ins_mouse(c: i32) {
         );
         if curwin() != new_curwin && win_valid(new_curwin.opt()) {
             set_curwin(new_curwin);
-            g_st().curbuf.set(curwin().w_buffer.get());
+            g_st().workspace.curbuf.set(curwin().w_buffer.get());
         }
         set_can_cindent(true);
     }
@@ -1235,10 +1264,10 @@ pub fn ins_mouse(c: i32) {
 
 /// Common mouse wheel scrolling, shared between Insert mode and NV modes.
 pub fn do_mousescroll(cap: &mut Cmdarg) {
-    let shift_or_ctrl = (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0;
+    let shift_or_ctrl = (g_st().input.mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0;
 
     if cap.arg == MSCR_UP || cap.arg == MSCR_DOWN {
-        if (g_st().state_global.get() & MODE_NORMAL) != 0 && shift_or_ctrl {
+        if (g_st().edit.state_global.get() & MODE_NORMAL) != 0 && shift_or_ctrl {
             pagescroll(if cap.arg != 0 { FORWARD } else { BACKWARD }, 1, false);
         } else {
             if shift_or_ctrl {
@@ -1278,15 +1307,15 @@ pub fn ins_mousescroll(dir: i32) {
     }
 
     let old_curwin = curwin();
-    if g_st().mouse_row.get() >= 0 && g_st().mouse_col.get() >= 0 {
-        let mut grid = g_st().mouse_grid.get();
-        let mut row = g_st().mouse_row.get();
-        let mut col = g_st().mouse_col.get();
+    if g_st().input.mouse_row.get() >= 0 && g_st().input.mouse_col.get() >= 0 {
+        let mut grid = g_st().input.mouse_grid.get();
+        let mut row = g_st().input.mouse_row.get();
+        let mut col = g_st().input.mouse_col.get();
         let Some(wp) = mouse_find_win_inner(&mut grid, &mut row, &mut col) else {
             return;
         };
         set_curwin(wp);
-        g_st().curbuf.set(curwin().w_buffer.get());
+        g_st().workspace.curbuf.set(curwin().w_buffer.get());
     }
 
     if curwin() == old_curwin {
@@ -1303,7 +1332,7 @@ pub fn ins_mousescroll(dir: i32) {
 
     curwin().w_redr_status.set(true);
     set_curwin(old_curwin);
-    g_st().curbuf.set(curwin().w_buffer.get());
+    g_st().workspace.curbuf.set(curwin().w_buffer.get());
 
     if !equalpos(curwin().w_cursor.get(), orig_cursor) {
         start_arrow(Some(orig_cursor), true, 0);
@@ -1327,13 +1356,13 @@ pub fn cmdline_mousescroll(dir: i32) -> bool {
         _ => {}
     }
 
-    if g_st().mouse_row.get() < 0 || g_st().mouse_col.get() < 0 {
+    if g_st().input.mouse_row.get() < 0 || g_st().input.mouse_col.get() < 0 {
         return false;
     }
 
-    let mut grid = g_st().mouse_grid.get();
-    let mut row = g_st().mouse_row.get();
-    let mut col = g_st().mouse_col.get();
+    let mut grid = g_st().input.mouse_grid.get();
+    let mut row = g_st().input.mouse_row.get();
+    let mut col = g_st().input.mouse_col.get();
 
     let Some(wp) = mouse_find_win_inner_opt(&mut grid, &mut row, &mut col) else {
         return false;
@@ -1345,10 +1374,10 @@ pub fn cmdline_mousescroll(dir: i32) -> bool {
     let old_curwin = curwin();
 
     set_curwin(&wp);
-    g_st().curbuf.set(wp.w_buffer.get());
+    g_st().workspace.curbuf.set(wp.w_buffer.get());
     do_mousescroll(&mut cap);
     set_curwin(old_curwin);
-    g_st().curbuf.set(curwin().w_buffer.get());
+    g_st().workspace.curbuf.set(curwin().w_buffer.get());
 
     update_screen();
     true
@@ -1424,9 +1453,9 @@ fn jump_to_mouse_retnomove(
 /// Change current window if necessary. Returns an integer with the
 /// CURSOR_MOVED bit set if the cursor has moved or unset otherwise.
 pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button: i32) -> i32 {
-    let mut row = g_st().mouse_row.get();
-    let mut col = g_st().mouse_col.get();
-    let mut grid = g_st().mouse_grid.get();
+    let mut row = g_st().input.mouse_row.get();
+    let mut col = g_st().input.mouse_col.get();
+    let mut grid = g_st().input.mouse_grid.get();
     let keep_focus = (flags & MOUSE_FOCUS) != 0;
 
     mouse_st(|st| {
@@ -1446,8 +1475,8 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
 
     if (flags & MOUSE_DID_MOVE) != 0
         && mouse_st(|st| {
-            st.prev_row.get() == g_st().mouse_row.get()
-                && st.prev_col.get() == g_st().mouse_col.get()
+            st.prev_row.get() == g_st().input.mouse_row.get()
+                && st.prev_col.get() == g_st().input.mouse_col.get()
         })
     {
         let (stl_off, sep_off, winbar, stcol) = mouse_st(|st| {
@@ -1462,8 +1491,8 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
     }
 
     mouse_st(|st| {
-        st.prev_row.set(g_st().mouse_row.get());
-        st.prev_col.set(g_st().mouse_col.get());
+        st.prev_row.set(g_st().input.mouse_row.get());
+        st.prev_col.set(g_st().input.mouse_col.get());
     });
 
     if (flags & MOUSE_SETPOS) != 0 {
@@ -1520,9 +1549,9 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
     });
 
     if keep_focus {
-        row = g_st().mouse_row.get();
-        col = g_st().mouse_col.get();
-        grid = g_st().mouse_grid.get();
+        row = g_st().input.mouse_row.get();
+        col = g_st().input.mouse_col.get();
+        grid = g_st().input.mouse_grid.get();
     }
 
     let old_curwin = curwin();
@@ -1568,7 +1597,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                 st.sep_line_offset.set(sep_line_offset);
             });
 
-            let stop_visual = g_st().visual_global.borrow().active
+            let stop_visual = g_st().edit.visual_global.active.get()
                 && (wp.w_buffer.get() != curwin().w_buffer.get()
                     || (status_line_offset == 0
                         && sep_line_offset == 0
@@ -1719,7 +1748,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
             );
             row = curwin().w_view_height.get() - 1;
         } else if row == 0
-            && g_st().mouse_dragging.get() > 0
+            && g_st().input.mouse_dragging.get() > 0
             && curwin().w_cursor.get().lnum == curwin().buf().b_ml.ml_line_count.get()
             && curwin().w_cursor.get().lnum == curwin().w_topline.get()
         {
@@ -1743,15 +1772,15 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
     }
     curwin().w_cursor.set_lnum(lnum);
 
-    if (flags & MOUSE_MAY_VIS) != 0 && !g_st().visual_global.borrow().active {
-        g_st().visual_global.borrow_mut().start = old_cursor;
-        g_st().visual_global.borrow_mut().active = true;
-        g_st().visual_global.borrow_mut().reselect = 1;
+    if (flags & MOUSE_MAY_VIS) != 0 && !g_st().edit.visual_global.active.get() {
+        g_st().edit.visual_global.start.set(old_cursor);
+        g_st().edit.visual_global.active.set(true);
+        g_st().edit.visual_global.reselect.set(1);
         may_start_select(b'o' as i32);
         setmouse();
 
-        if opt_vars().p_smd.get() && g_st().msg_silent.get() == 0 {
-            g_st().redraw_cmdline.set(true);
+        if opt_vars().p_smd.get() && g_st().msg.msg_silent.get() == 0 {
+            g_st().cmdline.redraw_cmdline.set(true);
         }
     }
 
@@ -1806,22 +1835,22 @@ fn do_mousescroll_horiz(leftcol: Colnr) -> bool {
 pub fn nv_mousescroll(cap: &mut Cmdarg) {
     let old_curwin = curwin();
 
-    if g_st().mouse_row.get() >= 0 && g_st().mouse_col.get() >= 0 {
-        let mut grid = g_st().mouse_grid.get();
-        let mut row = g_st().mouse_row.get();
-        let mut col = g_st().mouse_col.get();
+    if g_st().input.mouse_row.get() >= 0 && g_st().input.mouse_col.get() >= 0 {
+        let mut grid = g_st().input.mouse_grid.get();
+        let mut row = g_st().input.mouse_row.get();
+        let mut col = g_st().input.mouse_col.get();
         let Some(wp) = mouse_find_win_inner(&mut grid, &mut row, &mut col) else {
             return;
         };
         set_curwin(wp);
-        g_st().curbuf.set(curwin().w_buffer.get());
+        g_st().workspace.curbuf.set(curwin().w_buffer.get());
     }
 
     do_mousescroll(cap);
 
     curwin().w_redr_status.set(true);
     set_curwin(old_curwin);
-    g_st().curbuf.set(curwin().w_buffer.get());
+    g_st().workspace.curbuf.set(curwin().w_buffer.get());
 }
 
 /// Mouse clicks and drags.
@@ -2019,8 +2048,8 @@ fn mouse_find_grid_win(
     rowp: &mut i32,
     colp: &mut i32,
 ) -> Option<crate::globals::WinPtr> {
-    if *gridp == g_st().msg_grid.handle.get() {
-        *rowp += g_st().msg_grid_pos.get();
+    if *gridp == g_st().msg.msg_grid.handle.get() {
+        *rowp += g_st().msg.msg_grid_pos.get();
         *gridp = DEFAULT_GRID_HANDLE;
     } else if *gridp > 1 {
         if let Some(wp) = get_win_by_grid_handle(*gridp)
@@ -2033,7 +2062,7 @@ fn mouse_find_grid_win(
         }
     } else if *gridp == 0 {
         if let Some(grid) = ui_comp_mouse_focus(*rowp, *colp) {
-            if ptr::eq(&*grid, &raw const g_st().pum_grid) {
+            if ptr::eq(&*grid, &raw const g_st().screen.pum_grid) {
                 *gridp = grid.handle.get();
                 *rowp -= grid.comp_row.get();
                 *colp -= grid.comp_col.get();
@@ -2154,9 +2183,9 @@ fn find_longest_lnum() -> Linenr {
 
 /// Check clicked cell on its grid
 fn mouse_check_grid(wp: &WinInfoInfo, vcolp: &mut Colnr, flagsp: &mut i32) {
-    let mut click_grid = g_st().mouse_grid.get();
-    let mut click_row = g_st().mouse_row.get();
-    let mut click_col = g_st().mouse_col.get();
+    let mut click_grid = g_st().input.mouse_grid.get();
+    let mut click_row = g_st().input.mouse_row.get();
+    let mut click_col = g_st().input.mouse_col.get();
 
     if !mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col)
         .is_some_and(|w| w == wp)
@@ -2216,9 +2245,9 @@ fn mouse_resolve(
 
 /// "getmousepos()" function
 pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut row = g_st().mouse_row.get();
-    let mut col = g_st().mouse_col.get();
-    let mut grid = g_st().mouse_grid.get();
+    let mut row = g_st().input.mouse_row.get();
+    let mut col = g_st().input.mouse_col.get();
+    let mut grid = g_st().input.mouse_grid.get();
     let mut winid: Varnumber = 0;
     let mut winrow: Varnumber = 0;
     let mut wincol: Varnumber = 0;
@@ -2231,12 +2260,12 @@ pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     tv_dict_add_nr(
         &d,
         c"screenrow",
-        Varnumber::from(g_st().mouse_row.get()) + 1,
+        Varnumber::from(g_st().input.mouse_row.get()) + 1,
     );
     tv_dict_add_nr(
         &d,
         c"screencol",
-        Varnumber::from(g_st().mouse_col.get()) + 1,
+        Varnumber::from(g_st().input.mouse_col.get()) + 1,
     );
 
     if let Some(wp) = mouse_find_win_inner_opt(&mut grid, &mut row, &mut col) {

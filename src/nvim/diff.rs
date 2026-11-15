@@ -274,8 +274,8 @@ pub fn diff_buf_delete(buf: &FileBuf) {
         if i != DB_COUNT as i32 {
             tp.tp_diffbuf[i as usize].set(crate::globals::BufPtr::NULL);
             tp.tp_diff_invalid.set(1);
-            if g_st().curtab.get() == tp {
-                g_st().need_diff_redraw.set(true);
+            if g_st().workspace.curtab.get() == tp {
+                g_st().workspace.need_diff_redraw.set(true);
                 redraw_later(Some(&crate::globals::curwin()), UPD_VALID);
             }
         }
@@ -342,7 +342,7 @@ pub fn diff_invalidate(buf: &FileBuf) {
         let i = diff_buf_idx(buf, &tp);
         if i != DB_COUNT as i32 {
             tp.tp_diff_invalid.set(1);
-            if g_st().curtab.get() == tp {
+            if g_st().workspace.curtab.get() == tp {
                 diff_redraw(true);
             }
         }
@@ -565,9 +565,9 @@ fn diff_mark_adjust_tp(
             i_dp += 1;
         }
     }
-    if g_st().curtab.get() == tp {
-        g_st().need_diff_redraw.set(true);
-        g_st().diff_need_scrollbind.set(true);
+    if g_st().workspace.curtab.get() == tp {
+        g_st().workspace.need_diff_redraw.set(true);
+        g_st().workspace.diff_need_scrollbind.set(true);
     }
 }
 fn diff_alloc_new(tp: &TabPageInfo, idx: usize) -> usize {
@@ -676,7 +676,7 @@ pub fn diff_redraw(dofold: bool) {
     let mut wp_other = crate::globals::WinPtr::NULL;
     let mut used_max_fill_other = false;
     let mut used_max_fill_curwin = false;
-    g_st().need_diff_redraw.set(false);
+    g_st().workspace.need_diff_redraw.set(false);
     for wp in for_all_windows_ptr() {
         if !wp.w_onebuf_opt.wo_diff.get() || !buf_valid(wp.buf_opt().as_deref()) {
             continue;
@@ -800,8 +800,8 @@ fn diff_write(buf: &FileBuf, din: &mut Diffin, start: Linenr, mut end: Linenr) -
     let save_ff = buf
         .b_p_ff
         .replace(crate::option_vars::OptString::from_cstr(c"unix"));
-    let save_cmod_flags = g_st().cmdmod.borrow().cmod_flags != 0;
-    g_st().cmdmod.borrow_mut().cmod_flags |= CMOD_LOCKMARKS;
+    let save_cmod_flags = g_st().cmdline.cmod_flags() != 0;
+    g_st().cmdline.add_cmod_flags(CMOD_LOCKMARKS);
     if end < start {
         end = start;
         buf.b_ml.ml_flags.set(buf.b_ml.ml_flags.get() | (ML_EMPTY));
@@ -818,7 +818,7 @@ fn diff_write(buf: &FileBuf, din: &mut Diffin, start: Linenr, mut end: Linenr) -
         false,
         true,
     );
-    g_st().cmdmod.borrow_mut().cmod_flags = i32::from(save_cmod_flags);
+    g_st().cmdline.set_cmod_flags(i32::from(save_cmod_flags));
     buf.b_p_ff.set(save_ff);
     buf.b_ml
         .ml_flags
@@ -1304,7 +1304,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                 newname_vec.extend_from_slice(&fname_bytes);
                 newname_vec.extend_from_slice(b".new\0");
             }
-            g_st().cmdmod.borrow_mut().cmod_tab = 0;
+            g_st().cmdline.set_cmod_tab(0);
             if win_split(
                 0,
                 if (diff_flags() & DIFF_VERTICAL) != 0 {
@@ -1344,10 +1344,10 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
         br_fnum: 0,
         br_buf_free_count: 0,
     };
-    set_bufref(&mut old_curbuf, g_st().curbuf.get().opt());
+    set_bufref(&mut old_curbuf, g_st().workspace.curbuf.get().opt());
     validate_cursor(&curwin());
     set_fraction(&curwin());
-    g_st().cmdmod.borrow_mut().cmod_tab = 0;
+    g_st().cmdline.set_cmod_tab(0);
     if !win_split(
         0,
         if (diff_flags() & DIFF_VERTICAL) != 0 {
@@ -1385,12 +1385,12 @@ pub fn ex_diffthis(_eap: &mut Exarg) {
 fn set_diff_option(wp: &WinInfoInfo, value: bool) {
     let old_curwin = curwin();
     set_curwin(wp);
-    g_st().curbuf.set(curwin().w_buffer.get());
+    g_st().workspace.curbuf.set(curwin().w_buffer.get());
     curbuf().b_ro_locked.set(curbuf().b_ro_locked.get() + (1));
     set_option_value_give_err(K_OPT_DIFF, boolean_obj(value), OPT_LOCAL);
     curbuf().b_ro_locked.set(curbuf().b_ro_locked.get() - (1));
     set_curwin(old_curwin);
-    g_st().curbuf.set(curwin().w_buffer.get());
+    g_st().workspace.curbuf.set(curwin().w_buffer.get());
 }
 pub fn diff_win_options(wp: &WinInfoInfo, addbuf: bool) {
     let old_curwin = curwin();
@@ -2246,7 +2246,7 @@ fn parse_diffanchors(
         buf.b_p_dia.to_owned()
     };
     let mut dia = dia_owned.as_c_str();
-    let orig_curbuf = g_st().curbuf.get();
+    let orig_curbuf = g_st().workspace.curbuf.get();
     let orig_curwin = curwin();
     let bufwin = if check_only {
         curwin()
@@ -2269,7 +2269,7 @@ fn parse_diffanchors(
         if dia.to_bytes().first() == Some(&b',') {
             return false;
         }
-        g_st().curbuf.set((buf).into());
+        g_st().workspace.curbuf.set((buf).into());
         set_curwin(&bufwin);
         let mut errormsg = None;
         let dia_bytes = dia.to_bytes();
@@ -2284,7 +2284,7 @@ fn parse_diffanchors(
             1,
             &mut errormsg,
         );
-        g_st().curbuf.set(orig_curbuf.clone());
+        g_st().workspace.curbuf.set(orig_curbuf.clone());
         set_curwin(&orig_curwin);
         if let Some(msg) = errormsg {
             emsg(&msg);
@@ -2329,7 +2329,7 @@ pub fn diffanchors_changed(buflocal: bool) -> bool {
                 tp.tp_diff_invalid.set(1);
             } else {
                 for idx in 0..DB_COUNT {
-                    if tp.tp_diffbuf[idx].get() == g_st().curbuf.get() {
+                    if tp.tp_diffbuf[idx].get() == g_st().workspace.curbuf.get() {
                         tp.tp_diff_invalid.set(1);
                         break;
                     }
@@ -2410,6 +2410,7 @@ pub fn diffopt_changed() -> bool {
                 });
         });
         g_st()
+            .workspace
             .diff_context
             .set(if context == 0 { 1 } else { context });
         diff_redraw(true);
@@ -3085,7 +3086,7 @@ pub fn diff_infold(wp: &WinInfoInfo, tp: Option<crate::globals::TabpagePtr>, lnu
         return false;
     }
     let u_idx = idx as usize;
-    if g_st().curtab.get() == tp && tp.tp_diff_invalid.get() != 0 {
+    if g_st().workspace.curtab.get() == tp && tp.tp_diff_invalid.get() != 0 {
         ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
     }
     if tp.tp_diffs.borrow().is_empty() {
@@ -3100,10 +3101,10 @@ pub fn diff_infold(wp: &WinInfoInfo, tp: Option<crate::globals::TabpagePtr>, lnu
         if dp.df_lnum[u_idx] <= lnum {
             le = Some(dp_idx);
         }
-        if dp.df_lnum[u_idx] - g_st().diff_context.get() > lnum {
+        if dp.df_lnum[u_idx] - g_st().workspace.diff_context.get() > lnum {
             break;
         }
-        if dp.df_lnum[u_idx] + dp.df_count[u_idx] + g_st().diff_context.get() > lnum {
+        if dp.df_lnum[u_idx] + dp.df_count[u_idx] + g_st().workspace.diff_context.get() > lnum {
             result = false;
             break;
         }
@@ -3155,7 +3156,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
         let mut found_not_ma = false;
         let mut idx = 0;
         while idx < DB_COUNT {
-            if curtab().tp_diffbuf[idx].get() != g_st().curbuf.get()
+            if curtab().tp_diffbuf[idx].get() != g_st().workspace.curbuf.get()
                 && let Some(buf) = curtab().diffbuf_opt(idx)
             {
                 if eap.cmdidx != Cmdidx::CmdDiffput || modifiable(&buf) {
@@ -3175,7 +3176,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             return;
         }
         for i in (idx_other + 1)..DB_COUNT {
-            if curtab().tp_diffbuf[i].get() != g_st().curbuf.get()
+            if curtab().tp_diffbuf[i].get() != g_st().workspace.curbuf.get()
                 && let Some(buf) = curtab().diffbuf_opt(i)
                 && (eap.cmdidx != Cmdidx::CmdDiffput || modifiable(&buf))
             {
@@ -3204,7 +3205,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             semsg!(gettext(c"E102: Can't find buffer \"%s\""), eap.arg,);
             return;
         };
-        if g_st().curbuf.get() == buf {
+        if g_st().workspace.curbuf.get() == buf {
             return;
         }
         let idx_o = diff_buf_idx(&buf, &curtab());
@@ -3268,7 +3269,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             eap.line2,
         );
         if eap.cmdidx != Cmdidx::CmdDiffget {
-            if g_st().key_typed.get() {
+            if g_st().input.key_typed.get() {
                 u_sync(false);
             }
             ctx_restore(&mut aco);

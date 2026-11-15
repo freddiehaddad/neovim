@@ -289,14 +289,16 @@ pub fn add_to_history(histype: i32, new_entry: &[u8], in_map: bool, sep: i32) {
     }
     assert_ne!(histype, HIST_DEFAULT);
 
-    if (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPPATTERNS) != 0 && histype == HIST_SEARCH {
+    if (g_st().cmdline.cmod_flags() & CMOD_KEEPPATTERNS) != 0 && histype == HIST_SEARCH {
         return;
     }
 
     if histype == HIST_SEARCH && in_map {
         hist_st(|st| {
             let mut hisidx = st.hisidx.get();
-            if g_st().maptick.get() == st.last_maptick.get() && hisidx[HIST_SEARCH as usize] >= 0 {
+            if g_st().input.maptick.get() == st.last_maptick.get()
+                && hisidx[HIST_SEARCH as usize] >= 0
+            {
                 let sidx = hisidx[HIST_SEARCH as usize] as usize;
                 hist_free_entry(&mut st.history.borrow_mut()[HIST_SEARCH as usize][sidx]);
                 let mut hisnum = st.hisnum.get();
@@ -323,7 +325,7 @@ pub fn add_to_history(histype: i32, new_entry: &[u8], in_map: bool, sep: i32) {
     }
 
     let now = os_time();
-    let maptick = g_st().maptick.get();
+    let maptick = g_st().input.maptick.get();
     hist_st(|st| {
         let mut hisidx = st.hisidx.get();
         hisidx[htype] += 1;
@@ -496,7 +498,7 @@ fn del_history_idx(histype: i32, idx_arg: i32) -> bool {
     };
     let mut i = i_usize as i32;
     let htype = histype as usize;
-    let maptick = g_st().maptick.get();
+    let maptick = g_st().input.maptick.get();
     hist_st(|st| {
         let mut hisidx = st.hisidx.get();
         let idx = hisidx[htype];
@@ -663,7 +665,7 @@ pub fn ex_history(eap: &mut Exarg) {
     }
 
     let mut iobuf = [0u8; IOSIZE];
-    while !g_st().got_int.get() && histype1 <= histype2 {
+    while !g_st().input.got_int.get() && histype1 <= histype2 {
         let hname = HISTORY_NAMES[histype1 as usize].to_str().unwrap();
         let title = format!("\n      #  {hname} history\0");
         msg_puts_title(crate::memory::bytes_as_cstr(title.as_bytes()));
@@ -692,7 +694,7 @@ pub fn ex_history(eap: &mut Exarg) {
         }
         if idx >= 0 && j <= k {
             let mut i = idx + 1;
-            while !g_st().got_int.get() {
+            while !g_st().input.got_int.get() {
                 if i == hislen {
                     i = 0;
                 }
@@ -708,11 +710,12 @@ pub fn ex_history(eap: &mut Exarg) {
                     let prefix_bytes = prefix.as_bytes();
                     let len = prefix_bytes.len();
                     iobuf[..len].copy_from_slice(prefix_bytes);
-                    if vim_strsize(entry_cstr.to_bytes()) > g_st().columns_global.get() - 10 {
+                    if vim_strsize(entry_cstr.to_bytes()) > g_st().screen.columns_global.get() - 10
+                    {
                         trunc_string(
                             Some(entry_cstr.to_bytes()),
                             &mut iobuf[len..],
-                            g_st().columns_global.get() - 10,
+                            g_st().screen.columns_global.get() - 10,
                         );
                     } else {
                         crate::memory::copy_bytes_to_c_buf(

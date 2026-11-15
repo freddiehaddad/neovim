@@ -329,14 +329,14 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
     let mut buf = if let Some(rbuf) = rbuf {
         crate::globals::BufPtr::from(rbuf)
     } else {
-        g_st().firstbuf.get()
+        g_st().workspace.firstbuf.get()
     };
     let ns = group_get_ns(group);
 
     msg_puts_title(gettext(c"\n--- Signs ---"));
 
     while let Some(buf_ref) = buf.opt() {
-        if g_st().got_int.get() {
+        if g_st().input.got_int.get() {
             break;
         }
         if buf_has_signs(buf_ref) {
@@ -371,7 +371,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
                 msg_putchar(b'\n' as i32);
 
                 for (i, &mark) in signs.iter().enumerate() {
-                    if g_st().got_int.get() {
+                    if g_st().input.got_int.get() {
                         break;
                     }
                     namebuf[0] = 0;

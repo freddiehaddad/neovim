@@ -227,8 +227,11 @@ fn msg_show_console_dialog(message: &CStr, buttons: &CStr, dfltbutton: i32) -> V
 
 /// Ask for a `'y'` or `'n'` reply from the user (`ask_yesno`).
 pub fn ask_yesno(str_cstr: &CStr) -> i32 {
-    let save_state = g_st().state_global.get();
-    g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
+    let save_state = g_st().edit.state_global.get();
+    g_st()
+        .msg
+        .no_wait_return
+        .set(g_st().msg.no_wait_return.get() + (1));
 
     let s_bytes = str_cstr.to_bytes();
     let suffix = b" (y/n)?\0";
@@ -248,9 +251,15 @@ pub fn ask_yesno(str_cstr: &CStr) -> i32 {
         }
     }
 
-    g_st().need_wait_return.set(g_st().msg_scrolled.get() != 0);
-    g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
-    g_st().state_global.set(save_state);
+    g_st()
+        .msg
+        .need_wait_return
+        .set(g_st().msg.msg_scrolled.get() != 0);
+    g_st()
+        .msg
+        .no_wait_return
+        .set(g_st().msg.no_wait_return.get() - (1));
+    g_st().edit.state_global.set(save_state);
     setmouse();
     r
 }
@@ -263,7 +272,7 @@ pub fn prompt_for_input(
     mouse_used: Option<&mut bool>,
 ) -> i32 {
     let mut ret = if one_key { ESC } else { 0 };
-    let kmsg = g_st().keep_msg.get().clone();
+    let kmsg = g_st().msg.keep_msg.get().clone();
 
     let prompt_cstr = if let Some(prompt_cstr) = prompt {
         prompt_cstr
@@ -273,12 +282,18 @@ pub fn prompt_for_input(
         c"Type number and <Enter> (q or empty cancels): "
     };
 
-    g_st().cmdline_row.set(g_st().msg_row.get());
+    g_st().cmdline.cmdline_row.set(g_st().msg.msg_row.get());
     ui_call_busy_stop();
     ui_flush();
 
-    g_st().no_mapping.set(g_st().no_mapping.get() + (1));
-    g_st().allow_keys.set(g_st().allow_keys.get() + (1));
+    g_st()
+        .input
+        .no_mapping
+        .set(g_st().input.no_mapping.get() + (1));
+    g_st()
+        .input
+        .allow_keys
+        .set(g_st().input.allow_keys.get() + (1));
     let resp = getcmdline_prompt(
         -1,
         Some(prompt_cstr),
@@ -289,8 +304,14 @@ pub fn prompt_for_input(
         one_key,
         mouse_used,
     );
-    g_st().allow_keys.set(g_st().allow_keys.get() - (1));
-    g_st().no_mapping.set(g_st().no_mapping.get() - (1));
+    g_st()
+        .input
+        .allow_keys
+        .set(g_st().input.allow_keys.get() - (1));
+    g_st()
+        .input
+        .no_mapping
+        .set(g_st().input.no_mapping.get() - (1));
 
     if let Some(ref resp_cstr) = resp {
         if one_key {
@@ -320,7 +341,7 @@ pub fn prompt_for_input(
     }
 
     if let Some(ref kmsg_cstr) = kmsg {
-        set_keep_msg(Some(kmsg_cstr.as_c_str()), g_st().keep_msg_hl_id.get());
+        set_keep_msg(Some(kmsg_cstr.as_c_str()), g_st().msg.keep_msg_hl_id.get());
     }
 
     ret
@@ -336,14 +357,17 @@ pub fn do_dialog(
     _textfield: Option<&CStr>,
     ex_cmd: i32,
 ) -> i32 {
-    if g_st().silent_mode.get() {
+    if g_st().cmdline.silent_mode.get() {
         return dfltbutton;
     }
 
-    let save_msg_silent = g_st().msg_silent.get();
-    let old_state = g_st().state_global.get();
-    g_st().msg_silent.set(0);
-    g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
+    let save_msg_silent = g_st().msg.msg_silent.get();
+    let old_state = g_st().edit.state_global.get();
+    g_st().msg.msg_silent.set(0);
+    g_st()
+        .msg
+        .no_wait_return
+        .set(g_st().msg.no_wait_return.get() + (1));
 
     let hotkeys_vec = msg_show_console_dialog(message, buttons, dfltbutton);
     let retval: i32;
@@ -368,8 +392,8 @@ pub fn do_dialog(
             }
             _ => {
                 if c < 0 {
-                    g_st().msg_didout.set(false);
-                    g_st().msg_didany.set(false);
+                    g_st().msg.msg_didout.set(false);
+                    g_st().msg.msg_didany.set(false);
                     continue;
                 }
                 if c == (b':' as i32) && ex_cmd != 0 {
@@ -392,8 +416,8 @@ pub fn do_dialog(
                     retval = candidate;
                     break;
                 }
-                g_st().msg_didout.set(false);
-                g_st().msg_didany.set(false);
+                g_st().msg.msg_didout.set(false);
+                g_st().msg.msg_didany.set(false);
             }
         }
     }
@@ -401,10 +425,13 @@ pub fn do_dialog(
     drop(hotkeys_vec);
     DLG_STATE.with(|st| *st.confirm_msg.borrow_mut() = None);
 
-    g_st().msg_silent.set(save_msg_silent);
-    g_st().state_global.set(old_state);
+    g_st().msg.msg_silent.set(save_msg_silent);
+    g_st().edit.state_global.set(old_state);
     setmouse();
-    g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
+    g_st()
+        .msg
+        .no_wait_return
+        .set(g_st().msg.no_wait_return.get() - (1));
     msg_end_prompt();
 
     retval
@@ -480,7 +507,7 @@ mod tests {
 
     #[test]
     fn vim_dialog_yesno_uses_default_in_test_mode() {
-        g_st().silent_mode.set(true);
+        g_st().cmdline.silent_mode.set(true);
         assert_eq!(vim_dialog_yesno(0, None, c"Save?", 1), VIM_YES);
         assert_eq!(vim_dialog_yesno(0, None, c"Save?", 2), VIM_NO);
     }

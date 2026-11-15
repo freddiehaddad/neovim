@@ -42,8 +42,9 @@ Follow these rules strictly when modifying `src/nvim/`:
 1. **Never hold `RefCell` (`Ref` / `RefMut`) guards across reentrant boundaries**:
    - Functions that trigger autocommands (`apply_autocmds*`), Lua callbacks (`nlua_call*`), Vimscript evaluation (`eval*`, `do_cmdline*`), UI prompts (`msg_putchar`, `do_more_prompt`, `ui_refresh`), regex execution (`vim_regexec*`), or `libuv` event loop ticks (`uv_run`, `Loop::poll_events`) can re-enter any editor subsystem.
    - Scope `RefCell::borrow()` and `RefCell::borrow_mut()` guards to pure synchronous data access; clone `Rc` handles, copy small values, or step by index before invoking callbacks or UI output, and never take `borrow_mut()` for read-only queries.
-2. **Use shared handles (`WinPtr`, `BufPtr`, `TabpagePtr`, `FramePtr`) and `Deref`**:
-   - Access current editor state via `curwin()`, `curbuf()`, `curtab()`, `firstwin()`, `lastwin()`, `topframe()`, and `first_tabpage()`.
+2. **Use shared handles (`WinPtr`, `BufPtr`, `TabpagePtr`, `FramePtr`), `Deref`, and `EditorState` domain subsystems**:
+   - Access current editor state via `curwin()`, `curbuf()`, `curtab()`, `firstwin()`, `lastwin()`, `topframe()`, and `first_tabpage()`, and mutate `curwin` exclusively via `set_curwin()` so `CURWIN_FFI` stays synchronized.
+   - Single-module globals belong in their owning module's `thread_local!` state struct; cross-module globals live in the 9 domain subsystems on `EditorState` (`g_st().workspace`, `g_st().msg`, `g_st().exc`, `g_st().screen`, `g_st().input`, `g_st().cmdline`, `g_st().autocmd`, `g_st().search`, `g_st().edit`). Do not expose `pub RefCell<...>` fields on `EditorState` subsystems; keep `RefCell` fields private behind scoped domain methods and use `Cell<T>` for `Copy` scalars.
    - `WinPtr`, `BufPtr`, `TabpagePtr`, and `FramePtr` implement `Deref` for non-null access and `.opt()` for `Option<&T>`. Reserve `.borrow()` and `.borrow_mut()` for `RefCell` fields so interior mutability borrows remain explicit and auditable.
 3. **Use local stack buffers or owned values instead of global scratch buffers**:
    - Format transient messages and paths into local stack arrays (`[0u8; IOSIZE]`, `[0u8; MAXPATHL]`) or owned `Vec<u8>` / `CString` values rather than shared mutable state in `EditorState`.

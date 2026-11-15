@@ -292,7 +292,7 @@ pub fn nvim_win_hide(win: Window) -> Result<(), Error> {
     try_wrap(|| {
         if is_ctx_win(w.borrow()) {
             emsg(gettext(E_AUTOCMD_CLOSE));
-        } else if tabpage == g_st().curtab.get() {
+        } else if tabpage == g_st().workspace.curtab.get() {
             win_close(w.borrow(), false, false);
         } else {
             win_close_othertab(w.borrow(), 0, tabpage.borrow(), false);
@@ -318,7 +318,7 @@ pub fn nvim_win_close(win: Window, force: Boolean) -> Result<(), Error> {
         ex_win_close(
             force,
             &w,
-            if tabpage == g_st().curtab.get() {
+            if tabpage == g_st().workspace.curtab.get() {
                 None
             } else {
                 tabpage.opt()

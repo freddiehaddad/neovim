@@ -358,9 +358,13 @@ fn insert_enter(s: &mut InsertState) {
     s.replace_state = MODE_REPLACE;
     s.cmdchar_todo = s.cmdchar;
     s.ins_just_started = true;
-    g_st().ins_global.borrow_mut().did_restart_edit = g_st().restart_edit.get();
+    g_st()
+        .edit
+        .ins_global
+        .did_restart_edit
+        .set(g_st().edit.restart_edit.get());
     msg_check_for_delay(true);
-    g_st().ins_global.borrow_mut().update_start_orig = true;
+    g_st().edit.ins_global.update_start_orig.set(true);
 
     ins_compl_clear();
 
@@ -377,7 +381,7 @@ fn insert_enter(s: &mut InsertState) {
         set_vim_var_string(VV_CHAR, None, -1);
         ins_apply_autocmds(EVENT_INSERTENTER);
 
-        if g_st().need_highlight_changed.get() {
+        if g_st().screen.need_highlight_changed.get() {
             highlight_changed();
         }
 
@@ -385,32 +389,39 @@ fn insert_enter(s: &mut InsertState) {
             && get_vim_var_str(VV_CHAR).is_empty()
             && save_cursor.lnum <= curbuf().b_ml.ml_line_count.get()
         {
-            let save_state = g_st().state_global.get();
+            let save_state = g_st().edit.state_global.get();
             curwin().w_cursor.set(save_cursor);
-            g_st().state_global.set(MODE_INSERT);
+            g_st().edit.state_global.set(MODE_INSERT);
             check_cursor_col(&curwin());
-            g_st().state_global.set(save_state);
+            g_st().edit.state_global.set(save_state);
         }
     }
 
-    if g_st().where_paste_started.get().lnum != 0 {
-        g_st().ins_global.borrow_mut().start = g_st().where_paste_started.get();
+    if g_st().edit.where_paste_started.get().lnum != 0 {
+        g_st()
+            .edit
+            .ins_global
+            .start
+            .set(g_st().edit.where_paste_started.get());
     } else {
-        g_st().ins_global.borrow_mut().start = curwin().w_cursor.get();
+        g_st().edit.ins_global.start.set(curwin().w_cursor.get());
         if s.startln != 0 {
-            g_st().ins_global.borrow_mut().start.col = 0;
+            g_st().edit.ins_global.start.set_col(0);
         }
     }
 
-    g_st().ins_global.borrow_mut().start_textlen =
-        linetabsize_str(&crate::cursor::get_cursor_line_slice());
-    g_st().ins_global.borrow_mut().start_blank_vcol = MAXCOL;
+    g_st()
+        .edit
+        .ins_global
+        .start_textlen
+        .set(linetabsize_str(&crate::cursor::get_cursor_line_slice()));
+    g_st().edit.ins_global.start_blank_vcol.set(MAXCOL);
 
-    if !g_st().ins_global.borrow().did_ai {
-        g_st().ins_global.borrow_mut().ai_col = 0;
+    if !g_st().edit.ins_global.did_ai.get() {
+        g_st().edit.ins_global.ai_col.set(0);
     }
 
-    if s.cmdchar != NUL as i32 && g_st().restart_edit.get() == 0 {
+    if s.cmdchar != NUL as i32 && g_st().edit.restart_edit.get() == 0 {
         if s.cmdchar == b'V' as i32 || s.cmdchar == b'v' as i32 {
             prep_redo(
                 false,
@@ -448,20 +459,21 @@ fn insert_enter(s: &mut InsertState) {
     }
 
     if s.cmdchar == b'R' as i32 {
-        g_st().state_global.set(MODE_REPLACE);
+        g_st().edit.state_global.set(MODE_REPLACE);
     } else if s.cmdchar == b'V' as i32 || s.cmdchar == b'v' as i32 {
-        g_st().state_global.set(MODE_VREPLACE);
+        g_st().edit.state_global.set(MODE_VREPLACE);
         s.replace_state = MODE_VREPLACE;
         g_st()
+            .edit
             .orig_line_count
             .set(curbuf().b_ml.ml_line_count.get());
-        g_st().vr_lines_changed.set(1);
+        g_st().edit.vr_lines_changed.set(1);
     } else {
-        g_st().state_global.set(MODE_INSERT);
+        g_st().edit.state_global.set(MODE_INSERT);
     }
 
     may_trigger_modechanged();
-    g_st().ins_global.borrow_mut().stop_insert_mode = false;
+    g_st().edit.ins_global.stop_insert_mode.set(false);
 
     if gchar_cursor() == TAB || buf_meta_total(&curbuf(), K_MTMETA_INLINE) > 0 {
         curwin()
@@ -471,33 +483,41 @@ fn insert_enter(s: &mut InsertState) {
 
     if curbuf().b_p_iminsert.get() == B_IMODE_LMAP {
         g_st()
+            .edit
             .state_global
-            .set(g_st().state_global.get() | (MODE_LANGMAP));
+            .set(g_st().edit.state_global.get() | (MODE_LANGMAP));
     }
 
     setmouse();
     clear_showcmd();
-    g_st().ins_global.borrow_mut().revins_on =
-        g_st().state_global.get() == MODE_INSERT && opt_vars().p_ri.get();
-    if g_st().ins_global.borrow().revins_on {
+    g_st()
+        .edit
+        .ins_global
+        .revins_on
+        .set(g_st().edit.state_global.get() == MODE_INSERT && opt_vars().p_ri.get());
+    if g_st().edit.ins_global.revins_on.get() {
         undisplay_dollar();
     }
-    g_st().ins_global.borrow_mut().revins_chars = 0;
-    g_st().ins_global.borrow_mut().revins_legal = 0;
-    g_st().ins_global.borrow_mut().revins_scol = -1;
+    g_st().edit.ins_global.revins_chars.set(0);
+    g_st().edit.ins_global.revins_legal.set(0);
+    g_st().edit.ins_global.revins_scol.set(-1);
 
-    if g_st().restart_edit.get() != 0 && stuff_empty() {
-        g_st().ins_global.borrow_mut().moved = if g_st().where_paste_started.get().lnum == 0 {
-            K_INS_JUMP
-        } else {
-            K_INS_NONE
-        };
-        g_st().restart_edit.set(0);
+    if g_st().edit.restart_edit.get() != 0 && stuff_empty() {
+        g_st()
+            .edit
+            .ins_global
+            .moved
+            .set(if g_st().edit.where_paste_started.get().lnum == 0 {
+                K_INS_JUMP
+            } else {
+                K_INS_NONE
+            });
+        g_st().edit.restart_edit.set(0);
 
         validate_virtcol(&curwin());
         update_curswant();
-        if (g_st().ins_at_eol.get()
-            && curwin().w_cursor.get().lnum == g_st().ins_global.borrow().o_lnum)
+        if (g_st().edit.ins_at_eol.get()
+            && curwin().w_cursor.get().lnum == g_st().edit.ins_global.o_lnum.get())
             || curwin().w_curswant.get() > curwin().w_virtcol.get()
         {
             let pos_slice = crate::cursor::get_cursor_pos_slice();
@@ -512,28 +532,28 @@ fn insert_enter(s: &mut InsertState) {
                 }
             }
         }
-        g_st().ins_at_eol.set(false);
+        g_st().edit.ins_at_eol.set(false);
     } else {
-        g_st().ins_global.borrow_mut().moved = K_INS_NONE;
+        g_st().edit.ins_global.moved.set(K_INS_NONE);
     }
 
-    g_st().ins_global.borrow_mut().need_undo = true;
+    g_st().edit.ins_global.need_undo.set(true);
     {
-        let mut v = g_st().where_paste_started.get();
+        let mut v = g_st().edit.where_paste_started.get();
         v.lnum = 0;
-        g_st().where_paste_started.set(v);
+        g_st().edit.where_paste_started.set(v);
     }
-    g_st().ins_global.borrow_mut().can_cindent = true;
-    if g_st().ins_global.borrow().did_restart_edit == 0 {
+    g_st().edit.ins_global.can_cindent.set(true);
+    if g_st().edit.ins_global.did_restart_edit.get() == 0 {
         fold_open_cursor();
     }
 
     s.i = 0;
-    if opt_vars().p_smd.get() && g_st().msg_silent.get() == 0 {
+    if opt_vars().p_smd.get() && g_st().msg.msg_silent.get() == 0 {
         s.i = showmode();
     }
 
-    if g_st().ins_global.borrow().did_restart_edit == 0 {
+    if g_st().edit.ins_global.did_restart_edit.get() == 0 {
         change_warning(&curbuf(), if s.i == 0 { 0 } else { s.i + 1 });
     }
 
@@ -541,10 +561,13 @@ fn insert_enter(s: &mut InsertState) {
     do_digraph(-1);
 
     let redo = redo_keys(None);
-    g_st().ins_global.borrow_mut().new_insert_skip =
-        redo.as_ref().map_or(0, |s| s.as_bytes().len() as i32);
+    g_st()
+        .edit
+        .ins_global
+        .new_insert_skip
+        .set(redo.as_ref().map_or(0, |s| s.as_bytes().len() as i32));
 
-    g_st().old_indent.set(0);
+    g_st().edit.old_indent.set(0);
 
     loop {
         state_enter(s);
@@ -554,8 +577,12 @@ fn insert_enter(s: &mut InsertState) {
     }
 
     ins_compl_clear_autocomplete_delay();
-    if g_st().ins_at_eol.get() {
-        g_st().ins_global.borrow_mut().o_lnum = curwin().w_cursor.get().lnum;
+    if g_st().edit.ins_at_eol.get() {
+        g_st()
+            .edit
+            .ins_global
+            .o_lnum
+            .set(curwin().w_cursor.get().lnum);
     }
 
     pum_check_clear();
@@ -563,7 +590,7 @@ fn insert_enter(s: &mut InsertState) {
     if s.cmdchar != b'r' as i32 && s.cmdchar != b'v' as i32 && s.c != CTRL_C_CONST {
         ins_apply_autocmds(EVENT_INSERTLEAVE);
     }
-    g_st().did_cursorhold.set(false);
+    g_st().autocmd.did_cursorhold.set(false);
 
     if !char_avail() && curbuf().b_last_changedtick_i.get() == buf_get_changedtick(&curbuf()) {
         curbuf()
@@ -575,44 +602,44 @@ fn insert_enter(s: &mut InsertState) {
 fn insert_check(s: &mut InsertState) -> i32 {
     mc_ins_cascade();
 
-    if g_st().ins_global.borrow().revins_legal == 0 {
-        g_st().ins_global.borrow_mut().revins_scol = -1;
+    if g_st().edit.ins_global.revins_legal.get() == 0 {
+        g_st().edit.ins_global.revins_scol.set(-1);
     } else {
-        g_st().ins_global.borrow_mut().revins_legal = 0;
+        g_st().edit.ins_global.revins_legal.set(0);
     }
 
-    if g_st().ins_global.borrow().moved != K_INS_NONE {
+    if g_st().edit.ins_global.moved.get() != K_INS_NONE {
         s.count = 0;
     }
 
-    if g_st().ins_global.borrow().update_start_orig {
-        let start = g_st().ins_global.borrow().start;
-        g_st().ins_global.borrow_mut().start_orig = start;
+    if g_st().edit.ins_global.update_start_orig.get() {
+        let start = g_st().edit.ins_global.start.get();
+        g_st().edit.ins_global.start_orig.set(start);
     }
 
-    if !curbuf().terminal.get().is_null() && !g_st().ins_global.borrow().stop_insert_mode {
-        g_st().ins_global.borrow_mut().stop_insert_mode = true;
-        g_st().restart_edit.set(b'I' as i32);
+    if !curbuf().terminal.get().is_null() && !g_st().edit.ins_global.stop_insert_mode.get() {
+        g_st().edit.ins_global.stop_insert_mode.set(true);
+        g_st().edit.restart_edit.set(b'I' as i32);
         stuffchar_readbuff(K_NOP);
     }
 
-    if g_st().ins_global.borrow().stop_insert_mode && !ins_compl_active() {
+    if g_st().edit.ins_global.stop_insert_mode.get() && !ins_compl_active() {
         s.count = 0;
         return 0;
     }
 
-    if g_st().ins_global.borrow().moved == K_INS_NONE {
+    if g_st().edit.ins_global.moved.get() == K_INS_NONE {
         curwin().w_set_curswant.set(true);
     }
 
     if stuff_empty() {
-        g_st().did_check_timestamps.set(false);
-        if g_st().need_check_timestamps.get() {
+        g_st().workspace.did_check_timestamps.set(false);
+        if g_st().workspace.need_check_timestamps.get() {
             check_timestamps(0);
         }
     }
 
-    g_st().msg_scroll.set(0);
+    g_st().msg.msg_scroll.set(0);
 
     if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_INSERT) != 0 {
         fold_open_cursor();
@@ -694,10 +721,10 @@ fn insert_check(s: &mut InsertState) -> i32 {
         s.lastc = s.c;
     }
 
-    if g_st().ins_global.borrow().dont_sync_undo == K_NONE {
-        g_st().ins_global.borrow_mut().dont_sync_undo = K_TRUE;
+    if g_st().edit.ins_global.dont_sync_undo.get() == K_NONE {
+        g_st().edit.ins_global.dont_sync_undo.set(K_TRUE);
     } else {
-        g_st().ins_global.borrow_mut().dont_sync_undo = K_FALSE;
+        g_st().edit.ins_global.dont_sync_undo.set(K_FALSE);
     }
 
     if s.ins_just_started {
@@ -721,7 +748,7 @@ fn insert_check(s: &mut InsertState) -> i32 {
 }
 
 fn insert_execute(s: &mut InsertState, key: i32) -> i32 {
-    if g_st().ins_global.borrow().stop_insert_mode {
+    if g_st().edit.ins_global.stop_insert_mode.get() {
         if key != K_IGNORE && key != K_NOP {
             vungetc(key);
         }
@@ -737,7 +764,7 @@ fn insert_execute(s: &mut InsertState, key: i32) -> i32 {
     s.c = key;
 
     if key != K_EVENT {
-        g_st().did_cursorhold.set(true);
+        g_st().autocmd.did_cursorhold.set(true);
     }
     if key != K_EVENT && key != K_COMPLETE_DELAY {
         ins_compl_clear_autocomplete_delay();
@@ -806,18 +833,30 @@ fn insert_execute(s: &mut InsertState, key: i32) -> i32 {
 
     if s.c == CTRL_BSL {
         ins_redraw(false);
-        g_st().no_mapping.set(g_st().no_mapping.get() + (1));
-        g_st().allow_keys.set(g_st().allow_keys.get() + (1));
+        g_st()
+            .input
+            .no_mapping
+            .set(g_st().input.no_mapping.get() + (1));
+        g_st()
+            .input
+            .allow_keys
+            .set(g_st().input.allow_keys.get() + (1));
         s.c = plain_vgetc();
-        g_st().no_mapping.set(g_st().no_mapping.get() - (1));
-        g_st().allow_keys.set(g_st().allow_keys.get() - (1));
+        g_st()
+            .input
+            .no_mapping
+            .set(g_st().input.no_mapping.get() - (1));
+        g_st()
+            .input
+            .allow_keys
+            .set(g_st().input.allow_keys.get() - (1));
         if s.c != CTRL_N && s.c != CTRL_G && s.c != CTRL_O {
             vungetc(s.c);
             s.c = CTRL_BSL;
         } else {
             if s.c == CTRL_O {
                 ins_ctrl_o();
-                g_st().ins_at_eol.set(false);
+                g_st().edit.ins_at_eol.set(false);
                 s.nomove = true;
             }
             s.count = 0;
@@ -847,7 +886,7 @@ fn insert_execute(s: &mut InsertState, key: i32) -> i32 {
             do_c_expr_indent();
             return 1;
         }
-        if g_st().ins_global.borrow().can_cindent
+        if g_st().edit.ins_global.can_cindent.get()
             && in_cinkeys(s.c, b'*' as i32, s.line_is_white)
             && stop_arrow()
         {
@@ -885,8 +924,8 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             }
         }
         CTRL_C_CONST => {
-            if bt_cmdwin(g_st().curbuf.get().opt()) {
-                g_st().got_int.set(false);
+            if bt_cmdwin(g_st().workspace.curbuf.get().opt()) {
+                g_st().input.got_int.set(false);
                 cmdwin_do_action(c"cancel");
                 return 0;
             }
@@ -907,7 +946,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             } else if !echeck_abbr(CTRL_O + ABBR_OFF) {
                 ins_ctrl_o();
                 if (get_ve_flags(&curwin()) & K_OPT_VE_FLAG_ONEMORE) != 0 {
-                    g_st().ins_at_eol.set(false);
+                    g_st().edit.ins_at_eol.set(false);
                     s.nomove = true;
                 }
                 s.count = 0;
@@ -922,7 +961,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             stuffchar_readbuff(K_HELP);
             return 0;
         }
-        c if c == b' ' as i32 && g_st().mod_mask.get() != MOD_MASK_CTRL => {
+        c if c == b' ' as i32 && g_st().input.mod_mask.get() != MOD_MASK_CTRL => {
             goto_normalchar = true;
         }
         c if c == b' ' as i32 || c == K_ZERO || c == NUL as i32 || c == CTRL_A => {
@@ -986,10 +1025,10 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
         }
         CTRL_W_CONST => {
             if bt_prompt(Some(&crate::globals::curbuf()))
-                && (g_st().mod_mask.get() & MOD_MASK_SHIFT) == 0
+                && (g_st().input.mod_mask.get() & MOD_MASK_SHIFT) == 0
             {
                 stuffchar_readbuff(CTRL_W_CONST);
-                g_st().restart_edit.set(b'A' as i32);
+                g_st().edit.restart_edit.set(b'A' as i32);
                 s.nomove = true;
                 s.count = 0;
                 return 0;
@@ -1037,14 +1076,14 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                 br_buf_free_count: 0,
             };
             let tick = buf_get_changedtick(&curbuf());
-            set_bufref(&mut save_curbuf, g_st().curbuf.get().opt());
+            set_bufref(&mut save_curbuf, g_st().workspace.curbuf.get().opt());
 
             if s.c == K_PASTE_START {
                 paste_repeat(1);
             } else if s.c == K_EVENT {
                 state_handle_k_event();
-                if g_st().ins_global.borrow().dont_sync_undo == K_TRUE {
-                    g_st().ins_global.borrow_mut().dont_sync_undo = K_NONE;
+                if g_st().edit.ins_global.dont_sync_undo.get() == K_TRUE {
+                    g_st().edit.ins_global.dont_sync_undo.set(K_NONE);
                 }
             } else if s.c == K_COMMAND {
                 do_cmdline(None, crate::cmdexpand::LineGetter::CmdKeyCmd, 0);
@@ -1052,22 +1091,22 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                 map_execute_lua(false, false);
             }
 
-            if g_st().pum_want.active.get() {
+            if g_st().screen.pum_want.active.get() {
                 if pum_visible() {
-                    g_st().edit_submode_extra.set(None);
+                    g_st().edit.edit_submode_extra.set(None);
                     insert_do_complete(&mut *s);
-                    if g_st().pum_want.finish.get() {
+                    if g_st().screen.pum_want.finish.get() {
                         ins_compl_prep(CTRL_Y);
                     }
                 }
-                g_st().pum_want.active.set(false);
+                g_st().screen.pum_want.active.set(false);
             }
 
             let changed = bufref_valid(Some(&save_curbuf))
-                && save_curbuf.br_buf == g_st().curbuf.get()
+                && save_curbuf.br_buf == g_st().workspace.curbuf.get()
                 && tick != buf_get_changedtick(&curbuf());
             if curbuf().b_u_synced.get() || changed {
-                g_st().ins_global.borrow_mut().need_undo = true;
+                g_st().edit.ins_global.need_undo.set(true);
             }
             if changed && !ins_compl_active() {
                 mc_ins_cascade();
@@ -1075,8 +1114,8 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             }
         }
         K_COMPLETE_DELAY => {
-            if g_st().ins_global.borrow().dont_sync_undo == K_TRUE {
-                g_st().ins_global.borrow_mut().dont_sync_undo = K_NONE;
+            if g_st().edit.ins_global.dont_sync_undo.get() == K_TRUE {
+                g_st().edit.ins_global.dont_sync_undo.set(K_NONE);
             }
             ins_compl_clear_autocomplete_delay();
             if ins_compl_has_autocomplete() && !char_avail() && curwin().w_cursor.get().col != 0 {
@@ -1095,7 +1134,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             ins_end(s.c);
         }
         K_LEFT => {
-            if (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0 {
+            if (g_st().input.mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0 {
                 ins_s_left();
             } else {
                 ins_left();
@@ -1105,7 +1144,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             ins_s_left();
         }
         K_RIGHT => {
-            if (g_st().mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0 {
+            if (g_st().input.mod_mask.get() & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0 {
                 ins_s_right();
             } else {
                 ins_right();
@@ -1117,7 +1156,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
         K_UP => {
             if pum_visible() {
                 insert_do_complete(&mut *s);
-            } else if (g_st().mod_mask.get() & MOD_MASK_SHIFT) != 0 {
+            } else if (g_st().input.mod_mask.get() & MOD_MASK_SHIFT) != 0 {
                 ins_pageup();
             } else {
                 ins_up(false);
@@ -1133,7 +1172,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
         K_DOWN => {
             if pum_visible() {
                 insert_do_complete(&mut *s);
-            } else if (g_st().mod_mask.get() & MOD_MASK_SHIFT) != 0 {
+            } else if (g_st().input.mod_mask.get() & MOD_MASK_SHIFT) != 0 {
                 ins_pagedown();
             } else {
                 ins_down(false);
@@ -1171,10 +1210,10 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                 } else {
                     do_cmdline_cmd(b".ll");
                 }
-            } else if s.c == CAR && bt_cmdwin(g_st().curbuf.get().opt()) {
+            } else if s.c == CAR && bt_cmdwin(g_st().workspace.curbuf.get().opt()) {
                 cmdwin_do_action(c"confirm");
                 return 0;
-            } else if (g_st().mod_mask.get() & MOD_MASK_SHIFT) == 0
+            } else if (g_st().input.mod_mask.get() & MOD_MASK_SHIFT) == 0
                 && bt_prompt(Some(&crate::globals::curbuf()))
             {
                 prompt_invoke_callback();
@@ -1285,12 +1324,16 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             if s.c == b' ' as i32 {
                 s.inserted_space = 1;
                 if inindent(0) {
-                    g_st().ins_global.borrow_mut().can_cindent = false;
+                    g_st().edit.ins_global.can_cindent.set(false);
                 }
-                if g_st().ins_global.borrow().start_blank_vcol == MAXCOL
-                    && curwin().w_cursor.get().lnum == g_st().ins_global.borrow().start.lnum
+                if g_st().edit.ins_global.start_blank_vcol.get() == MAXCOL
+                    && curwin().w_cursor.get().lnum == g_st().edit.ins_global.start.get().lnum
                 {
-                    g_st().ins_global.borrow_mut().start_blank_vcol = get_nolist_virtcol();
+                    g_st()
+                        .edit
+                        .ins_global
+                        .start_blank_vcol
+                        .set(get_nolist_virtcol());
                 }
             }
 
@@ -1299,8 +1342,16 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                     && s.c != CTRL_RSB_CONST)
             {
                 insert_special(s.c, 0, 0);
-                g_st().ins_global.borrow_mut().revins_legal += 1;
-                g_st().ins_global.borrow_mut().revins_chars += 1;
+                g_st()
+                    .edit
+                    .ins_global
+                    .revins_legal
+                    .set(g_st().edit.ins_global.revins_legal.get() + (1));
+                g_st()
+                    .edit
+                    .ins_global
+                    .revins_chars
+                    .set(g_st().edit.ins_global.revins_chars.get() + (1));
             }
 
             auto_format(false, true);
@@ -1319,16 +1370,18 @@ fn insert_do_complete(s: &mut InsertState) {
     ins_compl_clear_autocomplete_delay();
     ins_st(|st| st.compl_busy.set(true));
     g_st()
+        .workspace
         .disable_fold_update
-        .set(g_st().disable_fold_update.get() + (1));
+        .set(g_st().workspace.disable_fold_update.get() + (1));
     if !ins_complete(s.c, true) {
         compl_status_clear();
     }
     g_st()
+        .workspace
         .disable_fold_update
-        .set(g_st().disable_fold_update.get() - (1));
+        .set(g_st().workspace.disable_fold_update.get() - (1));
     ins_st(|st| st.compl_busy.set(false));
-    g_st().ins_global.borrow_mut().can_si = may_do_si();
+    g_st().edit.ins_global.can_si.set(may_do_si());
 }
 
 fn insert_do_cindent(s: &mut InsertState) {
@@ -1339,18 +1392,18 @@ fn insert_do_cindent(s: &mut InsertState) {
 
 fn insert_handle_key_post(s: &mut InsertState) {
     if s.c != K_EVENT && s.c != K_COMPLETE_DELAY && ctrl_x_mode_normal() {
-        g_st().did_cursorhold.set(false);
+        g_st().autocmd.did_cursorhold.set(false);
     }
 
     if ins_compl_active() && !ins_compl_win_active(&curwin()) {
         ins_compl_cancel();
     }
 
-    if g_st().ins_global.borrow().moved != K_INS_NONE {
+    if g_st().edit.ins_global.moved.get() != K_INS_NONE {
         s.inserted_space = 0;
     }
 
-    if g_st().ins_global.borrow().can_cindent && cindent_on() && ctrl_x_mode_normal() {
+    if g_st().edit.ins_global.can_cindent.get() && cindent_on() && ctrl_x_mode_normal() {
         insert_do_cindent(s);
     }
 }
@@ -1358,20 +1411,20 @@ fn insert_handle_key_post(s: &mut InsertState) {
 /// Start inserting text.
 pub fn edit(cmdchar: i32, startln: bool, count: i32) -> bool {
     if !curbuf().terminal.get().is_null() {
-        if g_st().ex_normal_busy.get() != 0 {
-            g_st().restart_edit.set(b'i' as i32);
-            g_st().force_restart_edit.set(true);
+        if g_st().input.ex_normal_busy.get() != 0 {
+            g_st().edit.restart_edit.set(b'i' as i32);
+            g_st().edit.force_restart_edit.set(true);
             return false;
         }
         return terminal_enter();
     }
 
-    if g_st().sandbox.get() != 0 {
+    if g_st().input.sandbox.get() != 0 {
         emsg(gettext(E_SANDBOX));
         return false;
     }
 
-    if g_st().textlock.get() != 0
+    if g_st().input.textlock.get() != 0
         || ins_compl_active()
         || ins_st(|st| st.compl_busy.get())
         || pum_visible()
@@ -1397,17 +1450,23 @@ pub fn ins_redraw(ready: bool) {
 
     if ready
         && has_event(EVENT_CURSORMOVEDI)
-        && (g_st().last_cursormoved_win.get() != curwin()
-            || !equalpos(g_st().last_cursormoved.get(), curwin().w_cursor.get()))
+        && (g_st().autocmd.last_cursormoved_win.get() != curwin()
+            || !equalpos(
+                g_st().autocmd.last_cursormoved.get(),
+                curwin().w_cursor.get(),
+            ))
         && !pum_visible()
     {
-        if syntax_present(&curwin()) && g_st().must_redraw.get() != 0 {
+        if syntax_present(&curwin()) && g_st().screen.must_redraw.get() != 0 {
             update_screen();
         }
         update_curswant();
         ins_apply_autocmds(EVENT_CURSORMOVEDI);
-        g_st().last_cursormoved_win.set(crate::globals::curwin());
-        g_st().last_cursormoved.set(curwin().w_cursor.get());
+        g_st()
+            .autocmd
+            .last_cursormoved_win
+            .set(crate::globals::curwin());
+        g_st().autocmd.last_cursormoved.set(curwin().w_cursor.get());
     }
 
     if ready
@@ -1472,16 +1531,19 @@ pub fn ins_redraw(ready: bool) {
 
     pum_check_clear();
     show_cursor_info_later(false);
-    if g_st().must_redraw.get() != 0 {
+    if g_st().screen.must_redraw.get() != 0 {
         update_screen();
     } else {
         redraw_statuslines();
-        if g_st().clear_cmdline.get() || g_st().redraw_cmdline.get() || g_st().redraw_mode.get() {
+        if g_st().cmdline.clear_cmdline.get()
+            || g_st().cmdline.redraw_cmdline.get()
+            || g_st().cmdline.redraw_mode.get()
+        {
             showmode();
         }
     }
     setcursor();
-    g_st().emsg_on_display.set(false);
+    g_st().msg.emsg_on_display.set(false);
 }
 
 fn ins_ctrl_v() {
@@ -1497,19 +1559,27 @@ fn ins_ctrl_v() {
 
     add_to_showcmd_c(CTRL_V_CONST);
 
-    let c = get_literal((g_st().mod_mask.get() & MOD_MASK_SHIFT) != 0);
+    let c = get_literal((g_st().input.mod_mask.get() & MOD_MASK_SHIFT) != 0);
     if did_putchar {
         edit_unputchar();
     }
     clear_showcmd();
     insert_special(c, 1, 1);
-    g_st().ins_global.borrow_mut().revins_chars += 1;
-    g_st().ins_global.borrow_mut().revins_legal += 1;
+    g_st()
+        .edit
+        .ins_global
+        .revins_chars
+        .set(g_st().edit.ins_global.revins_chars.get() + (1));
+    g_st()
+        .edit
+        .ins_global
+        .revins_legal
+        .set(g_st().edit.ins_global.revins_legal.get() + (1));
 }
 
 pub fn edit_putchar(c: i32, highlight: bool) {
     if curwin().w_grid_alloc.chars.borrow().is_empty()
-        && !crate::grid::grid_allocated(&g_st().default_grid)
+        && !crate::grid::grid_allocated(&g_st().screen.default_grid)
     {
         return;
     }
@@ -1624,8 +1694,8 @@ fn init_prompt(cmdchar_todo: i32) {
         coladvance(&curwin(), MAXCOL);
     }
 
-    if g_st().ins_global.borrow().start_orig.lnum != curbuf().b_prompt_start.borrow().mark.lnum
-        || g_st().ins_global.borrow().start_orig.col != curbuf().b_prompt_start.borrow().mark.col
+    if g_st().edit.ins_global.start_orig.get().lnum != curbuf().b_prompt_start.borrow().mark.lnum
+        || g_st().edit.ins_global.start_orig.get().col != curbuf().b_prompt_start.borrow().mark.col
     {
         set_insstart(
             curbuf().b_prompt_start.borrow().mark.lnum,
@@ -1656,13 +1726,15 @@ pub fn prompt_curpos_editable() -> bool {
 }
 
 fn set_insstart(lnum: Linenr, col: Colnr) {
-    let mut ins = g_st().ins_global.borrow_mut();
-    ins.start.lnum = lnum;
-    ins.start.col = col;
-    ins.start_orig = ins.start;
-    ins.start_textlen = ins.start.col;
-    ins.start_blank_vcol = MAXCOL;
-    ins.moved = K_INS_NONE;
+    let ins = &g_st().edit.ins_global;
+    let mut start = ins.start.get();
+    start.lnum = lnum;
+    start.col = col;
+    ins.start.set(start);
+    ins.start_orig.set(start);
+    ins.start_textlen.set(col);
+    ins.start_blank_vcol.set(MAXCOL);
+    ins.moved.set(K_INS_NONE);
 }
 
 pub fn edit_unputchar() {
@@ -1705,16 +1777,16 @@ pub fn display_dollar(col_arg: Colnr) {
     curs_columns(&curwin(), false);
     if curwin().w_wcol.get() < curwin().w_view_width.get() {
         edit_putchar(b'$' as i32, false);
-        g_st().dollar_vcol.set(curwin().w_virtcol.get());
+        g_st().edit.dollar_vcol.set(curwin().w_virtcol.get());
     }
     curwin().w_cursor.set_col(save_col);
 }
 
 pub fn undisplay_dollar() {
-    if g_st().dollar_vcol.get() < 0 {
+    if g_st().edit.dollar_vcol.get() < 0 {
         return;
     }
-    g_st().dollar_vcol.set(-1);
+    g_st().edit.dollar_vcol.set(-1);
     redraw_winline(&crate::globals::curwin(), curwin().w_cursor.get().lnum);
 }
 
@@ -1722,7 +1794,7 @@ pub fn undisplay_dollar() {
 pub fn truncate_spaces(line: &mut [u8], len: usize) {
     let mut i = len.min(line.len()) as isize - 1;
     while i >= 0 && ascii_iswhite(i32::from(line[i as usize])) {
-        if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
+        if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
             replace_join(0);
         }
         i -= 1;
@@ -1735,7 +1807,7 @@ pub fn truncate_spaces(line: &mut [u8], len: usize) {
 pub fn backspace_until_column(col: i32) {
     while curwin().w_cursor.get().col > col {
         curwin().w_cursor.sub_col(1);
-        if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
+        if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
             replace_do_bs(col);
         } else if !del_char_after_col(col) {
             break;
@@ -1771,24 +1843,27 @@ pub fn get_literal(no_simplify: bool) -> i32 {
     let mut octal = false;
     let mut unicode: i32 = 0;
 
-    if g_st().got_int.get() {
+    if g_st().input.got_int.get() {
         return CTRL_C_CONST;
     }
 
-    g_st().no_mapping.set(g_st().no_mapping.get() + (1));
+    g_st()
+        .input
+        .no_mapping
+        .set(g_st().input.no_mapping.get() + (1));
     let mut cc: i32 = 0;
     let mut i: i32 = 0;
     loop {
         nc = plain_vgetc();
         if !no_simplify {
-            let mut mm = g_st().mod_mask.get();
+            let mut mm = g_st().input.mod_mask.get();
             nc = merge_modifiers(nc, &mut mm);
-            g_st().mod_mask.set(mm);
+            g_st().input.mod_mask.set(mm);
         }
-        if (g_st().mod_mask.get() & !MOD_MASK_SHIFT) != 0 {
+        if (g_st().input.mod_mask.get() & !MOD_MASK_SHIFT) != 0 {
             break;
         }
-        if (g_st().state_global.get() & MODE_CMDLINE) == 0 && mb_byte2len_check(nc) == 1 {
+        if (g_st().edit.state_global.get() & MODE_CMDLINE) == 0 && mb_byte2len_check(nc) == 1 {
             add_to_showcmd(nc);
         }
         if nc == b'x' as i32 || nc == b'X' as i32 {
@@ -1849,21 +1924,24 @@ pub fn get_literal(no_simplify: bool) -> i32 {
         cc = b'\n' as i32;
     }
 
-    g_st().no_mapping.set(g_st().no_mapping.get() - (1));
+    g_st()
+        .input
+        .no_mapping
+        .set(g_st().input.no_mapping.get() - (1));
     if nc != 0 {
         vungetc(nc);
-        g_st().mod_mask.set(0);
+        g_st().input.mod_mask.set(0);
     }
-    g_st().got_int.set(false);
+    g_st().input.got_int.set(false);
     cc
 }
 
 fn insert_special(mut c: i32, mut allow_modmask: i32, mut ctrlv: i32) {
-    if (g_st().mod_mask.get() & MOD_MASK_CMD) != 0 {
+    if (g_st().input.mod_mask.get() & MOD_MASK_CMD) != 0 {
         allow_modmask = 1;
     }
-    if is_special_fn(c) || (g_st().mod_mask.get() != 0 && allow_modmask != 0) {
-        let p_buf = get_special_key_name(c, g_st().mod_mask.get());
+    if is_special_fn(c) || (g_st().input.mod_mask.get() != 0 && allow_modmask != 0) {
+        let p_buf = get_special_key_name(c, g_st().input.mod_mask.get());
         let p = p_buf.to_bytes();
         let len = p.len();
         c = i32::from(p[len - 1]);
@@ -1889,14 +1967,14 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
     if textwidth > 0
         && (force_format
             || (!ascii_iswhite(c)
-                && !((g_st().state_global.get() & REPLACE_FLAG) != 0
-                    && (g_st().state_global.get() & VREPLACE_FLAG) == 0
+                && !((g_st().edit.state_global.get() & REPLACE_FLAG) != 0
+                    && (g_st().edit.state_global.get() & VREPLACE_FLAG) == 0
                     && !crate::cursor::get_cursor_pos_slice().is_empty())
-                && (curwin().w_cursor.get().lnum != g_st().ins_global.borrow().start.lnum
+                && (curwin().w_cursor.get().lnum != g_st().edit.ins_global.start.get().lnum
                     || ((!has_format_option(K_FO_INS_LONG)
-                        || g_st().ins_global.borrow().start_textlen <= textwidth)
+                        || g_st().edit.ins_global.start_textlen.get() <= textwidth)
                         && (!fo_ins_blank
-                            || g_st().ins_global.borrow().start_blank_vcol <= textwidth)))))
+                            || g_st().edit.ins_global.start_blank_vcol.get() <= textwidth)))))
     {
         let mut do_internal = true;
         let virtcol =
@@ -1907,7 +1985,7 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
             && (force_format || virtcol > textwidth)
         {
             do_internal = fex_format(curwin().w_cursor.get().lnum, 1, c) != 0;
-            g_st().ins_global.borrow_mut().need_undo = true;
+            g_st().edit.ins_global.need_undo.set(true);
         }
         if do_internal {
             internal_format(textwidth, second_indent, flags, c == NUL as i32, c);
@@ -1918,7 +1996,8 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
         return;
     }
 
-    if g_st().ins_global.borrow().did_ai && c == g_st().ins_global.borrow().end_comment_pending {
+    if g_st().edit.ins_global.did_ai.get() && c == g_st().edit.ins_global.end_comment_pending.get()
+    {
         let mut lead_end = [0u8; COM_MAX_LEN];
         let mut flags_opt: Option<crate::option_vars::RcCStr> = None;
         let line_cstr = get_cursor_line_ptr();
@@ -1966,26 +2045,26 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
             if i >= 0
                 && end_len > 0
                 && i32::from(lead_end[(end_len - 1) as usize])
-                    == g_st().ins_global.borrow().end_comment_pending
+                    == g_st().edit.ins_global.end_comment_pending.get()
             {
                 backspace_until_column(i);
                 ins_bytes_len(&lead_end, (end_len - 1) as usize);
             }
         }
     }
-    g_st().ins_global.borrow_mut().end_comment_pending = NUL as i32;
+    g_st().edit.ins_global.end_comment_pending.set(NUL as i32);
 
-    g_st().ins_global.borrow_mut().did_ai = false;
-    g_st().ins_global.borrow_mut().did_si = false;
-    g_st().ins_global.borrow_mut().can_si = false;
-    g_st().ins_global.borrow_mut().can_si_back = false;
+    g_st().edit.ins_global.did_ai.set(false);
+    g_st().edit.ins_global.did_si.set(false);
+    g_st().edit.ins_global.can_si.set(false);
+    g_st().edit.ins_global.can_si_back.set(false);
 
     if !is_special_ins(c)
         && utf_char2len(c) == 1
         && !has_event(EVENT_INSERTCHARPRE)
         && !test_disable_char_avail.load(std::sync::atomic::Ordering::Relaxed)
         && vpeekc() != NUL as i32
-        && (g_st().state_global.get() & REPLACE_FLAG) == 0
+        && (g_st().edit.state_global.get() & REPLACE_FLAG) == 0
         && !cindent_on()
         && !opt_vars().p_ri.get()
     {
@@ -2007,7 +2086,9 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
                     virtcol += ascii2cells(i32::from(buf[i - 1]));
                     virtcol < textwidth
                 })
-                && !(!g_st().no_abbr.get() && !vim_iswordc(c) && vim_iswordc(i32::from(buf[i - 1])))
+                && !(!g_st().edit.no_abbr.get()
+                    && !vim_iswordc(c)
+                    && vim_iswordc(i32::from(buf[i - 1])))
         } {
             c = vgetc();
             buf[i] = c as u8;
@@ -2058,20 +2139,20 @@ fn redo_literal(c: i32) {
 
 /// Called when the cursor moves in insert-mode without editing text.
 pub fn start_arrow(end_insert_pos: Option<CursorPos>, end_change: bool, move_key: i32) {
-    if g_st().ins_global.borrow().moved == K_INS_NONE && end_change {
+    if g_st().edit.ins_global.moved.get() == K_INS_NONE && end_change {
         stop_insert(end_insert_pos, 0, 0);
     }
-    if g_st().ins_global.borrow().moved != K_INS_JUMP {
+    if g_st().edit.ins_global.moved.get() != K_INS_JUMP {
         if move_key == NUL as i32 {
             redo_append_str(b"\x1b");
-            g_st().ins_global.borrow_mut().moved = K_INS_JUMP;
+            g_st().edit.ins_global.moved.set(K_INS_JUMP);
         } else {
             if !is_special_fn(move_key) {
                 redo_append_char(CTRL_G);
             }
             redo_append_char(move_key);
             if end_change {
-                g_st().ins_global.borrow_mut().moved = K_INS_ARROW;
+                g_st().edit.ins_global.moved.set(K_INS_ARROW);
             }
         }
     }
@@ -2079,7 +2160,7 @@ pub fn start_arrow(end_insert_pos: Option<CursorPos>, end_change: bool, move_key
 }
 
 fn start_arrow_with_change(end_insert_pos: CursorPos, end_change: bool, move_key: i32) {
-    if !end_change && g_st().ins_global.borrow().moved != K_INS_JUMP {
+    if !end_change && g_st().edit.ins_global.moved.get() != K_INS_JUMP {
         redo_append_char(CTRL_G);
         redo_append_char(b'U' as i32);
     }
@@ -2087,35 +2168,39 @@ fn start_arrow_with_change(end_insert_pos: CursorPos, end_change: bool, move_key
 }
 
 fn check_spell_redraw() {
-    if g_st().spell_redraw_lnum.get() != 0 {
-        let lnum = g_st().spell_redraw_lnum.get();
-        g_st().spell_redraw_lnum.set(0);
+    if g_st().screen.spell_redraw_lnum.get() != 0 {
+        let lnum = g_st().screen.spell_redraw_lnum.get();
+        g_st().screen.spell_redraw_lnum.set(0);
         redraw_winline(&crate::globals::curwin(), lnum);
     }
 }
 
 pub fn stop_arrow() -> bool {
-    if g_st().ins_global.borrow().moved != K_INS_NONE {
-        g_st().ins_global.borrow_mut().start = curwin().w_cursor.get();
-        if g_st().ins_global.borrow().start.col > g_st().ins_global.borrow().start_orig.col
-            && !g_st().ins_global.borrow().need_undo
+    if g_st().edit.ins_global.moved.get() != K_INS_NONE {
+        g_st().edit.ins_global.start.set(curwin().w_cursor.get());
+        if g_st().edit.ins_global.start.get().col > g_st().edit.ins_global.start_orig.get().col
+            && !g_st().edit.ins_global.need_undo.get()
         {
-            g_st().ins_global.borrow_mut().update_start_orig = false;
+            g_st().edit.ins_global.update_start_orig.set(false);
         }
-        g_st().ins_global.borrow_mut().start_textlen =
-            linetabsize_str(&crate::cursor::get_cursor_line_slice());
+        g_st()
+            .edit
+            .ins_global
+            .start_textlen
+            .set(linetabsize_str(&crate::cursor::get_cursor_line_slice()));
 
-        let jumped = g_st().ins_global.borrow().moved == K_INS_JUMP;
+        let jumped = g_st().edit.ins_global.moved.get() == K_INS_JUMP;
         if u_save_cursor() {
-            g_st().ins_global.borrow_mut().moved = K_INS_NONE;
-            g_st().ins_global.borrow_mut().need_undo = false;
+            g_st().edit.ins_global.moved.set(K_INS_NONE);
+            g_st().edit.ins_global.need_undo.set(false);
         }
-        g_st().ins_global.borrow_mut().ai_col = 0;
-        if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
+        g_st().edit.ins_global.ai_col.set(0);
+        if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0 {
             g_st()
+                .edit
                 .orig_line_count
                 .set(curbuf().b_ml.ml_line_count.get());
-            g_st().vr_lines_changed.set(1);
+            g_st().edit.vr_lines_changed.set(1);
         }
         if jumped {
             prep_redo(
@@ -2127,25 +2212,31 @@ pub fn stop_arrow() -> bool {
                     ..CmdSpec::default()
                 },
             );
-            g_st().ins_global.borrow_mut().new_insert_skip = 2;
+            g_st().edit.ins_global.new_insert_skip.set(2);
             mc_ins_cascade_restart();
         } else {
             let redo = redo_keys(None);
-            g_st().ins_global.borrow_mut().new_insert_skip =
-                redo.as_ref().map_or(0, |s| s.as_bytes().len() as i32);
+            g_st()
+                .edit
+                .ins_global
+                .new_insert_skip
+                .set(redo.as_ref().map_or(0, |s| s.as_bytes().len() as i32));
         }
-    } else if g_st().ins_global.borrow().need_undo && u_save_cursor() {
-        if lt(curwin().w_cursor.get(), g_st().ins_global.borrow().start) {
-            g_st().ins_global.borrow_mut().start = curwin().w_cursor.get();
-            g_st().ins_global.borrow_mut().start_textlen =
-                linetabsize_str(&crate::cursor::get_cursor_line_slice());
+    } else if g_st().edit.ins_global.need_undo.get() && u_save_cursor() {
+        if lt(curwin().w_cursor.get(), g_st().edit.ins_global.start.get()) {
+            g_st().edit.ins_global.start.set(curwin().w_cursor.get());
+            g_st()
+                .edit
+                .ins_global
+                .start_textlen
+                .set(linetabsize_str(&crate::cursor::get_cursor_line_slice()));
         }
-        g_st().ins_global.borrow_mut().need_undo = false;
+        g_st().edit.ins_global.need_undo.set(false);
     }
 
     fold_open_cursor();
 
-    !(g_st().ins_global.borrow().moved != K_INS_NONE || g_st().ins_global.borrow().need_undo)
+    !(g_st().edit.ins_global.moved.get() != K_INS_NONE || g_st().edit.ins_global.need_undo.get())
 }
 
 fn stop_insert(end_insert_pos: Option<CursorPos>, esc: i32, nomove: i32) {
@@ -2155,13 +2246,13 @@ fn stop_insert(end_insert_pos: Option<CursorPos>, esc: i32, nomove: i32) {
     let redo_cstr = redo_keys(None);
     let added = match redo_cstr {
         None => 0,
-        Some(ref s) => (s.as_bytes().len() as i32) - g_st().ins_global.borrow().new_insert_skip,
+        Some(ref s) => (s.as_bytes().len() as i32) - g_st().edit.ins_global.new_insert_skip.get(),
     };
-    if g_st().ins_global.borrow().did_restart_edit == 0 || added > 0 {
+    if g_st().edit.ins_global.did_restart_edit.get() == 0 || added > 0 {
         let skip = if added < 0 {
             0
         } else {
-            g_st().ins_global.borrow().new_insert_skip
+            g_st().edit.ins_global.new_insert_skip.get()
         };
         ins_st(|st| {
             *st.last_insert.borrow_mut() = redo_cstr;
@@ -2169,11 +2260,11 @@ fn stop_insert(end_insert_pos: Option<CursorPos>, esc: i32, nomove: i32) {
         });
     }
 
-    if g_st().ins_global.borrow().moved == K_INS_NONE
+    if g_st().edit.ins_global.moved.get() == K_INS_NONE
         && let Some(end_pos) = end_insert_pos
     {
         let mut cc: i32;
-        if !g_st().ins_global.borrow().need_undo && has_format_option(K_FO_AUTO) {
+        if !g_st().edit.ins_global.need_undo.get() && has_format_option(K_FO_AUTO) {
             let tpos = curwin().w_cursor.get();
             cc = b'x' as i32;
             if curwin().w_cursor.get().col > 0 && gchar_cursor() == NUL as i32 {
@@ -2202,7 +2293,7 @@ fn stop_insert(end_insert_pos: Option<CursorPos>, esc: i32, nomove: i32) {
         check_auto_format(true);
 
         if nomove == 0
-            && g_st().ins_global.borrow().did_ai
+            && g_st().edit.ins_global.did_ai.get()
             && !mc_ins_replaying()
             && (esc != 0
                 || (!crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_INDENT)
@@ -2248,7 +2339,7 @@ fn stop_insert(end_insert_pos: Option<CursorPos>, esc: i32, nomove: i32) {
                     }
                 }
 
-                if g_st().visual_global.borrow().active {
+                if g_st().edit.visual_global.active.get() {
                     check_visual_pos();
                 }
             } else {
@@ -2256,16 +2347,16 @@ fn stop_insert(end_insert_pos: Option<CursorPos>, esc: i32, nomove: i32) {
             }
         }
     }
-    g_st().ins_global.borrow_mut().did_ai = false;
-    g_st().ins_global.borrow_mut().did_si = false;
-    g_st().ins_global.borrow_mut().can_si = false;
-    g_st().ins_global.borrow_mut().can_si_back = false;
+    g_st().edit.ins_global.did_ai.set(false);
+    g_st().edit.ins_global.did_si.set(false);
+    g_st().edit.ins_global.can_si.set(false);
+    g_st().edit.ins_global.can_si_back.set(false);
 
     if let Some(end_pos) = end_insert_pos {
-        curbuf().b_op_start.set(g_st().ins_global.borrow().start);
+        curbuf().b_op_start.set(g_st().edit.ins_global.start.get());
         curbuf()
             .b_op_start_orig
-            .set(g_st().ins_global.borrow().start_orig);
+            .set(g_st().edit.ins_global.start_orig.get());
         curbuf().b_op_end.set(end_pos);
     }
 }
@@ -2407,7 +2498,7 @@ pub fn cursor_up_inner(wp: &WinInfoInfo, mut n: Linenr, skip_conceal: bool) {
                 n += 1;
             }
             if n > 0
-                || !((g_st().state_global.get() & MODE_INSERT) != 0
+                || !((g_st().edit.state_global.get() & MODE_INSERT) != 0
                     || (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_ALL) != 0)
             {
                 has_folding(wp, lnum, Some(&mut lnum), None);
@@ -2545,8 +2636,8 @@ pub fn get_last_insert_save() -> Option<std::ffi::CString> {
 
 fn echeck_abbr(c: i32) -> bool {
     if opt_vars().p_paste.get()
-        || g_st().no_abbr.get()
-        || g_st().ins_global.borrow().moved != K_INS_NONE
+        || g_st().edit.no_abbr.get()
+        || g_st().edit.ins_global.moved.get() != K_INS_NONE
     {
         return false;
     }
@@ -2554,8 +2645,8 @@ fn echeck_abbr(c: i32) -> bool {
         c,
         &get_cursor_line_ptr(),
         curwin().w_cursor.get().col,
-        if curwin().w_cursor.get().lnum == g_st().ins_global.borrow().start.lnum {
-            g_st().ins_global.borrow().start.col
+        if curwin().w_cursor.get().lnum == g_st().edit.ins_global.start.get().lnum {
+            g_st().edit.ins_global.start.get().col
         } else {
             0
         },
@@ -2564,7 +2655,7 @@ fn echeck_abbr(c: i32) -> bool {
 
 /// Push character that is replaced onto the replace stack.
 pub fn replace_push(slice: &[u8]) {
-    let off = g_st().replace_offset.get() as usize;
+    let off = g_st().edit.replace_offset.get() as usize;
     ins_st(|st| {
         let mut stack = st.replace_stack.borrow_mut();
         if stack.len() < off {
@@ -2609,13 +2700,13 @@ pub fn replace_join(mut off: i32) {
 }
 
 fn replace_pop_ins() {
-    let old_state = g_st().state_global.get();
-    g_st().state_global.set(MODE_NORMAL);
+    let old_state = g_st().edit.state_global.get();
+    g_st().edit.state_global.set(MODE_NORMAL);
     while replace_pop_if_nul() > 0 {
         mb_replace_pop_ins();
         dec_cursor();
     }
-    g_st().state_global.set(old_state);
+    g_st().edit.state_global.set(old_state);
 }
 
 fn mb_replace_pop_ins() {
@@ -2632,7 +2723,7 @@ fn mb_replace_pop_ins() {
 
 fn replace_do_bs(limit_col: i32) {
     let mut start_vcol: Colnr = 0;
-    let l_state = g_st().state_global.get();
+    let l_state = g_st().edit.state_global.get();
 
     let cc = replace_pop_if_nul();
     if cc > 0 {
@@ -2679,7 +2770,7 @@ fn replace_do_bs(limit_col: i32) {
 fn ins_reg() {
     let mut need_redraw = false;
     let mut literally: i32 = 0;
-    let vis_active = g_st().visual_global.borrow().active;
+    let vis_active = g_st().edit.visual_global.active.get();
 
     ins_st(|st| st.pc_status.set(PC_STATUS_UNSET));
     if redrawing() && !char_avail() {
@@ -2688,8 +2779,14 @@ fn ins_reg() {
         add_to_showcmd_c(CTRL_R_CONST);
     }
 
-    g_st().no_mapping.set(g_st().no_mapping.get() + (1));
-    g_st().allow_keys.set(g_st().allow_keys.get() + (1));
+    g_st()
+        .input
+        .no_mapping
+        .set(g_st().input.no_mapping.get() + (1));
+    g_st()
+        .input
+        .allow_keys
+        .set(g_st().input.allow_keys.get() + (1));
     let mut regname = plain_vgetc();
     langmap_adjust(&mut regname, true);
     if regname == CTRL_R_CONST || regname == CTRL_O || regname == CTRL_P {
@@ -2698,13 +2795,19 @@ fn ins_reg() {
         regname = plain_vgetc();
         langmap_adjust(&mut regname, true);
     }
-    g_st().no_mapping.set(g_st().no_mapping.get() - (1));
-    g_st().allow_keys.set(g_st().allow_keys.get() - (1));
+    g_st()
+        .input
+        .no_mapping
+        .set(g_st().input.no_mapping.get() - (1));
+    g_st()
+        .input
+        .allow_keys
+        .set(g_st().input.allow_keys.get() - (1));
 
-    g_st().no_u_sync.set(g_st().no_u_sync.get() + (1));
+    g_st().edit.no_u_sync.set(g_st().edit.no_u_sync.get() + (1));
     if regname == b'=' as i32 {
         let curpos = curwin().w_cursor.get();
-        g_st().u_sync_once.set(2);
+        g_st().edit.u_sync_once.set(2);
         regname = get_expr_register();
         curwin().w_cursor.set(curpos);
         check_cursor(&curwin());
@@ -2738,22 +2841,22 @@ fn ins_reg() {
         } else if !insert_reg(regname, None, literally != 0) {
             vim_beep(K_OPT_BO_FLAG_REGISTER);
             need_redraw = true;
-        } else if g_st().ins_global.borrow().stop_insert_mode {
+        } else if g_st().edit.ins_global.stop_insert_mode.get() {
             need_redraw = true;
         }
     }
-    g_st().no_u_sync.set(g_st().no_u_sync.get() - (1));
-    if g_st().u_sync_once.get() == 1 {
-        g_st().ins_global.borrow_mut().need_undo = true;
+    g_st().edit.no_u_sync.set(g_st().edit.no_u_sync.get() - (1));
+    if g_st().edit.u_sync_once.get() == 1 {
+        g_st().edit.ins_global.need_undo.set(true);
     }
-    g_st().u_sync_once.set(0);
+    g_st().edit.u_sync_once.set(0);
 
     if need_redraw || stuff_empty() {
         edit_unputchar();
     }
     clear_showcmd();
 
-    if !vis_active && g_st().visual_global.borrow().active {
+    if !vis_active && g_st().edit.visual_global.active.get() {
         end_visual_mode();
     }
 }
@@ -2761,11 +2864,23 @@ fn ins_reg() {
 fn ins_ctrl_g() {
     setcursor();
 
-    g_st().no_mapping.set(g_st().no_mapping.get() + (1));
-    g_st().allow_keys.set(g_st().allow_keys.get() + (1));
+    g_st()
+        .input
+        .no_mapping
+        .set(g_st().input.no_mapping.get() + (1));
+    g_st()
+        .input
+        .allow_keys
+        .set(g_st().input.allow_keys.get() + (1));
     let c = plain_vgetc();
-    g_st().no_mapping.set(g_st().no_mapping.get() - (1));
-    g_st().allow_keys.set(g_st().allow_keys.get() - (1));
+    g_st()
+        .input
+        .no_mapping
+        .set(g_st().input.no_mapping.get() - (1));
+    g_st()
+        .input
+        .allow_keys
+        .set(g_st().input.allow_keys.get() - (1));
     match c {
         K_UP | CTRL_K_CONST => ins_up(true),
         c if c == b'k' as i32 => ins_up(true),
@@ -2773,12 +2888,12 @@ fn ins_ctrl_g() {
         c if c == b'j' as i32 => ins_down(true),
         c if c == b'u' as i32 => {
             u_sync(true);
-            g_st().ins_global.borrow_mut().need_undo = true;
-            g_st().ins_global.borrow_mut().update_start_orig = false;
-            g_st().ins_global.borrow_mut().start = curwin().w_cursor.get();
+            g_st().edit.ins_global.need_undo.set(true);
+            g_st().edit.ins_global.update_start_orig.set(false);
+            g_st().edit.ins_global.start.set(curwin().w_cursor.get());
         }
         c if c == b'U' as i32 => {
-            g_st().ins_global.borrow_mut().dont_sync_undo = K_NONE;
+            g_st().edit.ins_global.dont_sync_undo.set(K_NONE);
         }
         ESC => {}
         _ => {
@@ -2789,16 +2904,18 @@ fn ins_ctrl_g() {
 
 fn ins_ctrl_hat() {
     if map_to_exists_mode(c"", MODE_LANGMAP, false) {
-        if (g_st().state_global.get() & MODE_LANGMAP) != 0 {
+        if (g_st().edit.state_global.get() & MODE_LANGMAP) != 0 {
             curbuf().b_p_iminsert.set(B_IMODE_NONE);
             g_st()
+                .edit
                 .state_global
-                .set(g_st().state_global.get() & (!MODE_LANGMAP));
+                .set(g_st().edit.state_global.get() & (!MODE_LANGMAP));
         } else {
             curbuf().b_p_iminsert.set(B_IMODE_LMAP);
             g_st()
+                .edit
                 .state_global
-                .set(g_st().state_global.get() | (MODE_LANGMAP));
+                .set(g_st().edit.state_global.get() | (MODE_LANGMAP));
         }
     }
     set_iminsert_global(&curbuf());
@@ -2812,17 +2929,18 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
     let temp = curwin().w_cursor.get().col;
     if ins_st(|st| st.ins_esc_disabled_redraw.replace(false)) {
         g_st()
+            .screen
             .redrawing_disabled
-            .set(g_st().redrawing_disabled.get() - (1));
+            .set(g_st().screen.redrawing_disabled.get() - (1));
     }
-    if g_st().ins_global.borrow().moved == K_INS_NONE {
+    if g_st().edit.ins_global.moved.get() == K_INS_NONE {
         if cmdchar != b'r' as i32 && cmdchar != b'v' as i32 {
             redo_append_str(b"\x1b");
         }
 
         if *count > 0 {
             line_breakcheck();
-            if g_st().got_int.get() {
+            if g_st().input.got_int.get() {
                 *count = 0;
             }
         }
@@ -2831,8 +2949,9 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
         if *count > 0 {
             if crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_REPLCNT) {
                 g_st()
+                    .edit
                     .state_global
-                    .set(g_st().state_global.get() & (!REPLACE_FLAG));
+                    .set(g_st().edit.state_global.get() & (!REPLACE_FLAG));
             }
 
             start_redo_ins();
@@ -2840,14 +2959,15 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
                 stuff_redo_readbuff(c"\x1b");
             }
             g_st()
+                .screen
                 .redrawing_disabled
-                .set(g_st().redrawing_disabled.get() + (1));
+                .set(g_st().screen.redrawing_disabled.get() + (1));
             ins_st(|st| st.ins_esc_disabled_redraw.set(true));
             return false;
         }
         stop_insert(Some(curwin().w_cursor.get()), 1, i32::from(nomove));
         undisplay_dollar();
-    } else if g_st().ins_global.borrow().moved == K_INS_ARROW
+    } else if g_st().edit.ins_global.moved.get() == K_INS_ARROW
         && cmdchar != b'r' as i32
         && cmdchar != b'v' as i32
     {
@@ -2858,11 +2978,11 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
         ins_apply_autocmds(EVENT_INSERTLEAVEPRE);
     }
 
-    if g_st().restart_edit.get() == NUL as i32 && temp == curwin().w_cursor.get().col {
+    if g_st().edit.restart_edit.get() == NUL as i32 && temp == curwin().w_cursor.get().col {
         curwin().w_set_curswant.set(true);
     }
 
-    if (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPJUMPS) == 0 {
+    if (g_st().cmdline.cmod_flags() & CMOD_KEEPJUMPS) == 0 {
         let view = mark_view_make(&curwin(), curwin().w_cursor.get());
         reset_fmark(
             &mut curbuf().b_last_insert.borrow_mut(),
@@ -2874,13 +2994,13 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
 
     if !nomove
         && (curwin().w_cursor.get().col != 0 || curwin().w_cursor.get().coladd > 0)
-        && (g_st().restart_edit.get() == NUL as i32
-            || (gchar_cursor() == NUL as i32 && !g_st().visual_global.borrow().active))
-        && !g_st().ins_global.borrow().revins_on
+        && (g_st().edit.restart_edit.get() == NUL as i32
+            || (gchar_cursor() == NUL as i32 && !g_st().edit.visual_global.active.get()))
+        && !g_st().edit.ins_global.revins_on.get()
     {
         if curwin().w_cursor.get().coladd > 0 || get_ve_flags(&curwin()) == K_OPT_VE_FLAG_ALL {
             oneleft();
-            if g_st().restart_edit.get() != NUL as i32 {
+            if g_st().edit.restart_edit.get() != NUL as i32 {
                 curwin().w_cursor.add_coladd(1);
             }
         } else {
@@ -2892,7 +3012,7 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
         }
     }
 
-    g_st().state_global.set(MODE_NORMAL);
+    g_st().edit.state_global.set(MODE_NORMAL);
     may_trigger_modechanged();
     if gchar_cursor() == TAB || buf_meta_total(&curbuf(), K_MTMETA_INLINE) > 0 {
         curwin()
@@ -2903,10 +3023,10 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
     setmouse();
     ui_cursor_shape();
 
-    if g_st().reg_recording.get() != 0 || g_st().restart_edit.get() != NUL as i32 {
+    if g_st().input.reg_recording.get() != 0 || g_st().edit.restart_edit.get() != NUL as i32 {
         showmode();
     } else if opt_vars().p_smd.get()
-        && (g_st().got_int.get() || !skip_showmode())
+        && (g_st().input.got_int.get() || !skip_showmode())
         && !(opt_vars().p_ch.get() == 0 && !ui_has(K_UIMESSAGES))
     {
         unshowmode(false);
@@ -2915,36 +3035,51 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
 }
 
 fn ins_ctrl_() {
-    if g_st().ins_global.borrow().revins_on
-        && g_st().ins_global.borrow().revins_chars != 0
-        && g_st().ins_global.borrow().revins_scol >= 0
+    if g_st().edit.ins_global.revins_on.get()
+        && g_st().edit.ins_global.revins_chars.get() != 0
+        && g_st().edit.ins_global.revins_scol.get() >= 0
     {
-        while gchar_cursor() != NUL as i32 && g_st().ins_global.borrow().revins_chars != 0 {
-            g_st().ins_global.borrow_mut().revins_chars -= 1;
+        while gchar_cursor() != NUL as i32 && g_st().edit.ins_global.revins_chars.get() != 0 {
+            g_st()
+                .edit
+                .ins_global
+                .revins_chars
+                .set(g_st().edit.ins_global.revins_chars.get() - (1));
             curwin().w_cursor.add_col(1);
         }
     }
     opt_vars().p_ri.set(!opt_vars().p_ri.get());
-    g_st().ins_global.borrow_mut().revins_on =
-        g_st().state_global.get() == MODE_INSERT && opt_vars().p_ri.get();
-    if g_st().ins_global.borrow().revins_on {
-        g_st().ins_global.borrow_mut().revins_scol = curwin().w_cursor.get().col;
-        g_st().ins_global.borrow_mut().revins_legal += 1;
-        g_st().ins_global.borrow_mut().revins_chars = 0;
+    g_st()
+        .edit
+        .ins_global
+        .revins_on
+        .set(g_st().edit.state_global.get() == MODE_INSERT && opt_vars().p_ri.get());
+    if g_st().edit.ins_global.revins_on.get() {
+        g_st()
+            .edit
+            .ins_global
+            .revins_scol
+            .set(curwin().w_cursor.get().col);
+        g_st()
+            .edit
+            .ins_global
+            .revins_legal
+            .set(g_st().edit.ins_global.revins_legal.get() + (1));
+        g_st().edit.ins_global.revins_chars.set(0);
         undisplay_dollar();
     } else {
-        g_st().ins_global.borrow_mut().revins_scol = -1;
+        g_st().edit.ins_global.revins_scol.set(-1);
     }
     showmode();
 }
 
 fn ins_start_select(c: i32) -> bool {
-    if !g_st().km_startsel.get() {
+    if !g_st().edit.km_startsel.get() {
         return false;
     }
     match c {
         K_KHOME | K_KEND | K_PAGEUP | K_KPAGEUP | K_PAGEDOWN | K_KPAGEDOWN
-            if (g_st().mod_mask.get() & MOD_MASK_SHIFT) == 0 =>
+            if (g_st().input.mod_mask.get() & MOD_MASK_SHIFT) == 0 =>
         {
             false
         }
@@ -2952,8 +3087,8 @@ fn ins_start_select(c: i32) -> bool {
         | K_S_RIGHT | K_S_UP | K_S_DOWN | K_S_END | K_S_HOME => {
             start_selection();
             stuffchar_readbuff(CTRL_O);
-            if g_st().mod_mask.get() != 0 {
-                let buf: [u8; 3] = [K_SPECIAL, KS_MODIFIER, g_st().mod_mask.get() as u8];
+            if g_st().input.mod_mask.get() != 0 {
+                let buf: [u8; 3] = [K_SPECIAL, KS_MODIFIER, g_st().input.mod_mask.get() as u8];
                 stuff_readbuff_len(&buf);
             }
             stuffchar_readbuff(c);
@@ -2964,7 +3099,7 @@ fn ins_start_select(c: i32) -> bool {
 }
 
 fn ins_insert(replace_state: i32) {
-    let mode_str = if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
+    let mode_str = if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
         c"i"
     } else if replace_state == MODE_VREPLACE {
         c"v"
@@ -2973,14 +3108,16 @@ fn ins_insert(replace_state: i32) {
     };
     set_vim_var_string(VV_INSERTMODE, Some(mode_str), 1);
     ins_apply_autocmds(EVENT_INSERTCHANGE);
-    if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
+    if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
         g_st()
+            .edit
             .state_global
-            .set(MODE_INSERT | (g_st().state_global.get() & MODE_LANGMAP));
+            .set(MODE_INSERT | (g_st().edit.state_global.get() & MODE_LANGMAP));
     } else {
         g_st()
+            .edit
             .state_global
-            .set(replace_state | (g_st().state_global.get() & MODE_LANGMAP));
+            .set(replace_state | (g_st().edit.state_global.get() & MODE_LANGMAP));
     }
     may_trigger_modechanged();
     redo_append_char(K_INS);
@@ -2989,18 +3126,18 @@ fn ins_insert(replace_state: i32) {
 }
 
 fn ins_ctrl_o() {
-    g_st().visual_global.borrow_mut().restart_select = 0;
-    if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
-        g_st().restart_edit.set(b'V' as i32);
-    } else if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
-        g_st().restart_edit.set(b'R' as i32);
+    g_st().edit.visual_global.restart_select.set(0);
+    if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0 {
+        g_st().edit.restart_edit.set(b'V' as i32);
+    } else if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
+        g_st().edit.restart_edit.set(b'R' as i32);
     } else {
-        g_st().restart_edit.set(b'I' as i32);
+        g_st().edit.restart_edit.set(b'I' as i32);
     }
     if virtual_active(&curwin()) {
-        g_st().ins_at_eol.set(false);
+        g_st().edit.ins_at_eol.set(false);
     } else {
-        g_st().ins_at_eol.set(gchar_cursor() == NUL as i32);
+        g_st().edit.ins_at_eol.set(gchar_cursor() == NUL as i32);
     }
 }
 
@@ -3016,11 +3153,11 @@ fn ins_shift(c: i32, lastc: i32) {
     {
         curwin().w_cursor.sub_col(1);
         del_char(false);
-        if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
+        if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
             replace_pop_ins();
         }
         if lastc == b'^' as i32 {
-            g_st().old_indent.set(get_indent());
+            g_st().edit.old_indent.set(get_indent());
         }
         change_indent(INDENT_SET, 0, 1, true);
     } else {
@@ -3036,15 +3173,15 @@ fn ins_shift(c: i32, lastc: i32) {
         );
     }
 
-    if g_st().ins_global.borrow().did_ai
+    if g_st().edit.ins_global.did_ai.get()
         && !crate::charset::skipwhite_slice(&crate::cursor::get_cursor_line_slice()).is_empty()
     {
-        g_st().ins_global.borrow_mut().did_ai = false;
+        g_st().edit.ins_global.did_ai.set(false);
     }
-    g_st().ins_global.borrow_mut().did_si = false;
-    g_st().ins_global.borrow_mut().can_si = false;
-    g_st().ins_global.borrow_mut().can_si_back = false;
-    g_st().ins_global.borrow_mut().can_cindent = false;
+    g_st().edit.ins_global.did_si.set(false);
+    g_st().edit.ins_global.can_si.set(false);
+    g_st().edit.ins_global.can_si_back.set(false);
+    g_st().edit.ins_global.can_cindent.set(false);
 }
 
 fn ins_del() {
@@ -3058,10 +3195,11 @@ fn ins_del() {
         } else {
             mc_ins_join();
             curwin().w_cursor.set_col(temp);
-            if (g_st().state_global.get() & VREPLACE_FLAG) != 0
-                && g_st().orig_line_count.get() > curbuf().b_ml.ml_line_count.get()
+            if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0
+                && g_st().edit.orig_line_count.get() > curbuf().b_ml.ml_line_count.get()
             {
                 g_st()
+                    .edit
                     .orig_line_count
                     .set(curbuf().b_ml.ml_line_count.get());
             }
@@ -3069,10 +3207,10 @@ fn ins_del() {
     } else if !del_char(false) {
         vim_beep(K_OPT_BO_FLAG_BACKSPACE);
     }
-    g_st().ins_global.borrow_mut().did_ai = false;
-    g_st().ins_global.borrow_mut().did_si = false;
-    g_st().ins_global.borrow_mut().can_si = false;
-    g_st().ins_global.borrow_mut().can_si_back = false;
+    g_st().edit.ins_global.did_ai.set(false);
+    g_st().edit.ins_global.did_si.set(false);
+    g_st().edit.ins_global.can_si.set(false);
+    g_st().edit.ins_global.can_si_back.set(false);
     redo_append_char(K_DEL);
 }
 
@@ -3083,19 +3221,19 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
     let mut call_fix_indent = false;
 
     if buf_is_empty(&curbuf())
-        || (!g_st().ins_global.borrow().revins_on
+        || (!g_st().edit.ins_global.revins_on.get()
             && ((curwin().w_cursor.get().lnum == 1 && curwin().w_cursor.get().col == 0)
                 || (!can_bs(BS_START)
-                    && ((g_st().ins_global.borrow().moved != K_INS_NONE
+                    && ((g_st().edit.ins_global.moved.get() != K_INS_NONE
                         && !bt_prompt(Some(&crate::globals::curbuf())))
                         || (curwin().w_cursor.get().lnum
-                            == g_st().ins_global.borrow().start_orig.lnum
+                            == g_st().edit.ins_global.start_orig.get().lnum
                             && curwin().w_cursor.get().col
-                                <= g_st().ins_global.borrow().start_orig.col)))
+                                <= g_st().edit.ins_global.start_orig.get().col)))
                 || (!can_bs(BS_INDENT)
-                    && g_st().ins_global.borrow().moved == K_INS_NONE
-                    && g_st().ins_global.borrow().ai_col > 0
-                    && curwin().w_cursor.get().col <= g_st().ins_global.borrow().ai_col)
+                    && g_st().edit.ins_global.moved.get() == K_INS_NONE
+                    && g_st().edit.ins_global.ai_col.get() > 0
+                    && curwin().w_cursor.get().col <= g_st().edit.ins_global.ai_col.get())
                 || (!can_bs(BS_EOL) && curwin().w_cursor.get().col == 0)))
     {
         vim_beep(K_OPT_BO_FLAG_BACKSPACE);
@@ -3107,10 +3245,10 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
     }
     let in_indent = inindent(0);
     if in_indent {
-        g_st().ins_global.borrow_mut().can_cindent = false;
+        g_st().edit.ins_global.can_cindent.set(false);
     }
-    g_st().ins_global.borrow_mut().end_comment_pending = NUL as i32;
-    if g_st().ins_global.borrow().revins_on {
+    g_st().edit.ins_global.end_comment_pending.set(NUL as i32);
+    if g_st().edit.ins_global.revins_on.get() {
         inc_cursor();
     }
     if curwin().w_cursor.get().coladd > 0 {
@@ -3127,27 +3265,29 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
 
     if curwin().w_cursor.get().col == 0 {
         mc_ins_join();
-        let lnum = g_st().ins_global.borrow().start.lnum;
-        if curwin().w_cursor.get().lnum == lnum || g_st().ins_global.borrow().revins_on {
+        let lnum = g_st().edit.ins_global.start.get().lnum;
+        if curwin().w_cursor.get().lnum == lnum || g_st().edit.ins_global.revins_on.get() {
             if !u_save(
                 curwin().w_cursor.get().lnum - 2,
                 curwin().w_cursor.get().lnum + 1,
             ) {
                 return false;
             }
-            g_st().ins_global.borrow_mut().start.lnum -= 1;
-            let slnum = g_st().ins_global.borrow().start.lnum;
-            g_st().ins_global.borrow_mut().start.col = ml_get_len(slnum);
+            g_st().edit.ins_global.start.sub_lnum(1);
+            let slnum = g_st().edit.ins_global.start.get().lnum;
+            g_st().edit.ins_global.start.set_col(ml_get_len(slnum));
         }
         cc = -1;
-        if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
+        if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
             cc = replace_pop_if_nul();
         }
-        if (g_st().state_global.get() & REPLACE_FLAG) != 0 && curwin().w_cursor.get().lnum <= lnum {
+        if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0
+            && curwin().w_cursor.get().lnum <= lnum
+        {
             dec_cursor();
         } else {
-            if (g_st().state_global.get() & VREPLACE_FLAG) == 0
-                || curwin().w_cursor.get().lnum > g_st().orig_line_count.get()
+            if (g_st().edit.state_global.get() & VREPLACE_FLAG) == 0
+                || curwin().w_cursor.get().lnum > g_st().edit.orig_line_count.get()
             {
                 temp = gchar_cursor();
                 curwin().w_cursor.sub_lnum(1);
@@ -3168,9 +3308,9 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                 dec_cursor();
             }
 
-            if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
-                let old_state = g_st().state_global.get();
-                g_st().state_global.set(MODE_NORMAL);
+            if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
+                let old_state = g_st().edit.state_global.get();
+                g_st().edit.state_global.set(MODE_NORMAL);
                 while cc > 0 {
                     let save_col = curwin().w_cursor.get().col;
                     mb_replace_pop_ins();
@@ -3178,18 +3318,18 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                     cc = replace_pop_if_nul();
                 }
                 replace_pop_ins();
-                g_st().state_global.set(old_state);
+                g_st().edit.state_global.set(old_state);
             }
         }
-        g_st().ins_global.borrow_mut().did_ai = false;
+        g_st().edit.ins_global.did_ai.set(false);
     } else {
-        if g_st().ins_global.borrow().revins_on {
+        if g_st().edit.ins_global.revins_on.get() {
             dec_cursor();
         }
         let mut mincol: Colnr = 0;
         if mode == BACKSPACE_LINE
             && (curbuf().b_p_ai.get() || cindent_on())
-            && !g_st().ins_global.borrow().revins_on
+            && !g_st().edit.ins_global.revins_on.get()
         {
             let save_col = curwin().w_cursor.get().col;
             beginline(BL_WHITE);
@@ -3213,7 +3353,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                         prev_b == TAB as u8
                             || (prev_b == b' '
                                 && (*inserted_space_p == 0
-                                    || g_st().ins_global.borrow().moved != K_INS_NONE))
+                                    || g_st().edit.ins_global.moved.get() != K_INS_NONE))
                     }))
         {
             *inserted_space_p = 0;
@@ -3272,9 +3412,9 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
 
             while curwin().w_cursor.get().col > want_col {
                 dec_cursor();
-                if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
-                    if curwin().w_cursor.get().lnum != g_st().ins_global.borrow().start.lnum
-                        || curwin().w_cursor.get().col >= g_st().ins_global.borrow().start.col
+                if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
+                    if curwin().w_cursor.get().lnum != g_st().edit.ins_global.start.get().lnum
+                        || curwin().w_cursor.get().col >= g_st().edit.ins_global.start.get().col
                     {
                         replace_do_bs(-1);
                     }
@@ -3284,17 +3424,21 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
             }
 
             while space_vcol < want_vcol {
-                if curwin().w_cursor.get().lnum == g_st().ins_global.borrow().start_orig.lnum
-                    && curwin().w_cursor.get().col < g_st().ins_global.borrow().start_orig.col
+                if curwin().w_cursor.get().lnum == g_st().edit.ins_global.start_orig.get().lnum
+                    && curwin().w_cursor.get().col < g_st().edit.ins_global.start_orig.get().col
                 {
-                    g_st().ins_global.borrow_mut().start_orig.col = curwin().w_cursor.get().col;
+                    g_st()
+                        .edit
+                        .ins_global
+                        .start_orig
+                        .set_col(curwin().w_cursor.get().col);
                 }
 
-                if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
+                if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0 {
                     ins_char(b' ' as i32);
                 } else {
                     ins_str(b" ", 1);
-                    if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
+                    if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
                         replace_push_nul();
                     }
                 }
@@ -3303,7 +3447,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
         } else {
             let mut cclass = mb_get_class(&crate::cursor::get_cursor_pos_slice());
             loop {
-                if !g_st().ins_global.borrow().revins_on {
+                if !g_st().edit.ins_global.revins_on.get() {
                     dec_cursor();
                 }
                 cc = gchar_cursor();
@@ -3317,14 +3461,14 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                         || i32::from(vim_iswordc(cc)) != temp
                         || prev_cclass != cclass)
                 {
-                    if !g_st().ins_global.borrow().revins_on {
+                    if !g_st().edit.ins_global.revins_on.get() {
                         inc_cursor();
-                    } else if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
+                    } else if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
                         dec_cursor();
                     }
                     break;
                 }
-                if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
+                if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
                     replace_do_bs(-1);
                 } else {
                     let mut has_composing = false;
@@ -3337,24 +3481,32 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                     if has_composing {
                         inc_cursor();
                     }
-                    if g_st().ins_global.borrow().revins_chars != 0 {
-                        g_st().ins_global.borrow_mut().revins_chars -= 1;
-                        g_st().ins_global.borrow_mut().revins_legal += 1;
+                    if g_st().edit.ins_global.revins_chars.get() != 0 {
+                        g_st()
+                            .edit
+                            .ins_global
+                            .revins_chars
+                            .set(g_st().edit.ins_global.revins_chars.get() - (1));
+                        g_st()
+                            .edit
+                            .ins_global
+                            .revins_legal
+                            .set(g_st().edit.ins_global.revins_legal.get() + (1));
                     }
-                    if g_st().ins_global.borrow().revins_on && gchar_cursor() == NUL as i32 {
+                    if g_st().edit.ins_global.revins_on.get() && gchar_cursor() == NUL as i32 {
                         break;
                     }
                 }
                 if mode == BACKSPACE_CHAR {
                     break;
                 }
-                if !(g_st().ins_global.borrow().revins_on
+                if !(g_st().edit.ins_global.revins_on.get()
                     || (curwin().w_cursor.get().col > mincol
                         && (can_bs(BS_NOSTOP)
                             || curwin().w_cursor.get().lnum
-                                != g_st().ins_global.borrow().start_orig.lnum
+                                != g_st().edit.ins_global.start_orig.get().lnum
                             || curwin().w_cursor.get().col
-                                != g_st().ins_global.borrow().start_orig.col)))
+                                != g_st().edit.ins_global.start_orig.get().col)))
                 {
                     break;
                 }
@@ -3362,11 +3514,11 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
         }
         did_backspace = true;
     }
-    g_st().ins_global.borrow_mut().did_si = false;
-    g_st().ins_global.borrow_mut().can_si = false;
-    g_st().ins_global.borrow_mut().can_si_back = false;
+    g_st().edit.ins_global.did_si.set(false);
+    g_st().edit.ins_global.can_si.set(false);
+    g_st().edit.ins_global.can_si_back.set(false);
     if curwin().w_cursor.get().col <= 1 {
-        g_st().ins_global.borrow_mut().did_ai = false;
+        g_st().edit.ins_global.did_ai.set(false);
     }
 
     if call_fix_indent {
@@ -3375,16 +3527,20 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
 
     redo_append_char(c);
 
-    if curwin().w_cursor.get().lnum == g_st().ins_global.borrow().start_orig.lnum
-        && curwin().w_cursor.get().col < g_st().ins_global.borrow().start_orig.col
+    if curwin().w_cursor.get().lnum == g_st().edit.ins_global.start_orig.get().lnum
+        && curwin().w_cursor.get().col < g_st().edit.ins_global.start_orig.get().col
     {
-        g_st().ins_global.borrow_mut().start_orig.col = curwin().w_cursor.get().col;
+        g_st()
+            .edit
+            .ins_global
+            .start_orig
+            .set_col(curwin().w_cursor.get().col);
     }
 
     if crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_BACKSPACE)
-        && g_st().dollar_vcol.get() == -1
+        && g_st().edit.dollar_vcol.get() == -1
     {
-        g_st().dollar_vcol.set(curwin().w_virtcol.get());
+        g_st().edit.dollar_vcol.set(curwin().w_virtcol.get());
     }
 
     if did_backspace {
@@ -3394,20 +3550,28 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
 }
 
 fn ins_left() {
-    let end_change = g_st().ins_global.borrow().dont_sync_undo == K_FALSE;
-    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed.get() {
+    let end_change = g_st().edit.ins_global.dont_sync_undo.get() == K_FALSE;
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0 && g_st().input.key_typed.get() {
         fold_open_cursor();
     }
     undisplay_dollar();
     let tpos = curwin().w_cursor.get();
     if oneleft() {
         start_arrow_with_change(tpos, end_change, K_LEFT);
-        if g_st().ins_global.borrow().revins_scol != -1
-            && curwin().w_cursor.get().col >= g_st().ins_global.borrow().revins_scol
+        if g_st().edit.ins_global.revins_scol.get() != -1
+            && curwin().w_cursor.get().col >= g_st().edit.ins_global.revins_scol.get()
         {
-            g_st().ins_global.borrow_mut().revins_legal += 1;
+            g_st()
+                .edit
+                .ins_global
+                .revins_legal
+                .set(g_st().edit.ins_global.revins_legal.get() + (1));
         }
-        g_st().ins_global.borrow_mut().revins_chars += 1;
+        g_st()
+            .edit
+            .ins_global
+            .revins_chars
+            .set(g_st().edit.ins_global.revins_chars.get() + (1));
     } else if crate::strings::vim_haschr(&opt_vars().p_ww.as_cstr(), b'[' as i32)
         && curwin().w_cursor.get().lnum > 1
     {
@@ -3418,11 +3582,11 @@ fn ins_left() {
     } else {
         vim_beep(K_OPT_BO_FLAG_CURSOR);
     }
-    g_st().ins_global.borrow_mut().dont_sync_undo = K_FALSE;
+    g_st().edit.ins_global.dont_sync_undo.set(K_FALSE);
 }
 
 fn ins_home(c: i32) {
-    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed.get() {
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0 && g_st().input.key_typed.get() {
         fold_open_cursor();
     }
     undisplay_dollar();
@@ -3441,7 +3605,7 @@ fn ins_home(c: i32) {
 }
 
 fn ins_end(c: i32) {
-    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed.get() {
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0 && g_st().input.key_typed.get() {
         fold_open_cursor();
     }
     undisplay_dollar();
@@ -3461,8 +3625,8 @@ fn ins_end(c: i32) {
 }
 
 fn ins_s_left() {
-    let end_change = g_st().ins_global.borrow().dont_sync_undo == K_FALSE;
-    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed.get() {
+    let end_change = g_st().edit.ins_global.dont_sync_undo.get() == K_FALSE;
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0 && g_st().input.key_typed.get() {
         fold_open_cursor();
     }
     undisplay_dollar();
@@ -3473,12 +3637,12 @@ fn ins_s_left() {
     } else {
         vim_beep(K_OPT_BO_FLAG_CURSOR);
     }
-    g_st().ins_global.borrow_mut().dont_sync_undo = K_FALSE;
+    g_st().edit.ins_global.dont_sync_undo.set(K_FALSE);
 }
 
 fn ins_right() {
-    let end_change = g_st().ins_global.borrow().dont_sync_undo == K_FALSE;
-    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed.get() {
+    let end_change = g_st().edit.ins_global.dont_sync_undo.get() == K_FALSE;
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0 && g_st().input.key_typed.get() {
         fold_open_cursor();
     }
     undisplay_dollar();
@@ -3493,9 +3657,17 @@ fn ins_right() {
             ) as Colnr);
         }
 
-        g_st().ins_global.borrow_mut().revins_legal += 1;
-        if g_st().ins_global.borrow().revins_chars != 0 {
-            g_st().ins_global.borrow_mut().revins_chars -= 1;
+        g_st()
+            .edit
+            .ins_global
+            .revins_legal
+            .set(g_st().edit.ins_global.revins_legal.get() + (1));
+        if g_st().edit.ins_global.revins_chars.get() != 0 {
+            g_st()
+                .edit
+                .ins_global
+                .revins_chars
+                .set(g_st().edit.ins_global.revins_chars.get() - (1));
         }
     } else if crate::strings::vim_haschr(&opt_vars().p_ww.as_cstr(), b']' as i32)
         && curwin().w_cursor.get().lnum < curbuf().b_ml.ml_line_count.get()
@@ -3507,12 +3679,12 @@ fn ins_right() {
     } else {
         vim_beep(K_OPT_BO_FLAG_CURSOR);
     }
-    g_st().ins_global.borrow_mut().dont_sync_undo = K_FALSE;
+    g_st().edit.ins_global.dont_sync_undo.set(K_FALSE);
 }
 
 fn ins_s_right() {
-    let end_change = g_st().ins_global.borrow().dont_sync_undo == K_FALSE;
-    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0 && g_st().key_typed.get() {
+    let end_change = g_st().edit.ins_global.dont_sync_undo.get() == K_FALSE;
+    if (opt_vars().fdo_flags.get() & K_OPT_FDO_FLAG_HOR) != 0 && g_st().input.key_typed.get() {
         fold_open_cursor();
     }
     undisplay_dollar();
@@ -3525,7 +3697,7 @@ fn ins_s_right() {
     } else {
         vim_beep(K_OPT_BO_FLAG_CURSOR);
     }
-    g_st().ins_global.borrow_mut().dont_sync_undo = K_FALSE;
+    g_st().edit.ins_global.dont_sync_undo.set(K_FALSE);
 }
 
 fn ins_up(startcol: bool) {
@@ -3536,16 +3708,14 @@ fn ins_up(startcol: bool) {
     let tpos = curwin().w_cursor.get();
     if cursor_up(1, true) {
         if startcol {
-            coladvance(
-                &curwin(),
-                getvcol_nolist(&mut g_st().ins_global.borrow_mut().start),
-            );
+            let vcol = g_st().edit.ins_global.start.update_mut(getvcol_nolist);
+            coladvance(&curwin(), vcol);
         }
         if old_topline != curwin().w_topline.get() || old_topfill != curwin().w_topfill.get() {
             redraw_later(Some(&crate::globals::curwin()), UPD_VALID);
         }
         start_arrow(Some(tpos), true, if startcol { b'k' as i32 } else { K_UP });
-        g_st().ins_global.borrow_mut().can_cindent = true;
+        g_st().edit.ins_global.can_cindent.set(true);
     } else {
         vim_beep(K_OPT_BO_FLAG_CURSOR);
     }
@@ -3554,7 +3724,7 @@ fn ins_up(startcol: bool) {
 fn ins_pageup() {
     undisplay_dollar();
 
-    if (g_st().mod_mask.get() & MOD_MASK_CTRL) != 0 {
+    if (g_st().input.mod_mask.get() & MOD_MASK_CTRL) != 0 {
         if !crate::globals::first_tabpage().tp_next.get().is_null() {
             start_arrow(Some(curwin().w_cursor.get()), true, NUL as i32);
             goto_tabpage(-1);
@@ -3565,7 +3735,7 @@ fn ins_pageup() {
     let tpos = curwin().w_cursor.get();
     if pagescroll(BACKWARD, 1, false) {
         start_arrow(Some(tpos), true, NUL as i32);
-        g_st().ins_global.borrow_mut().can_cindent = true;
+        g_st().edit.ins_global.can_cindent.set(true);
     } else {
         vim_beep(K_OPT_BO_FLAG_CURSOR);
     }
@@ -3579,10 +3749,8 @@ fn ins_down(startcol: bool) {
     let tpos = curwin().w_cursor.get();
     if cursor_down(1, true) {
         if startcol {
-            coladvance(
-                &curwin(),
-                getvcol_nolist(&mut g_st().ins_global.borrow_mut().start),
-            );
+            let vcol = g_st().edit.ins_global.start.update_mut(getvcol_nolist);
+            coladvance(&curwin(), vcol);
         }
         if old_topline != curwin().w_topline.get() || old_topfill != curwin().w_topfill.get() {
             redraw_later(Some(&crate::globals::curwin()), UPD_VALID);
@@ -3592,7 +3760,7 @@ fn ins_down(startcol: bool) {
             true,
             if startcol { b'j' as i32 } else { K_DOWN },
         );
-        g_st().ins_global.borrow_mut().can_cindent = true;
+        g_st().edit.ins_global.can_cindent.set(true);
     } else {
         vim_beep(K_OPT_BO_FLAG_CURSOR);
     }
@@ -3601,7 +3769,7 @@ fn ins_down(startcol: bool) {
 fn ins_pagedown() {
     undisplay_dollar();
 
-    if (g_st().mod_mask.get() & MOD_MASK_CTRL) != 0 {
+    if (g_st().input.mod_mask.get() & MOD_MASK_CTRL) != 0 {
         if !crate::globals::first_tabpage().tp_next.get().is_null() {
             start_arrow(Some(curwin().w_cursor.get()), true, NUL as i32);
             goto_tabpage(0);
@@ -3612,17 +3780,21 @@ fn ins_pagedown() {
     let tpos = curwin().w_cursor.get();
     if pagescroll(FORWARD, 1, false) {
         start_arrow(Some(tpos), true, NUL as i32);
-        g_st().ins_global.borrow_mut().can_cindent = true;
+        g_st().edit.ins_global.can_cindent.set(true);
     } else {
         vim_beep(K_OPT_BO_FLAG_CURSOR);
     }
 }
 
 fn ins_tab() -> bool {
-    if g_st().ins_global.borrow().start_blank_vcol == MAXCOL
-        && curwin().w_cursor.get().lnum == g_st().ins_global.borrow().start.lnum
+    if g_st().edit.ins_global.start_blank_vcol.get() == MAXCOL
+        && curwin().w_cursor.get().lnum == g_st().edit.ins_global.start.get().lnum
     {
-        g_st().ins_global.borrow_mut().start_blank_vcol = get_nolist_virtcol();
+        g_st()
+            .edit
+            .ins_global
+            .start_blank_vcol
+            .set(get_nolist_virtcol());
     }
     if echeck_abbr(TAB + ABBR_OFF) {
         return false;
@@ -3630,7 +3802,7 @@ fn ins_tab() -> bool {
 
     let ind = inindent(0);
     if ind {
-        g_st().ins_global.borrow_mut().can_cindent = false;
+        g_st().edit.ins_global.can_cindent.set(false);
     }
 
     if !curbuf().b_p_et.get()
@@ -3651,10 +3823,10 @@ fn ins_tab() -> bool {
         return true;
     }
 
-    g_st().ins_global.borrow_mut().did_ai = false;
-    g_st().ins_global.borrow_mut().did_si = false;
-    g_st().ins_global.borrow_mut().can_si = false;
-    g_st().ins_global.borrow_mut().can_si_back = false;
+    g_st().edit.ins_global.did_ai.set(false);
+    g_st().edit.ins_global.did_si.set(false);
+    g_st().edit.ins_global.can_si.set(false);
+    g_st().edit.ins_global.can_si_back.set(false);
     redo_append_str(b"\t");
 
     let mut temp: i32 = if opt_vars().p_sta.get() && ind {
@@ -3679,11 +3851,11 @@ fn ins_tab() -> bool {
         temp -= 1;
         temp > 0
     } {
-        if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
+        if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0 {
             ins_char(b' ' as i32);
         } else {
             ins_str(b" ", 1);
-            if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
+            if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
                 replace_push_nul();
             }
         }
@@ -3700,7 +3872,7 @@ fn ins_tab() -> bool {
         let mut want_vcol: Colnr = 0;
         let mut change_col: i32 = -1;
         let save_list = curwin().w_onebuf_opt.wo_list.get();
-        let is_vreplace = (g_st().state_global.get() & VREPLACE_FLAG) != 0;
+        let is_vreplace = (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0;
 
         if is_vreplace {
             saved_line_vec = get_cursor_line_slice().to_vec();
@@ -3725,11 +3897,11 @@ fn ins_tab() -> bool {
             fpos.col -= 1;
         }
 
-        if (g_st().state_global.get() & REPLACE_FLAG) != 0
-            && fpos.lnum == g_st().ins_global.borrow().start.lnum
-            && fpos.col < g_st().ins_global.borrow().start.col
+        if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0
+            && fpos.lnum == g_st().edit.ins_global.start.get().lnum
+            && fpos.col < g_st().edit.ins_global.start.get().col
         {
-            fpos.col = g_st().ins_global.borrow().start.col;
+            fpos.col = g_st().edit.ins_global.start.get().col;
         }
 
         getvcol(&curwin(), &mut fpos, Some(&mut vcol), None, None, 0);
@@ -3767,10 +3939,10 @@ fn ins_tab() -> bool {
 
                 if change_col < 0 {
                     change_col = fpos.col;
-                    if fpos.lnum == g_st().ins_global.borrow().start.lnum
-                        && fpos.col < g_st().ins_global.borrow().start.col
+                    if fpos.lnum == g_st().edit.ins_global.start.get().lnum
+                        && fpos.col < g_st().edit.ins_global.start.get().col
                     {
-                        g_st().ins_global.borrow_mut().start.col = fpos.col;
+                        g_st().edit.ins_global.start.set_col(fpos.col);
                     }
                 }
             }
@@ -3825,8 +3997,8 @@ fn ins_tab() -> bool {
                     let col = fpos.col as usize;
                     saved_line_vec.copy_within(col + i as usize.., col);
                 }
-                if (g_st().state_global.get() & REPLACE_FLAG) != 0
-                    && (g_st().state_global.get() & VREPLACE_FLAG) == 0
+                if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0
+                    && (g_st().edit.state_global.get() & VREPLACE_FLAG) == 0
                 {
                     for _ in 0..i {
                         replace_join(repl_off);
@@ -3834,11 +4006,11 @@ fn ins_tab() -> bool {
                 }
             }
             cursor_pos.col -= i;
-            if (g_st().state_global.get() & VREPLACE_FLAG) == 0 {
+            if (g_st().edit.state_global.get() & VREPLACE_FLAG) == 0 {
                 curwin().w_cursor.set_col(cursor_pos.col);
             }
 
-            if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
+            if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0 {
                 backspace_until_column(change_col);
                 ins_bytes_len(
                     &saved_line_vec[change_col as usize..],
@@ -3863,8 +4035,8 @@ pub fn ins_eol(c: i32) -> bool {
     }
     undisplay_dollar();
 
-    if (g_st().state_global.get() & REPLACE_FLAG) != 0
-        && (g_st().state_global.get() & VREPLACE_FLAG) == 0
+    if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0
+        && (g_st().edit.state_global.get() & VREPLACE_FLAG) == 0
     {
         replace_push_nul();
     }
@@ -3873,7 +4045,7 @@ pub fn ins_eol(c: i32) -> bool {
         coladvance(&curwin(), getviscol());
     }
 
-    if g_st().ins_global.borrow().revins_on {
+    if g_st().edit.ins_global.revins_on.get() {
         curwin().w_cursor.add_col(get_cursor_pos_len());
     }
 
@@ -3885,11 +4057,11 @@ pub fn ins_eol(c: i32) -> bool {
         } else {
             0
         },
-        g_st().old_indent.get(),
+        g_st().edit.old_indent.get(),
         None,
     );
-    g_st().old_indent.set(0);
-    g_st().ins_global.borrow_mut().can_cindent = true;
+    g_st().edit.old_indent.set(0);
+    g_st().edit.ins_global.can_cindent.set(true);
     fold_open_cursor();
     i
 }
@@ -3905,16 +4077,28 @@ fn ins_digraph() -> i32 {
         add_to_showcmd_c(CTRL_K_CONST);
     }
 
-    g_st().no_mapping.set(g_st().no_mapping.get() + (1));
-    g_st().allow_keys.set(g_st().allow_keys.get() + (1));
+    g_st()
+        .input
+        .no_mapping
+        .set(g_st().input.no_mapping.get() + (1));
+    g_st()
+        .input
+        .allow_keys
+        .set(g_st().input.allow_keys.get() + (1));
     let mut c = plain_vgetc();
-    g_st().no_mapping.set(g_st().no_mapping.get() - (1));
-    g_st().allow_keys.set(g_st().allow_keys.get() - (1));
+    g_st()
+        .input
+        .no_mapping
+        .set(g_st().input.no_mapping.get() - (1));
+    g_st()
+        .input
+        .allow_keys
+        .set(g_st().input.allow_keys.get() - (1));
     if did_putchar {
         edit_unputchar();
     }
 
-    if is_special_fn(c) || g_st().mod_mask.get() != 0 {
+    if is_special_fn(c) || g_st().input.mod_mask.get() != 0 {
         clear_showcmd();
         insert_special(c, 1, 0);
         return NUL as i32;
@@ -3930,11 +4114,23 @@ fn ins_digraph() -> i32 {
             }
             add_to_showcmd_c(c);
         }
-        g_st().no_mapping.set(g_st().no_mapping.get() + (1));
-        g_st().allow_keys.set(g_st().allow_keys.get() + (1));
+        g_st()
+            .input
+            .no_mapping
+            .set(g_st().input.no_mapping.get() + (1));
+        g_st()
+            .input
+            .allow_keys
+            .set(g_st().input.allow_keys.get() + (1));
         let cc = plain_vgetc();
-        g_st().no_mapping.set(g_st().no_mapping.get() - (1));
-        g_st().allow_keys.set(g_st().allow_keys.get() - (1));
+        g_st()
+            .input
+            .no_mapping
+            .set(g_st().input.no_mapping.get() - (1));
+        g_st()
+            .input
+            .allow_keys
+            .set(g_st().input.allow_keys.get() - (1));
         if did_putchar {
             edit_unputchar();
         }
@@ -4004,8 +4200,16 @@ fn ins_ctrl_ey(tc: i32) -> i32 {
             curbuf().b_p_tw.set(-1);
             insert_special(c, 1, 0);
             curbuf().b_p_tw.set(tw_save);
-            g_st().ins_global.borrow_mut().revins_chars += 1;
-            g_st().ins_global.borrow_mut().revins_legal += 1;
+            g_st()
+                .edit
+                .ins_global
+                .revins_chars
+                .set(g_st().edit.ins_global.revins_chars.get() + (1));
+            g_st()
+                .edit
+                .ins_global
+                .revins_legal
+                .set(g_st().edit.ins_global.revins_legal.get() + (1));
             c = CTRL_V_CONST;
             auto_format(false, true);
         }
@@ -4031,16 +4235,17 @@ pub fn get_nolist_virtcol() -> Colnr {
 }
 
 fn do_insert_char_pre(c: i32) -> Option<std::ffi::CString> {
-    if c == CTRL_RSB_CONST || g_st().key_stuffed.get() != 0 || !has_event(EVENT_INSERTCHARPRE) {
+    if c == CTRL_RSB_CONST || g_st().input.key_stuffed.get() != 0 || !has_event(EVENT_INSERTCHARPRE)
+    {
         return None;
     }
 
     let mut buf = [0u8; MB_MAXBYTES + 1];
-    let save_state = g_st().state_global.get();
+    let save_state = g_st().edit.state_global.get();
     let buflen = utf_char2bytes(c, &mut buf) as usize;
     buf[buflen] = 0;
 
-    g_st().textlock.set(g_st().textlock.get() + (1));
+    g_st().input.textlock.set(g_st().input.textlock.get() + (1));
     set_vim_var_string(
         VV_CHAR,
         Some(crate::memory::bytes_as_cstr(&buf)),
@@ -4056,17 +4261,17 @@ fn do_insert_char_pre(c: i32) -> Option<std::ffi::CString> {
     }
 
     set_vim_var_string(VV_CHAR, None, -1);
-    g_st().textlock.set(g_st().textlock.get() - (1));
-    g_st().state_global.set(save_state);
+    g_st().input.textlock.set(g_st().input.textlock.get() - (1));
+    g_st().edit.state_global.set(save_state);
     res
 }
 
 pub fn get_can_cindent() -> bool {
-    g_st().ins_global.borrow().can_cindent
+    g_st().edit.ins_global.can_cindent.get()
 }
 
 pub fn set_can_cindent(val: bool) {
-    g_st().ins_global.borrow_mut().can_cindent = val;
+    g_st().edit.ins_global.can_cindent.set(val);
 }
 
 /// Trigger `event` and take care of fixing undo.

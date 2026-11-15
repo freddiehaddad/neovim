@@ -681,7 +681,7 @@ pub fn syntax_start(wp: &WinInfoInfo, lnum: Linenr) {
     };
 
     let sst_len = syn_block_mut().b_sst_max.get();
-    let dist = if sst_len <= g_st().rows_global.get() {
+    let dist = if sst_len <= g_st().screen.rows_global.get() {
         999999
     } else {
         SYN_STATE
@@ -689,7 +689,7 @@ pub fn syntax_start(wp: &WinInfoInfo, lnum: Linenr) {
             .b_ml
             .ml_line_count
             .get()
-            / (sst_len - g_st().rows_global.get())
+            / (sst_len - g_st().screen.rows_global.get())
             + 1
     };
 
@@ -741,7 +741,7 @@ pub fn syntax_start(wp: &WinInfoInfo, lnum: Linenr) {
         }
 
         line_breakcheck();
-        if g_st().got_int.get() {
+        if g_st().input.got_int.get() {
             SYN_STATE.with(|s| s.current_lnum.set(lnum));
             break;
         }
@@ -789,8 +789,11 @@ fn syn_sync(wp: &WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Synsta
     if (syn_block_mut().b_syn_sync_flags.get() & SF_CCOMMENT) != 0 {
         let curwin_save = curwin();
         set_curwin(wp);
-        let curbuf_save = g_st().curbuf.get();
-        g_st().curbuf.set(SYN_STATE.with(|s| s.syn_buf.get()));
+        let curbuf_save = g_st().workspace.curbuf.get();
+        g_st()
+            .workspace
+            .curbuf
+            .set(SYN_STATE.with(|s| s.syn_buf.get()));
 
         while start_lnum > 1 {
             if crate::memline::ml_get_slice(start_lnum - 1).last() != Some(&b'\\') {
@@ -822,7 +825,7 @@ fn syn_sync(wp: &WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Synsta
 
         wp.w_cursor.set(cursor_save);
         set_curwin(curwin_save);
-        g_st().curbuf.set(curbuf_save);
+        g_st().workspace.curbuf.set(curbuf_save);
     } else if (syn_block_mut().b_syn_sync_flags.get() & SF_MATCH) != 0 {
         let break_lnum = if syn_block_mut().b_syn_sync_maxlines.get() != 0
             && start_lnum > syn_block_mut().b_syn_sync_maxlines.get()
@@ -839,7 +842,7 @@ fn syn_sync(wp: &WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Synsta
             lnum > break_lnum
         } {
             line_breakcheck();
-            if g_st().got_int.get() {
+            if g_st().input.got_int.get() {
                 invalidate_current_state();
                 SYN_STATE.with(|s| s.current_lnum.set(start_lnum));
                 break;
@@ -1083,7 +1086,7 @@ fn syn_stack_free_block(block: &Synblock) {
 pub fn syn_stack_free_all(block: &Synblock) {
     syn_stack_free_block(block);
 
-    if !g_st().curtab.get().is_null() {
+    if !g_st().workspace.curtab.get().is_null() {
         for wp in for_all_windows_ptr() {
             if (!wp.w_buffer.get().is_null() || wp.w_s_owned.get().is_some())
                 && ptr::eq(&*win_s(&wp), block)
@@ -1102,7 +1105,7 @@ fn syn_stack_alloc() {
         .ml_line_count
         .get()
         / SST_DIST
-        + g_st().rows_global.get() * 2)
+        + g_st().screen.rows_global.get() * 2)
         .clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
     let cur_len = syn_block_mut().b_sst_max.get();
     if cur_len > len * 2 || cur_len < len {
@@ -1111,7 +1114,7 @@ fn syn_stack_alloc() {
             .b_ml
             .ml_line_count
             .get();
-        len = ((len + len / 2) / SST_DIST + g_st().rows_global.get() * 2)
+        len = ((len + len / 2) / SST_DIST + g_st().screen.rows_global.get() * 2)
             .clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
 
         while (syn_block_mut().b_sst_array.borrow().len() as i32) + 2 > len && syn_stack_cleanup() {
@@ -1133,7 +1136,7 @@ pub fn syn_stack_apply_changes(buf: &FileBuf) {
     let mod_xlines = buf.b_mod_xlines.get();
     syn_stack_apply_changes_block(&buf.b_s, mod_top, mod_bot, mod_xlines);
 
-    if !g_st().curtab.get().is_null() {
+    if !g_st().workspace.curtab.get().is_null() {
         for wp in for_all_windows_ptr() {
             if wp.w_buffer.get() == buf && !std::rc::Rc::ptr_eq(&win_s(&wp), &buf.b_s) {
                 syn_stack_apply_changes_block(&win_s(&wp), mod_top, mod_bot, mod_xlines);
@@ -1186,7 +1189,7 @@ fn syn_stack_cleanup() -> bool {
     }
 
     let sst_len = syn_block_mut().b_sst_max.get();
-    let dist = if sst_len <= g_st().rows_global.get() {
+    let dist = if sst_len <= g_st().screen.rows_global.get() {
         999999
     } else {
         SYN_STATE
@@ -1194,7 +1197,7 @@ fn syn_stack_cleanup() -> bool {
             .b_ml
             .ml_line_count
             .get()
-            / (sst_len - g_st().rows_global.get())
+            / (sst_len - g_st().screen.rows_global.get())
             + 1
     };
 
@@ -3168,7 +3171,7 @@ pub fn syntax_clear(block: &Synblock) {
     block.b_syn_isk.set(None);
 
     syn_stack_free_all(block);
-    if !crate::globals::g_st().exiting.get() {
+    if !crate::globals::g_st().exc.exiting.get() {
         let _ = SYN_EXT.try_with(|_| invalidate_current_state());
         let block_addr = ptr::from_ref(block).addr();
         let _ = SYN_STATE.try_with(|s| {
@@ -3360,7 +3363,7 @@ fn syn_cmd_list(eap: &mut Exarg, syncing: i32) {
                 syn_match_msg();
             }
             let mut id: i32 = 1;
-            while id <= highlight_num_groups() && !g_st().got_int.get() {
+            while id <= highlight_num_groups() && !g_st().input.got_int.get() {
                 syn_list_one(id, true, false);
                 id += 1;
             }
@@ -3382,19 +3385,19 @@ fn syn_cmd_list(eap: &mut Exarg, syncing: i32) {
     msg_puts_title(gettext(c"\n--- Syntax items ---"));
     if ends_excmd((arg).first_byte()) != 0 {
         let mut id: i32 = 1;
-        while id <= highlight_num_groups() && !g_st().got_int.get() {
+        while id <= highlight_num_groups() && !g_st().input.got_int.get() {
             syn_list_one(id, false, false);
             id += 1;
         }
         let mut cid: i32 = 0;
         while (cid as usize) < win_s(&curwin()).b_syn_clusters.borrow().len()
-            && !g_st().got_int.get()
+            && !g_st().input.got_int.get()
         {
             syn_list_cluster(cid);
             cid += 1;
         }
     } else {
-        while ends_excmd((arg).first_byte()) == 0 && !g_st().got_int.get() {
+        while ends_excmd((arg).first_byte()) == 0 && !g_st().input.got_int.get() {
             let arg_end = arg.skiptowhite();
             if (arg).first_byte() == b'@' {
                 let id = syn_scl_namen2id(
@@ -3486,7 +3489,9 @@ fn syn_list_one(id: i32, syncing: bool, link_only: bool) {
     }
 
     let mut idx: i32 = 0;
-    while (idx as usize) < win_s(&curwin()).b_syn_patterns.borrow().len() && !g_st().got_int.get() {
+    while (idx as usize) < win_s(&curwin()).b_syn_patterns.borrow().len()
+        && !g_st().input.got_int.get()
+    {
         let first_idx = idx;
         let sp_type = {
             let spp = syn_items(&win_s(&curwin()), idx as isize);
@@ -3575,7 +3580,7 @@ fn syn_list_one(id: i32, syncing: bool, link_only: bool) {
         idx += 1;
     }
 
-    if highlight_link_id(id - 1) != 0 && (did_header || link_only) && !g_st().got_int.get() {
+    if highlight_link_id(id - 1) != 0 && (did_header || link_only) && !g_st().input.got_int.get() {
         syn_list_header(did_header, 0, id, true);
         msg_puts_hl(c"links to", hl_id, false);
         msg_putchar(b' ' as i32);
@@ -3603,11 +3608,11 @@ fn syn_list_cluster(id: i32) {
     let clp = syn_clstr(&win_s(&curwin()), id as isize);
     msg_outtrans(&clp.scl_name, 0, false);
 
-    if g_st().msg_col.get() >= endcol {
-        endcol = g_st().msg_col.get() + 1;
+    if g_st().msg.msg_col.get() >= endcol {
+        endcol = g_st().msg.msg_col.get() + 1;
     }
-    if g_st().columns_global.get() <= endcol {
-        endcol = g_st().columns_global.get() - 1;
+    if g_st().screen.columns_global.get() <= endcol {
+        endcol = g_st().screen.columns_global.get() - 1;
     }
 
     msg_advance(endcol);
@@ -3730,11 +3735,11 @@ fn syn_list_keywords(id: i32, ht: &KeywTabMap, mut did_header: bool, hl_id: i32)
     sorted_entries.sort_unstable_by_key(|(k, _)| *k);
 
     for (_, entries) in sorted_entries {
-        if g_st().got_int.get() {
+        if g_st().input.got_int.get() {
             break;
         }
         for kp in entries {
-            if g_st().got_int.get() {
+            if g_st().input.got_int.get() {
                 break;
             }
             if kp.k_syn.id as i32 == id {
@@ -5298,7 +5303,7 @@ pub fn ex_syntax(eap: &mut Exarg) {
     let subcmd_slice = arg.slice(((subcmd_end).offset_from(&arg) as isize) as usize);
     let subcmd_name = std::ffi::CString::new(subcmd_slice).unwrap();
     if eap.skip {
-        g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
+        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() + (1));
     }
     let mut found = false;
     for &(name, func) in &SUBCOMMANDS {
@@ -5318,7 +5323,7 @@ pub fn ex_syntax(eap: &mut Exarg) {
     }
 
     if eap.skip {
-        g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
+        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() - (1));
     }
 }
 
@@ -5364,15 +5369,15 @@ pub fn syntax_present(win: &WinInfoInfo) -> bool {
 }
 
 pub fn reset_expand_highlight() {
-    g_st().include_none.set(0);
-    g_st().include_default.set(0);
-    g_st().include_link.set(0);
+    g_st().screen.include_none.set(0);
+    g_st().screen.include_default.set(0);
+    g_st().screen.include_link.set(0);
 }
 
 pub fn set_context_in_echohl_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     xp.xp_context = EXPAND_HIGHLIGHT;
     xp.xp_pattern = xp.line_slice(arg);
-    g_st().include_none.set(1);
+    g_st().screen.include_none.set(1);
 }
 
 pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: &CStr) {
@@ -5380,8 +5385,8 @@ pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     xp.xp_context = EXPAND_SYNTAX;
     SYN_STATE.with(|s| s.expand_what.set(EXP_SUBCMD));
     xp.xp_pattern = arg_ptr.clone();
-    g_st().include_link.set(0);
-    g_st().include_default.set(0);
+    g_st().screen.include_link.set(0);
+    g_st().screen.include_default.set(0);
 
     let bytes = arg.to_bytes();
     if bytes.is_empty() {
@@ -5659,7 +5664,7 @@ fn syntime_report() {
     ));
     msg_puts(c"\n");
     for p in &ga {
-        if g_st().got_int.get() {
+        if g_st().input.got_int.get() {
             break;
         }
 
@@ -5682,10 +5687,10 @@ fn syntime_report() {
         msg_puts(c" ");
 
         msg_advance(69);
-        let mut len = if g_st().columns_global.get() < 80 {
+        let mut len = if g_st().screen.columns_global.get() < 80 {
             20
         } else {
-            g_st().columns_global.get() - 70
+            g_st().screen.columns_global.get() - 70
         };
         let pat_ptr = p.pattern.as_deref().unwrap_or(c"");
         let patlen = p.pattern.as_ref().map_or(0, |s| s.to_bytes().len() as i32);
@@ -5695,7 +5700,7 @@ fn syntime_report() {
         msg_outtrans_len(pat_ptr.to_bytes(), len, 0, false);
         msg_puts(c"\n");
     }
-    if !g_st().got_int.get() {
+    if !g_st().input.got_int.get() {
         msg_puts(c"\n");
         msg_puts(&profile_msg(total_total));
         msg_advance(13);

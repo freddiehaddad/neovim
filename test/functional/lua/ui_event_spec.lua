@@ -417,6 +417,28 @@ describe('vim.ui_attach', function()
     n.command('set showcmd | !echo "foo"')
     n.assert_alive()
   end)
+
+  it('allows nested expression parsing and menu error handling in msg_show callback', function()
+    exec_lua(function()
+      _G.msg_cb_count = 0
+      vim.ui_attach(vim.api.nvim_create_namespace(''), { ext_messages = true }, function(event)
+        if event == 'msg_show' then
+          _G.msg_cb_count = _G.msg_cb_count + 1
+          vim.api.nvim_parse_expression('1 + 1', 'm', false)
+          pcall(vim.api.nvim_eval, "menu_info('')")
+        end
+      end)
+    end)
+    n.command([[
+      try
+        13verbose echoerr 'boom'
+      catch /boom/
+      endtry
+    ]])
+    n.feed(':menu Foo <Nop><CR>')
+    eq(true, exec_lua('return _G.msg_cb_count >= 3'))
+    n.assert_alive()
+  end)
 end)
 
 describe('vim.ui_attach', function()

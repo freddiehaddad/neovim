@@ -1077,22 +1077,22 @@ pub fn nvim_cmd(
     }
 
     let mut capture_local: Vec<u8> = Vec::new();
-    let save_msg_silent = g_st().msg_silent.get();
-    let save_redir_off = g_st().redir_off.get();
-    let mut save_capture_ga = g_st().capture_ga.take();
-    let save_msg_col = g_st().msg_col.get();
+    let save_msg_silent = g_st().msg.msg_silent.get();
+    let save_redir_off = g_st().msg.redir_off.get();
+    let mut save_capture_ga = g_st().msg.take_capture();
+    let save_msg_col = g_st().msg.msg_col.get();
 
     if opts.output {
-        *g_st().capture_ga.borrow_mut() = Some(Vec::new());
+        g_st().msg.set_capture(Some(Vec::new()));
     } else {
-        *g_st().capture_ga.borrow_mut() = save_capture_ga.take();
+        g_st().msg.set_capture(save_capture_ga.take());
     }
 
     try_wrap(|| {
         if opts.output {
-            g_st().msg_silent.set(g_st().msg_silent.get() + (1));
-            g_st().redir_off.set(false);
-            g_st().msg_col.set(0);
+            g_st().msg.msg_silent.set(g_st().msg.msg_silent.get() + (1));
+            g_st().msg.redir_off.set(false);
+            g_st().msg.msg_col.set(0);
         }
 
         with_script_context(channel_id, || {
@@ -1101,12 +1101,12 @@ pub fn nvim_cmd(
 
         if opts.output {
             capture_local = g_st()
-                .capture_ga
-                .replace(save_capture_ga.take())
+                .msg
+                .replace_capture(save_capture_ga.take())
                 .unwrap_or_default();
-            g_st().msg_silent.set(save_msg_silent);
-            g_st().redir_off.set(save_redir_off);
-            g_st().msg_col.set(save_msg_col);
+            g_st().msg.msg_silent.set(save_msg_silent);
+            g_st().msg.redir_off.set(save_redir_off);
+            g_st().msg.msg_col.set(save_msg_col);
         }
     })?;
 
@@ -1231,10 +1231,10 @@ pub fn nvim_buf_create_user_command(
 ) -> Result<(), Error> {
     let target_buf = find_buffer_by_handle(buf)?;
 
-    let save_curbuf = g_st().curbuf.get();
-    g_st().curbuf.set(target_buf);
+    let save_curbuf = g_st().workspace.curbuf.get();
+    g_st().workspace.curbuf.set(target_buf);
     let res = create_user_command(channel_id, name, cmd, &mut *opts, UC_BUFFER);
-    g_st().curbuf.set(save_curbuf);
+    g_st().workspace.curbuf.set(save_curbuf);
     res
 }
 

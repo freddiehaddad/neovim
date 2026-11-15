@@ -2703,7 +2703,7 @@ fn shada_write(
         }
 
         if dump_one_history[HIST_SEARCH as usize] {
-            let search_highlighted = !(g_st().search_global.no_hlsearch.get()
+            let search_highlighted = !(g_st().search.search_global.no_hlsearch.get()
                 || find_shada_parameter(b'h' as i32).is_some());
             let search_last_used = search_was_last_used();
 
@@ -2868,7 +2868,7 @@ fn shada_write(
         }
 
         if dump_global_marks
-            && !ignore_buf(g_st().curbuf.get().opt(), &removable_bufs)
+            && !ignore_buf(g_st().workspace.curbuf.get().opt(), &removable_bufs)
             && curwin().w_cursor.get().lnum != 0
         {
             replace_numbered_mark(

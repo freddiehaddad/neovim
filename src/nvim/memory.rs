@@ -225,7 +225,7 @@ pub fn free_all_mem() {
         block_autocmds();
 
         opt_vars().p_ea.set(false);
-        if !g_st().first_tabpage.get().is_null()
+        if !g_st().workspace.first_tabpage.get().is_null()
             && !crate::globals::first_tabpage().tp_next.get().is_null()
         {
             do_cmdline_cmd(b"tabonly!");
@@ -234,7 +234,7 @@ pub fn free_all_mem() {
         spell_free_all();
         ex_comclear(&mut Exarg::new());
 
-        if !g_st().curbuf.get().is_null() {
+        if !g_st().workspace.curbuf.get().is_null() {
             do_cmdline_cmd(b"aunmenu *");
             do_cmdline_cmd(b"tlunmenu *");
             do_cmdline_cmd(b"menutranslate clear");
@@ -264,13 +264,13 @@ pub fn free_all_mem() {
         free_cd_dir();
         free_signs();
         set_expr_line(None);
-        if !g_st().curtab.get().is_null() {
+        if !g_st().workspace.curtab.get().is_null() {
             diff_clear(&curtab());
         }
         clear_sb_text(true);
 
-        g_st().last_cmdline.set(None);
-        g_st().new_last_cmdline.set(None);
+        g_st().cmdline.last_cmdline.set(None);
+        g_st().cmdline.new_last_cmdline.set(None);
         set_keep_msg(None, 0);
 
         opt_vars().p_hi.set(0);
@@ -286,7 +286,7 @@ pub fn free_all_mem() {
         free_all_options();
 
         opt_vars().p_acd.set(false);
-        let mut buf = g_st().firstbuf.get();
+        let mut buf = g_st().workspace.firstbuf.get();
         while !buf.is_null() {
             let mut bufref = Bufref {
                 br_buf: crate::globals::BufPtr::NULL,
@@ -302,7 +302,7 @@ pub fn free_all_mem() {
             buf = if bufref_valid(Some(&bufref)) {
                 nextbuf
             } else {
-                g_st().firstbuf.get()
+                g_st().workspace.firstbuf.get()
             };
         }
 
@@ -311,11 +311,17 @@ pub fn free_all_mem() {
         free_highlight();
         reset_last_sourcing();
 
-        if !g_st().first_tabpage.get().is_null() {
-            let first_tp = g_st().first_tabpage.get().clone();
+        if !g_st().workspace.first_tabpage.get().is_null() {
+            let first_tp = g_st().workspace.first_tabpage.get().clone();
             free_tabpage(first_tp.opt());
-            g_st().first_tabpage.set(crate::globals::TabpagePtr::NULL);
-            g_st().curtab.set(crate::globals::TabpagePtr::NULL);
+            g_st()
+                .workspace
+                .first_tabpage
+                .set(crate::globals::TabpagePtr::NULL);
+            g_st()
+                .workspace
+                .curtab
+                .set(crate::globals::TabpagePtr::NULL);
         }
 
         msg_hist_clear(0);
@@ -326,20 +332,20 @@ pub fn free_all_mem() {
         atom_free_all();
         mc_free_all();
 
-        *g_st().buffer_handles.borrow_mut() = fx_hashmap();
-        *g_st().window_handles.borrow_mut() = fx_hashmap();
-        *g_st().tabpage_handles.borrow_mut() = fx_hashmap();
+        g_st().workspace.clear_handles();
 
         grid_free_all_mem();
-        stl_clear_click_defs(&mut g_st().tab_page_click_defs.borrow_mut());
-        *g_st().tab_page_click_defs.borrow_mut() = Vec::new();
+        g_st()
+            .screen
+            .with_tab_page_click_defs_mut(|defs| stl_clear_click_defs(defs));
+        g_st().screen.clear_tab_page_click_defs();
 
         clear_hl_tables(false);
         check_quickfix_busy();
         decor_free_all_mem();
         drawline_free_all_mem();
 
-        if g_st().ui_client_channel_id.get() != 0 {
+        if g_st().screen.ui_client_channel_id.get() != 0 {
             ui_client_free_all_mem();
         }
 

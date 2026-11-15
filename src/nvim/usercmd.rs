@@ -632,7 +632,7 @@ fn uc_list(name_prefix: &[u8]) {
             }
             found = true;
             msg_putchar(b'\n' as i32);
-            if g_st().got_int.get() {
+            if g_st().input.got_int.get() {
                 break;
             }
 
@@ -790,7 +790,7 @@ fn uc_list(name_prefix: &[u8]) {
                 cmd.uc_rep.as_bytes(),
                 false,
                 if name_len == 0 {
-                    g_st().columns_global.get() - 47
+                    g_st().screen.columns_global.get() - 47
                 } else {
                     0
                 },
@@ -799,12 +799,12 @@ fn uc_list(name_prefix: &[u8]) {
                 last_set_msg(cmd.uc_script_ctx);
             }
             line_breakcheck();
-            if g_st().got_int.get() {
+            if g_st().input.got_int.get() {
                 break;
             }
             i += 1;
         }
-        if g_st().got_int.get() {
+        if g_st().input.got_int.get() {
             break;
         }
     }
@@ -1085,8 +1085,8 @@ pub fn uc_add_command(
 
             if cmp == 0 {
                 if !force
-                    && (gap[i].uc_script_ctx.sc_sid != g_st().current_sctx.get().sc_sid
-                        || gap[i].uc_script_ctx.sc_seq == g_st().current_sctx.get().sc_seq)
+                    && (gap[i].uc_script_ctx.sc_sid != g_st().exc.current_sctx.get().sc_sid
+                        || gap[i].uc_script_ctx.sc_seq == g_st().exc.current_sctx.get().sc_seq)
                 {
                     let name_cstr = CString::new(name_prefix).unwrap_or_default();
                     semsg!(
@@ -1127,7 +1127,7 @@ pub fn uc_add_command(
         cmd.uc_argt = argt;
         cmd.uc_def = def;
         cmd.uc_compl = context;
-        cmd.uc_script_ctx = g_st().current_sctx.get();
+        cmd.uc_script_ctx = g_st().exc.current_sctx.get();
         cmd.uc_script_ctx.sc_lnum += sourcing_lnum();
         nlua_set_sctx(&mut cmd.uc_script_ctx);
         cmd.uc_compl_arg = compl_arg;
@@ -1219,7 +1219,7 @@ pub fn ex_command(eap: &mut Exarg) {
 /// `:comclear` (`ex_comclear`).
 pub fn ex_comclear(_eap: &mut Exarg) {
     with_ucmds_mut(Vec::clear);
-    if !g_st().curbuf.get().is_null() {
+    if !g_st().workspace.curbuf.get().is_null() {
         curbuf().b_ucmds.borrow_mut().clear();
     }
 }
@@ -1414,7 +1414,7 @@ pub fn add_win_cmd_modifiers(buf: &mut Vec<u8>, cmod: &Cmdmod, multi_mods: &mut 
 
     if cmod.cmod_tab > 0 {
         let tabnr = cmod.cmod_tab - 1;
-        if tabnr == tabpage_index(g_st().curtab.get().opt()) {
+        if tabnr == tabpage_index(g_st().workspace.curtab.get().opt()) {
             result += add_cmd_modifier(buf, b"tab", multi_mods);
         } else {
             let s = format!("{tabnr}tab");
@@ -1634,7 +1634,7 @@ fn uc_check_code(
             }
         }
         CodeType::Mods => {
-            result = uc_mods(out, &g_st().cmdmod.borrow(), quote != 0);
+            result = uc_mods(out, &g_st().cmdline.snapshot_cmdmod(), quote != 0);
         }
         CodeType::Register => {
             result = if eap.regname != 0 { 1 } else { 0 };
@@ -1757,15 +1757,15 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
     buf_vec.extend_from_slice(rem);
     buf_vec.push(0);
 
-    let mut save_current_sctx = g_st().current_sctx.get();
+    let mut save_current_sctx = g_st().exc.current_sctx.get();
     let mut restore_current_sctx = false;
     if (uc_argt & EX_KEEPSCRIPT) == 0 {
         restore_current_sctx = true;
-        save_current_sctx = g_st().current_sctx.get();
+        save_current_sctx = g_st().exc.current_sctx.get();
         {
-            let mut v = g_st().current_sctx.get();
+            let mut v = g_st().exc.current_sctx.get();
             v.sc_sid = uc_script_ctx.sc_sid;
-            g_st().current_sctx.set(v);
+            g_st().exc.current_sctx.set(v);
         }
     }
     do_cmdline(
@@ -1775,7 +1775,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
     );
 
     if restore_current_sctx {
-        g_st().current_sctx.set(save_current_sctx);
+        g_st().exc.current_sctx.set(save_current_sctx);
     }
 
     0

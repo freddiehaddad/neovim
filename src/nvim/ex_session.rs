@@ -96,22 +96,22 @@ fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: Option<&WinInfoInf
                     format!(
                         "exe '{n}resize ' . ((&lines * {} + {}) / {})\n",
                         i64::from(wp.w_height.get()),
-                        i64::from(g_st().rows_global.get()) / 2,
-                        i64::from(g_st().rows_global.get())
+                        i64::from(g_st().screen.rows_global.get()) / 2,
+                        i64::from(g_st().screen.rows_global.get())
                     ),
                 )
             {
                 return false;
             }
 
-            if wp.w_width.get() < g_st().columns_global.get()
+            if wp.w_width.get() < g_st().screen.columns_global.get()
                 && !write_fmt(
                     fd,
                     format!(
                         "exe 'vert {n}resize ' . ((&columns * {} + {}) / {})\n",
                         i64::from(wp.w_width.get()),
-                        i64::from(g_st().columns_global.get()) / 2,
-                        i64::from(g_st().columns_global.get())
+                        i64::from(g_st().screen.columns_global.get()) / 2,
+                        i64::from(g_st().screen.columns_global.get())
                     ),
                 )
             {
@@ -385,7 +385,7 @@ fn put_view(
 
     let save_curwin = curwin();
     set_curwin(wp);
-    g_st().curbuf.set(curwin().w_buffer.get());
+    g_st().workspace.curbuf.set(curwin().w_buffer.get());
     let f = if (flagp.get() & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0 {
         makeset(
             fd,
@@ -401,7 +401,7 @@ fn put_view(
         true
     };
     set_curwin(save_curwin);
-    g_st().curbuf.set(curwin().w_buffer.get());
+    g_st().workspace.curbuf.set(curwin().w_buffer.get());
     if !f {
         return false;
     }
@@ -573,7 +573,10 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 return false;
             }
         } else if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0 {
-            let sname = home_replace_save(None, g_st().globaldir.get().as_deref().or(Some(dirnow)));
+            let sname = home_replace_save(
+                None,
+                g_st().workspace.globaldir.get().as_deref().or(Some(dirnow)),
+            );
             let fname_esc = ses_escape_fname(Some(sname.as_c_str()));
             if !write_fmt(fd, format!("cd {}\n", cstr_to_str(&fname_esc))) {
                 return false;
@@ -665,8 +668,8 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 fd,
                 format!(
                     "set lines={} columns={}\n",
-                    i64::from(g_st().rows_global.get()),
-                    i64::from(g_st().columns_global.get())
+                    i64::from(g_st().screen.rows_global.get()),
+                    i64::from(g_st().screen.columns_global.get())
                 ),
             )
         {
@@ -707,20 +710,20 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             let tab_topframe;
 
             if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TABPAGES) != 0 {
-                if g_st().curtab.get() == tp {
-                    tab_firstwin = g_st().firstwin.get();
-                    tab_topframe = g_st().topframe.get().clone();
+                if g_st().workspace.curtab.get() == tp {
+                    tab_firstwin = g_st().workspace.firstwin.get();
+                    tab_topframe = g_st().workspace.topframe.get().clone();
                 } else {
                     tab_firstwin = tp.tp_firstwin.get();
                     tab_topframe = tp.tp_topframe.get();
                 }
-                if g_st().first_tabpage.get() != tp {
+                if g_st().workspace.first_tabpage.get() != tp {
                     need_tabnext = true;
                 }
             } else {
-                tp = g_st().curtab.get().clone();
-                tab_firstwin = g_st().firstwin.get();
-                tab_topframe = g_st().topframe.get().clone();
+                tp = g_st().workspace.curtab.get().clone();
+                tab_firstwin = g_st().workspace.firstwin.get();
+                tab_topframe = g_st().workspace.topframe.get().clone();
             }
 
             if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0
@@ -859,7 +862,10 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
         if (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_TABPAGES) != 0
             && !write_fmt(
                 fd,
-                format!("tabnext {}\n", tabpage_index(g_st().curtab.get().opt())),
+                format!(
+                    "tabnext {}\n",
+                    tabpage_index(g_st().workspace.curtab.get().opt())
+                ),
             )
         {
             return false;
@@ -1018,7 +1024,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                     }
                 } else if has_dirnow
                     && (opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0
-                    && let Some(ref gdir) = g_st().globaldir.get()
+                    && let Some(ref gdir) = g_st().workspace.globaldir.get()
                     && os_chdir(gdir) == 0
                 {
                     shorten_fnames(true);
@@ -1029,7 +1035,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 if has_dirnow
                     && ((opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_SESDIR) != 0
                         || ((opt_vars().ssop_flags.get() & K_OPT_SSOP_FLAG_CURDIR) != 0
-                            && g_st().globaldir.get().is_some()))
+                            && g_st().workspace.globaldir.get().is_some()))
                 {
                     if os_chdir(dirnow_cstr) != 0 {
                         emsg(gettext(E_PREV_DIR));
@@ -1050,7 +1056,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
             if opt_vars().p_hls.get() && !write_bytes(&fd, b"set hlsearch\n") {
                 failed = true;
             }
-            if g_st().search_global.no_hlsearch.get() && !write_bytes(&fd, b"nohlsearch\n") {
+            if g_st().search.search_global.no_hlsearch.get() && !write_bytes(&fd, b"nohlsearch\n") {
                 failed = true;
             }
             if eap.cmdidx == Cmdidx::CmdMksession

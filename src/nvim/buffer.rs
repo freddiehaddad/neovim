@@ -955,8 +955,8 @@ pub fn buf_meta_total(b: &FileBuf, m: usize) -> u32 {
 
 #[inline]
 pub fn first_win_in_tab(tp: &TabPageInfo) -> crate::globals::WinPtr {
-    if g_st().curtab.get() == tp {
-        g_st().firstwin.get()
+    if g_st().workspace.curtab.get() == tp {
+        g_st().workspace.firstwin.get()
     } else {
         tp.tp_firstwin.get()
     }
@@ -1022,7 +1022,7 @@ fn read_buffer(read_stdin: bool, eap: Option<&Exarg>, flags: i32) -> bool {
     curwin().w_cursor.set_col(0);
 
     if read_stdin {
-        if !g_st().readonlymode.get() && !buf_is_empty(&curbuf()) {
+        if !g_st().exc.readonlymode.get() && !buf_is_empty(&curbuf()) {
             changed(&crate::globals::curbuf());
         } else if retval {
             unchanged(&curbuf(), false, true);
@@ -1074,7 +1074,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
     let read_fifo = false;
     let silent = shortmess(K_SHM_FILEINFO);
 
-    if g_st().readonlymode.get()
+    if g_st().exc.readonlymode.get()
         && curbuf().b_ffname.get().is_some()
         && (curbuf().b_flags.get() & BF_NEVERLOADED) != 0
     {
@@ -1084,29 +1084,29 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
     if !ml_open(&curbuf()) {
         close_buffer(
             curwin().opt(),
-            g_st().curbuf.get().opt(),
+            g_st().workspace.curbuf.get().opt(),
             0,
             false,
             false,
             false,
         );
 
-        g_st().curbuf.set(crate::globals::BufPtr::NULL);
+        g_st().workspace.curbuf.set(crate::globals::BufPtr::NULL);
         for buf in for_all_buffers_ptr() {
             if buf.b_ml.ml_mfp.borrow().is_some() {
-                g_st().curbuf.set(buf);
+                g_st().workspace.curbuf.set(buf);
                 break;
             }
         }
 
-        if g_st().curbuf.get().is_null() {
+        if g_st().workspace.curbuf.get().is_null() {
             emsg(gettext(c"E82: Cannot allocate any buffer, exiting..."));
-            g_st().v_dying.set(2);
+            g_st().exc.v_dying.set(2);
             getout(2);
         }
 
         emsg(gettext(c"E83: Cannot allocate buffer, using other one..."));
-        enter_buffer(g_st().curbuf.get().borrow());
+        enter_buffer(g_st().workspace.curbuf.get().borrow());
         if old_tw != curbuf().b_p_tw.get() {
             check_colorcolumn(None::<&CStr>, Some(&crate::globals::curwin()));
         }
@@ -1117,7 +1117,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
         mfp.mf_dirty = MF_DIRTY_YES_NOSYNC;
     }
 
-    set_bufref(&mut old_curbuf, g_st().curbuf.get().opt());
+    set_bufref(&mut old_curbuf, g_st().workspace.curbuf.get().opt());
     curbuf().b_modified_was_set.set(false);
 
     curwin().w_valid.set(0);
@@ -1221,7 +1221,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
         parse_cino(&curbuf());
     }
 
-    if (g_st().got_int.get()
+    if (g_st().input.got_int.get()
         && crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_INTMOD))
         || curbuf().b_modified_was_set.get()
         || (aborting() && crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_INTMOD))
@@ -1248,9 +1248,12 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
         && augroup_exists(Some(c"filetypedetect"))
     {
         let mut bufref: Bufref = Bufref::new();
-        set_bufref(&mut bufref, g_st().curbuf.get().opt());
+        set_bufref(&mut bufref, g_st().workspace.curbuf.get().opt());
         do_doautocmd(c"filetypedetect BufRead", false, None);
-        if !bufref_valid(Some(&bufref)) || old_curbuf.br_buf != g_st().curbuf.get() || aborting() {
+        if !bufref_valid(Some(&bufref))
+            || old_curbuf.br_buf != g_st().workspace.curbuf.get()
+            || aborting()
+        {
             return false;
         }
     }
@@ -1330,7 +1333,7 @@ fn buf_valid_handle(buf: crate::globals::BufPtr) -> bool {
     if buf.is_null() {
         return false;
     }
-    let mut bp = g_st().lastbuf.get();
+    let mut bp = g_st().workspace.lastbuf.get();
     while let Some(b) = bp.opt() {
         if bp == buf {
             return true;
@@ -1348,7 +1351,7 @@ pub fn buf_valid(buf: Option<&FileBuf>) -> bool {
 fn can_unload_buffer(buf: &FileBuf) -> bool {
     let mut can_unload = buf.b_locked.get() == 0;
 
-    if can_unload && g_st().updating_screen.get() {
+    if can_unload && g_st().screen.updating_screen.get() {
         for wp in for_all_windows_ptr() {
             if wp.w_buffer.get() == buf {
                 can_unload = false;
@@ -1557,12 +1560,12 @@ pub fn close_buffer(
         if let Some(prev) = b_prev.opt() {
             prev.b_next.set(b_next.clone());
         } else {
-            g_st().firstbuf.set(b_next.clone());
+            g_st().workspace.firstbuf.set(b_next.clone());
         }
         if let Some(next) = b_next.opt() {
             next.b_prev.set(b_prev);
         } else {
-            g_st().lastbuf.set(b_prev);
+            g_st().workspace.lastbuf.set(b_prev);
         }
         free_buffer(buf.borrow());
     } else {
@@ -1571,9 +1574,9 @@ pub fn close_buffer(
             buf.b_flags.set(BF_CHECK_RO | BF_NEVERLOADED);
             buf.b_p_initialized.set(false);
         }
-        g_st().textlock.set(g_st().textlock.get() + (1));
+        g_st().input.textlock.set(g_st().input.textlock.get() + (1));
         buf_clear_file(buf.borrow());
-        g_st().textlock.set(g_st().textlock.get() - (1));
+        g_st().input.textlock.set(g_st().input.textlock.get() - (1));
         if clear_w_buf {
             win.w_buffer.set(crate::globals::BufPtr::NULL);
         }
@@ -1613,11 +1616,11 @@ pub fn buf_clear() {
 
 /// Free all things allocated for a buffer that are related to the file.
 pub fn buf_freeall(buf: &FileBuf, flags: i32) -> bool {
-    let is_curbuf = g_st().curbuf.get() == buf;
+    let is_curbuf = g_st().workspace.curbuf.get() == buf;
     let is_curwin =
         !(curwin()).is_null() && curwin().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut());
     let the_curwin = curwin();
-    let the_curtab = g_st().curtab.get().clone();
+    let the_curtab = g_st().workspace.curtab.get().clone();
 
     buf.b_locked.set(buf.b_locked.get() + (1));
     buf.b_locked_split.set(buf.b_locked_split.get() + (1));
@@ -1687,12 +1690,13 @@ pub fn buf_freeall(buf: &FileBuf, flags: i32) -> bool {
 
     let buf = buf_ptr.borrow();
 
-    if (std::ptr::from_ref(buf).cast_mut()) == g_st().curbuf.get().as_ptr() && !is_curbuf {
+    if (std::ptr::from_ref(buf).cast_mut()) == g_st().workspace.curbuf.get().as_ptr() && !is_curbuf
+    {
         return false;
     }
 
-    if (std::ptr::from_ref(buf).cast_mut()) == g_st().curbuf.get().as_ptr()
-        && g_st().visual_global.borrow().active
+    if (std::ptr::from_ref(buf).cast_mut()) == g_st().workspace.curbuf.get().as_ptr()
+        && g_st().edit.visual_global.active.get()
         && !entered_free_all_mem()
     {
         end_visual_mode();
@@ -1722,7 +1726,7 @@ pub fn buf_freeall(buf: &FileBuf, flags: i32) -> bool {
     buf.b_ml.ml_line_count.set(0);
     mc_buf_clear(buf);
 
-    if bt_nofilename(Some(buf)) && !g_st().exiting.get() {
+    if bt_nofilename(Some(buf)) && !g_st().exc.exiting.get() {
         mark_adjust_buf(
             buf,
             1,
@@ -1878,10 +1882,7 @@ impl Drop for FileBuf {
 fn free_buffer(buf: &FileBuf) {
     let buf_ptr = crate::globals::BufPtr::from(buf);
     let buf_ref = buf_ptr.borrow();
-    g_st()
-        .buffer_handles
-        .borrow_mut()
-        .remove(&buf_ref.b_fnum.get());
+    g_st().workspace.unregister_buffer(buf_ref.b_fnum.get());
 
     BUF_STATE.with(|s| s.buf_free_count.set(s.buf_free_count.get() + (1)));
 
@@ -1896,7 +1897,7 @@ fn free_buffer(buf: &FileBuf) {
 
     aubuflocal_remove(buf_ref);
 
-    if g_st().autocmd_busy.get() {
+    if g_st().autocmd.autocmd_busy.get() {
         *buf_ref.additional_data.borrow_mut() = None;
         buf_ref.b_prompt_text.set(None);
         callback_free(&buf_ref.b_prompt_callback);
@@ -1909,10 +1910,10 @@ fn free_buffer(buf: &FileBuf) {
         buf_ref.b_namedm.borrow_mut().fill(Fmark::new());
         buf_ref.b_changelist.borrow_mut().fill(Fmark::new());
 
-        g_st().au_pending_free_buf.borrow_mut().push(buf_ptr);
+        g_st().autocmd.defer_free_buf(buf_ptr);
     } else {
-        if g_st().curbuf.get() == buf_ptr {
-            g_st().curbuf.set(crate::globals::BufPtr::NULL);
+        if g_st().workspace.curbuf.get() == buf_ptr {
+            g_st().workspace.curbuf.set(crate::globals::BufPtr::NULL);
         }
         buf_ref.b_next.set(crate::globals::BufPtr::NULL);
         buf_ref.b_prev.set(crate::globals::BufPtr::NULL);
@@ -1952,7 +1953,7 @@ fn free_buffer_stuff(buf: &FileBuf, free_flags: i32) {
 
 /// Go to another buffer. Handles the result of the ATTENTION dialog.
 pub fn goto_buffer(eap: &mut Exarg, start: i32, dir: i32, count: i32) {
-    let save_sea = g_st().swap_exists_action.get();
+    let save_sea = g_st().workspace.swap_exists_action.get();
     let skip_help_buf = matches!(
         eap.cmdidx,
         Cmdidx::CmdBnextVariant
@@ -1964,10 +1965,10 @@ pub fn goto_buffer(eap: &mut Exarg, start: i32, dir: i32, count: i32) {
     );
 
     let mut old_curbuf: Bufref = Bufref::new();
-    set_bufref(&mut old_curbuf, g_st().curbuf.get().opt());
+    set_bufref(&mut old_curbuf, g_st().workspace.curbuf.get().opt());
 
-    if g_st().swap_exists_action.get() == SEA_NONE {
-        g_st().swap_exists_action.set(SEA_DIALOG);
+    if g_st().workspace.swap_exists_action.get() == SEA_NONE {
+        g_st().workspace.swap_exists_action.set(SEA_DIALOG);
     }
     let _ = do_buffer_ext(
         if eap.cmd.first_byte() == b's' {
@@ -1982,12 +1983,12 @@ pub fn goto_buffer(eap: &mut Exarg, start: i32, dir: i32, count: i32) {
             | (if skip_help_buf { DOBUF_SKIPHELP } else { 0 }),
     );
 
-    if g_st().swap_exists_action.get() == SEA_QUIT && eap.cmd.first_byte() == b's' {
+    if g_st().workspace.swap_exists_action.get() == SEA_QUIT && eap.cmd.first_byte() == b's' {
         let mut cs: ExCleanup = ExCleanup::new();
         enter_cleanup(&mut cs);
         win_close(&curwin(), true, false);
-        g_st().swap_exists_action.set(save_sea);
-        g_st().swap_exists_did_quit.set(true);
+        g_st().workspace.swap_exists_action.set(save_sea);
+        g_st().workspace.swap_exists_did_quit.set(true);
         leave_cleanup(&mut cs);
     } else {
         handle_swap_exists(Some(&mut old_curbuf));
@@ -1999,14 +2000,14 @@ pub fn handle_swap_exists(mut old_curbuf: Option<&mut Bufref>) {
     let mut cs: ExCleanup = ExCleanup::new();
     let old_tw = curbuf().b_p_tw.get();
 
-    if g_st().swap_exists_action.get() == SEA_QUIT {
+    if g_st().workspace.swap_exists_action.get() == SEA_QUIT {
         enter_cleanup(&mut cs);
 
-        g_st().swap_exists_action.set(SEA_NONE);
-        g_st().swap_exists_did_quit.set(true);
+        g_st().workspace.swap_exists_action.set(SEA_NONE);
+        g_st().workspace.swap_exists_did_quit.set(true);
         close_buffer(
             curwin().opt(),
-            g_st().curbuf.get().opt(),
+            g_st().workspace.curbuf.get().opt(),
             DOBUF_UNLOAD,
             false,
             false,
@@ -2014,7 +2015,7 @@ pub fn handle_swap_exists(mut old_curbuf: Option<&mut Bufref>) {
         );
         let buf = if old_curbuf.is_none()
             || !bufref_valid((old_curbuf.is_some()).then(|| old_curbuf.as_deref().unwrap()))
-            || old_curbuf.as_deref_mut().unwrap().br_buf == g_st().curbuf.get()
+            || old_curbuf.as_deref_mut().unwrap().br_buf == g_st().workspace.curbuf.get()
         {
             block_autocmds();
             let b = buflist_new(None, None, 1, BLN_CURBUF | BLN_LISTED);
@@ -2032,18 +2033,18 @@ pub fn handle_swap_exists(mut old_curbuf: Option<&mut Bufref>) {
         }
 
         leave_cleanup(&mut cs);
-    } else if g_st().swap_exists_action.get() == SEA_RECOVER {
+    } else if g_st().workspace.swap_exists_action.get() == SEA_RECOVER {
         enter_cleanup(&mut cs);
 
-        g_st().msg_scroll.set(1);
+        g_st().msg.msg_scroll.set(1);
         ml_recover(false);
         msg_puts(c"\n");
-        g_st().cmdline_row.set(g_st().msg_row.get());
+        g_st().cmdline.cmdline_row.set(g_st().msg.msg_row.get());
         do_modelines(0);
 
         leave_cleanup(&mut cs);
     }
-    g_st().swap_exists_action.set(SEA_NONE);
+    g_st().workspace.swap_exists_action.set(SEA_NONE);
 }
 
 /// Delete or unload buffer(s).
@@ -2074,7 +2075,7 @@ pub fn do_bufdel(
             bnr = end_bnr;
         }
 
-        while !g_st().got_int.get() {
+        while !g_st().input.got_int.get() {
             if bnr == curbuf().b_fnum.get() {
                 do_current = bnr;
             } else if do_buffer(command, DOBUF_FIRST, FORWARD, bnr, i32::from(forceit)) {
@@ -2108,7 +2109,7 @@ pub fn do_bufdel(
             }
             os_breakcheck();
         }
-        if !g_st().got_int.get()
+        if !g_st().input.got_int.get()
             && do_current != 0
             && do_buffer(
                 command,
@@ -2169,7 +2170,7 @@ pub fn do_bufdel(
 }
 
 fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
-    let buf = g_st().curbuf.get();
+    let buf = g_st().workspace.curbuf.get();
 
     if action == DOBUF_UNLOAD {
         emsg(gettext(c"E90: Cannot unload last buffer"));
@@ -2187,7 +2188,7 @@ fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
                 if wp.w_floating.get() {
                     break;
                 }
-                if wp.w_buffer.get() != g_st().curbuf.get() {
+                if wp.w_buffer.get() != g_st().workspace.curbuf.get() {
                     can_close_all_others = true;
                     break;
                 }
@@ -2207,7 +2208,7 @@ fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
         Some(&curwin()),
     );
 
-    if g_st().curbuf.get() != buf
+    if g_st().workspace.curbuf.get() != buf
         && bufref_valid(Some(&bufref))
         && bufref.buf_opt().is_some_and(|b| b.b_nwindows.get() == 0)
     {
@@ -2215,9 +2216,9 @@ fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
     }
 
     if !close_others {
-        g_st().need_fileinfo.set(false);
+        g_st().msg.need_fileinfo.set(false);
     } else if retval && !shortmess(K_SHM_FILEINFO) {
-        g_st().need_fileinfo.set(true);
+        g_st().msg.need_fileinfo.set(true);
     }
 
     retval
@@ -2230,9 +2231,9 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
     let unload = action == DOBUF_UNLOAD || action == DOBUF_DEL || action == DOBUF_WIPE;
 
     buf = match start {
-        DOBUF_FIRST => g_st().firstbuf.get(),
-        DOBUF_LAST => g_st().lastbuf.get(),
-        _ => g_st().curbuf.get(),
+        DOBUF_FIRST => g_st().workspace.firstbuf.get(),
+        DOBUF_LAST => g_st().workspace.lastbuf.get(),
+        _ => g_st().workspace.curbuf.get(),
     };
     if start == DOBUF_MOD {
         while count > 0 {
@@ -2241,9 +2242,9 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 buf = buf.b_next.get();
 
                 if buf.is_null() {
-                    buf = g_st().firstbuf.get();
+                    buf = g_st().workspace.firstbuf.get();
                 }
-                if buf == g_st().curbuf.get() || buf_is_changed(buf.borrow()) {
+                if buf == g_st().workspace.curbuf.get() || buf_is_changed(buf.borrow()) {
                     break;
                 }
             }
@@ -2276,12 +2277,12 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 if !buf.b_next.get().is_null() {
                     buf.b_next.get()
                 } else {
-                    g_st().firstbuf.get()
+                    g_st().workspace.firstbuf.get()
                 }
             } else if !buf.b_prev.get().is_null() {
                 buf.b_prev.get()
             } else {
-                g_st().lastbuf.get()
+                g_st().workspace.lastbuf.get()
             };
             if unload
                 || (if help_only {
@@ -2315,7 +2316,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
     }
 
     if action == DOBUF_GOTO
-        && buf != g_st().curbuf.get()
+        && buf != g_st().workspace.curbuf.get()
         && !check_can_set_curbuf_forceit((flags & DOBUF_FORCEIT) != 0)
     {
         return false;
@@ -2338,8 +2339,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         }
 
         if (flags & DOBUF_FORCEIT) == 0 && buf_is_changed(buf.borrow()) {
-            if (opt_vars().p_confirm.get()
-                || (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0)
+            if (opt_vars().p_confirm.get() || (g_st().cmdline.cmod_flags() & CMOD_CONFIRM) != 0)
                 && opt_vars().p_write.get()
             {
                 dialog_changed(buf.borrow(), false);
@@ -2364,8 +2364,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             && !buf.terminal.get().is_null()
             && terminal_running(buf.terminal.get().borrow())
         {
-            if opt_vars().p_confirm.get() || (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0
-            {
+            if opt_vars().p_confirm.get() || (g_st().cmdline.cmod_flags() & CMOD_CONFIRM) != 0 {
                 if !dialog_close_terminal(buf.borrow()) {
                     return false;
                 }
@@ -2381,7 +2380,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
         let buf_fnum = buf.b_fnum.get();
 
-        if buf == g_st().curbuf.get() && g_st().visual_global.borrow().active {
+        if buf == g_st().workspace.curbuf.get() && g_st().edit.visual_global.active.get() {
             end_visual_mode();
         }
 
@@ -2392,11 +2391,11 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 break;
             }
         }
-        if bp.is_null() && buf == g_st().curbuf.get() {
+        if bp.is_null() && buf == g_st().workspace.curbuf.get() {
             return empty_curbuf(true, flags & DOBUF_FORCEIT, action);
         }
 
-        while buf == g_st().curbuf.get()
+        while buf == g_st().workspace.curbuf.get()
             && !(win_locked(&curwin()) != 0 || curwin().buf().b_locked.get() > 0)
             && (is_ctx_win(&lastwin()) || !last_window(&curwin()))
         {
@@ -2405,13 +2404,13 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             }
         }
 
-        if g_st().curbuf.get() != buf {
+        if g_st().workspace.curbuf.get() != buf {
             if (opt_vars().jop_flags.get() & K_OPT_JOP_FLAG_CLEAN) != 0 {
                 mark_jumplist_forget_file(&curwin(), buf_fnum);
             }
 
             close_windows(buf.opt(), false);
-            if g_st().curbuf.get() != buf
+            if g_st().workspace.curbuf.get() != buf
                 && bufref_valid(Some(&bufref))
                 && firstwin().w_buffer.get() == buf
                 && one_window(&firstwin(), None)
@@ -2430,7 +2429,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 ctx_restore(&mut switchwin);
             }
 
-            if g_st().curbuf.get() != buf
+            if g_st().workspace.curbuf.get() != buf
                 && bufref_valid(Some(&bufref))
                 && buf.b_nwindows.get() <= 0
             {
@@ -2441,11 +2440,18 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
         buf = crate::globals::BufPtr::NULL;
         bp = crate::globals::BufPtr::NULL;
-        if !g_st().au_new_curbuf.get().br_buf.is_null()
-            && bufref_valid(Some(&g_st().au_new_curbuf.get()))
-            && g_st().au_new_curbuf.get().br_buf.b_locked_split.get() == 0
+        if !g_st().autocmd.au_new_curbuf.get().br_buf.is_null()
+            && bufref_valid(Some(&g_st().autocmd.au_new_curbuf.get()))
+            && g_st()
+                .autocmd
+                .au_new_curbuf
+                .get()
+                .br_buf
+                .b_locked_split
+                .get()
+                == 0
         {
-            buf = g_st().au_new_curbuf.get().br_buf;
+            buf = g_st().autocmd.au_new_curbuf.get().br_buf;
         } else if curwin().w_jumplistlen.get() > 0 {
             if (opt_vars().jop_flags.get() & K_OPT_JOP_FLAG_CLEAN) != 0 {
                 mark_jumplist_forget_file(&curwin(), buf_fnum);
@@ -2475,7 +2481,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                     ));
 
                     if !buf.is_null() {
-                        if buf == g_st().curbuf.get()
+                        if buf == g_st().workspace.curbuf.get()
                             || !buf.b_p_bl.get()
                             || bt_quickfix(buf.opt())
                             || buf.b_locked_split.get() != 0
@@ -2547,7 +2553,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         if buf.is_null() {
             for buf2 in for_all_buffers_ptr() {
                 if buf2.b_p_bl.get()
-                    && g_st().curbuf.get() != buf2
+                    && g_st().workspace.curbuf.get() != buf2
                     && !bt_quickfix(Some(&buf2))
                     && buf2.b_locked_split.get() == 0
                 {
@@ -2563,7 +2569,9 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 curbuf().b_prev.get()
             };
             if bt_quickfix(buf.opt())
-                || (!buf.is_null() && buf != g_st().curbuf.get() && buf.b_locked_split.get() != 0)
+                || (!buf.is_null()
+                    && buf != g_st().workspace.curbuf.get()
+                    && buf.b_locked_split.get() != 0)
             {
                 buf = crate::globals::BufPtr::NULL;
             }
@@ -2577,7 +2585,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
     if action == DOBUF_SPLIT && swbuf_goto_win_with_buf(buf.opt()).is_some() {
         return true;
     }
-    if g_st().curbuf.get() != buf && buf.b_locked_split.get() != 0 {
+    if g_st().workspace.curbuf.get() != buf && buf.b_locked_split.get() != 0 {
         emsg(gettext(E_CANNOT_SWITCH_TO_A_CLOSING_BUFFER));
         return false;
     }
@@ -2585,12 +2593,12 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         return false;
     }
 
-    if buf == g_st().curbuf.get() {
+    if buf == g_st().workspace.curbuf.get() {
         return true;
     }
 
     if action == DOBUF_GOTO && !can_abandon(&curbuf(), (flags & DOBUF_FORCEIT) != 0) {
-        if (opt_vars().p_confirm.get() || (g_st().cmdmod.borrow().cmod_flags & CMOD_CONFIRM) != 0)
+        if (opt_vars().p_confirm.get() || (g_st().cmdline.cmod_flags() & CMOD_CONFIRM) != 0)
             && opt_vars().p_write.get()
         {
             let mut bufref: Bufref = Bufref::new();
@@ -2639,14 +2647,14 @@ pub fn set_curbuf(buf_in: &FileBuf, action: i32, update_jumplist: bool) {
         setpcmark();
     }
 
-    if (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPALT) == 0 {
+    if (g_st().cmdline.cmod_flags() & CMOD_KEEPALT) == 0 {
         curwin().w_alt_fnum.set(curbuf().b_fnum.get());
     }
     buflist_altfpos(&curwin());
 
-    g_st().visual_global.borrow_mut().reselect = 0;
+    g_st().edit.visual_global.reselect.set(0);
 
-    let prevbuf = g_st().curbuf.get();
+    let prevbuf = g_st().workspace.curbuf.get();
     let mut newbufref: Bufref = Bufref::new();
     let mut prevbufref: Bufref = Bufref::new();
     set_bufref(&mut prevbufref, prevbuf.opt());
@@ -2662,8 +2670,8 @@ pub fn set_curbuf(buf_in: &FileBuf, action: i32, update_jumplist: bool) {
             close_windows(prevbuf.opt(), false);
         }
         if bufref_valid(Some(&prevbufref)) && !aborting() {
-            if g_st().curbuf.get() == prevbuf
-                && ((g_st().state_global.get() & MODE_INSERT) == 0
+            if g_st().workspace.curbuf.get() == prevbuf
+                && ((g_st().edit.state_global.get() & MODE_INSERT) == 0
                     || curbuf().b_nwindows.get() <= 1)
             {
                 u_sync(false);
@@ -2690,8 +2698,14 @@ pub fn set_curbuf(buf_in: &FileBuf, action: i32, update_jumplist: bool) {
     }
 
     let valid = buf_valid_handle(buf.clone());
-    if (valid && g_st().curbuf.get() != buf && !aborting()) || curwin().w_buffer.get().is_null() {
-        let target = if valid { buf } else { g_st().lastbuf.get() };
+    if (valid && g_st().workspace.curbuf.get() != buf && !aborting())
+        || curwin().w_buffer.get().is_null()
+    {
+        let target = if valid {
+            buf
+        } else {
+            g_st().workspace.lastbuf.get()
+        };
         enter_buffer(target.borrow());
         if old_tw != curbuf().b_p_tw.get() {
             check_colorcolumn(None::<&CStr>, Some(&crate::globals::curwin()));
@@ -2710,7 +2724,7 @@ pub fn set_curbuf(buf_in: &FileBuf, action: i32, update_jumplist: bool) {
 /// Enter a new current buffer.
 fn enter_buffer(buf_in: &FileBuf) {
     let buf = crate::globals::BufPtr::from(buf_in);
-    if g_st().visual_global.borrow().active && !entered_free_all_mem() {
+    if g_st().edit.visual_global.active.get() && !entered_free_all_mem() {
         end_visual_mode();
     }
 
@@ -2722,7 +2736,7 @@ fn enter_buffer(buf_in: &FileBuf) {
     }
 
     curwin().w_buffer.set(buf.clone());
-    g_st().curbuf.set(buf);
+    g_st().workspace.curbuf.set(buf);
     curbuf().b_nwindows.set(curbuf().b_nwindows.get() + (1));
 
     buf_copy_options(&curbuf(), BCO_ENTER | BCO_NOHELP);
@@ -2753,8 +2767,8 @@ fn enter_buffer(buf_in: &FileBuf) {
         }
         open_buffer(false, None, 0);
     } else {
-        if g_st().msg_silent.get() == 0 && !shortmess(K_SHM_FILEINFO) {
-            g_st().need_fileinfo.set(true);
+        if g_st().msg.msg_silent.get() == 0 && !shortmess(K_SHM_FILEINFO) {
+            g_st().msg.need_fileinfo.set(true);
         }
         buf_check_timestamp(&curbuf());
 
@@ -2808,7 +2822,7 @@ pub fn do_autochdir() {
         && curbuf().b_ffname.get().is_some()
         && vim_chdirfile(&curbuf().ffname_cstr(), K_CD_CAUSE_AUTO)
     {
-        g_st().last_chdir_reason.set(Some(c"autochdir"));
+        g_st().workspace.last_chdir_reason.set(Some(c"autochdir"));
         shorten_fnames(true);
     }
 }
@@ -2862,7 +2876,7 @@ pub fn buflist_new(
 ) -> Option<crate::globals::BufPtr> {
     let mut buf: crate::globals::BufPtr;
 
-    let expanded = fname_expand(g_st().curbuf.get().opt(), ffname_arg, sfname_arg);
+    let expanded = fname_expand(g_st().workspace.curbuf.get().opt(), ffname_arg, sfname_arg);
 
     let mut file_id: FileID = FileID::new();
     let file_id_valid = expanded
@@ -2908,8 +2922,8 @@ pub fn buflist_new(
     if (flags & BLN_CURBUF) != 0 && curbuf_reusable() {
         let mut bufref: Bufref = Bufref::new();
 
-        debug_assert!(!g_st().curbuf.get().is_null());
-        buf = g_st().curbuf.get();
+        debug_assert!(!g_st().workspace.curbuf.get().is_null());
+        buf = g_st().workspace.curbuf.get();
         set_bufref(&mut bufref, buf.opt());
         trigger_undo_ftplugin(&curbuf(), &curwin());
         buf_freeall(&curbuf(), BFA_WIPE | BFA_DEL);
@@ -2921,7 +2935,7 @@ pub fn buflist_new(
             buf = crate::globals::BufPtr::NULL;
         }
     }
-    if g_st().curbuf.get() != buf || g_st().curbuf.get().is_null() {
+    if g_st().workspace.curbuf.get() != buf || g_st().workspace.curbuf.get().is_null() {
         buf = FileBuf::alloc();
         init_var_dict(&tv_dict_alloc(), &buf.b_bufvar, VAR_SCOPE);
         buf_init_changedtick(&buf);
@@ -2938,7 +2952,7 @@ pub fn buflist_new(
     clear_wininfo(buf_ref);
     buf_ref.b_wininfo.borrow_mut().push(WinInfo::new());
 
-    if buf == g_st().curbuf.get() {
+    if buf == g_st().workspace.curbuf.get() {
         free_buffer_stuff(buf_ref, K_BFF_INIT_CHANGEDTICK);
         buf_ref.b_p_initialized.set(false);
         buf_copy_options(buf_ref, BCO_ENTER);
@@ -2947,24 +2961,23 @@ pub fn buflist_new(
             .set(curbuf().b_kmap_state.get() | (KEYMAP_INIT));
     } else {
         buf_ref.b_next.set(crate::globals::BufPtr::NULL);
-        if g_st().firstbuf.get().is_null() {
+        if g_st().workspace.firstbuf.get().is_null() {
             buf_ref.b_prev.set(crate::globals::BufPtr::NULL);
-            g_st().firstbuf.set(buf.clone());
+            g_st().workspace.firstbuf.set(buf.clone());
         } else {
-            g_st().lastbuf.get().b_next.set(buf.clone());
-            buf_ref.b_prev.set(g_st().lastbuf.get());
+            g_st().workspace.lastbuf.get().b_next.set(buf.clone());
+            buf_ref.b_prev.set(g_st().workspace.lastbuf.get());
         }
-        g_st().lastbuf.set(buf.clone());
+        g_st().workspace.lastbuf.set(buf.clone());
 
         buf_ref.b_fnum.set(BUF_STATE.with(|s| s.top_file_num.get()));
         BUF_STATE.with(|s| s.top_file_num.set(s.top_file_num.get() + (1)));
         g_st()
-            .buffer_handles
-            .borrow_mut()
-            .insert(buf_ref.b_fnum.get(), buf.clone());
+            .workspace
+            .register_buffer(buf_ref.b_fnum.get(), buf.clone());
         if BUF_STATE.with(|s| s.top_file_num.get()) < 0 {
             emsg(gettext(c"W14: Warning: List of file names overflow"));
-            if g_st().emsg_silent.get() == 0 && !g_st().in_assert_fails.get() {
+            if g_st().msg.emsg_silent.get() == 0 && !g_st().msg.in_assert_fails.get() {
                 msg_delay(3001, true);
             }
             BUF_STATE.with(|s| s.top_file_num.set(1));
@@ -3038,7 +3051,7 @@ pub fn buflist_new(
 /// Return true if the current buffer is empty, unnamed, unmodified and used in
 /// only one window.
 pub fn curbuf_reusable() -> bool {
-    !g_st().curbuf.get().is_null()
+    !g_st().workspace.curbuf.get().is_null()
         && curbuf().b_ffname.get().is_none()
         && curbuf().b_nwindows.get() <= 1
         && curbuf().terminal.get().is_null()
@@ -3134,7 +3147,7 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
     };
     let buf = buf_ref.clone();
 
-    if buf == g_st().curbuf.get() {
+    if buf == g_st().workspace.curbuf.get() {
         return true;
     }
 
@@ -3188,8 +3201,9 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
     }
 
     g_st()
+        .screen
         .redrawing_disabled
-        .set(g_st().redrawing_disabled.get() + (1));
+        .set(g_st().screen.redrawing_disabled.get() + (1));
     if getfile(
         buf_fnum,
         None,
@@ -3201,8 +3215,9 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
     .is_success()
     {
         g_st()
+            .screen
             .redrawing_disabled
-            .set(g_st().redrawing_disabled.get() - (1));
+            .set(g_st().screen.redrawing_disabled.get() - (1));
 
         if !opt_vars().p_sol.get() && col != 0 {
             curwin().w_cursor.set_col(col);
@@ -3216,8 +3231,9 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
         return true;
     }
     g_st()
+        .screen
         .redrawing_disabled
-        .set(g_st().redrawing_disabled.get() - (1));
+        .set(g_st().screen.redrawing_disabled.get() - (1));
     false
 }
 
@@ -3419,7 +3435,7 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
                 continue;
             }
             if (options & BUF_DIFF_FILTER) != 0
-                && (g_st().curbuf.get() == buf || !diff_mode_buf(&buf))
+                && (g_st().workspace.curbuf.get() == buf || !diff_mode_buf(&buf))
             {
                 continue;
             }
@@ -3484,7 +3500,7 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
                 }
 
                 file.reserve_exact(matches.len());
-                if matches[0].buf == g_st().curbuf.get() {
+                if matches[0].buf == g_st().workspace.curbuf.get() {
                     let mut iter = matches.into_iter();
                     let first = iter.next().unwrap();
                     for item in iter {
@@ -3547,12 +3563,7 @@ pub fn buflist_findnr(mut nr: i32) -> Option<crate::globals::BufPtr> {
     if nr == 0 {
         nr = curwin().w_alt_fnum.get();
     }
-    g_st()
-        .buffer_handles
-        .borrow()
-        .get(&nr)
-        .cloned()
-        .filter(|p| !p.is_null())
+    g_st().workspace.find_buffer(nr)
 }
 
 #[inline]
@@ -3736,7 +3747,7 @@ pub fn buflist_list(eap: &mut Exarg) {
     }
 
     for buf_ptr in buflist {
-        if g_st().got_int.get() {
+        if g_st().input.got_int.get() {
             break;
         }
         let buf = buf_ptr.borrow();
@@ -3762,9 +3773,10 @@ pub fn buflist_list(eap: &mut Exarg) {
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'x' as i32)
                 && (buf.b_flags.get() & BF_READERR) == 0)
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'%' as i32)
-                && g_st().curbuf.get() != buf)
+                && g_st().workspace.curbuf.get() != buf)
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'#' as i32)
-                && (g_st().curbuf.get() == buf || curwin().w_alt_fnum.get() != buf.b_fnum.get()))
+                && (g_st().workspace.curbuf.get() == buf
+                    || curwin().w_alt_fnum.get() != buf.b_fnum.get()))
         {
             continue;
         }
@@ -3802,7 +3814,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             };
         }
 
-        if !ui_has(K_UIMESSAGES) || g_st().msg_col.get() > 0 {
+        if !ui_has(K_UIMESSAGES) || g_st().msg.msg_col.get() > 0 {
             msg_putchar(b'\n' as i32);
         }
         let mut iobuff = [0u8; IOSIZE];
@@ -3815,7 +3827,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             } else {
                 b'u' as i32
             },
-            if g_st().curbuf.get() == buf {
+            if g_st().workspace.curbuf.get() == buf {
                 b'%' as i32
             } else if curwin().w_alt_fnum.get() == buf.b_fnum.get() {
                 b'#' as i32
@@ -3851,7 +3863,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             format_to_buf!(
                 &mut iobuff[len..IOSIZE],
                 gettext(c"line %lld"),
-                if g_st().curbuf.get() == buf {
+                if g_st().workspace.curbuf.get() == buf {
                     i64::from(curwin().w_cursor.get().lnum)
                 } else {
                     i64::from(buflist_findlnum(buf))
@@ -3989,7 +4001,7 @@ pub fn setaltfname(
 ) -> Option<crate::globals::BufPtr> {
     let buf = buflist_new(ffname, sfname, lnum, 0);
     if let Some(ref b) = buf
-        && (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPALT) == 0
+        && (g_st().cmdline.cmod_flags() & CMOD_KEEPALT) == 0
     {
         curwin().w_alt_fnum.set(b.b_fnum.get());
     }
@@ -4204,14 +4216,14 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
 
     if dont_truncate {
         msg_start();
-        let n = g_st().msg_scroll.get();
-        g_st().msg_scroll.set(1);
+        let n = g_st().msg.msg_scroll.get();
+        g_st().msg.msg_scroll.set(1);
         msg(crate::memory::bytes_as_cstr(&buffer_vec), 0);
-        g_st().msg_scroll.set(n);
+        g_st().msg.msg_scroll.set(n);
     } else {
         let p = msg_trunc(&mut buffer_vec, false, 0);
-        if g_st().restart_edit.get() != 0
-            || (g_st().msg_scrolled.get() != 0 && !g_st().need_wait_return.get())
+        if g_st().edit.restart_edit.get() != 0
+            || (g_st().msg.msg_scrolled.get() != 0 && !g_st().msg.need_wait_return.get())
         {
             set_keep_msg(p, 0);
         }
@@ -4233,11 +4245,11 @@ pub fn maketitle() {
     let mut buf = [0u8; IOSIZE];
 
     if !redrawing() {
-        g_st().need_maketitle.set(true);
+        g_st().screen.need_maketitle.set(true);
         return;
     }
 
-    g_st().need_maketitle.set(false);
+    g_st().screen.need_maketitle.set(false);
     if !opt_vars().p_title.get()
         && !opt_vars().p_icon.get()
         && LASTTITLE.with(|c| c.borrow().is_none())
@@ -4250,13 +4262,13 @@ pub fn maketitle() {
         let mut maxlen = 0;
 
         if opt_vars().p_titlelen.get() > 0 {
-            maxlen = ((opt_vars().p_titlelen.get() * i64::from(g_st().columns_global.get()) / 100)
-                as i32)
+            maxlen = ((opt_vars().p_titlelen.get() * i64::from(g_st().screen.columns_global.get())
+                / 100) as i32)
                 .max(10);
         }
 
         if !opt_vars().p_titlestring.is_empty() {
-            if (g_st().stl_syntax.get() & STL_IN_TITLE) != 0 {
+            if (g_st().screen.stl_syntax.get() & STL_IN_TITLE) != 0 {
                 let titlestr = opt_vars().p_titlestring.as_cstr().to_owned();
                 build_stl_str_hl_slice(
                     curwin(),
@@ -4314,7 +4326,7 @@ pub fn maketitle() {
 
     if opt_vars().p_icon.get() {
         if !opt_vars().p_iconstring.is_empty() {
-            if (g_st().stl_syntax.get() & STL_IN_ICON) != 0 {
+            if (g_st().screen.stl_syntax.get() & STL_IN_ICON) != 0 {
                 let iconstr = opt_vars().p_iconstring.as_cstr().to_owned();
                 build_stl_str_hl_slice(
                     curwin(),
@@ -4497,7 +4509,7 @@ pub fn bt_prompt(buf: Option<&FileBuf>) -> bool {
 
 /// Return true if `buf` is the `|cmdwin|` scratch buffer.
 pub fn bt_cmdwin(buf: Option<&FileBuf>) -> bool {
-    buf.is_some_and(|b| g_st().cmdwin_buf.get() == b)
+    buf.is_some_and(|b| g_st().cmdline.cmdwin_buf.get() == b)
 }
 
 /// Open a window for a number of buffers.
@@ -4505,7 +4517,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
     let mut wpnext: crate::globals::WinPtr;
     let mut split_ret = true;
     let mut open_wins = 0;
-    let had_tab = g_st().cmdmod.borrow().cmod_tab;
+    let had_tab = g_st().cmdline.cmod_tab();
 
     let count = if eap.addr_count == 0 { 9999 } else { eap.line2 };
 
@@ -4515,22 +4527,22 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
     setpcmark();
 
     if had_tab > 0 {
-        let first_tp = g_st().first_tabpage.get().clone();
+        let first_tp = g_st().workspace.first_tabpage.get().clone();
         goto_tabpage_tp(first_tp.opt(), true, true);
     }
     loop {
         let mut tpnext = curtab().tp_next.get();
         let mut wp = if lastwin().w_floating.get() {
-            g_st().lastwin.get()
+            g_st().workspace.lastwin.get()
         } else {
-            g_st().firstwin.get()
+            g_st().workspace.firstwin.get()
         };
         while !wp.is_null() {
             wpnext = if wp.borrow().w_floating.get() {
                 if wp.borrow().prev().w_floating.get() {
                     wp.borrow().w_prev.get()
                 } else {
-                    g_st().firstwin.get()
+                    g_st().workspace.firstwin.get()
                 }
             } else if wp
                 .borrow()
@@ -4541,23 +4553,23 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             } else {
                 wp.borrow().w_next.get()
             };
-            let size_mismatch = if (g_st().cmdmod.borrow().cmod_split & WSP_VERT) != 0 {
+            let size_mismatch = if (g_st().cmdline.cmod_split() & WSP_VERT) != 0 {
                 i64::from(
                     wp.borrow().w_height.get()
                         + wp.borrow().w_hsep_height.get()
                         + wp.borrow().w_status_height.get(),
-                ) < i64::from(g_st().rows_global.get())
+                ) < i64::from(g_st().screen.rows_global.get())
                     - opt_vars().p_ch.get()
                     - i64::from(tabline_height())
                     - i64::from(global_stl_height())
             } else {
-                wp.borrow().w_width.get() != g_st().columns_global.get()
+                wp.borrow().w_width.get() != g_st().screen.columns_global.get()
             };
             if (wp.borrow().buf().b_nwindows.get() > 1
                 || wp.borrow().w_floating.get()
                 || size_mismatch
-                || (had_tab > 0 && wp != g_st().firstwin.get()))
-                && g_st().firstwin.get() != g_st().lastwin.get()
+                || (had_tab > 0 && wp != g_st().workspace.firstwin.get()))
+                && g_st().workspace.firstwin.get() != g_st().workspace.lastwin.get()
                 && !(win_locked(wp.borrow()) != 0 || wp.borrow().buf().b_locked.get() > 0)
                 && !is_ctx_win(&wp)
             {
@@ -4565,11 +4577,11 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
                     break;
                 }
                 wpnext = if lastwin().w_floating.get() {
-                    g_st().lastwin.get()
+                    g_st().workspace.lastwin.get()
                 } else {
-                    g_st().firstwin.get()
+                    g_st().workspace.firstwin.get()
                 };
-                tpnext = g_st().first_tabpage.get().clone();
+                tpnext = g_st().workspace.first_tabpage.get().clone();
                 open_wins = 0;
             } else {
                 open_wins += 1;
@@ -4584,13 +4596,15 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
     }
 
     g_st()
+        .autocmd
         .autocmd_no_enter
-        .set(g_st().autocmd_no_enter.get() + (1));
+        .set(g_st().autocmd.autocmd_no_enter.get() + (1));
     win_enter(&lastwin_nofloating(None), false);
     g_st()
+        .autocmd
         .autocmd_no_leave
-        .set(g_st().autocmd_no_leave.get() + (1));
-    let mut buf = g_st().firstbuf.get();
+        .set(g_st().autocmd.autocmd_no_leave.get() + (1));
+    let mut buf = g_st().workspace.firstbuf.get();
     while !buf.is_null() && open_wins < count {
         if (!all && buf.borrow().b_ml.ml_mfp.borrow().is_none()) || !buf.borrow().b_p_bl.get() {
             buf = buf.borrow().b_next.get();
@@ -4600,12 +4614,12 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         let mut wp: crate::globals::WinPtr;
         if had_tab != 0 {
             wp = if buf.borrow().b_nwindows.get() > 0 {
-                g_st().lastwin.get()
+                g_st().workspace.lastwin.get()
             } else {
                 crate::globals::WinPtr::NULL
             };
         } else {
-            wp = g_st().firstwin.get();
+            wp = g_st().workspace.firstwin.get();
             while !wp.is_null() {
                 if !wp.borrow().w_floating.get() && wp.borrow().w_buffer.get() == buf {
                     break;
@@ -4631,23 +4645,23 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
                 continue;
             }
 
-            g_st().swap_exists_action.set(SEA_DIALOG);
+            g_st().workspace.swap_exists_action.set(SEA_DIALOG);
             set_curbuf(
                 buf.borrow(),
                 DOBUF_GOTO,
                 (opt_vars().jop_flags.get() & K_OPT_JOP_FLAG_CLEAN) == 0,
             );
             if !bufref_valid(Some(&bufref)) {
-                g_st().swap_exists_action.set(SEA_NONE);
+                g_st().workspace.swap_exists_action.set(SEA_NONE);
                 break;
             }
-            if g_st().swap_exists_action.get() == SEA_QUIT {
+            if g_st().workspace.swap_exists_action.get() == SEA_QUIT {
                 let mut cs: ExCleanup = ExCleanup::new();
                 enter_cleanup(&mut cs);
                 win_close(&curwin(), true, false);
                 open_wins -= 1;
-                g_st().swap_exists_action.set(SEA_NONE);
-                g_st().swap_exists_did_quit.set(true);
+                g_st().workspace.swap_exists_action.set(SEA_NONE);
+                g_st().workspace.swap_exists_did_quit.set(true);
                 leave_cleanup(&mut cs);
             } else {
                 handle_swap_exists(None);
@@ -4655,7 +4669,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         }
 
         os_breakcheck();
-        if g_st().got_int.get() {
+        if g_st().input.got_int.get() {
             let _ = vgetc();
             break;
         }
@@ -4663,31 +4677,33 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             break;
         }
         if had_tab > 0 && i64::from(tabpage_index(None)) <= opt_vars().p_tpm.get() {
-            g_st().cmdmod.borrow_mut().cmod_tab = 9999;
+            g_st().cmdline.set_cmod_tab(9999);
         }
         buf = buf.borrow().b_next.get();
     }
     g_st()
+        .autocmd
         .autocmd_no_enter
-        .set(g_st().autocmd_no_enter.get() - (1));
+        .set(g_st().autocmd.autocmd_no_enter.get() - (1));
     win_enter(&firstwin(), false);
     g_st()
+        .autocmd
         .autocmd_no_leave
-        .set(g_st().autocmd_no_leave.get() - (1));
+        .set(g_st().autocmd.autocmd_no_leave.get() - (1));
 
-    let mut wp = g_st().lastwin.get();
+    let mut wp = g_st().workspace.lastwin.get();
     while open_wins > count {
         let r = (buf_hide(&wp.borrow().buf())
             || !buf_is_changed(&wp.borrow().buf())
             || autowrite(&wp.borrow().buf(), false))
             && !is_ctx_win(&wp);
         if !win_valid(wp.opt()) {
-            wp = g_st().lastwin.get();
+            wp = g_st().workspace.lastwin.get();
         } else if r {
             let close_buf = !buf_hide(&wp.borrow().buf());
             win_close(wp.borrow(), close_buf, false);
             open_wins -= 1;
-            wp = g_st().lastwin.get();
+            wp = g_st().workspace.lastwin.get();
         } else {
             wp = wp.borrow().w_prev.get();
             if wp.is_null() {
@@ -4831,32 +4847,32 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
         linecopy_vec[e_idx] = 0;
 
         if linecopy_vec[s_idx] != 0 {
-            let secure_save = g_st().secure.get();
-            let save_current_sctx = g_st().current_sctx.get();
+            let secure_save = g_st().input.secure.get();
+            let save_current_sctx = g_st().exc.current_sctx.get();
             {
-                let mut v = g_st().current_sctx.get();
+                let mut v = g_st().exc.current_sctx.get();
                 v.sc_sid = SID_MODELINE;
-                g_st().current_sctx.set(v);
+                g_st().exc.current_sctx.set(v);
             }
             {
-                let mut v = g_st().current_sctx.get();
+                let mut v = g_st().exc.current_sctx.get();
                 v.sc_seq = 0;
-                g_st().current_sctx.set(v);
+                g_st().exc.current_sctx.set(v);
             }
             {
-                let mut v = g_st().current_sctx.get();
+                let mut v = g_st().exc.current_sctx.get();
                 v.sc_lnum = lnum;
-                g_st().current_sctx.set(v);
+                g_st().exc.current_sctx.set(v);
             }
-            g_st().secure.set(1);
+            g_st().input.secure.set(1);
 
             retval = do_set(
                 crate::memory::bytes_as_cstr(&linecopy_vec[s_idx..]),
                 OPT_MODELINE | OPT_LOCAL | flags,
             );
 
-            g_st().secure.set(secure_save);
-            g_st().current_sctx.set(save_current_sctx);
+            g_st().input.secure.set(secure_save);
+            g_st().exc.current_sctx.set(save_current_sctx);
             if !retval {
                 break;
             }
@@ -4941,7 +4957,7 @@ pub fn buf_hide(buf: &FileBuf) -> bool {
     match buf.b_p_bh.first_byte() {
         b'u' | b'w' | b'd' => false,
         b'h' => true,
-        _ => opt_vars().p_hid.get() || (g_st().cmdmod.borrow().cmod_flags & CMOD_HIDE) != 0,
+        _ => opt_vars().p_hid.get() || (g_st().cmdline.cmod_flags() & CMOD_HIDE) != 0,
     }
 }
 
@@ -5041,7 +5057,7 @@ pub fn buf_contents_changed(buf: &FileBuf) -> bool {
 
     ctx_restore(&mut aco);
 
-    if g_st().curbuf.get() != newbuf {
+    if g_st().workspace.curbuf.get() != newbuf {
         wipe_buffer(newbuf.borrow(), false);
     }
 
@@ -5168,7 +5184,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         {
             crate::main_init::ensure_test_editor_init();
-            g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
+            g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() + (1));
 
             assert!(!buf_valid(None));
 
@@ -5221,7 +5237,7 @@ mod tests {
             close_buffer(None, buf1.opt(), DOBUF_WIPE, false, false, false);
             close_buffer(None, buf2.opt(), DOBUF_WIPE, false, false, false);
 
-            g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
+            g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() - (1));
         }
     }
 }

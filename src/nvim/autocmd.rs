@@ -1646,12 +1646,12 @@ fn au_show_for_event(group: i32, event: AuEvent, pat_in: &CStr) {
                 last_group = ap.group;
                 last_group_name = augroup_name(ap.group);
 
-                if g_st().got_int.get() {
+                if g_st().input.got_int.get() {
                     return;
                 }
 
                 msg_putchar(b'\n' as i32);
-                if g_st().got_int.get() {
+                if g_st().input.got_int.get() {
                     return;
                 }
 
@@ -1673,7 +1673,7 @@ fn au_show_for_event(group: i32, event: AuEvent, pat_in: &CStr) {
                 last_ap = Some(ap.clone());
 
                 msg_putchar(b'\n' as i32);
-                if g_st().got_int.get() {
+                if g_st().input.got_int.get() {
                     return;
                 }
 
@@ -1681,15 +1681,15 @@ fn au_show_for_event(group: i32, event: AuEvent, pat_in: &CStr) {
                 msg_outtrans(&ap.pat, 0, false);
             }
 
-            if g_st().got_int.get() {
+            if g_st().input.got_int.get() {
                 return;
             }
 
-            if g_st().msg_col.get() >= 14 {
+            if g_st().msg.msg_col.get() >= 14 {
                 msg_putchar(b'\n' as i32);
             }
             msg_advance(14);
-            if g_st().got_int.get() {
+            if g_st().input.got_int.get() {
                 return;
             }
 
@@ -1717,7 +1717,7 @@ fn au_show_for_event(group: i32, event: AuEvent, pat_in: &CStr) {
                 last_set_msg(script_ctx);
             }
 
-            if g_st().got_int.get() {
+            if g_st().input.got_int.get() {
                 return;
             }
         }
@@ -1779,7 +1779,7 @@ pub fn aucmd_del_for_event_and_group(event: AuEvent, group: i32) {
 
 fn au_cleanup() {
     let mut mask = AU_STATE.with(|s| s.au_need_clean_mask.get());
-    if g_st().autocmd_busy.get() || mask.is_empty() {
+    if g_st().autocmd.autocmd_busy.get() || mask.is_empty() {
         return;
     }
 
@@ -2430,20 +2430,25 @@ pub fn autocmd_register(
         };
 
         if event == EVENT_MODECHANGED && !has_event(EVENT_MODECHANGED) {
-            get_mode(&mut g_st().last_mode.borrow_mut());
+            let mut mode = [0u8; crate::state::MODE_MAX_LENGTH];
+            get_mode(&mut mode);
+            g_st().edit.last_mode.set(mode);
         }
 
         if (event == EVENT_CURSORMOVED && !has_event(EVENT_CURSORMOVED))
             || (event == EVENT_CURSORMOVEDI && !has_event(EVENT_CURSORMOVEDI))
         {
-            g_st().last_cursormoved_win.set(crate::globals::curwin());
-            g_st().last_cursormoved.set(curwin().w_cursor.get());
+            g_st()
+                .autocmd
+                .last_cursormoved_win
+                .set(crate::globals::curwin());
+            g_st().autocmd.last_cursormoved.set(curwin().w_cursor.get());
         }
 
         if (event == EVENT_WINSCROLLED || event == EVENT_WINRESIZED)
             && !(has_event(EVENT_WINSCROLLED) || has_event(EVENT_WINRESIZED))
         {
-            let save_curtab = g_st().curtab.get().clone();
+            let save_curtab = g_st().workspace.curtab.get().clone();
             for tp in for_all_tabpages_ptr() {
                 unuse_tabpage(&curtab());
                 use_tabpage(&tp);
@@ -2473,7 +2478,7 @@ pub fn autocmd_register(
         callback_copy(&cb, handler_fn);
         ac.handler = AutoCmdHandler::Fn(cb);
     }
-    ac.script_ctx = g_st().current_sctx.get();
+    ac.script_ctx = g_st().exc.current_sctx.get();
     let sourcing_lnum = if crate::runtime::estack_is_empty() {
         0
     } else {
@@ -2601,7 +2606,7 @@ pub fn ex_doautoall(eap: &mut Exarg) {
     let mut did_aucmd = false;
 
     for buf in for_all_buffers_ptr() {
-        if buf.b_ml.ml_mfp.borrow().is_none() || g_st().curbuf.get() == buf {
+        if buf.b_ml.ml_mfp.borrow().is_none() || g_st().workspace.curbuf.get() == buf {
             continue;
         }
 
@@ -2852,10 +2857,10 @@ fn has_cursorhold() -> bool {
 }
 
 pub fn trigger_cursorhold() -> bool {
-    if !g_st().did_cursorhold.get()
+    if !g_st().autocmd.did_cursorhold.get()
         && has_cursorhold()
-        && g_st().reg_recording.get() == 0
-        && g_st().typebuf.tb_len.get() == 0
+        && g_st().input.reg_recording.get() == 0
+        && g_st().input.typebuf.tb_len.get() == 0
         && !ins_compl_active()
     {
         let state = get_real_state();
@@ -2885,7 +2890,7 @@ pub fn apply_autocmds_group(
         let mut wait_time: Proftime = 0;
         let mut did_save_redobuff = false;
         let mut save_redo = RedoState::new();
-        let save_key_typed = g_st().key_typed.get();
+        let save_key_typed = g_st().input.key_typed.get();
         let mut aco: CtxSwitch = CtxSwitch::new();
 
         'bypass_au: {
@@ -2893,7 +2898,9 @@ pub fn apply_autocmds_group(
                 break 'bypass_au;
             }
 
-            if g_st().autocmd_busy.get() && !(force || AU_STATE.with(|s| s.autocmd_nested.get())) {
+            if g_st().autocmd.autocmd_busy.get()
+                && !(force || AU_STATE.with(|s| s.autocmd_nested.get()))
+            {
                 break 'bypass_au;
             }
 
@@ -2912,7 +2919,9 @@ pub fn apply_autocmds_group(
             }
 
             let mut win_ignore = false;
-            if buf == g_st().curbuf.get().as_ptr() && EVENT_NAMES[event as usize].event <= 0 {
+            if buf == g_st().workspace.curbuf.get().as_ptr()
+                && EVENT_NAMES[event as usize].event <= 0
+            {
                 win_ignore = event_ignored(event, &curwin().w_onebuf_opt.wo_eiw.as_cstr());
             } else if !buf.is_null()
                 && EVENT_NAMES[event as usize].event <= 0
@@ -2939,20 +2948,20 @@ pub fn apply_autocmds_group(
                 break 'bypass_au;
             }
 
-            if (g_st().autocmd_no_enter.get() != 0
+            if (g_st().autocmd.autocmd_no_enter.get() != 0
                 && (event == EVENT_WINENTER || event == EVENT_BUFENTER))
-                || (g_st().autocmd_no_leave.get() != 0
+                || (g_st().autocmd.autocmd_no_leave.get() != 0
                     && (event == EVENT_WINLEAVE || event == EVENT_BUFLEAVE))
             {
                 break 'bypass_au;
             }
 
-            let save_autocmd_fname = g_st().autocmd_fname.take();
-            let save_autocmd_fname_full = g_st().autocmd_fname_full.get();
-            let save_autocmd_bufnr = g_st().autocmd_bufnr.get();
+            let save_autocmd_fname = g_st().autocmd.autocmd_fname.take();
+            let save_autocmd_fname_full = g_st().autocmd.autocmd_fname_full.get();
+            let save_autocmd_bufnr = g_st().autocmd.autocmd_bufnr.get();
             let save_autocmd_winid = AU_STATE.with(|s| s.autocmd_winid.get());
-            let save_autocmd_match = g_st().autocmd_match.take();
-            let save_autocmd_busy = g_st().autocmd_busy.get();
+            let save_autocmd_match = g_st().autocmd.autocmd_match.take();
+            let save_autocmd_busy = g_st().autocmd.autocmd_busy.get();
             let save_autocmd_nested = AU_STATE.with(|s| s.autocmd_nested.get());
 
             let buf_ffname_opt;
@@ -2979,15 +2988,16 @@ pub fn apply_autocmds_group(
             };
             let afile_orig_owned = if let Some(orig_cstr) = raw_autocmd_fname {
                 let orig = orig_cstr.to_owned();
-                g_st().autocmd_fname.set(Some(orig.clone()));
+                g_st().autocmd.autocmd_fname.set(Some(orig.clone()));
                 Some(orig)
             } else {
-                g_st().autocmd_fname.set(None);
+                g_st().autocmd.autocmd_fname.set(None);
                 None
             };
-            g_st().autocmd_fname_full.set(false);
+            g_st().autocmd.autocmd_fname_full.set(false);
 
             g_st()
+                .autocmd
                 .autocmd_bufnr
                 .set(if buf.is_null() { 0 } else { buf.b_fnum.get() });
 
@@ -3044,7 +3054,7 @@ pub fn apply_autocmds_group(
                     || event == EVENT_WINRESIZED
                     || event == EVENT_WINSCROLLED
                 {
-                    g_st().autocmd_fname_full.set(true);
+                    g_st().autocmd.autocmd_fname_full.set(true);
                     to_slash_save(fname_opt)
                 } else {
                     FullName_save(fname_opt, false)
@@ -3066,30 +3076,31 @@ pub fn apply_autocmds_group(
                 })
             });
 
-            if with_buf && !buf.is_null() && buf != g_st().curbuf.get().as_ptr() {
+            if with_buf && !buf.is_null() && buf != g_st().workspace.curbuf.get().as_ptr() {
                 ctx_switch(&mut aco, None, None, buf.opt(), 0);
             }
 
             let save_changed = curbuf().b_changed.get();
-            let old_curbuf = g_st().curbuf.get();
+            let old_curbuf = g_st().workspace.curbuf.get();
 
-            g_st().autocmd_match.set(fname.map(CStr::to_owned));
+            g_st().autocmd.autocmd_match.set(fname.map(CStr::to_owned));
 
             g_st()
+                .screen
                 .redrawing_disabled
-                .set(g_st().redrawing_disabled.get() + (1));
+                .set(g_st().screen.redrawing_disabled.get() + (1));
 
             estack_push(ETYPE_AUCMD, None, 0);
 
-            let save_current_sctx = g_st().current_sctx.get();
+            let save_current_sctx = g_st().exc.current_sctx.get();
 
-            if g_st().do_profiling.get() == PROF_YES {
+            if g_st().exc.do_profiling.get() == PROF_YES {
                 prof_child_enter(&mut wait_time);
             }
 
             save_funccal();
 
-            if !g_st().autocmd_busy.get() {
+            if !g_st().autocmd.autocmd_busy.get() {
                 save_search_patterns();
                 if !ins_compl_active() {
                     save_redobuff(&mut save_redo);
@@ -3098,7 +3109,7 @@ pub fn apply_autocmds_group(
                 curbuf().b_did_filetype.set(curbuf().b_keep_filetype.get());
             }
 
-            g_st().autocmd_busy.set(true);
+            g_st().autocmd.autocmd_busy.set(true);
             AU_STATE.with(|s| s.filechangeshell_busy.set(event == EVENT_FILECHANGEDSHELL));
             AU_STATE.with(|s| {
                 s.apply_autocmds_nesting
@@ -3125,7 +3136,9 @@ pub fn apply_autocmds_group(
                     sc_lnum: 0,
                     sc_chan: 0,
                 })),
-                arg_bufnr: std::rc::Rc::new(std::cell::Cell::new(g_st().autocmd_bufnr.get())),
+                arg_bufnr: std::rc::Rc::new(std::cell::Cell::new(
+                    g_st().autocmd.autocmd_bufnr.get(),
+                )),
                 data: None,
             };
             aucmd_next(&mut patcmd);
@@ -3151,7 +3164,7 @@ pub fn apply_autocmds_group(
                     check_lnums_nested(true);
                 }
 
-                let save_did_emsg = g_st().did_emsg.get();
+                let save_did_emsg = g_st().msg.did_emsg.get();
                 let patcmd_rc = std::rc::Rc::new(std::cell::RefCell::new(patcmd));
 
                 do_cmdline(
@@ -3160,7 +3173,10 @@ pub fn apply_autocmds_group(
                     DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT,
                 );
 
-                g_st().did_emsg.set(g_st().did_emsg.get() + (save_did_emsg));
+                g_st()
+                    .msg
+                    .did_emsg
+                    .set(g_st().msg.did_emsg.get() + (save_did_emsg));
 
                 if AU_STATE.with(|s| s.apply_autocmds_nesting.get()) == 1 {
                     reset_lnums();
@@ -3182,39 +3198,42 @@ pub fn apply_autocmds_group(
             }
 
             g_st()
+                .screen
                 .redrawing_disabled
-                .set(g_st().redrawing_disabled.get() - (1));
-            g_st().autocmd_busy.set(save_autocmd_busy);
+                .set(g_st().screen.redrawing_disabled.get() - (1));
+            g_st().autocmd.autocmd_busy.set(save_autocmd_busy);
             AU_STATE.with(|s| s.filechangeshell_busy.set(false));
             AU_STATE.with(|s| s.autocmd_nested.set(save_autocmd_nested));
             estack_pop();
-            g_st().autocmd_fname.set(save_autocmd_fname);
-            g_st().autocmd_fname_full.set(save_autocmd_fname_full);
-            g_st().autocmd_bufnr.set(save_autocmd_bufnr);
+            g_st().autocmd.autocmd_fname.set(save_autocmd_fname);
+            g_st()
+                .autocmd
+                .autocmd_fname_full
+                .set(save_autocmd_fname_full);
+            g_st().autocmd.autocmd_bufnr.set(save_autocmd_bufnr);
             AU_STATE.with(|s| s.autocmd_winid.set(save_autocmd_winid));
-            g_st().autocmd_match.set(save_autocmd_match);
-            g_st().current_sctx.set(save_current_sctx);
+            g_st().autocmd.autocmd_match.set(save_autocmd_match);
+            g_st().exc.current_sctx.set(save_current_sctx);
             restore_funccal();
-            if g_st().do_profiling.get() == PROF_YES {
+            if g_st().exc.do_profiling.get() == PROF_YES {
                 prof_child_exit(&mut wait_time);
             }
-            g_st().key_typed.set(save_key_typed);
+            g_st().input.key_typed.set(save_key_typed);
             AU_STATE.with(|s| {
                 s.apply_autocmds_nesting
                     .set(s.apply_autocmds_nesting.get() - (1))
             });
 
-            if !g_st().autocmd_busy.get() {
+            if !g_st().autocmd.autocmd_busy.get() {
                 restore_search_patterns();
                 if did_save_redobuff {
                     restore_redobuff(&mut save_redo);
                 }
                 curbuf().b_did_filetype.set(false);
-                g_st().au_pending_free_buf.borrow_mut().clear();
-                g_st().au_pending_free_win.borrow_mut().clear();
+                g_st().autocmd.clear_pending_frees();
             }
 
-            if g_st().curbuf.get() == old_curbuf
+            if g_st().workspace.curbuf.get() == old_curbuf
                 && (event == EVENT_BUFREADPOST
                     || event == EVENT_BUFWRITEPOST
                     || event == EVENT_FILEAPPENDPOST
@@ -3222,7 +3241,7 @@ pub fn apply_autocmds_group(
                     || event == EVENT_VIMLEAVEPRE)
             {
                 if curbuf().b_changed.get() != save_changed {
-                    g_st().need_maketitle.set(true);
+                    g_st().screen.need_maketitle.set(true);
                 }
                 curbuf().b_changed.set(save_changed);
             }
@@ -3307,7 +3326,7 @@ pub fn is_autocmd_blocked() -> bool {
 
 fn aucmd_next(apc: &mut AutoPatCmd) {
     let mut i = apc.auidx;
-    while i < apc.ausize && !g_st().got_int.get() {
+    while i < apc.ausize && !g_st().input.got_int.get() {
         let (same_lastpat, ap_opt) = AUTOCMDS.with(|a| {
             let acs = a[apc.event as usize].borrow();
             assert!(apc.ausize <= acs.len());
@@ -3416,12 +3435,12 @@ fn au_callback(callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) -> boo
         size += 1;
         data_items[size] = KeyValuePair {
             key: static_cstr_as_string(c"match"),
-            value: cstr_as_obj(g_st().autocmd_match.get().as_deref()),
+            value: cstr_as_obj(g_st().autocmd.autocmd_match.get().as_deref()),
         };
         size += 1;
         data_items[size] = KeyValuePair {
             key: static_cstr_as_string(c"buf"),
-            value: integer_obj(Integer::from(g_st().autocmd_bufnr.get())),
+            value: integer_obj(Integer::from(g_st().autocmd.autocmd_bufnr.get())),
         };
         size += 1;
         data_items[size] = KeyValuePair {
@@ -3511,8 +3530,8 @@ pub fn getnextac(
     }
 
     AU_STATE.with(|s| s.autocmd_nested.set(nested));
-    g_st().current_sctx.set(script_ctx);
-    apc.script_ctx.set(g_st().current_sctx.get());
+    g_st().exc.current_sctx.set(script_ctx);
+    apc.script_ctx.set(g_st().exc.current_sctx.get());
     let event = apc.event;
     drop(apc);
 
@@ -3825,7 +3844,7 @@ pub fn aupat_get_buflocal_nr(slice: &[u8]) -> i32 {
 
     if patlen > 9 && slice.get(7) == Some(&b'=') {
         if patlen == 13 && slice.eq_ignore_ascii_case(b"<buffer=abuf>") {
-            return g_st().autocmd_bufnr.get();
+            return g_st().autocmd.autocmd_bufnr.get();
         }
 
         let digits = &slice[8..(patlen - 1)];
@@ -3858,7 +3877,7 @@ pub fn autocmd_delete_id(id: i64) -> bool {
     let Some(loc) = AU_ID_INDEX.with(|cell| cell.borrow_mut().remove(&id)) else {
         return false;
     };
-    let busy = g_st().autocmd_busy.get();
+    let busy = g_st().autocmd.autocmd_busy.get();
     if loc.extra_events.is_empty() {
         let mut success = false;
         with_autocmds_for_event(loc.event, |acs| {
@@ -4064,8 +4083,8 @@ pub fn do_filetype_autocmd(buf: &FileBuf, force: bool) -> bool {
         return false;
     }
 
-    let secure_save = g_st().secure.get();
-    g_st().secure.set(0);
+    let secure_save = g_st().input.secure.get();
+    g_st().input.secure.set(0);
 
     AU_STATE.with(|s| s.ft_recursive.set(s.ft_recursive.get() + (1)));
     buf_ptr.b_did_filetype.set(true);
@@ -4078,7 +4097,7 @@ pub fn do_filetype_autocmd(buf: &FileBuf, force: bool) -> bool {
     );
     AU_STATE.with(|s| s.ft_recursive.set(s.ft_recursive.get() - (1)));
 
-    g_st().secure.set(secure_save);
+    g_st().input.secure.set(secure_save);
     ret
 }
 

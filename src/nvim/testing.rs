@@ -351,11 +351,11 @@ fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> bool {
     let cmd_owned = tv_get_string_chk(&argvars[0]).map(std::borrow::Cow::into_owned);
     let mut ret = false;
 
-    let beeps = g_st().did_beep.get();
-    g_st().suppress_errthrow.set(true);
-    g_st().emsg_silent.set(0);
+    let beeps = g_st().msg.did_beep.get();
+    g_st().exc.suppress_errthrow.set(true);
+    g_st().msg.emsg_silent.set(0);
     do_cmdline_cmd(cmd_owned.as_deref().map_or(b"", CStr::to_bytes));
-    let beeped = g_st().did_beep.get() != beeps;
+    let beeped = g_st().msg.did_beep.get() != beeps;
     if if no_beep { beeped } else { !beeped } {
         let mut ga = Vec::new();
         prepare_assert_error(&mut ga);
@@ -369,8 +369,8 @@ fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> bool {
         ret = true;
     }
 
-    g_st().suppress_errthrow.set(false);
-    g_st().emsg_on_display.set(false);
+    g_st().exc.suppress_errthrow.set(false);
+    g_st().msg.emsg_on_display.set(false);
     ret
 }
 
@@ -532,8 +532,8 @@ pub fn f_assert_exception(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
 
 /// `"assert_fails(cmd [, error [, msg]])"` function (`f_assert_fails`).
 pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let save_trylevel = g_st().trylevel.get();
-    let called_emsg_before = g_st().called_emsg.get();
+    let save_trylevel = g_st().exc.trylevel.get();
+    let called_emsg_before = g_st().msg.called_emsg.get();
     let mut wrong_arg_msg: Option<&CStr> = None;
     let mut tofree: Option<std::ffi::CString> = None;
 
@@ -548,18 +548,21 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     }
 
-    g_st().trylevel.set(0);
-    g_st().suppress_errthrow.set(true);
-    g_st().in_assert_fails.set(true);
-    g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
+    g_st().exc.trylevel.set(0);
+    g_st().exc.suppress_errthrow.set(true);
+    g_st().msg.in_assert_fails.set(true);
+    g_st()
+        .msg
+        .no_wait_return
+        .set(g_st().msg.no_wait_return.get() + (1));
 
     let cmd_owned = tv_get_string_chk(&argvars[0]).map(std::borrow::Cow::into_owned);
     do_cmdline_cmd(cmd_owned.as_deref().map_or(b"", CStr::to_bytes));
 
-    g_st().trylevel.set(save_trylevel);
-    g_st().suppress_errthrow.set(false);
+    g_st().exc.trylevel.set(save_trylevel);
+    g_st().exc.suppress_errthrow.set(false);
 
-    if g_st().called_emsg.get() == called_emsg_before {
+    if g_st().msg.called_emsg.get() == called_emsg_before {
         let mut ga = Vec::new();
         prepare_assert_error(&mut ga);
         ga_concat_literal(&mut ga, b"command did not fail: ");
@@ -737,17 +740,20 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         }
     }
 
-    g_st().trylevel.set(save_trylevel);
-    g_st().suppress_errthrow.set(false);
-    g_st().in_assert_fails.set(false);
-    g_st().did_emsg.set(0);
-    g_st().got_int.set(false);
-    g_st().msg_col.set(0);
-    g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
-    g_st().need_wait_return.set(false);
-    g_st().emsg_on_display.set(false);
+    g_st().exc.trylevel.set(save_trylevel);
+    g_st().exc.suppress_errthrow.set(false);
+    g_st().msg.in_assert_fails.set(false);
+    g_st().msg.did_emsg.set(0);
+    g_st().input.got_int.set(false);
+    g_st().msg.msg_col.set(0);
+    g_st()
+        .msg
+        .no_wait_return
+        .set(g_st().msg.no_wait_return.get() - (1));
+    g_st().msg.need_wait_return.set(false);
+    g_st().msg.emsg_on_display.set(false);
     msg_reset_scroll();
-    g_st().lines_left.set(g_st().rows_global.get());
+    g_st().msg.lines_left.set(g_st().screen.rows_global.get());
     TESTING_STATE.with(|s| s.emsg_assert_fails_msg.set(None));
     drop(tofree);
     set_vim_var_string(VV_ERRMSG, None, 0);

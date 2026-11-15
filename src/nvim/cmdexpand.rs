@@ -2066,7 +2066,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
         return false;
     }
 
-    if !g_st().cmd_silent.get()
+    if !g_st().msg.cmd_silent.get()
         && !from_wildtrigger_func
         && !wild_navigate
         && !(ui_has(K_UICMDLINE) || ui_has(K_UIWILDMENU_CONST))
@@ -2123,7 +2123,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
     }
 
     if let Some(ref p_str) = p
-        && !g_st().got_int.get()
+        && !g_st().input.got_int.get()
         && (options & (WILD_NOSELECT | WILD_NOINSERT)) == 0
     {
         let plen = p_str.to_bytes().len();
@@ -2218,7 +2218,7 @@ fn cmdline_pum_create(
         0
     };
     let start_col = (xp.xp_pattern.offset() + tail_off) as i32;
-    if ui_has(K_UICMDLINE) && g_st().cmdline_win.get().is_null() {
+    if ui_has(K_UICMDLINE) && g_st().cmdline.cmdline_win.get().is_null() {
         CMDEXP_STATE.with(|s| s.compl_startcol.set(start_col));
     } else {
         CMDEXP_STATE.with(|s| s.compl_startcol.set(cmd_screencol(start_col)));
@@ -2273,7 +2273,7 @@ pub fn cmdline_compl_is_fuzzy() -> bool {
 fn cmdline_compl_use_pum(need_wildmenu: bool) -> bool {
     (need_wildmenu
         && (opt_vars().wop_flags.get() & K_OPT_WOP_FLAG_PUM) != 0
-        && !(ui_has(K_UICMDLINE) && g_st().cmdline_win.get().is_null()))
+        && !(ui_has(K_UICMDLINE) && g_st().cmdline.cmdline_win.get().is_null()))
         || ui_has(K_UIWILDMENU_CONST)
         || (ui_has(K_UICMDLINE) && ui_has(K_UIPOPUPMENU_CONST))
 }
@@ -2336,7 +2336,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
     }
     let num_matches = matches.len() as i32;
 
-    let mut buf_vec = vec![0u8; (g_st().columns_global.get() as usize) * MB_MAXBYTES + 1];
+    let mut buf_vec = vec![0u8; (g_st().screen.columns_global.get() as usize) * MB_MAXBYTES + 1];
 
     if match_idx == -1 {
         match_idx = 0;
@@ -2355,13 +2355,13 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
         if CMDEXP_STATE.with(|s| s.first_match.get()) > 0 {
             clen += 2;
         }
-        if clen > g_st().columns_global.get() {
+        if clen > g_st().screen.columns_global.get() {
             CMDEXP_STATE.with(|s| s.first_match.set(match_idx));
             clen = 2;
             let mut i = match_idx;
             while i < num_matches {
                 clen += wildmenu_match_len(xp, show_match(matches, i as usize, showtail)) + 2;
-                if clen >= g_st().columns_global.get() {
+                if clen >= g_st().screen.columns_global.get() {
                     break;
                 }
                 i += 1;
@@ -2381,7 +2381,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
                     showtail,
                 ),
             ) + 2;
-            if clen >= g_st().columns_global.get() {
+            if clen >= g_st().screen.columns_global.get() {
                 break;
             }
             CMDEXP_STATE.with(|s| s.first_match.set(s.first_match.get() - (1)));
@@ -2407,7 +2407,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
 
     let mut i = CMDEXP_STATE.with(|s| s.first_match.get());
     while clen + wildmenu_match_len(xp, show_match(matches, i as usize, showtail)) + 2
-        < g_st().columns_global.get()
+        < g_st().screen.columns_global.get()
     {
         if i == match_idx {
             selstart_idx = Some(len);
@@ -2467,18 +2467,24 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
 
     buf_vec[len] = 0;
 
-    let mut row = g_st().cmdline_row.get() - 1;
+    let mut row = g_st().cmdline.cmdline_row.get() - 1;
     if row >= 0 {
-        if g_st().wild_menu_showing.get() == 0 {
-            if g_st().msg_scrolled.get() > 0 {
-                if g_st().cmdline_row.get() == g_st().rows_global.get() - 1 {
+        if g_st().cmdline.wild_menu_showing.get() == 0 {
+            if g_st().msg.msg_scrolled.get() > 0 {
+                if g_st().cmdline.cmdline_row.get() == g_st().screen.rows_global.get() - 1 {
                     msg_scroll_up(false, false);
-                    g_st().msg_scrolled.set(g_st().msg_scrolled.get() + (1));
+                    g_st()
+                        .msg
+                        .msg_scrolled
+                        .set(g_st().msg.msg_scrolled.get() + (1));
                 } else {
-                    g_st().cmdline_row.set(g_st().cmdline_row.get() + (1));
+                    g_st()
+                        .cmdline
+                        .cmdline_row
+                        .set(g_st().cmdline.cmdline_row.get() + (1));
                     row += 1;
                 }
-                g_st().wild_menu_showing.set(WM_SCROLLED);
+                g_st().cmdline.wild_menu_showing.set(WM_SCROLLED);
             } else {
                 if lastwin().w_status_height.get() == 0 && global_stl_height() == 0 {
                     CMDEXP_STATE.with(|s| {
@@ -2489,15 +2495,15 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
                     opt_vars().p_wmh.set(0);
                     last_status(false);
                 }
-                g_st().wild_menu_showing.set(WM_SHOWN);
+                g_st().cmdline.wild_menu_showing.set(WM_SHOWN);
             }
         }
 
         grid_line_start(
-            if g_st().wild_menu_showing.get() == WM_SCROLLED {
-                &g_st().msg_grid_adj
+            if g_st().cmdline.wild_menu_showing.get() == WM_SCROLLED {
+                &g_st().msg.msg_grid_adj
             } else {
-                &g_st().default_gridview
+                &g_st().screen.default_gridview
             },
             row,
         );
@@ -2515,7 +2521,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
             );
         }
 
-        grid_line_fill(clen, g_st().columns_global.get(), fillchar, attr);
+        grid_line_fill(clen, g_st().screen.columns_global.get(), fillchar, attr);
 
         grid_line_flush();
     }
@@ -2560,8 +2566,8 @@ fn get_next_or_prev_match(mode: i32, xp: &mut ExpandCtx) -> Option<CString> {
             findex = (findex + ht).min(xp.xp_numfiles - 1);
         }
     } else {
-        debug_assert!(g_st().pum_want.active.get());
-        findex = g_st().pum_want.item.get();
+        debug_assert!(g_st().screen.pum_want.active.get());
+        findex = g_st().screen.pum_want.item.get();
     }
 
     if findex < 0 || findex >= xp.xp_numfiles {
@@ -2789,7 +2795,7 @@ pub fn expand_one(
         xp.xp_selected = -1;
     }
 
-    if mode == WILD_ALL && xp.xp_numfiles > 0 && !g_st().got_int.get() {
+    if mode == WILD_ALL && xp.xp_numfiles > 0 && !g_st().input.got_int.get() {
         let prefix: &[u8] = if xp.xp_prefix == XP_PREFIX_NO {
             b"no"
         } else if xp.xp_prefix == XP_PREFIX_INV {
@@ -2905,7 +2911,7 @@ fn showmatches_oneline(
         lastlen = msg_outtrans(p_cstr, if isdir { HLF_D } else { 0 }, false);
         j += lines;
     }
-    if g_st().msg_col.get() > 0 {
+    if g_st().msg.msg_col.get() > 0 {
         msg_clr_eos();
         msg_putchar(b'\n' as i32);
     }
@@ -2966,20 +2972,20 @@ pub fn showmatches(
     }
 
     if display_list {
-        g_st().msg_didany.set(false);
+        g_st().msg.msg_didany.set(false);
         msg_start();
         if !ui_has(K_UIMESSAGES) {
             msg_putchar(b'\n' as i32);
         }
         ui_flush();
-        g_st().cmdline_row.set(g_st().msg_row.get());
-        g_st().msg_didany.set(false);
+        g_st().cmdline.cmdline_row.set(g_st().msg.msg_row.get());
+        g_st().msg.msg_didany.set(false);
         msg_ext_set_kind(c"wildlist");
         msg_start();
     }
 
-    if g_st().got_int.get() {
-        g_st().got_int.set(false);
+    if g_st().input.got_int.get() {
+        g_st().input.got_int.set(false);
     } else if display_wildmenu && !display_list {
         redraw_wildmenu(xp, matches, if noselect { -1 } else { 0 }, showtail);
     } else if display_list {
@@ -3004,7 +3010,7 @@ pub fn showmatches(
             num_matches
         } else {
             maxlen += 2;
-            let mut columns = (g_st().columns_global.get() + 2) / maxlen;
+            let mut columns = (g_st().screen.columns_global.get() + 2) / maxlen;
             if columns < 1 {
                 columns = 1;
             }
@@ -3020,13 +3026,13 @@ pub fn showmatches(
 
         for i in 0..lines {
             showmatches_oneline(xp, matches, lines, i, maxlen, showtail);
-            if g_st().got_int.get() {
-                g_st().got_int.set(false);
+            if g_st().input.got_int.get() {
+                g_st().input.got_int.set(false);
                 break;
             }
         }
 
-        g_st().cmdline_row.set(g_st().msg_row.get());
+        g_st().cmdline.cmdline_row.set(g_st().msg.msg_row.get());
     }
 
     if display_wildmenu && display_list {
@@ -3243,7 +3249,7 @@ pub fn set_expand_context(xp: &mut ExpandCtx) {
         };
         xp.xp_pattern = ccline.cmdbuff();
         xp.xp_pattern_len = ccline.cmdpos.get() as usize;
-        g_st().search_global.first_line.set(0);
+        g_st().search.search_global.first_line.set(0);
         return;
     }
 
@@ -3729,7 +3735,7 @@ fn set_context_with_pattern(xp: &mut ExpandCtx) {
     let ccline_rc = get_cmdline_info();
     let ccline = &*ccline_rc;
 
-    g_st().emsg_off.set(g_st().emsg_off.get() + (1));
+    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
     let mut skiplen: i32 = 0;
     let mut dummy: i32 = 0;
     let mut patlen: i32 = 0;
@@ -3738,7 +3744,7 @@ fn set_context_with_pattern(xp: &mut ExpandCtx) {
     let retval =
         parse_pattern_and_range(&mut pos, &mut dummy, &mut skiplen, &mut patlen, &mut magic);
     CMDEXP_STATE.with(|s| s.pre_incsearch_pos.set(pos));
-    g_st().emsg_off.set(g_st().emsg_off.get() - (1));
+    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
 
     if !retval || ccline.cmdpos.get() <= skiplen || ccline.cmdpos.get() > skiplen + patlen {
         return;
@@ -5337,7 +5343,7 @@ where
     let ccline = &*ccline_rc;
     let mut keep: u8 = 0;
     let mut args: [TypVal; 4] = [const { TypVal::new() }; 4];
-    let save_current_sctx = g_st().current_sctx.get();
+    let save_current_sctx = g_st().exc.current_sctx.get();
 
     let Some(arg_cstr) = xp.xp_arg.as_deref().filter(|s| !s.to_bytes().is_empty()) else {
         return default;
@@ -5360,11 +5366,11 @@ where
     args[1].vval = crate::eval::typval::TypvalVval::from_opt_cstr(xp.xp_line.as_opt_cstr());
     args[2].vval = crate::eval::typval::TypvalVval::Number(i64::from(xp.xp_col));
 
-    g_st().current_sctx.set(xp.xp_script_ctx);
+    g_st().exc.current_sctx.set(xp.xp_script_ctx);
 
     let ret = user_expand_func(arg_cstr, 3, &mut args);
 
-    g_st().current_sctx.set(save_current_sctx);
+    g_st().exc.current_sctx.set(save_current_sctx);
     if !ccline.cmdbuff_vec.borrow().is_empty() {
         ccline.cmdbuff_vec.borrow_mut()[ccline.cmdlen.get() as usize] = keep;
     }
@@ -5588,7 +5594,7 @@ pub fn wildmenu_translate_key(
 ) -> i32 {
     let mut c = key;
 
-    if cmdline_pum_active() || did_wild_list || g_st().wild_menu_showing.get() != 0 {
+    if cmdline_pum_active() || did_wild_list || g_st().cmdline.wild_menu_showing.get() != 0 {
         if c == K_LEFT {
             c = CTRL_P;
         } else if c == K_RIGHT {
@@ -5630,7 +5636,7 @@ fn wildmenu_process_key_menunames(cclp: &CmdlineInfo, mut key: i32, xp: &mut Exp
         && cmd_slice.get((cclp.cmdpos.get() - 1) as usize) == Some(&b'.')
     {
         key = opt_vars().p_wc.get() as i32;
-        g_st().key_typed.set(true);
+        g_st().input.key_typed.set(true);
     } else if key == K_UP {
         let mut found = false;
 
@@ -5658,7 +5664,7 @@ fn wildmenu_process_key_menunames(cclp: &CmdlineInfo, mut key: i32, xp: &mut Exp
             cmdline_del(cclp, i);
         }
         key = opt_vars().p_wc.get() as i32;
-        g_st().key_typed.set(true);
+        g_st().input.key_typed.set(true);
         xp.xp_context = EXPAND_NOTHING;
     }
 
@@ -5679,7 +5685,7 @@ fn wildmenu_process_key_filenames(cclp: &CmdlineInfo, mut key: i32, xp: &mut Exp
             || cmd_slice[(cclp.cmdpos.get() - 3) as usize] != b'.')
     {
         key = opt_vars().p_wc.get() as i32;
-        g_st().key_typed.set(true);
+        g_st().input.key_typed.set(true);
     } else if xp.xp_pattern.as_bytes().starts_with(&upseg[1..4]) && key == K_DOWN {
         let mut found = false;
 
@@ -5703,7 +5709,7 @@ fn wildmenu_process_key_filenames(cclp: &CmdlineInfo, mut key: i32, xp: &mut Exp
             drop(cmd_vec);
             cmdline_del(cclp, j - 2);
             key = opt_vars().p_wc.get() as i32;
-            g_st().key_typed.set(true);
+            g_st().input.key_typed.set(true);
         }
     } else if key == K_UP {
         let mut found = false;
@@ -5757,7 +5763,7 @@ fn wildmenu_process_key_filenames(cclp: &CmdlineInfo, mut key: i32, xp: &mut Exp
         }
 
         key = opt_vars().p_wc.get() as i32;
-        g_st().key_typed.set(true);
+        g_st().input.key_typed.set(true);
     }
 
     key
@@ -5780,23 +5786,26 @@ pub fn wildmenu_process_key(cclp: &CmdlineInfo, key: i32, xp: &mut ExpandCtx) ->
 
 /// Free expanded names when finished walking through the matches.
 pub fn wildmenu_cleanup(cclp: &CmdlineInfo) {
-    if !opt_vars().p_wmnu.get() || g_st().wild_menu_showing.get() == 0 {
+    if !opt_vars().p_wmnu.get() || g_st().cmdline.wild_menu_showing.get() == 0 {
         return;
     }
 
-    let skt = g_st().key_typed.get();
-    let old_redrawing_disabled = g_st().redrawing_disabled.get();
+    let skt = g_st().input.key_typed.get();
+    let old_redrawing_disabled = g_st().screen.redrawing_disabled.get();
 
     if cclp.input_fn.get() != 0 {
-        g_st().redrawing_disabled.set(0);
+        g_st().screen.redrawing_disabled.set(0);
     }
 
     set_no_hlsearch(true);
 
-    if g_st().wild_menu_showing.get() == WM_SCROLLED {
-        g_st().cmdline_row.set(g_st().cmdline_row.get() - (1));
+    if g_st().cmdline.wild_menu_showing.get() == WM_SCROLLED {
+        g_st()
+            .cmdline
+            .cmdline_row
+            .set(g_st().cmdline.cmdline_row.get() - (1));
         redrawcmd();
-        g_st().wild_menu_showing.set(0);
+        g_st().cmdline.wild_menu_showing.set(0);
     } else if CMDEXP_STATE.with(|s| s.save_p_ls.get()) != -1 {
         let (ls, wmh) = CMDEXP_STATE.with(|s| (s.save_p_ls.replace(-1), s.save_p_wmh.get()));
         opt_vars().p_ls.set(OptInt::from(ls));
@@ -5804,15 +5813,15 @@ pub fn wildmenu_cleanup(cclp: &CmdlineInfo) {
         last_status(false);
         update_screen();
         redrawcmd();
-        g_st().wild_menu_showing.set(0);
+        g_st().cmdline.wild_menu_showing.set(0);
     } else {
         win_redraw_last_status(&topframe());
-        g_st().wild_menu_showing.set(0);
+        g_st().cmdline.wild_menu_showing.set(0);
         redraw_statuslines();
     }
-    g_st().key_typed.set(skt);
+    g_st().input.key_typed.set(skt);
     if cclp.input_fn.get() != 0 {
-        g_st().redrawing_disabled.set(old_redrawing_disabled);
+        g_st().screen.redrawing_disabled.set(old_redrawing_disabled);
     }
 }
 
@@ -6074,12 +6083,12 @@ fn is_regex_match(pat: &CStr, str_arg: &CStr) -> bool {
 
     let mut regmatch: Regmatch = Regmatch::new();
 
-    g_st().emsg_off.set(g_st().emsg_off.get() + (1));
-    g_st().msg_silent.set(g_st().msg_silent.get() + (1));
+    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
+    g_st().msg.msg_silent.set(g_st().msg.msg_silent.get() + (1));
     let pat_bytes = pat.to_bytes();
     regmatch.set_prog(vim_regcomp(pat_bytes, RE_MAGIC + RE_STRING));
-    g_st().emsg_off.set(g_st().emsg_off.get() - (1));
-    g_st().msg_silent.set(g_st().msg_silent.get() - (1));
+    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
+    g_st().msg.msg_silent.set(g_st().msg.msg_silent.get() - (1));
 
     if regmatch.regprog.is_null() {
         return false;
@@ -6089,11 +6098,11 @@ fn is_regex_match(pat: &CStr, str_arg: &CStr) -> bool {
         regmatch.rm_ic = !pat_has_uppercase(pat_bytes);
     }
 
-    g_st().emsg_off.set(g_st().emsg_off.get() + (1));
-    g_st().msg_silent.set(g_st().msg_silent.get() + (1));
+    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
+    g_st().msg.msg_silent.set(g_st().msg.msg_silent.get() + (1));
     let result = vim_regexec_nl(&mut regmatch, Some(str_arg.to_bytes()), 0);
-    g_st().emsg_off.set(g_st().emsg_off.get() - (1));
-    g_st().msg_silent.set(g_st().msg_silent.get() - (1));
+    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
+    g_st().msg.msg_silent.set(g_st().msg.msg_silent.get() - (1));
 
     regmatch.free_prog();
     result
@@ -6128,7 +6137,7 @@ fn concat_pattern_with_buffer_match(
 /// Search for strings matching "pat" in the specified range and return them.
 fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>) -> bool {
     let exacttext = (opt_vars().wop_flags.get() & K_OPT_WOP_FLAG_EXACTTEXT) != 0;
-    let has_range = g_st().search_global.first_line.get() != 0;
+    let has_range = g_st().search.search_global.first_line.get() != 0;
 
     matches.clear();
 
@@ -6148,7 +6157,7 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
         coladd: 0,
     };
     if has_range {
-        cur_match_pos.lnum = g_st().search_global.first_line.get();
+        cur_match_pos.lnum = g_st().search.search_global.first_line.get();
     } else {
         cur_match_pos = CMDEXP_STATE.with(|s| s.pre_incsearch_pos.get());
     }
@@ -6165,8 +6174,8 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
     let mut compl_started = false;
 
     loop {
-        g_st().emsg_off.set(g_st().emsg_off.get() + (1));
-        g_st().msg_silent.set(g_st().msg_silent.get() + (1));
+        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
+        g_st().msg.msg_silent.set(g_st().msg.msg_silent.get() + (1));
         let found_new_match = searchit(
             None,
             &curbuf(),
@@ -6181,16 +6190,16 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
             opt_vars().p_magic.get(),
             None,
         );
-        g_st().msg_silent.set(g_st().msg_silent.get() - (1));
-        g_st().emsg_off.set(g_st().emsg_off.get() - (1));
+        g_st().msg.msg_silent.set(g_st().msg.msg_silent.get() - (1));
+        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
 
         if found_new_match == 0 {
             break;
         }
 
         if has_range
-            && (cur_match_pos.lnum < g_st().search_global.first_line.get()
-                || cur_match_pos.lnum > g_st().search_global.last_line.get())
+            && (cur_match_pos.lnum < g_st().search.search_global.first_line.get()
+                || cur_match_pos.lnum > g_st().search.search_global.last_line.get())
         {
             break;
         }
@@ -6209,10 +6218,10 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
         compl_started = true;
         prev_match_pos = cur_match_pos;
 
-        if char_avail() || g_st().got_int.get() {
-            if g_st().got_int.get() {
+        if char_avail() || g_st().input.got_int.get() {
+            if g_st().input.got_int.get() {
                 let _ = vpeekc();
-                g_st().got_int.set(false);
+                g_st().input.got_int.set(false);
             }
             matches.clear();
             return false;

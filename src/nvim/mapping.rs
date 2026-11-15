@@ -512,9 +512,9 @@ fn showmap(mp: &ShowMapItem, local: bool) {
         return;
     }
 
-    if g_st().msg_col.get() > 0 || g_st().msg_silent.get() != 0 {
+    if g_st().msg.msg_col.get() > 0 || g_st().msg.msg_silent.get() != 0 {
         msg_putchar(b'\n' as i32);
-        if g_st().got_int.get() {
+        if g_st().input.got_int.get() {
             return;
         }
     }
@@ -767,8 +767,9 @@ fn map_add(
                 buf.b_mapped_ctrl_c.set(buf.b_mapped_ctrl_c.get() | (mode));
             } else {
                 g_st()
+                    .input
                     .mapped_ctrl_c
-                    .set(g_st().mapped_ctrl_c.get() | (mode));
+                    .set(g_st().input.mapped_ctrl_c.get() | (mode));
             }
         }
 
@@ -785,7 +786,7 @@ fn map_add(
                 sc_chan: 0,
             }
         } else {
-            let mut ctx = g_st().current_sctx.get();
+            let mut ctx = g_st().exc.current_sctx.get();
             ctx.sc_lnum += sourcing_lnum();
             nlua_set_sctx(&mut ctx);
             ctx
@@ -935,7 +936,7 @@ fn buf_do_map(
             }
 
             if has_lhs && has_rhs && is_abbrev {
-                g_st().no_abbr.set(false);
+                g_st().edit.no_abbr.set(false);
             }
 
             if do_print {
@@ -946,11 +947,11 @@ fn buf_do_map(
                 let lhs_slice = &lhs_bytes[..(len as usize).min(lhs_bytes.len())];
                 let dup_found = with_map_buckets(None, is_abbrev, |buckets| {
                     for bucket in buckets {
-                        if g_st().got_int.get() {
+                        if g_st().input.got_int.get() {
                             break;
                         }
                         for mp in bucket {
-                            if g_st().got_int.get() {
+                            if g_st().input.got_int.get() {
                                 break;
                             }
                             if (mp.m_mode & mode) != 0 && mp.m_keylen == len {
@@ -991,7 +992,7 @@ fn buf_do_map(
                     }
                 });
                 for mp in &to_show {
-                    if g_st().got_int.get() {
+                    if g_st().input.got_int.get() {
                         break;
                     }
                     showmap(mp, true);
@@ -1032,7 +1033,7 @@ fn buf_do_map(
                     }
                 });
                 for mp in &to_show {
-                    if g_st().got_int.get() {
+                    if g_st().input.got_int.get() {
                         break;
                     }
                     showmap(mp, local);
@@ -1055,7 +1056,7 @@ fn buf_do_map(
             };
             let unique_conflict = with_map_tables_mut(buf, local, is_abbrev, |tables| {
                 for round in 0..num_rounds {
-                    if did_it || g_st().got_int.get() {
+                    if did_it || g_st().input.got_int.get() {
                         break;
                     }
                     let (hash_start, hash_end) = if (round == 0 && has_lhs) || is_abbrev {
@@ -1069,11 +1070,11 @@ fn buf_do_map(
                         (0, 256)
                     };
                     for hash in hash_start..hash_end {
-                        if g_st().got_int.get() {
+                        if g_st().input.got_int.get() {
                             break;
                         }
                         let mut idx: usize = 0;
-                        while idx < tables[hash].len() && !g_st().got_int.get() {
+                        while idx < tables[hash].len() && !g_st().input.got_int.get() {
                             let mp: &mut Mapblock = &mut tables[hash][idx];
                             if (mp.m_mode & mode) == 0 {
                                 idx += 1;
@@ -1128,7 +1129,7 @@ fn buf_do_map(
                                         mp.m_simplified = i32::from(keyround1_simplified);
                                         mp.m_expr = u8::from(args.expr);
                                         mp.m_replace_keycodes = args.replace_keycodes;
-                                        mp.m_script_ctx = g_st().current_sctx.get();
+                                        mp.m_script_ctx = g_st().exc.current_sctx.get();
                                         mp.m_script_ctx.sc_lnum += sourcing_lnum();
                                         nlua_set_sctx(&mut mp.m_script_ctx);
                                         mp.m_desc = args.desc.clone();
@@ -1175,8 +1176,9 @@ fn buf_do_map(
                         buf.b_mapped_ctrl_c.set(buf.b_mapped_ctrl_c.get() & (!mode));
                     } else {
                         g_st()
+                            .input
                             .mapped_ctrl_c
-                            .set(g_st().mapped_ctrl_c.get() & (!mode));
+                            .set(g_st().input.mapped_ctrl_c.get() & (!mode));
                     }
                 }
                 continue;
@@ -1358,7 +1360,7 @@ pub fn map_to_exists(str_ptr: &CStr, modechars: &CStr, abbr: bool) -> bool {
 pub fn map_to_exists_mode(rhs: &CStr, mode: i32, abbr: bool) -> bool {
     let rhs_b = rhs.to_bytes();
     for exp_buffer in [false, true] {
-        let cb = g_st().curbuf.get();
+        let cb = g_st().workspace.curbuf.get();
         let b = if exp_buffer { cb.opt() } else { None };
         let found = with_map_buckets(b, abbr, |buckets| {
             for bucket in buckets {
@@ -1554,7 +1556,7 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
         }
     }
 
-    let cb = g_st().curbuf.get();
+    let cb = g_st().workspace.curbuf.get();
     let exp_buf = if !MAP_STATE.with(|s| s.expand_isabbrev.get())
         && MAP_STATE.with(|s| s.expand_buffer.get())
     {
@@ -1629,7 +1631,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
     let line_bytes = line_cstr.to_bytes();
     let mut tb = [0u8; MB_MAXBYTES + 4];
 
-    if g_st().typebuf.tb_no_abbr_cnt.get() != 0 {
+    if g_st().input.typebuf.tb_no_abbr_cnt.get() != 0 {
         return false;
     }
 
@@ -1704,7 +1706,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                 }
                 let len_u = len as usize;
                 let abbr_slice = &line_bytes[scol_u..(scol_u + len_u).min(line_bytes.len())];
-                let match_found = (cand.m_mode & g_st().state_global.get()) != 0
+                let match_found = (cand.m_mode & g_st().edit.state_global.get()) != 0
                     && qlen == len
                     && &q_bytes[..len_u.min(q_bytes.len())] == abbr_slice;
                 if match_found {
@@ -1761,8 +1763,9 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
             };
             if let Some(ref cs) = owned_s {
                 ins_typebuf(cs, noremap, 0, true, silent);
-                g_st().typebuf.tb_no_abbr_cnt.set(
-                    g_st().typebuf.tb_no_abbr_cnt.get() + ((cs.to_bytes().len() + j + 1) as i32),
+                g_st().input.typebuf.tb_no_abbr_cnt.set(
+                    g_st().input.typebuf.tb_no_abbr_cnt.get()
+                        + ((cs.to_bytes().len() + j + 1) as i32),
                 );
             }
 
@@ -1792,11 +1795,14 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
         vim_unescape_ks(&mut expr_bytes);
     }
 
-    g_st().expr_map_lock.set(g_st().expr_map_lock.get() + (1));
+    g_st()
+        .input
+        .expr_map_lock
+        .set(g_st().input.expr_map_lock.get() + (1));
     set_vim_var_char(c);
     let save_cursor = curwin().w_cursor.get();
-    let save_msg_col = g_st().msg_col.get();
-    let save_msg_row = g_st().msg_row.get();
+    let save_msg_col = g_st().msg.msg_col.get();
+    let save_msg_row = g_st().msg.msg_row.get();
     if luaref != LUA_NOREF {
         let args = Array::new();
         match nlua_call_ref(luaref, None, args, K_RET_OBJECT) {
@@ -1813,10 +1819,13 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
     } else {
         p = eval_to_string(&expr_bytes, false, false);
     }
-    g_st().expr_map_lock.set(g_st().expr_map_lock.get() - (1));
+    g_st()
+        .input
+        .expr_map_lock
+        .set(g_st().input.expr_map_lock.get() - (1));
     curwin().w_cursor.set(save_cursor);
-    g_st().msg_col.set(save_msg_col);
-    g_st().msg_row.set(save_msg_row);
+    g_st().msg.msg_col.set(save_msg_col);
+    g_st().msg.msg_row.set(save_msg_row);
 
     let p = p?;
 
@@ -2130,7 +2139,7 @@ pub fn check_map(
     *rhs_lua = LUA_NOREF;
 
     for local in (0..=1).rev() {
-        let cb = g_st().curbuf.get();
+        let cb = g_st().workspace.curbuf.get();
         let b = if local != 0 { cb.opt() } else { None };
         let found = with_map_buckets(b, abbr != 0, |buckets| {
             for (b_idx, bucket) in buckets.iter().enumerate() {
@@ -2403,7 +2412,7 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     } else if let Some(loc) = mp_opt
         && (rhs.is_some() || rhs_lua != LUA_NOREF)
     {
-        let cb = g_st().curbuf.get();
+        let cb = g_st().workspace.curbuf.get();
         let b = if loc.local { cb.opt() } else { None };
         let dict = with_map_buckets(b, loc.abbr, |buckets| {
             let mp = &buckets[loc.bucket][loc.idx];
@@ -2608,7 +2617,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
 
     for buffer_local in 0..=1 {
-        let cb = g_st().curbuf.get();
+        let cb = g_st().workspace.curbuf.get();
         let b = if buffer_local != 0 { cb.opt() } else { None };
         with_map_buckets(b, abbr, |buckets| {
             for bucket in buckets {
@@ -2697,7 +2706,7 @@ pub fn langmap_adjust_mb(c: i32) -> i32 {
 }
 
 pub fn langmap_init() {
-    for (i, slot) in g_st().langmap_mapchar.iter().enumerate() {
+    for (i, slot) in g_st().input.langmap_mapchar.iter().enumerate() {
         slot.set(i as u8);
     }
     LANGMAP_MAPGA.with(|cell| cell.borrow_mut().clear());
@@ -2777,7 +2786,7 @@ pub fn did_set_langmap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
                         to_cstr,
                     );
                 }
-                g_st().langmap_mapchar[(from & 255) as usize].set(to as u8);
+                g_st().input.langmap_mapchar[(from & 255) as usize].set(to as u8);
             }
 
             p_idx += utfc_ptr2len(&bytes[p_idx..]) as usize;
@@ -2871,8 +2880,8 @@ pub fn ex_abbreviate(eap: &mut Exarg) {
 
 /// ":map" and friends.
 pub fn ex_map(eap: &mut Exarg) {
-    if g_st().secure.get() != 0 {
-        g_st().secure.set(2);
+    if g_st().input.secure.get() != 0 {
+        g_st().input.secure.set(2);
         msg_outtrans(eap.cmd.as_cstr(), 0, false);
         msg_putchar(b'\n' as i32);
     }
@@ -3051,7 +3060,7 @@ pub fn modify_keymap(
         }
     };
 
-    g_st().current_sctx.set(save_current_sctx);
+    g_st().exc.current_sctx.set(save_current_sctx);
     nlua_clear_ref(&mut parsed_args.rhs_lua);
     res
 }

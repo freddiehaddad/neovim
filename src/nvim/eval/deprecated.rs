@@ -116,11 +116,11 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let mut save_autocmd_bufnr: i32 = 0;
 
     if l_provider_call_nesting != 0 {
-        save_current_sctx = g_st().current_sctx.get();
-        save_autocmd_fname = g_st().autocmd_fname.take();
-        save_autocmd_match = g_st().autocmd_match.take();
-        save_autocmd_fname_full = g_st().autocmd_fname_full.get();
-        save_autocmd_bufnr = g_st().autocmd_bufnr.get();
+        save_current_sctx = g_st().exc.current_sctx.get();
+        save_autocmd_fname = g_st().autocmd.autocmd_fname.take();
+        save_autocmd_match = g_st().autocmd.autocmd_match.take();
+        save_autocmd_fname_full = g_st().autocmd.autocmd_fname_full.get();
+        save_autocmd_bufnr = g_st().autocmd.autocmd_bufnr.get();
         save_funccal();
 
         let (script_ctx, es_entry, au_fname, au_match, au_full, au_bufnr, funccalp) =
@@ -136,12 +136,12 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     sc.funccalp,
                 )
             });
-        g_st().current_sctx.set(script_ctx);
+        g_st().exc.current_sctx.set(script_ctx);
         crate::runtime::estack_push_entry(es_entry);
-        g_st().autocmd_fname.set(au_fname);
-        g_st().autocmd_match.set(au_match);
-        g_st().autocmd_fname_full.set(au_full);
-        g_st().autocmd_bufnr.set(au_bufnr);
+        g_st().autocmd.autocmd_fname.set(au_fname);
+        g_st().autocmd.autocmd_match.set(au_match);
+        g_st().autocmd.autocmd_fname_full.set(au_full);
+        g_st().autocmd.autocmd_bufnr.set(au_bufnr);
         set_current_funccal(funccalp);
     }
 
@@ -149,12 +149,15 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let method = tv_get_string(&argvars[1]);
     let res = rpc_send_call(chan_id, &method, args, -1);
     if l_provider_call_nesting != 0 {
-        g_st().current_sctx.set(save_current_sctx);
+        g_st().exc.current_sctx.set(save_current_sctx);
         crate::runtime::estack_pop_raw();
-        g_st().autocmd_fname.set(save_autocmd_fname);
-        g_st().autocmd_match.set(save_autocmd_match);
-        g_st().autocmd_fname_full.set(save_autocmd_fname_full);
-        g_st().autocmd_bufnr.set(save_autocmd_bufnr);
+        g_st().autocmd.autocmd_fname.set(save_autocmd_fname);
+        g_st().autocmd.autocmd_match.set(save_autocmd_match);
+        g_st()
+            .autocmd
+            .autocmd_fname_full
+            .set(save_autocmd_fname_full);
+        g_st().autocmd.autocmd_bufnr.set(save_autocmd_bufnr);
         restore_funccal();
     }
 

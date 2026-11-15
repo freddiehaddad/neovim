@@ -1069,20 +1069,19 @@ fn decor_spell_nav_col(
     col: i32,
 ) -> TriState {
     if *decor_lnum != lnum {
-        decor_redraw_reset(wp, &mut g_st().decor_state.borrow_mut());
+        g_st()
+            .screen
+            .with_decor_state_mut(|ds| decor_redraw_reset(wp, ds));
         decor_providers_invoke_spell(wp, lnum - 1, col, lnum - 1, -1);
-        decor_redraw_line(wp, lnum - 1, &mut g_st().decor_state.borrow_mut());
+        g_st()
+            .screen
+            .with_decor_state_mut(|ds| decor_redraw_line(wp, lnum - 1, ds));
         *decor_lnum = lnum;
     }
-    decor_redraw_col(
-        wp,
-        col,
-        0,
-        false,
-        &mut g_st().decor_state.borrow_mut(),
-        MAXCOL,
-    );
-    g_st().decor_state.borrow().spell
+    g_st().screen.with_decor_state_mut(|ds| {
+        decor_redraw_col(wp, col, 0, false, ds, MAXCOL);
+        ds.spell
+    })
 }
 #[inline]
 fn can_syn_spell(wp: &WinInfoInfo, lnum: Linenr, col: i32) -> bool {
@@ -1116,13 +1115,12 @@ pub fn spell_move_to(
     let mut wrapped = false;
     let mut ret: usize = 0;
     let mut lnum = wp.w_cursor.get().lnum;
-    let saved_decor_start = std::mem::replace(
-        &mut *g_st().decor_state.borrow_mut(),
-        crate::decoration::DecorState::new(),
-    );
+    let saved_decor_start = g_st()
+        .screen
+        .replace_decor_state(crate::decoration::DecorState::new());
     let mut decor_lnum: Linenr = -1;
     'theend: {
-        while !g_st().got_int.get() {
+        while !g_st().input.got_int.get() {
             let mut line_cstr = ml_get_buf(&wp.buf(), lnum);
             let mut len = ml_get_buf_len(&wp.buf(), lnum) as usize;
             if buflen < len + MAXWLEN + 2 {
@@ -1271,7 +1269,7 @@ pub fn spell_move_to(
             line_breakcheck();
         }
     }
-    *g_st().decor_state.borrow_mut() = saved_decor_start;
+    g_st().screen.set_decor_state(saved_decor_start);
     ret
 }
 pub fn spell_cat_line(buf: &mut [u8], line: &[u8]) {
@@ -2258,10 +2256,10 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
         &repl_from_cstr,
     ) as usize;
     opt_vars().p_ws.set(false);
-    g_st().sub_nsubs.set(0);
-    g_st().sub_nlines.set(0);
+    g_st().search.sub_nsubs.set(0);
+    g_st().search.sub_nlines.set(0);
     curwin().w_cursor.set_lnum(0);
-    while !g_st().got_int.get() {
+    while !g_st().input.got_int.get() {
         let frompat_bytes = &frompat_vec[..frompatlen];
         if do_search(
             None,
@@ -2301,16 +2299,22 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
                 repl_to_len as i32,
             );
             if curwin().w_cursor.get().lnum != prev_lnum {
-                g_st().sub_nlines.set(g_st().sub_nlines.get() + (1));
+                g_st()
+                    .search
+                    .sub_nlines
+                    .set(g_st().search.sub_nlines.get() + (1));
                 prev_lnum = curwin().w_cursor.get().lnum;
             }
-            g_st().sub_nsubs.set(g_st().sub_nsubs.get() + (1));
+            g_st()
+                .search
+                .sub_nsubs
+                .set(g_st().search.sub_nsubs.get() + (1));
         }
         curwin().w_cursor.add_col(repl_to_len as Colnr);
     }
     opt_vars().p_ws.set(save_ws);
     curwin().w_cursor.set(pos);
-    if g_st().sub_nsubs.get() == 0 {
+    if g_st().search.sub_nsubs.get() == 0 {
         semsg!(gettext(c"E753: Not found: %s"), &repl_from_cstr);
     } else {
         do_sub_msg(false);
@@ -2681,7 +2685,7 @@ pub fn ex_spellinfo(_eap: &mut Exarg) {
     let w_s = curwin().w_s_ptr();
     let len = w_s.b_langp.borrow().len();
     let mut lpi: usize = 0;
-    while lpi < len && !g_st().got_int.get() {
+    while lpi < len && !g_st().input.got_int.get() {
         let lp = w_s.b_langp.borrow()[lpi];
         let slang = lp.slang();
         msg_puts(c"file: ");
@@ -2814,7 +2818,9 @@ pub fn spell_dump_compl(
             let mut depth: isize = 0;
             arridx[0] = 0;
             curi[0] = 1;
-            while depth >= 0 && !g_st().got_int.get() && (pat.is_none() || !ins_compl_interrupted())
+            while depth >= 0
+                && !g_st().input.got_int.get()
+                && (pat.is_none() || !ins_compl_interrupted())
             {
                 let udepth = depth as usize;
                 if curi[udepth] > i32::from(byts[arridx[udepth] as usize]) {
@@ -3003,7 +3009,7 @@ fn dump_prefixes(
         let mut depth: isize = 0;
         arridx[0] = 0;
         curi[0] = 1;
-        while depth >= 0 && !g_st().got_int.get() {
+        while depth >= 0 && !g_st().input.got_int.get() {
             let udepth = depth as usize;
             let mut n = arridx[udepth];
             let len = i32::from(byts[n as usize]);
@@ -3154,7 +3160,7 @@ pub fn valid_spellfile(val: &std::ffi::CStr) -> bool {
 pub fn did_set_spell_option() -> Option<&'static std::ffi::CStr> {
     let mut errmsg = None;
     for wp in for_all_windows_ptr() {
-        if wp.w_buffer.get() == g_st().curbuf.get() && wp.w_onebuf_opt.wo_spell.get() {
+        if wp.w_buffer.get() == g_st().workspace.curbuf.get() && wp.w_onebuf_opt.wo_spell.get() {
             errmsg = parse_spelllang(&wp);
             break;
         }

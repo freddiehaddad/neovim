@@ -24,9 +24,9 @@ pub fn luaret_truthy(res: Object) -> bool {
 
 fn textlock_wrap<F: FnOnce()>(f: F) {
     let save_cursor = curwin().w_cursor.get();
-    g_st().textlock.set(g_st().textlock.get() + (1));
+    g_st().input.textlock.set(g_st().input.textlock.get() + (1));
     f();
-    g_st().textlock.set(g_st().textlock.get() - (1));
+    g_st().input.textlock.set(g_st().input.textlock.get() - (1));
     curwin().w_cursor.set(save_cursor);
 }
 
@@ -181,8 +181,8 @@ pub fn buf_updates_send_changes(
         return;
     }
 
-    let send_tick = !(g_st().cmdpreview.get()
-        && (std::ptr::from_ref(buf).cast_mut()) == g_st().curbuf.get().as_ptr());
+    let send_tick = !(g_st().cmdline.cmdpreview.get()
+        && (std::ptr::from_ref(buf).cast_mut()) == g_st().workspace.curbuf.get().as_ptr());
     let mut badchannelid: u64 = 0;
     let mut linedata = Array::new();
     if num_added > 0 && !buf.update_channels.borrow().is_empty() {
@@ -236,7 +236,7 @@ pub fn buf_updates_send_changes(
         let preview = buf.update_callbacks.borrow().as_slice()[i].preview;
         let utf_sizes = buf.update_callbacks.borrow().as_slice()[i].utf_sizes;
         let mut keep = true;
-        if on_lines != LUA_NOREF && (preview || !g_st().cmdpreview.get()) {
+        if on_lines != LUA_NOREF && (preview || !g_st().cmdline.cmdpreview.get()) {
             let mut items = [
                 buffer_obj(buf.b_fnum.get()),
                 if send_tick {
@@ -291,7 +291,7 @@ pub fn buf_updates_send_splice(
         let on_bytes = buf.update_callbacks.borrow().as_slice()[i].on_bytes;
         let preview = buf.update_callbacks.borrow().as_slice()[i].preview;
         let mut keep = true;
-        if on_bytes != LUA_NOREF && (preview || !g_st().cmdpreview.get()) {
+        if on_bytes != LUA_NOREF && (preview || !g_st().cmdline.cmdpreview.get()) {
             let mut items = [
                 buffer_obj(buf.b_fnum.get()),
                 integer_obj(buf_get_changedtick(buf)),

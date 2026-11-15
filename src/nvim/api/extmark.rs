@@ -1113,8 +1113,9 @@ pub fn nvim_buf_set_extmark(
     }
 
     if opts.ephemeral
-        && !g_st().decor_state.borrow().win.is_null()
-        && g_st().decor_state.borrow().win.w_buffer.get() == b
+        && g_st()
+            .screen
+            .with_decor_state(|ds| !ds.win.is_null() && ds.win.w_buffer.get() == b)
     {
         let r = line as i32;
         let c = col as i32;
@@ -1132,42 +1133,34 @@ pub fn nvim_buf_set_extmark(
         }
 
         if !virt_text.data.virt_text().is_empty() {
-            decor_range_add_virt(
-                &mut g_st().decor_state.borrow_mut(),
-                r,
-                c,
-                line2,
-                col2,
-                decor_put_vt(virt_text, crate::decoration::DecorVirtId::NULL),
-                true,
-            );
+            let vt_id = decor_put_vt(virt_text, crate::decoration::DecorVirtId::NULL);
+            g_st().screen.with_decor_state_mut(|ds| {
+                decor_range_add_virt(ds, r, c, line2, col2, vt_id, true);
+            });
         }
         if !virt_lines.data.virt_lines().is_empty() {
-            decor_range_add_virt(
-                &mut g_st().decor_state.borrow_mut(),
-                r,
-                c,
-                line2,
-                col2,
-                decor_put_vt(virt_lines, crate::decoration::DecorVirtId::NULL),
-                true,
-            );
+            let vt_id = decor_put_vt(virt_lines, crate::decoration::DecorVirtId::NULL);
+            g_st().screen.with_decor_state_mut(|ds| {
+                decor_range_add_virt(ds, r, c, line2, col2, vt_id, true);
+            });
         }
         if has_hl {
             let mut sh = decor_sh_from_inline(hl);
             sh.url = url.take();
-            decor_range_add_sh(
-                &mut g_st().decor_state.borrow_mut(),
-                r,
-                c,
-                line2,
-                col2,
-                &sh,
-                true,
-                ns_id as u32,
-                id,
-                subpriority,
-            );
+            g_st().screen.with_decor_state_mut(|ds| {
+                decor_range_add_sh(
+                    ds,
+                    r,
+                    c,
+                    line2,
+                    col2,
+                    &sh,
+                    true,
+                    ns_id as u32,
+                    id,
+                    subpriority,
+                );
+            });
         }
     } else {
         if opts.ephemeral {
@@ -1475,8 +1468,8 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean) -> Result<()
     }
     let b_ptr = b;
     for tp in for_all_tabpages_ptr() {
-        for wp in win_iter_ptr(if g_st().curtab.get() == tp {
-            g_st().firstwin.get()
+        for wp in win_iter_ptr(if g_st().workspace.curtab.get() == tp {
+            g_st().workspace.firstwin.get()
         } else {
             tp.tp_firstwin.get()
         }) {

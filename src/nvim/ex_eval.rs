@@ -187,9 +187,9 @@ std::thread_local! {
 
 #[inline]
 fn check_skip(cstack: &Cstack) -> bool {
-    g_st().did_emsg.get() != 0
-        || g_st().got_int.get()
-        || g_st().did_throw.get()
+    g_st().msg.did_emsg.get() != 0
+        || g_st().input.got_int.get()
+        || g_st().exc.did_throw.get()
         || (cstack.cs_idx > 0 && (cstack.cs_flags[(cstack.cs_idx - 1) as usize] & CSF_ACTIVE) == 0)
 }
 
@@ -201,23 +201,23 @@ fn discard_pending_return(p: &mut Option<TypVal>) {
 }
 
 pub fn aborting() -> bool {
-    (g_st().did_emsg.get() != 0 && g_st().force_abort.get())
-        || g_st().got_int.get()
-        || g_st().did_throw.get()
+    (g_st().msg.did_emsg.get() != 0 && g_st().exc.force_abort.get())
+        || g_st().input.got_int.get()
+        || g_st().exc.did_throw.get()
 }
 
 pub fn update_force_abort() {
     if CAUSE_ABORT.get() {
-        g_st().force_abort.set(true);
+        g_st().exc.force_abort.set(true);
     }
 }
 
 pub fn should_abort(ok: bool) -> bool {
-    (!ok && g_st().trylevel.get() != 0 && g_st().emsg_silent.get() == 0) || aborting()
+    (!ok && g_st().exc.trylevel.get() != 0 && g_st().msg.emsg_silent.get() == 0) || aborting()
 }
 
 pub fn aborted_in_try() -> bool {
-    g_st().force_abort.get()
+    g_st().exc.force_abort.get()
 }
 
 pub fn cause_errthrow(
@@ -227,17 +227,17 @@ pub fn cause_errthrow(
     severe: bool,
     ignore: &mut bool,
 ) -> bool {
-    if g_st().suppress_errthrow.get() {
+    if g_st().exc.suppress_errthrow.get() {
         return false;
     }
 
-    if g_st().did_emsg.get() == 0 {
-        CAUSE_ABORT.set(g_st().force_abort.get());
-        g_st().force_abort.set(false);
+    if g_st().msg.did_emsg.get() == 0 {
+        CAUSE_ABORT.set(g_st().exc.force_abort.get());
+        g_st().exc.force_abort.set(false);
     }
 
-    if ((g_st().trylevel.get() == 0 && !CAUSE_ABORT.get()) || g_st().emsg_silent.get() != 0)
-        && !g_st().did_throw.get()
+    if ((g_st().exc.trylevel.get() == 0 && !CAUSE_ABORT.get()) || g_st().msg.emsg_silent.get() != 0)
+        && !g_st().exc.did_throw.get()
     {
         return false;
     }
@@ -249,89 +249,89 @@ pub fn cause_errthrow(
 
     CAUSE_ABORT.set(true);
 
-    if g_st().did_throw.get() {
+    if g_st().exc.did_throw.get() {
         if g_st()
+            .exc
             .current_exception
             .get()
             .as_ref()
             .is_some_and(|e| e.r#type == ET_INTERRUPT)
         {
-            g_st().got_int.set(false);
+            g_st().input.got_int.set(false);
         }
         discard_current_exception();
     }
 
-    if let Some(ref mut list) = *g_st().msg_list.borrow_mut() {
-        if concat && let Some(last) = list.last_mut() {
-            let mut bytes = last.msg.as_bytes().to_vec();
-            bytes.extend_from_slice(mesg.to_bytes());
-            last.msg = CString::new(bytes).unwrap();
-            return true;
-        }
+    let sfile = estack_sfile(ESTACK_NONE);
+    let slnum = sourcing_lnum();
+    g_st().exc.with_msg_list_mut(|list_opt| {
+        if let Some(list) = list_opt {
+            if concat && let Some(last) = list.last_mut() {
+                let mut bytes = last.msg.as_bytes().to_vec();
+                bytes.extend_from_slice(mesg.to_bytes());
+                last.msg = CString::new(bytes).unwrap();
+                return;
+            }
 
-        let is_first = list.is_empty();
-        let tmsg = mesg.to_owned();
-        let sfile = estack_sfile(ESTACK_NONE);
-        let tmsg_bytes = tmsg.as_bytes();
-        let has_vim_e_prefix = tmsg_bytes.len() >= 10
-            && tmsg_bytes.starts_with(b"Vim E")
-            && tmsg_bytes[5].is_ascii_digit()
-            && tmsg_bytes[6].is_ascii_digit()
-            && tmsg_bytes[7].is_ascii_digit()
-            && tmsg_bytes[8] == b':'
-            && tmsg_bytes[9] == b' ';
-        list.push(Msglist {
-            msg: tmsg,
-            throw_idx: 0,
-            throw_off: 0,
-            sfile,
-            slnum: sourcing_lnum(),
-            multiline,
-        });
-        if is_first || severe {
-            let idx = list.len() - 1;
-            list[0].throw_idx = idx;
-            list[0].throw_off = if has_vim_e_prefix { 4 } else { 0 };
+            let is_first = list.is_empty();
+            let tmsg = mesg.to_owned();
+            let tmsg_bytes = tmsg.as_bytes();
+            let has_vim_e_prefix = tmsg_bytes.len() >= 10
+                && tmsg_bytes.starts_with(b"Vim E")
+                && tmsg_bytes[5].is_ascii_digit()
+                && tmsg_bytes[6].is_ascii_digit()
+                && tmsg_bytes[7].is_ascii_digit()
+                && tmsg_bytes[8] == b':'
+                && tmsg_bytes[9] == b' ';
+            list.push(Msglist {
+                msg: tmsg,
+                throw_idx: 0,
+                throw_off: 0,
+                sfile,
+                slnum,
+                multiline,
+            });
+            if is_first || severe {
+                let idx = list.len() - 1;
+                list[0].throw_idx = idx;
+                list[0].throw_off = if has_vim_e_prefix { 4 } else { 0 };
+            }
         }
-    }
+    });
     true
 }
 
 pub fn free_global_msglist() {
-    if let Some(ref mut list) = *g_st().msg_list.borrow_mut() {
-        list.clear();
-    }
+    g_st().exc.clear_msg_list();
 }
 
 pub fn do_errthrow(cstack: Option<&mut Cstack>, cmdname: Option<&CStr>) {
     if CAUSE_ABORT.replace(false) {
-        g_st().force_abort.set(true);
+        g_st().exc.force_abort.set(true);
     }
 
-    let Some(ref mut list) = *g_st().msg_list.borrow_mut() else {
+    let Some(messages) = g_st().exc.take_pending_messages() else {
         return;
     };
-    if list.is_empty() {
-        return;
-    }
-
-    let messages = std::mem::take(list);
     if throw_exception(ExceptionValue::Error(messages), cmdname) {
         if let Some(cstack) = cstack {
             do_throw(&mut *cstack);
         } else {
-            g_st().need_rethrow.set(true);
+            g_st().exc.need_rethrow.set(true);
         }
     }
 }
 
 pub fn do_intthrow(cstack: &mut Cstack) -> bool {
-    if !g_st().got_int.get() || (g_st().trylevel.get() == 0 && !g_st().did_throw.get()) {
+    if !g_st().input.got_int.get()
+        || (g_st().exc.trylevel.get() == 0 && !g_st().exc.did_throw.get())
+    {
         return false;
     }
 
-    if g_st().did_throw.get() {
+    if g_st().exc.did_throw.get() {
         if g_st()
+            .exc
             .current_exception
             .get()
             .as_ref()
@@ -407,7 +407,7 @@ fn throw_exception(value: ExceptionValue, cmdname: Option<&CStr>) -> bool {
                 && (bytes.len() == 3 || bytes[3] == b':' || bytes[3] == b'(')
             {
                 emsg(gettext(c"E608: Cannot :throw exceptions with 'Vim' prefix"));
-                g_st().current_exception.set(None);
+                g_st().exc.current_exception.set(None);
                 return false;
             }
             (ET_USER, Vec::new(), val_str)
@@ -441,33 +441,39 @@ fn throw_exception(value: ExceptionValue, cmdname: Option<&CStr>) -> bool {
         stacktrace,
     });
 
-    if opt_vars().p_verbose.get() >= 13 || g_st().debug_break_level.get() > 0 {
-        let save_msg_silent = g_st().msg_silent.get();
+    if opt_vars().p_verbose.get() >= 13 || g_st().exc.debug_break_level.get() > 0 {
+        let save_msg_silent = g_st().msg.msg_silent.get();
 
-        if g_st().debug_break_level.get() > 0 {
-            g_st().msg_silent.set(0);
+        if g_st().exc.debug_break_level.get() > 0 {
+            g_st().msg.msg_silent.set(0);
         } else {
             verbose_enter();
         }
-        g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
-        if g_st().debug_break_level.get() > 0 || opt_vars().p_vfile.is_empty() {
-            g_st().msg_scroll.set(1);
+        g_st()
+            .msg
+            .no_wait_return
+            .set(g_st().msg.no_wait_return.get() + (1));
+        if g_st().exc.debug_break_level.get() > 0 || opt_vars().p_vfile.is_empty() {
+            g_st().msg.msg_scroll.set(1);
         }
         smsg!(0, gettext(c"Exception thrown: %s"), &excp.value,);
         msg_puts(c"\n");
 
-        if g_st().debug_break_level.get() > 0 || opt_vars().p_vfile.is_empty() {
-            g_st().cmdline_row.set(g_st().msg_row.get());
+        if g_st().exc.debug_break_level.get() > 0 || opt_vars().p_vfile.is_empty() {
+            g_st().cmdline.cmdline_row.set(g_st().msg.msg_row.get());
         }
-        g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
-        if g_st().debug_break_level.get() > 0 {
-            g_st().msg_silent.set(save_msg_silent);
+        g_st()
+            .msg
+            .no_wait_return
+            .set(g_st().msg.no_wait_return.get() - (1));
+        if g_st().exc.debug_break_level.get() > 0 {
+            g_st().msg.msg_silent.set(save_msg_silent);
         } else {
             verbose_leave();
         }
     }
 
-    g_st().current_exception.set(Some(excp));
+    g_st().exc.current_exception.set(Some(excp));
     true
 }
 
@@ -477,24 +483,28 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
         return;
     };
     if g_st()
+        .exc
         .current_exception
         .get()
         .as_ref()
         .is_some_and(|cur| std::rc::Rc::ptr_eq(cur, &excp))
     {
-        g_st().current_exception.set(None);
+        g_st().exc.current_exception.set(None);
     }
 
-    if opt_vars().p_verbose.get() >= 13 || g_st().debug_break_level.get() > 0 {
-        let save_msg_silent = g_st().msg_silent.get();
-        if g_st().debug_break_level.get() > 0 {
-            g_st().msg_silent.set(0);
+    if opt_vars().p_verbose.get() >= 13 || g_st().exc.debug_break_level.get() > 0 {
+        let save_msg_silent = g_st().msg.msg_silent.get();
+        if g_st().exc.debug_break_level.get() > 0 {
+            g_st().msg.msg_silent.set(0);
         } else {
             verbose_enter();
         }
-        g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
-        if g_st().debug_break_level.get() > 0 || opt_vars().p_vfile.is_empty() {
-            g_st().msg_scroll.set(1);
+        g_st()
+            .msg
+            .no_wait_return
+            .set(g_st().msg.no_wait_return.get() + (1));
+        if g_st().exc.debug_break_level.get() > 0 || opt_vars().p_vfile.is_empty() {
+            g_st().msg.msg_scroll.set(1);
         }
         let fmt = if was_finished {
             gettext(c"Exception finished: %s")
@@ -503,12 +513,15 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
         };
         smsg!(0, fmt, &excp.value);
         msg_puts(c"\n");
-        if g_st().debug_break_level.get() > 0 || opt_vars().p_vfile.is_empty() {
-            g_st().cmdline_row.set(g_st().msg_row.get());
+        if g_st().exc.debug_break_level.get() > 0 || opt_vars().p_vfile.is_empty() {
+            g_st().cmdline.cmdline_row.set(g_st().msg.msg_row.get());
         }
-        g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
-        if g_st().debug_break_level.get() > 0 {
-            g_st().msg_silent.set(save_msg_silent);
+        g_st()
+            .msg
+            .no_wait_return
+            .set(g_st().msg.no_wait_return.get() - (1));
+        if g_st().exc.debug_break_level.get() > 0 {
+            g_st().msg.msg_silent.set(save_msg_silent);
         } else {
             verbose_leave();
         }
@@ -517,15 +530,15 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
 }
 
 pub fn discard_current_exception() {
-    if let Some(excp) = g_st().current_exception.take() {
+    if let Some(excp) = g_st().exc.current_exception.take() {
         discard_exception(Some(excp), false);
     }
-    g_st().did_throw.set(false);
-    g_st().need_rethrow.set(false);
+    g_st().exc.did_throw.set(false);
+    g_st().exc.need_rethrow.set(false);
 }
 
 fn catch_exception(excp: &std::rc::Rc<Except>) {
-    g_st().caught_stack.borrow_mut().push(excp.clone());
+    g_st().exc.push_caught(excp.clone());
     set_vim_var_string(VV_EXCEPTION, Some(&excp.value), -1);
     set_vim_var_list(VV_STACKTRACE, excp.stacktrace.opt());
     if !excp.throw_name.as_bytes().is_empty() {
@@ -549,27 +562,33 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
         set_vim_var_string(VV_THROWPOINT, None, -1);
     }
 
-    if opt_vars().p_verbose.get() >= 13 || g_st().debug_break_level.get() > 0 {
-        let save_msg_silent = g_st().msg_silent.get();
+    if opt_vars().p_verbose.get() >= 13 || g_st().exc.debug_break_level.get() > 0 {
+        let save_msg_silent = g_st().msg.msg_silent.get();
 
-        if g_st().debug_break_level.get() > 0 {
-            g_st().msg_silent.set(0);
+        if g_st().exc.debug_break_level.get() > 0 {
+            g_st().msg.msg_silent.set(0);
         } else {
             verbose_enter();
         }
-        g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
-        if g_st().debug_break_level.get() > 0 || opt_vars().p_vfile.is_empty() {
-            g_st().msg_scroll.set(1);
+        g_st()
+            .msg
+            .no_wait_return
+            .set(g_st().msg.no_wait_return.get() + (1));
+        if g_st().exc.debug_break_level.get() > 0 || opt_vars().p_vfile.is_empty() {
+            g_st().msg.msg_scroll.set(1);
         }
         smsg!(0, gettext(c"Exception caught: %s"), &excp.value,);
         msg_puts(c"\n");
 
-        if g_st().debug_break_level.get() > 0 || opt_vars().p_vfile.is_empty() {
-            g_st().cmdline_row.set(g_st().msg_row.get());
+        if g_st().exc.debug_break_level.get() > 0 || opt_vars().p_vfile.is_empty() {
+            g_st().cmdline.cmdline_row.set(g_st().msg.msg_row.get());
         }
-        g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
-        if g_st().debug_break_level.get() > 0 {
-            g_st().msg_silent.set(save_msg_silent);
+        g_st()
+            .msg
+            .no_wait_return
+            .set(g_st().msg.no_wait_return.get() - (1));
+        if g_st().exc.debug_break_level.get() > 0 {
+            g_st().msg.msg_silent.set(save_msg_silent);
         } else {
             verbose_leave();
         }
@@ -577,15 +596,15 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
 }
 
 fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
-    let mismatch = match (g_st().caught_stack.borrow().last(), excp.as_ref()) {
+    let mismatch = match (g_st().exc.peek_caught().as_ref(), excp.as_ref()) {
         (Some(last), Some(e)) => !std::rc::Rc::ptr_eq(last, e),
         _ => true,
     };
     if mismatch {
         internal_error(c"finish_exception()");
     }
-    g_st().caught_stack.borrow_mut().pop();
-    let top = g_st().caught_stack.borrow().last().cloned();
+    let _ = g_st().exc.pop_caught();
+    let top = g_st().exc.peek_caught();
     if let Some(top) = top {
         set_vim_var_string(VV_EXCEPTION, Some(&top.value), -1);
         set_vim_var_list(VV_STACKTRACE, top.stacktrace.opt());
@@ -619,32 +638,33 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
 }
 
 pub fn exception_state_save(estate: &mut ExceptionState) {
-    estate.estate_current_exception = g_st().current_exception.get().clone();
-    estate.estate_did_throw = g_st().did_throw.get();
-    estate.estate_need_rethrow = g_st().need_rethrow.get();
-    estate.estate_trylevel = g_st().trylevel.get();
-    estate.estate_did_emsg = g_st().did_emsg.get();
+    estate.estate_current_exception = g_st().exc.current_exception.get().clone();
+    estate.estate_did_throw = g_st().exc.did_throw.get();
+    estate.estate_need_rethrow = g_st().exc.need_rethrow.get();
+    estate.estate_trylevel = g_st().exc.trylevel.get();
+    estate.estate_did_emsg = g_st().msg.did_emsg.get();
 }
 
 pub fn exception_state_restore(estate: &mut ExceptionState) {
-    if g_st().did_throw.get() {
+    if g_st().exc.did_throw.get() {
         handle_did_throw();
     }
     g_st()
+        .exc
         .current_exception
         .set(estate.estate_current_exception.take());
-    g_st().did_throw.set(estate.estate_did_throw);
-    g_st().need_rethrow.set(estate.estate_need_rethrow);
-    g_st().trylevel.set(estate.estate_trylevel);
-    g_st().did_emsg.set(estate.estate_did_emsg);
+    g_st().exc.did_throw.set(estate.estate_did_throw);
+    g_st().exc.need_rethrow.set(estate.estate_need_rethrow);
+    g_st().exc.trylevel.set(estate.estate_trylevel);
+    g_st().msg.did_emsg.set(estate.estate_did_emsg);
 }
 
 pub fn exception_state_clear() {
-    g_st().current_exception.set(None);
-    g_st().did_throw.set(false);
-    g_st().need_rethrow.set(false);
-    g_st().trylevel.set(0);
-    g_st().did_emsg.set(0);
+    g_st().exc.current_exception.set(None);
+    g_st().exc.did_throw.set(false);
+    g_st().exc.need_rethrow.set(false);
+    g_st().exc.trylevel.set(0);
+    g_st().msg.did_emsg.set(0);
 }
 
 fn report_pending(action: i32, pending: i32, value: PendingVal) {
@@ -692,52 +712,58 @@ fn report_pending(action: i32, pending: i32, value: PendingVal) {
         }
     };
 
-    let save_msg_silent = g_st().msg_silent.get();
-    if g_st().debug_break_level.get() > 0 {
-        g_st().msg_silent.set(0);
+    let save_msg_silent = g_st().msg.msg_silent.get();
+    if g_st().exc.debug_break_level.get() > 0 {
+        g_st().msg.msg_silent.set(0);
     }
-    g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
-    g_st().msg_scroll.set(1);
+    g_st()
+        .msg
+        .no_wait_return
+        .set(g_st().msg.no_wait_return.get() + (1));
+    g_st().msg.msg_scroll.set(1);
     smsg!(0, mesg, s);
     msg_puts(c"\n");
-    g_st().cmdline_row.set(g_st().msg_row.get());
-    g_st().no_wait_return.set(g_st().no_wait_return.get() - (1));
-    if g_st().debug_break_level.get() > 0 {
-        g_st().msg_silent.set(save_msg_silent);
+    g_st().cmdline.cmdline_row.set(g_st().msg.msg_row.get());
+    g_st()
+        .msg
+        .no_wait_return
+        .set(g_st().msg.no_wait_return.get() - (1));
+    if g_st().exc.debug_break_level.get() > 0 {
+        g_st().msg.msg_silent.set(save_msg_silent);
     }
 }
 
 pub fn report_make_pending(pending: i32, value: PendingVal) {
-    if opt_vars().p_verbose.get() >= 14 || g_st().debug_break_level.get() > 0 {
-        if g_st().debug_break_level.get() <= 0 {
+    if opt_vars().p_verbose.get() >= 14 || g_st().exc.debug_break_level.get() > 0 {
+        if g_st().exc.debug_break_level.get() <= 0 {
             verbose_enter();
         }
         report_pending(RP_MAKE, pending, value);
-        if g_st().debug_break_level.get() <= 0 {
+        if g_st().exc.debug_break_level.get() <= 0 {
             verbose_leave();
         }
     }
 }
 
 fn report_resume_pending(pending: i32, value: PendingVal) {
-    if opt_vars().p_verbose.get() >= 14 || g_st().debug_break_level.get() > 0 {
-        if g_st().debug_break_level.get() <= 0 {
+    if opt_vars().p_verbose.get() >= 14 || g_st().exc.debug_break_level.get() > 0 {
+        if g_st().exc.debug_break_level.get() <= 0 {
             verbose_enter();
         }
         report_pending(RP_RESUME, pending, value);
-        if g_st().debug_break_level.get() <= 0 {
+        if g_st().exc.debug_break_level.get() <= 0 {
             verbose_leave();
         }
     }
 }
 
 fn report_discard_pending(pending: i32, value: PendingVal) {
-    if opt_vars().p_verbose.get() >= 14 || g_st().debug_break_level.get() > 0 {
-        if g_st().debug_break_level.get() <= 0 {
+    if opt_vars().p_verbose.get() >= 14 || g_st().exc.debug_break_level.get() > 0 {
+        if g_st().exc.debug_break_level.get() <= 0 {
             verbose_enter();
         }
         report_pending(RP_DISCARD, pending, value);
-        if g_st().debug_break_level.get() <= 0 {
+        if g_st().exc.debug_break_level.get() <= 0 {
             verbose_leave();
         }
     }
@@ -784,7 +810,7 @@ pub fn ex_if(eap: &mut Exarg) {
 }
 
 pub fn ex_endif(eap: &mut Exarg) {
-    g_st().did_endif.set(true);
+    g_st().exc.did_endif.set(true);
     let cstack = eap.cstack_mut();
     if cstack.cs_idx < 0
         || (cstack.cs_flags[cstack.cs_idx as usize] & (CSF_WHILE | CSF_FOR | CSF_TRY)) != 0
@@ -837,7 +863,7 @@ pub fn ex_else(eap: &mut Exarg) {
         eap.cstack_mut().cs_flags[idx] = CSF_ACTIVE;
     }
 
-    if !skip && dbg_check_skipped(eap) && g_st().got_int.get() {
+    if !skip && dbg_check_skipped(eap) && g_st().input.got_int.get() {
         do_intthrow(eap.cstack_mut());
         skip = true;
     }
@@ -1056,10 +1082,10 @@ pub fn do_throw(cstack: &mut Cstack) {
             }
         }
         cstack.cs_flags[u_idx] &= !CSF_ACTIVE;
-        (&mut cstack.cs_exception)[u_idx] = g_st().current_exception.get().clone();
+        (&mut cstack.cs_exception)[u_idx] = g_st().exc.current_exception.get().clone();
     }
 
-    g_st().did_throw.set(true);
+    g_st().exc.did_throw.set(true);
 }
 
 pub fn ex_try(eap: &mut Exarg) {
@@ -1079,10 +1105,12 @@ pub fn ex_try(eap: &mut Exarg) {
         if !skip {
             cstack.cs_flags[idx] |= CSF_ACTIVE | CSF_TRUE;
 
-            if g_st().emsg_silent.get() != 0 {
-                cstack.cs_emsg_silent_list.push(g_st().emsg_silent.get());
+            if g_st().msg.emsg_silent.get() != 0 {
+                cstack
+                    .cs_emsg_silent_list
+                    .push(g_st().msg.emsg_silent.get());
                 cstack.cs_flags[idx] |= CSF_SILENT;
-                g_st().emsg_silent.set(0);
+                g_st().msg.emsg_silent.set(0);
             }
         }
     }
@@ -1143,7 +1171,7 @@ pub fn ex_catch(eap: &mut Exarg) {
     if !give_up {
         let mut caught = false;
         let u_idx = idx as usize;
-        if !g_st().did_throw.get() || (eap.cstack_mut().cs_flags[u_idx] & CSF_TRUE) == 0 {
+        if !g_st().exc.did_throw.get() || (eap.cstack_mut().cs_flags[u_idx] & CSF_TRUE) == 0 {
             skip = true;
         }
 
@@ -1171,22 +1199,25 @@ pub fn ex_catch(eap: &mut Exarg) {
                     pat.as_bytes()
                 };
                 let save_cpo = opt_vars().p_cpo.take();
-                g_st().emsg_off.set(g_st().emsg_off.get() + (1));
+                g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
                 let mut regmatch: Regmatch = Regmatch::new();
                 regmatch.set_prog(vim_regcomp(pat_bytes, RE_MAGIC + RE_STRING));
-                g_st().emsg_off.set(g_st().emsg_off.get() - (1));
+                g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
                 regmatch.rm_ic = false;
                 opt_vars().p_cpo.set(save_cpo);
                 if regmatch.regprog.is_null() {
                     let pat_err = crate::memory::bytes_to_cstring(pat_bytes);
                     semsg!(gettext(E_INVARG2), pat_err.as_c_str());
                 } else {
-                    let prev_got_int = g_st().got_int.get();
-                    g_st().got_int.set(false);
-                    let cur_excp = g_st().current_exception.get().unwrap();
+                    let prev_got_int = g_st().input.got_int.get();
+                    g_st().input.got_int.set(false);
+                    let cur_excp = g_st().exc.current_exception.get().unwrap();
                     let val_cstr = cur_excp.value.as_c_str();
                     caught = vim_regexec_nl(&mut regmatch, Some(val_cstr.to_bytes()), 0);
-                    g_st().got_int.set(g_st().got_int.get() | (prev_got_int));
+                    g_st()
+                        .input
+                        .got_int
+                        .set(g_st().input.got_int.get() | (prev_got_int));
                     regmatch.free_prog();
                 }
             }
@@ -1195,9 +1226,9 @@ pub fn ex_catch(eap: &mut Exarg) {
         let cstack = eap.cstack_mut();
         if caught {
             cstack.cs_flags[u_idx] |= CSF_ACTIVE | CSF_CAUGHT;
-            g_st().did_emsg.set(0);
-            g_st().got_int.set(false);
-            g_st().did_throw.set(false);
+            g_st().msg.did_emsg.set(0);
+            g_st().input.got_int.set(false);
+            g_st().exc.did_throw.set(false);
             if let Some(ref excp) = cstack.cs_exception[u_idx] {
                 catch_exception(excp);
             } else {
@@ -1205,7 +1236,7 @@ pub fn ex_catch(eap: &mut Exarg) {
             }
             if !match (
                 cstack.cs_exception[cstack.cs_idx as usize].as_ref(),
-                g_st().current_exception.get().as_ref(),
+                g_st().exc.current_exception.get().as_ref(),
             ) {
                 (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
                 (None, None) => true,
@@ -1267,9 +1298,9 @@ pub fn ex_finally(eap: &mut Exarg) {
 
         let cur_idx = cstack.cs_idx as usize;
         if pending == CSTP_ERROR
-            || g_st().did_emsg.get() != 0
-            || g_st().got_int.get()
-            || g_st().did_throw.get()
+            || g_st().msg.did_emsg.get() != 0
+            || g_st().input.got_int.get()
+            || g_st().exc.did_throw.get()
         {
             if i32::from(cstack.cs_pending[cur_idx]) == CSTP_RETURN {
                 report_discard_pending(
@@ -1278,21 +1309,23 @@ pub fn ex_finally(eap: &mut Exarg) {
                 );
                 discard_pending_return(&mut (&mut cstack.cs_rettv)[cur_idx]);
             }
-            if (pending == CSTP_ERROR && g_st().did_emsg.get() == 0) || g_st().did_throw.get() {
+            if (pending == CSTP_ERROR && g_st().msg.did_emsg.get() == 0)
+                || g_st().exc.did_throw.get()
+            {
                 pending |= CSTP_THROW;
             }
-            if g_st().did_emsg.get() != 0 {
+            if g_st().msg.did_emsg.get() != 0 {
                 pending |= CSTP_ERROR;
             }
-            if g_st().got_int.get() {
+            if g_st().input.got_int.get() {
                 pending |= CSTP_INTERRUPT;
             }
             cstack.cs_pending[cur_idx] = pending as u8;
 
-            if g_st().did_throw.get()
+            if g_st().exc.did_throw.get()
                 && !match (
                     cstack.cs_exception[cur_idx].as_ref(),
-                    g_st().current_exception.get().as_ref(),
+                    g_st().exc.current_exception.get().as_ref(),
                 ) {
                     (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
                     (None, None) => true,
@@ -1326,9 +1359,9 @@ pub fn ex_endtry(eap: &mut Exarg) {
         return;
     }
 
-    let mut skip = g_st().did_emsg.get() != 0
-        || g_st().got_int.get()
-        || g_st().did_throw.get()
+    let mut skip = g_st().msg.did_emsg.get() != 0
+        || g_st().input.got_int.get()
+        || g_st().exc.did_throw.get()
         || (eap.cstack().cs_flags[eap.cstack().cs_idx as usize] & CSF_TRUE) == 0;
 
     if (eap.cstack().cs_flags[eap.cstack().cs_idx as usize] & CSF_TRY) == 0 {
@@ -1340,14 +1373,14 @@ pub fn ex_endtry(eap: &mut Exarg) {
         cstack.cs_looplevel = looplevel;
         skip = true;
 
-        if g_st().did_throw.get() {
+        if g_st().exc.did_throw.get() {
             discard_current_exception();
         }
 
-        g_st().did_emsg.set(0);
+        g_st().msg.did_emsg.set(0);
     } else {
         idx = eap.cstack_mut().cs_idx;
-        if g_st().did_throw.get()
+        if g_st().exc.did_throw.get()
             && (eap.cstack_mut().cs_flags[idx as usize] & CSF_TRUE) != 0
             && (eap.cstack_mut().cs_flags[idx as usize] & CSF_FINALLY) == 0
         {
@@ -1361,12 +1394,12 @@ pub fn ex_endtry(eap: &mut Exarg) {
             && (eap.cstack_mut().cs_flags[u_idx] & CSF_FINALLY) == 0
             && eap.cstack_mut().cs_pending[u_idx] == 0))
         && dbg_check_skipped(eap)
-        && g_st().got_int.get()
+        && g_st().input.got_int.get()
     {
         skip = true;
         let cstack = eap.cstack_mut();
         do_intthrow(cstack);
-        rethrow = g_st().did_throw.get() && (cstack.cs_flags[u_idx] & CSF_FINALLY) == 0;
+        rethrow = g_st().exc.did_throw.get() && (cstack.cs_flags[u_idx] & CSF_FINALLY) == 0;
     }
 
     {
@@ -1378,6 +1411,7 @@ pub fn ex_endtry(eap: &mut Exarg) {
                 rettv = (&mut cstack.cs_rettv)[u_idx].take();
             } else if (pending & CSTP_THROW) != 0 {
                 g_st()
+                    .exc
                     .current_exception
                     .set((&mut cstack.cs_exception)[u_idx].take());
             }
@@ -1395,7 +1429,7 @@ pub fn ex_endtry(eap: &mut Exarg) {
         let report_val = if pending == CSTP_RETURN {
             PendingVal::Return(rettv.clone())
         } else if (pending & CSTP_THROW) != 0 {
-            PendingVal::Throw(g_st().current_exception.get().clone())
+            PendingVal::Throw(g_st().exc.current_exception.get().clone())
         } else {
             PendingVal::None
         };
@@ -1410,10 +1444,10 @@ pub fn ex_endtry(eap: &mut Exarg) {
             CSTP_FINISH => do_finish(eap, false),
             _ => {
                 if (pending & CSTP_ERROR) != 0 {
-                    g_st().did_emsg.set(1);
+                    g_st().msg.did_emsg.set(1);
                 }
                 if (pending & CSTP_INTERRUPT) != 0 {
-                    g_st().got_int.set(true);
+                    g_st().input.got_int.set(true);
                 }
                 if (pending & CSTP_THROW) != 0 {
                     rethrow = true;
@@ -1430,39 +1464,40 @@ pub fn ex_endtry(eap: &mut Exarg) {
 pub fn enter_cleanup(csp: &mut ExCleanup) {
     let pending = CSTP_NONE;
 
-    if g_st().did_emsg.get() != 0
-        || g_st().got_int.get()
-        || g_st().did_throw.get()
-        || g_st().need_rethrow.get()
+    if g_st().msg.did_emsg.get() != 0
+        || g_st().input.got_int.get()
+        || g_st().exc.did_throw.get()
+        || g_st().exc.need_rethrow.get()
     {
-        csp.pending = (if g_st().did_emsg.get() != 0 {
+        csp.pending = (if g_st().msg.did_emsg.get() != 0 {
             CSTP_ERROR
         } else {
             0
-        }) | (if g_st().got_int.get() {
+        }) | (if g_st().input.got_int.get() {
             CSTP_INTERRUPT
         } else {
             0
-        }) | (if g_st().did_throw.get() || g_st().need_rethrow.get() {
+        }) | (if g_st().exc.did_throw.get() || g_st().exc.need_rethrow.get() {
             CSTP_THROW
         } else {
             0
         });
 
-        if g_st().did_throw.get() || g_st().need_rethrow.get() {
-            csp.exception = g_st().current_exception.take();
+        if g_st().exc.did_throw.get() || g_st().exc.need_rethrow.get() {
+            csp.exception = g_st().exc.current_exception.take();
         } else {
             csp.exception = None;
-            if g_st().did_emsg.get() != 0 {
+            if g_st().msg.did_emsg.get() != 0 {
                 g_st()
+                    .exc
                     .force_abort
-                    .set(g_st().force_abort.get() | (CAUSE_ABORT.replace(false)));
+                    .set(g_st().exc.force_abort.get() | (CAUSE_ABORT.replace(false)));
             }
         }
-        g_st().did_emsg.set(0);
-        g_st().got_int.set(false);
-        g_st().did_throw.set(false);
-        g_st().need_rethrow.set(false);
+        g_st().msg.did_emsg.set(0);
+        g_st().input.got_int.set(false);
+        g_st().exc.did_throw.set(false);
+        g_st().exc.need_rethrow.set(false);
 
         report_make_pending(pending, PendingVal::Throw(csp.exception.clone()));
     } else {
@@ -1477,38 +1512,38 @@ pub fn leave_cleanup(csp: &mut ExCleanup) {
         return;
     }
 
-    if aborting() || g_st().need_rethrow.get() {
+    if aborting() || g_st().exc.need_rethrow.get() {
         if (pending & CSTP_THROW) != 0 {
             discard_exception(csp.exception.take(), false);
         } else {
             report_discard_pending(pending, PendingVal::None);
         }
 
-        if g_st().msg_list.borrow().is_some() {
+        if g_st().exc.has_msg_list() {
             free_global_msglist();
         }
     } else {
         if (pending & CSTP_THROW) != 0 {
-            g_st().current_exception.set(csp.exception.take());
+            g_st().exc.current_exception.set(csp.exception.take());
         } else if (pending & CSTP_ERROR) != 0 {
-            CAUSE_ABORT.set(g_st().force_abort.get());
-            g_st().force_abort.set(false);
+            CAUSE_ABORT.set(g_st().exc.force_abort.get());
+            g_st().exc.force_abort.set(false);
         }
 
         if (pending & CSTP_ERROR) != 0 {
-            g_st().did_emsg.set(1);
+            g_st().msg.did_emsg.set(1);
         }
         if (pending & CSTP_INTERRUPT) != 0 {
-            g_st().got_int.set(true);
+            g_st().input.got_int.set(true);
         }
         if (pending & CSTP_THROW) != 0 {
-            g_st().need_rethrow.set(true);
+            g_st().exc.need_rethrow.set(true);
         }
 
         report_resume_pending(
             pending,
             if (pending & CSTP_THROW) != 0 {
-                PendingVal::Throw(g_st().current_exception.get().clone())
+                PendingVal::Throw(g_st().exc.current_exception.get().clone())
             } else {
                 PendingVal::None
             },
@@ -1523,8 +1558,8 @@ pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: 
     while idx >= 0 {
         let u_idx = idx as usize;
         if (cstack.cs_flags[u_idx] & CSF_TRY) != 0 {
-            if g_st().did_emsg.get() != 0
-                || g_st().got_int.get()
+            if g_st().msg.did_emsg.get() != 0
+                || g_st().input.got_int.get()
                 || (cstack.cs_flags[u_idx] & CSF_FINALLY) != 0
             {
                 let pend = i32::from(cstack.cs_pending[u_idx]);
@@ -1585,7 +1620,7 @@ pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: 
 
         if (cstack.cs_flags[u_idx] & CSF_TRY) != 0 && (cstack.cs_flags[u_idx] & CSF_SILENT) != 0 {
             if let Some(saved) = cstack.cs_emsg_silent_list.pop() {
-                g_st().emsg_silent.set(saved);
+                g_st().msg.emsg_silent.set(saved);
             }
             cstack.cs_flags[u_idx] &= !CSF_SILENT;
         }
@@ -1639,4 +1674,48 @@ pub fn has_loop_cmd(mut rem: &[u8]) -> bool {
         rem = &rem[(len as usize).min(rem.len())..];
     }
     rem.starts_with(b"wh") || rem.starts_with(b"for")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn do_errthrow_releases_msg_list_borrow_before_throw() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        crate::runtime::estack_init();
+        let saved_trylevel = g_st().exc.trylevel.replace(1);
+        let saved_msg_list = g_st().exc.replace_msg_list(Some(Vec::new()));
+        let saved_excp = g_st().exc.current_exception.take();
+
+        let mut ignore = false;
+        assert!(cause_errthrow(
+            c"test error: foo",
+            false,
+            false,
+            false,
+            &mut ignore,
+        ));
+        assert!(g_st().exc.has_nonempty_msg_list());
+
+        // Taking pending messages must drop the RefMut guard so subsequent
+        // msg_list accesses (e.g. from verbose/UI callbacks during throw) succeed.
+        do_errthrow(None, Some(c"test"));
+        assert!(!g_st().exc.has_nonempty_msg_list());
+        assert!(cause_errthrow(
+            c"test error: follow-up",
+            false,
+            false,
+            false,
+            &mut ignore,
+        ));
+        free_global_msglist();
+
+        discard_current_exception();
+        g_st().exc.set_msg_list(saved_msg_list);
+        g_st().exc.current_exception.set(saved_excp);
+        g_st().exc.trylevel.set(saved_trylevel);
+    }
 }

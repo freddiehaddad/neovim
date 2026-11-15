@@ -506,9 +506,10 @@ fn next_search_hl(
 ) {
     let mut matchcol: Colnr;
     let mut nmatched: i32 = 0;
-    let called_emsg_before = g_st().called_emsg.get();
+    let called_emsg_before = g_st().msg.called_emsg.get();
 
-    if (lnum < g_st().search_global.first_line.get() || lnum > g_st().search_global.last_line.get())
+    if (lnum < g_st().search.search_global.first_line.get()
+        || lnum > g_st().search.search_global.last_line.get())
         && match_idx.is_none()
     {
         get_shl_mut(win, search_hl, match_idx).lnum = 0;
@@ -571,8 +572,8 @@ fn next_search_hl(
             );
             let mut shl = get_shl_mut(win, search_hl, match_idx);
             shl.rm = rm;
-            if g_st().called_emsg.get() > called_emsg_before
-                || g_st().got_int.get()
+            if g_st().msg.called_emsg.get() > called_emsg_before
+                || g_st().input.got_int.get()
                 || timed_out != 0
             {
                 if match_idx.is_none() {
@@ -581,7 +582,7 @@ fn next_search_hl(
                 }
                 shl.rm.free_prog();
                 shl.lnum = 0;
-                g_st().got_int.set(false);
+                g_st().input.got_int.set(false);
                 break;
             }
         } else if let Some(idx) = match_idx {
@@ -831,7 +832,7 @@ pub fn update_search_hl(
                     let attr_cur = win_hl_attr(wp, HLF_LC as i32);
                     search_hl.attr_cur = attr_cur;
                     if attr_cur != attr {
-                        g_st().search_hl_has_cursor_lnum.set(lnum);
+                        g_st().search.search_hl_has_cursor_lnum.set(lnum);
                     }
                 } else {
                     get_shl_mut(wp, search_hl, match_idx).attr_cur = attr;

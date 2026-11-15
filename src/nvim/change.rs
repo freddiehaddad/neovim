@@ -131,7 +131,7 @@ pub fn change_warning(buf: &FileBuf, col: i32) {
     let buf_ptr = crate::globals::BufPtr::from(buf);
     if !buf_ptr.b_did_warn.get()
         && !curbuf_is_changed_fn()
-        && !g_st().autocmd_busy.get()
+        && !g_st().autocmd.autocmd_busy.get()
         && buf_ptr.b_p_ro.get()
     {
         buf_ptr.b_ro_locked.set(buf_ptr.b_ro_locked.get() + (1));
@@ -141,8 +141,8 @@ pub fn change_warning(buf: &FileBuf, col: i32) {
             return;
         }
         msg_start();
-        if g_st().msg_row.get() == g_st().rows_global.get() - 1 {
-            g_st().msg_col.set(col);
+        if g_st().msg.msg_row.get() == g_st().screen.rows_global.get() - 1 {
+            g_st().msg.msg_col.set(col);
         }
         msg_source(HLF_W);
         msg_ext_set_kind(c"wmsg");
@@ -150,12 +150,13 @@ pub fn change_warning(buf: &FileBuf, col: i32) {
         set_vim_var_string(VV_WARNINGMSG, Some(tr(W_READONLY)), -1);
         msg_clr_eos();
         msg_end();
-        if g_st().msg_silent.get() == 0 && !g_st().silent_mode.get() && ui_active() != 0 {
+        if g_st().msg.msg_silent.get() == 0 && !g_st().cmdline.silent_mode.get() && ui_active() != 0
+        {
             msg_delay(1002, true);
         }
         buf.b_did_warn.set(true);
-        g_st().redraw_cmdline.set(false);
-        if g_st().msg_row.get() < g_st().rows_global.get() - 1 {
+        g_st().cmdline.redraw_cmdline.set(false);
+        if g_st().msg.msg_row.get() < g_st().screen.rows_global.get() - 1 {
             showmode();
         }
     }
@@ -164,34 +165,34 @@ pub fn change_warning(buf: &FileBuf, col: i32) {
 /// Call this function when something in a buffer is changed.
 pub fn changed(buf: &FileBuf) {
     if buf.b_changed.get() == 0 {
-        let save_msg_scroll = g_st().msg_scroll.get();
+        let save_msg_scroll = g_st().msg.msg_scroll.get();
 
         change_warning(buf, 0);
 
         if buf.b_may_swap.get() && !bt_dontwrite(Some(buf)) {
-            let save_need_wait_return = g_st().need_wait_return.get();
+            let save_need_wait_return = g_st().msg.need_wait_return.get();
 
-            g_st().need_wait_return.set(false);
+            g_st().msg.need_wait_return.set(false);
             ml_open_file(buf);
 
-            if g_st().need_wait_return.get()
-                && g_st().emsg_silent.get() == 0
-                && !g_st().in_assert_fails.get()
+            if g_st().msg.need_wait_return.get()
+                && g_st().msg.emsg_silent.get() == 0
+                && !g_st().msg.in_assert_fails.get()
                 && !ui_has(K_UIMESSAGES)
             {
                 msg_delay(2002, true);
                 wait_return(i32::from(true));
-                g_st().msg_scroll.set(save_msg_scroll);
+                g_st().msg.msg_scroll.set(save_msg_scroll);
             } else {
-                g_st().need_wait_return.set(save_need_wait_return);
+                g_st().msg.need_wait_return.set(save_need_wait_return);
             }
         }
         changed_internal(buf);
     }
     buf_inc_changedtick(buf);
 
-    if g_st().curbuf.get() == buf {
-        g_st().search_global.hl_match.set(false);
+    if g_st().workspace.curbuf.get() == buf {
+        g_st().search.search_global.hl_match.set(false);
     }
 }
 
@@ -201,8 +202,8 @@ pub fn changed_internal(buf: &FileBuf) {
     buf.b_changed.set(1);
     ml_setflags(buf);
     redraw_buf_status_later(buf);
-    g_st().redraw_tabline.set(true);
-    g_st().need_maketitle.set(true);
+    g_st().workspace.redraw_tabline.set(true);
+    g_st().screen.need_maketitle.set(true);
     if !was_changed {
         aucmd_defer_modified(buf, true);
     }
@@ -308,7 +309,7 @@ fn changed_common(buf: &FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr, xt
         }
     }
 
-    if (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPJUMPS) == 0 {
+    if (g_st().cmdline.cmod_flags() & CMOD_KEEPJUMPS) == 0 {
         let mut view = INIT_FMARKV;
         if curwin().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut())
             && lnum >= curwin().w_topline.get()
@@ -328,7 +329,7 @@ fn changed_common(buf: &FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr, xt
         );
     }
 
-    if (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPJUMPS) == 0 && !mc_replaying() {
+    if (g_st().cmdline.cmod_flags() & CMOD_KEEPJUMPS) == 0 && !mc_replaying() {
         if buf.b_new_change.get() || buf.b_changelistlen.get() == 0 {
             let add = if buf.b_changelistlen.get() == 0 {
                 true
@@ -376,14 +377,14 @@ fn changed_common(buf: &FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr, xt
     }
 
     if curwin().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut())
-        && g_st().visual_global.borrow().active
+        && g_st().edit.visual_global.active.get()
     {
         check_visual_pos();
     }
 
     for_all_tab_windows(|wp| {
         if wp.w_buffer.get() == (std::ptr::from_ref(buf).cast_mut()) {
-            if !g_st().redraw_not_allowed.get() && wp.w_redr_type.get() < UPD_VALID {
+            if !g_st().screen.redraw_not_allowed.get() && wp.w_redr_type.get() < UPD_VALID {
                 wp.w_redr_type.set(UPD_VALID);
             }
 
@@ -429,24 +430,25 @@ fn changed_common(buf: &FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr, xt
             }
         }
 
-        if wp == curwin() && xtra != 0 && g_st().search_hl_has_cursor_lnum.get() >= lnum {
+        if wp == curwin() && xtra != 0 && g_st().search.search_hl_has_cursor_lnum.get() >= lnum {
             g_st()
+                .search
                 .search_hl_has_cursor_lnum
-                .set(g_st().search_hl_has_cursor_lnum.get() + (xtra));
+                .set(g_st().search.search_hl_has_cursor_lnum.get() + (xtra));
         }
     });
 
     set_must_redraw(UPD_VALID);
 
-    if g_st().last_cursormoved_win.get() == curwin()
+    if g_st().autocmd.last_cursormoved_win.get() == curwin()
         && curwin().w_buffer.get() == (std::ptr::from_ref(buf).cast_mut())
         && lnum <= curwin().w_cursor.get().lnum
         && lnume + xtra.abs() > curwin().w_cursor.get().lnum
     {
         {
-            let mut v = g_st().last_cursormoved.get();
+            let mut v = g_st().autocmd.last_cursormoved.get();
             v.lnum = 0;
-            g_st().last_cursormoved.set(v);
+            g_st().autocmd.last_cursormoved.set(v);
         }
     }
 }
@@ -478,7 +480,7 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
 
 /// Insert/delete bytes at column.
 pub fn inserted_bytes(lnum: Linenr, start_col: Colnr, old_col: i32, new_col: i32) {
-    if g_st().curbuf_splice_pending.get() == 0 {
+    if g_st().workspace.curbuf_splice_pending.get() == 0 {
         extmark_splice_cols(
             &curbuf(),
             lnum - 1,
@@ -602,8 +604,8 @@ pub fn unchanged(buf: &FileBuf, ff: bool, always_inc_changedtick: bool) {
             save_file_ff(buf);
         }
         redraw_buf_status_later(buf);
-        g_st().redraw_tabline.set(true);
-        g_st().need_maketitle.set(true);
+        g_st().workspace.redraw_tabline.set(true);
+        g_st().screen.need_maketitle.set(true);
         buf_inc_changedtick(buf);
         if was_changed {
             aucmd_defer_modified(buf, false);
@@ -711,8 +713,8 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
         let mut oldlen: usize = 0;
         let mut newlen: usize = charlen;
 
-        if (g_st().state_global.get() & REPLACE_FLAG) != 0 {
-            if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
+        if (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
+            if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0 {
                 let old_list = curwin().w_onebuf_opt.wo_list.get();
                 if old_list
                     && !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_LISTWM)
@@ -759,14 +761,14 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
         inserted_bytes(lnum, col as Colnr, oldlen as i32, newlen as i32);
 
         if opt_vars().p_sm.get()
-            && (g_st().state_global.get() & MODE_INSERT) != 0
-            && g_st().msg_silent.get() == 0
+            && (g_st().edit.state_global.get() & MODE_INSERT) != 0
+            && g_st().msg.msg_silent.get() == 0
             && !ins_compl_active()
         {
             showmatch(crate::mbyte::utf_slice2char(buf_slice));
         }
 
-        if !opt_vars().p_ri.get() || (g_st().state_global.get() & REPLACE_FLAG) != 0 {
+        if !opt_vars().p_ri.get() || (g_st().edit.state_global.get() & REPLACE_FLAG) != 0 {
             curwin().w_cursor.add_col(charlen as Colnr);
         }
     }
@@ -876,7 +878,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
     if movelen <= 1 {
         if col > 0
             && fixpos
-            && g_st().restart_edit.get() == 0
+            && g_st().edit.restart_edit.get() == 0
             && (get_ve_flags(&curwin()) & K_OPT_VE_FLAG_ONEMORE) == 0
         {
             curwin().w_cursor.sub_col(1);
@@ -955,8 +957,8 @@ pub fn open_line(
     let mut saved_line_vec = crate::cursor::get_cursor_line_slice().to_vec();
     saved_line_vec.push(0);
 
-    if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
-        if curwin().w_cursor.get().lnum < g_st().orig_line_count.get() {
+    if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0 {
+        if curwin().w_cursor.get().lnum < g_st().edit.orig_line_count.get() {
             let next_lnum = curwin().w_cursor.get().lnum + 1;
             next_line_vec = crate::memline::ml_get_slice(next_lnum).to_vec();
             next_line_vec.push(0);
@@ -972,8 +974,8 @@ pub fn open_line(
         saved_line_vec[col_u] = 0;
     }
 
-    if (g_st().state_global.get() & MODE_INSERT) != 0
-        && (g_st().state_global.get() & VREPLACE_FLAG) == 0
+    if (g_st().edit.state_global.get() & MODE_INSERT) != 0
+        && (g_st().edit.state_global.get() & VREPLACE_FLAG) == 0
     {
         let col_u = curwin().w_cursor.get().col as usize;
         p_extra_idx = Some(col_u);
@@ -989,10 +991,10 @@ pub fn open_line(
     }
 
     u_clearline(&curbuf());
-    g_st().ins_global.borrow_mut().did_si = false;
-    g_st().ins_global.borrow_mut().ai_col = 0;
+    g_st().edit.ins_global.did_si.set(false);
+    g_st().edit.ins_global.ai_col.set(0);
 
-    if dir == FORWARD && g_st().ins_global.borrow().did_ai {
+    if dir == FORWARD && g_st().edit.ins_global.did_ai.get() {
         trunc_line = true;
     }
 
@@ -1088,10 +1090,10 @@ pub fn open_line(
                         }
                     }
                     if last_char == b'{' {
-                        g_st().ins_global.borrow_mut().did_si = true;
+                        g_st().edit.ins_global.did_si.set(true);
                         no_si = true;
                     } else if last_char != b';' && last_char != b'}' && cin_is_cinword(ptr_bytes) {
-                        g_st().ins_global.borrow_mut().did_si = true;
+                        g_st().edit.ins_global.did_si.set(true);
                     }
                 }
             } else {
@@ -1114,18 +1116,18 @@ pub fn open_line(
                     }
                 }
                 if crate::charset::skipwhite_slice(ptr_bytes).first() == Some(&b'}') {
-                    g_st().ins_global.borrow_mut().did_si = true;
+                    g_st().edit.ins_global.did_si.set(true);
                 } else {
-                    g_st().ins_global.borrow_mut().can_si_back = true;
+                    g_st().edit.ins_global.can_si_back.set(true);
                 }
             }
             curwin().w_cursor.set(old_cursor);
         }
         if do_si {
-            g_st().ins_global.borrow_mut().can_si = true;
+            g_st().edit.ins_global.can_si.set(true);
         }
 
-        g_st().ins_global.borrow_mut().did_ai = true;
+        g_st().edit.ins_global.did_ai.set(true);
     }
 
     let do_cindent = !opt_vars().p_paste.get()
@@ -1141,7 +1143,7 @@ pub fn open_line(
         )
         && (flags & OPENLINE_FORCE_INDENT) == 0;
 
-    g_st().ins_global.borrow_mut().end_comment_pending = 0;
+    g_st().edit.ins_global.end_comment_pending.set(0);
     if (flags & OPENLINE_DO_COM) != 0 {
         let saved_line_bytes = crate::memory::bytes_until_nul(&saved_line_vec);
         lead_len = get_leader_len(
@@ -1220,7 +1222,7 @@ pub fn open_line(
 
                 if let Some(colon_pos) = p_bytes.iter().position(|&b| b == b':') {
                     if p_bytes[..colon_pos].contains(&COM_AUTO_END) {
-                        g_st().ins_global.borrow_mut().end_comment_pending = -1;
+                        g_st().edit.ins_global.end_comment_pending.set(-1);
                     }
                     p_bytes = &p_bytes[colon_pos + 1..];
                 } else {
@@ -1228,8 +1230,12 @@ pub fn open_line(
                 }
                 let n = copy_option_part(&mut p_bytes, &mut lead_end[..COM_MAX_LEN], c",");
 
-                if g_st().ins_global.borrow().end_comment_pending == -1 {
-                    g_st().ins_global.borrow_mut().end_comment_pending = i32::from(lead_end[n - 1]);
+                if g_st().edit.ins_global.end_comment_pending.get() == -1 {
+                    g_st()
+                        .edit
+                        .ins_global
+                        .end_comment_pending
+                        .set(i32::from(lead_end[n - 1]));
                 }
 
                 if dir == FORWARD {
@@ -1288,18 +1294,21 @@ pub fn open_line(
                 let mut p2_idx = cur_idx;
                 while p2_idx < com_bytes.len() && com_bytes[p2_idx] != b':' {
                     if com_bytes[p2_idx] == COM_AUTO_END {
-                        g_st().ins_global.borrow_mut().end_comment_pending = -1;
+                        g_st().edit.ins_global.end_comment_pending.set(-1);
                     }
                     p2_idx += 1;
                 }
-                if g_st().ins_global.borrow().end_comment_pending == -1 {
+                if g_st().edit.ins_global.end_comment_pending.get() == -1 {
                     while p2_idx < com_bytes.len() && com_bytes[p2_idx] != b',' {
                         p2_idx += 1;
                     }
 
                     if p2_idx > 0 {
-                        g_st().ins_global.borrow_mut().end_comment_pending =
-                            i32::from(com_bytes[p2_idx - 1]);
+                        g_st()
+                            .edit
+                            .ins_global
+                            .end_comment_pending
+                            .set(i32::from(com_bytes[p2_idx - 1]));
                     }
                 }
                 break;
@@ -1519,15 +1528,15 @@ pub fn open_line(
 
             newcol = lead_len;
 
-            if newindent != 0 || g_st().ins_global.borrow().did_si {
+            if newindent != 0 || g_st().edit.ins_global.did_si.get() {
                 while lead_len != 0 && ascii_iswhite(allocated_vec[leader_idx]) {
                     lead_len -= 1;
                     newcol -= 1;
                     leader_idx += 1;
                 }
             }
-            g_st().ins_global.borrow_mut().did_si = false;
-            g_st().ins_global.borrow_mut().can_si = false;
+            g_st().edit.ins_global.did_si.set(false);
+            g_st().edit.ins_global.can_si.set(false);
         } else if let Some(ce_idx) = comment_end_idx
             && saved_line_vec[ce_idx..].starts_with(b"*/")
             && (curbuf().b_p_ai.get() || do_si)
@@ -1547,14 +1556,14 @@ pub fn open_line(
     if let Some(mut pe_idx) = p_extra_idx {
         saved_line_vec[pe_idx] = saved_char;
 
-        if replace_normal(g_st().state_global.get()) {
+        if replace_normal(g_st().edit.state_global.get()) {
             replace_push_nul();
         }
         if curbuf().b_p_ai.get() || (flags & OPENLINE_DELSPACES) != 0 {
             while (saved_line_vec[pe_idx] == b' ' || saved_line_vec[pe_idx] == b'\t')
                 && !utf_iscomposing_first(utf_ptr2char(&saved_line_vec[pe_idx + 1..]))
             {
-                if replace_normal(g_st().state_global.get()) {
+                if replace_normal(g_st().edit.state_global.get()) {
                     replace_push(&saved_line_vec[pe_idx..pe_idx + 1]);
                 }
                 pe_idx += 1;
@@ -1588,17 +1597,18 @@ pub fn open_line(
         allocated_vec[lead_off + cur_len..lead_off + cur_len + extra_bytes.len()]
             .copy_from_slice(extra_bytes);
         p_extra_in_allocated = Some(lead_off);
-        g_st().ins_global.borrow_mut().did_ai = true;
+        g_st().edit.ins_global.did_ai.set(true);
         less_cols -= lead_len;
     } else {
-        g_st().ins_global.borrow_mut().end_comment_pending = 0;
+        g_st().edit.ins_global.end_comment_pending.set(0);
     }
 
     g_st()
+        .workspace
         .curbuf_splice_pending
-        .set(g_st().curbuf_splice_pending.get() + (1));
+        .set(g_st().workspace.curbuf_splice_pending.get() + (1));
     let old_cursor = curwin().w_cursor.get();
-    let old_cmod_flags = g_st().cmdmod.borrow().cmod_flags;
+    let old_cmod_flags = g_st().cmdline.cmod_flags();
     let mut prompt_moved: Option<std::ffi::CString> = None;
 
     fn current_extra_bytes<'a>(
@@ -1628,7 +1638,7 @@ pub fn open_line(
             if prompt_line_bytes.starts_with(prompt.to_bytes()) {
                 let rem_bytes = prompt_line_bytes[prompt_len..].to_vec();
 
-                g_st().cmdmod.borrow_mut().cmod_flags |= CMOD_LOCKMARKS;
+                g_st().cmdline.add_cmod_flags(CMOD_LOCKMARKS);
                 ml_replace(curwin().w_cursor.get().lnum, &rem_bytes, true);
                 let cur_extra = current_extra_bytes(
                     p_extra_in_allocated,
@@ -1653,8 +1663,8 @@ pub fn open_line(
         )
     };
     let mut did_append: bool;
-    let append_failed = if (g_st().state_global.get() & VREPLACE_FLAG) == 0
-        || old_cursor.lnum >= g_st().orig_line_count.get()
+    let append_failed = if (g_st().edit.state_global.get() & VREPLACE_FLAG) == 0
+        || old_cursor.lnum >= g_st().edit.orig_line_count.get()
     {
         if !ml_append(curwin().w_cursor.get().lnum, p_extra_bytes, 0, false) {
             did_append = false;
@@ -1673,12 +1683,13 @@ pub fn open_line(
     } else {
         curwin().w_cursor.add_lnum(1);
         if curwin().w_cursor.get().lnum
-            >= g_st().ins_global.borrow().start.lnum + g_st().vr_lines_changed.get()
+            >= g_st().edit.ins_global.start.get().lnum + g_st().edit.vr_lines_changed.get()
         {
             u_save_cursor();
             g_st()
+                .edit
                 .vr_lines_changed
-                .set(g_st().vr_lines_changed.get() + (1));
+                .set(g_st().edit.vr_lines_changed.get() + (1));
         }
         ml_replace(curwin().w_cursor.get().lnum, p_extra_bytes, true);
         changed_bytes(curwin().w_cursor.get().lnum, 0);
@@ -1689,11 +1700,12 @@ pub fn open_line(
 
     if !append_failed {
         g_st()
+            .edit
             .inhibit_delete_count
-            .set(g_st().inhibit_delete_count.get() + (1));
-        if newindent != 0 || g_st().ins_global.borrow().did_si {
+            .set(g_st().edit.inhibit_delete_count.get() + (1));
+        if newindent != 0 || g_st().edit.ins_global.did_si.get() {
             curwin().w_cursor.add_lnum(1);
-            if g_st().ins_global.borrow().did_si {
+            if g_st().edit.ins_global.did_si.get() {
                 let sw = get_sw_value(&curbuf());
                 if opt_vars().p_sr.get() {
                     newindent -= newindent % sw;
@@ -1708,23 +1720,28 @@ pub fn open_line(
             }
             less_cols -= curwin().w_cursor.get().col;
 
-            g_st().ins_global.borrow_mut().ai_col = curwin().w_cursor.get().col;
+            g_st()
+                .edit
+                .ins_global
+                .ai_col
+                .set(curwin().w_cursor.get().col);
 
-            if replace_normal(g_st().state_global.get()) {
+            if replace_normal(g_st().edit.state_global.get()) {
                 for _ in 0..curwin().w_cursor.get().col {
                     replace_push_nul();
                 }
             }
             newcol += curwin().w_cursor.get().col;
             if no_si {
-                g_st().ins_global.borrow_mut().did_si = false;
+                g_st().edit.ins_global.did_si.set(false);
             }
         }
         g_st()
+            .edit
             .inhibit_delete_count
-            .set(g_st().inhibit_delete_count.get() - (1));
+            .set(g_st().edit.inhibit_delete_count.get() - (1));
 
-        if replace_normal(g_st().state_global.get()) {
+        if replace_normal(g_st().edit.state_global.get()) {
             while lead_len > 0 {
                 replace_push_nul();
                 lead_len -= 1;
@@ -1734,7 +1751,7 @@ pub fn open_line(
         curwin().w_cursor.set(old_cursor);
 
         if dir == FORWARD {
-            if trunc_line || (g_st().state_global.get() & MODE_INSERT) != 0 {
+            if trunc_line || (g_st().edit.state_global.get() & MODE_INSERT) != 0 {
                 saved_line_vec[curwin().w_cursor.get().col as usize] = 0;
 
                 if trunc_line && (flags & OPENLINE_KEEPTRAIL) == 0 {
@@ -1824,15 +1841,16 @@ pub fn open_line(
             );
         }
         g_st()
+            .workspace
             .curbuf_splice_pending
-            .set(g_st().curbuf_splice_pending.get() - (1));
+            .set(g_st().workspace.curbuf_splice_pending.get() - (1));
 
         curwin().w_cursor.set_col(newcol);
         curwin().w_cursor.set_coladd(0);
 
-        let vreplace_mode = if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
-            let m = g_st().state_global.get();
-            g_st().state_global.set(MODE_INSERT);
+        let vreplace_mode = if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0 {
+            let m = g_st().edit.state_global.get();
+            g_st().edit.state_global.set(MODE_INSERT);
             m
         } else {
             0
@@ -1845,18 +1863,26 @@ pub fn open_line(
                 && curbuf().b_p_ai.get()
             {
                 fixthisline(get_lisp_indent);
-                g_st().ins_global.borrow_mut().ai_col = getwhitecols_curline() as Colnr;
+                g_st()
+                    .edit
+                    .ins_global
+                    .ai_col
+                    .set(getwhitecols_curline() as Colnr);
             } else if do_cindent || (curbuf().b_p_ai.get() && use_indentexpr_for_lisp()) {
                 do_c_expr_indent();
-                g_st().ins_global.borrow_mut().ai_col = getwhitecols_curline() as Colnr;
+                g_st()
+                    .edit
+                    .ins_global
+                    .ai_col
+                    .set(getwhitecols_curline() as Colnr);
             }
         }
 
         if vreplace_mode != 0 {
-            g_st().state_global.set(vreplace_mode);
+            g_st().edit.state_global.set(vreplace_mode);
         }
 
-        if (g_st().state_global.get() & VREPLACE_FLAG) != 0 {
+        if (g_st().edit.state_global.get() & VREPLACE_FLAG) != 0 {
             let extra_vec = crate::cursor::get_cursor_line_slice().to_vec();
             ml_replace(
                 curwin().w_cursor.get().lnum,
@@ -1876,7 +1902,7 @@ pub fn open_line(
     drop(next_line_vec);
     drop(allocated_vec);
     drop(prompt_moved);
-    g_st().cmdmod.borrow_mut().cmod_flags = old_cmod_flags;
+    g_st().cmdline.set_cmod_flags(old_cmod_flags);
     retval
 }
 

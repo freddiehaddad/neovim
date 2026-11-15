@@ -235,10 +235,10 @@ fn coladvance2(
     let mut head: i32 = 0;
 
     let one_more = i32::from(
-        (g_st().state_global.get() & MODE_INSERT) != 0
-            || (g_st().state_global.get() & MODE_TERMINAL) != 0
-            || g_st().restart_edit.get() != 0
-            || (g_st().visual_global.borrow().active && opt_vars().p_sel.first_byte() != b'o')
+        (g_st().edit.state_global.get() & MODE_INSERT) != 0
+            || (g_st().edit.state_global.get() & MODE_TERMINAL) != 0
+            || g_st().edit.restart_edit.get() != 0
+            || (g_st().edit.visual_global.active.get() && opt_vars().p_sel.first_byte() != b'o')
             || ((get_ve_flags(wp) & K_OPT_VE_FLAG_ONEMORE) != 0 && wcol < MAXCOL),
     );
 
@@ -246,7 +246,7 @@ fn coladvance2(
         idx = ml_get_buf_len(&wp.buf(), pos.lnum) - 1 + one_more;
         col = wcol;
 
-        if (addspaces || finetune) && !g_st().visual_global.borrow().active {
+        if (addspaces || finetune) && !g_st().edit.visual_global.active.get() {
             let cw = linetabsize(wp, pos.lnum) + one_more;
             wp.w_curswant.set(cw);
             if wp.w_curswant.get() > 0 {
@@ -270,7 +270,7 @@ fn coladvance2(
 
             let disp_wcol = vcol2disp_vcol(wp, pos.lnum, wcol);
             if disp_wcol / width > csize / width
-                && ((g_st().state_global.get() & MODE_INSERT) == 0 || disp_wcol > csize + 1)
+                && ((g_st().edit.state_global.get() & MODE_INSERT) == 0 || disp_wcol > csize + 1)
             {
                 wcol = disp_vcol2vcol(wp, pos.lnum, (csize / width + 1) * width - 1);
             }
@@ -457,10 +457,10 @@ pub fn check_cursor_col(win: &WinInfoInfo) {
     if len == 0 {
         win.w_cursor.set_col(0);
     } else if win.w_cursor.get().col >= len {
-        if (g_st().state_global.get() & MODE_INSERT) != 0
-            || g_st().restart_edit.get() != 0
-            || (g_st().state_global.get() & MODE_TERMINAL) != 0
-            || (g_st().visual_global.borrow().active && opt_vars().p_sel.first_byte() != b'o')
+        if (g_st().edit.state_global.get() & MODE_INSERT) != 0
+            || g_st().edit.restart_edit.get() != 0
+            || (g_st().edit.state_global.get() & MODE_TERMINAL) != 0
+            || (g_st().edit.visual_global.active.get() && opt_vars().p_sel.first_byte() != b'o')
             || (cur_ve_flags & K_OPT_VE_FLAG_ONEMORE) != 0
             || virtual_active(win)
         {
@@ -504,15 +504,19 @@ pub fn check_cursor(wp: &WinInfoInfo) {
 
 /// Check if `Visual.start` position is valid, correct it if not (`check_visual_pos`).
 pub fn check_visual_pos() {
-    if g_st().visual_global.borrow().start.lnum > curbuf().b_ml.ml_line_count.get() {
-        g_st().visual_global.borrow_mut().start.lnum = curbuf().b_ml.ml_line_count.get();
-        g_st().visual_global.borrow_mut().start.col = 0;
-        g_st().visual_global.borrow_mut().start.coladd = 0;
+    if g_st().edit.visual_global.start.get().lnum > curbuf().b_ml.ml_line_count.get() {
+        g_st()
+            .edit
+            .visual_global
+            .start
+            .set_lnum(curbuf().b_ml.ml_line_count.get());
+        g_st().edit.visual_global.start.set_col(0);
+        g_st().edit.visual_global.start.set_coladd(0);
     } else {
-        let len = ml_get_len(g_st().visual_global.borrow().start.lnum);
-        if g_st().visual_global.borrow().start.col > len {
-            g_st().visual_global.borrow_mut().start.col = len;
-            g_st().visual_global.borrow_mut().start.coladd = 0;
+        let len = ml_get_len(g_st().edit.visual_global.start.get().lnum);
+        if g_st().edit.visual_global.start.get().col > len {
+            g_st().edit.visual_global.start.set_col(len);
+            g_st().edit.visual_global.start.set_coladd(0);
         }
     }
 }
@@ -520,7 +524,7 @@ pub fn check_visual_pos() {
 /// Make sure `curwin->w_cursor` is not on the NUL at the end of the line (`adjust_cursor_col`).
 pub fn adjust_cursor_col() {
     if curwin().w_cursor.get().col > 0
-        && (!g_st().visual_global.borrow().active || opt_vars().p_sel.first_byte() == b'o')
+        && (!g_st().edit.visual_global.active.get() || opt_vars().p_sel.first_byte() == b'o')
         && gchar_cursor() == 0
     {
         curwin().w_cursor.sub_col(1);

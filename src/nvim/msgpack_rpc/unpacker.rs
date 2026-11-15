@@ -696,12 +696,18 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
             } else {
                 let sc = crate::grid::schar_from_bytes(cell_bytes);
                 for _ in 0..repeat {
-                    if p.grid_line_event.coloff >= (crate::ui_client::grid_line_buf_len() as i32) {
+                    if p.grid_line_event.coloff
+                        >= (crate::ui_client::ui_client_grid_line_len() as i32)
+                    {
                         p.state = -1;
                         return false;
                     }
                     let off = p.grid_line_event.coloff as usize;
-                    crate::ui_client::set_grid_line_buf_cell(off, sc, p.grid_line_event.cur_attr);
+                    crate::ui_client::ui_client_set_grid_line_cell(
+                        off,
+                        sc,
+                        p.grid_line_event.cur_attr,
+                    );
                     p.grid_line_event.coloff += 1;
                 }
             }

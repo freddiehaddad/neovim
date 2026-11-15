@@ -294,7 +294,7 @@ pub fn nvim_ui_attach(
             .insert(channel_id, std::rc::Rc::clone(&ui_rc));
     });
 
-    g_st().current_ui.set(channel_id);
+    g_st().screen.current_ui.set(channel_id);
     ui_attach_impl(&ui_rc, channel_id);
 
     if let Some(chan) = find_channel_opt(channel_id) {
@@ -328,7 +328,7 @@ pub fn ui_attach(
 pub fn nvim_ui_set_focus(channel_id: u64, gained: Boolean) -> Result<(), Error> {
     get_ui_or_err(channel_id)?;
     if gained {
-        g_st().current_ui.set(channel_id);
+        g_st().screen.current_ui.set(channel_id);
         may_trigger_vim_suspend_resume(false);
     }
     do_autocmd_focusgained(gained);
@@ -550,7 +550,7 @@ fn ui_set_option(
                 Some(api_typename(value.obj_type)),
             ));
         }
-        g_st().t_colors.set(value.data.integer() as i32);
+        g_st().screen.t_colors.set(value.data.integer() as i32);
         ui.term_colors = value.data.integer() as i32;
         return Ok(());
     }
@@ -577,7 +577,7 @@ fn ui_set_option(
                 c"stdin_fd can only be used with first attached UI",
             ));
         }
-        g_st().stdin_fd.set(value.data.integer() as i32);
+        g_st().exc.stdin_fd.set(value.data.integer() as i32);
         return Ok(());
     }
 
@@ -590,7 +590,7 @@ fn ui_set_option(
             ));
         }
         if ui.channel_id == CHAN_STDIO {
-            g_st().stdin_isatty.set(value.data.boolean());
+            g_st().exc.stdin_isatty.set(value.data.boolean());
         }
         ui.stdin_tty = value.data.boolean();
         return Ok(());
@@ -605,7 +605,7 @@ fn ui_set_option(
             ));
         }
         if ui.channel_id == CHAN_STDIO {
-            g_st().stdout_isatty.set(value.data.boolean());
+            g_st().exc.stdout_isatty.set(value.data.boolean());
         }
         ui.stdout_tty = value.data.boolean();
         return Ok(());
@@ -1184,7 +1184,7 @@ pub fn remote_ui_raw_line(
         if endcol < clearcol {
             remote_ui_cursor_goto(ui, row, endcol);
             remote_ui_highlight_set(ui, clearattr as i32);
-            if clearattr == 0 && clearcol == Integer::from(g_st().columns_global.get()) {
+            if clearattr == 0 && clearcol == Integer::from(g_st().screen.columns_global.get()) {
                 push_call(ui, c"eol_clear", ARRAY_INIT);
             } else {
                 let mut c = endcol;

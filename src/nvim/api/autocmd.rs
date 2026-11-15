@@ -781,7 +781,7 @@ pub fn nvim_create_autocmd(
                     handler_cmd.as_deref(),
                     &mut handler_fn,
                 );
-                g_st().current_sctx.set(save_current_sctx);
+                g_st().exc.current_sctx.set(save_current_sctx);
 
                 if !retval {
                     return Err(api_error!(
@@ -911,7 +911,7 @@ pub fn nvim_create_augroup(
     let save_current_sctx = api_set_sctx(channel_id);
     let augroup = augroup_add(augroup_name.as_cstr());
     if augroup == AUGROUP_ERROR {
-        g_st().current_sctx.set(save_current_sctx);
+        g_st().exc.current_sctx.set(save_current_sctx);
         return Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Failed to set augroup",
@@ -923,7 +923,7 @@ pub fn nvim_create_augroup(
             aucmd_del_for_event_and_group(event as AuEvent, augroup);
         }
     }
-    g_st().current_sctx.set(save_current_sctx);
+    g_st().exc.current_sctx.set(save_current_sctx);
 
     Ok(i64::from(augroup))
 }
@@ -974,7 +974,7 @@ pub fn nvim_del_augroup_by_name(name: NvimString) -> Result<(), Error> {
 //                                   Error *err) FUNC_API_SINCE(9);
 pub fn nvim_exec_autocmds(event: Object, opts: &mut KeyDictExecAutocmds) -> Result<(), Error> {
     let mut au_group = AUGROUP_ALL;
-    let mut b = g_st().curbuf.get();
+    let mut b = g_st().workspace.curbuf.get();
 
     let event_array = unpack_string_or_array(event, c"event", true)?;
 

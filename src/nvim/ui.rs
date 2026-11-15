@@ -171,8 +171,9 @@ fn ui_rcs() -> Vec<std::rc::Rc<std::cell::RefCell<RemoteUI>>> {
 }
 
 pub fn ui_init() {
-    g_st().default_grid.handle.set(1);
+    g_st().screen.default_grid.handle.set(1);
     g_st()
+        .msg
         .msg_grid_adj
         .target
         .set(crate::grid::GridTarget::Default);
@@ -185,7 +186,7 @@ pub fn ui_free_all_mem() {
         *st.uis.borrow_mut() = Vec::new();
     });
 
-    if let Some(events) = g_st().resize_events.get().opt() {
+    if let Some(events) = g_st().screen.resize_events.get().opt() {
         multiqueue_free(events);
     }
 }
@@ -229,7 +230,7 @@ pub fn ui_active() -> usize {
 }
 
 pub fn ui_refresh() {
-    if g_st().ui_client_channel_id.get() != 0 {
+    if g_st().screen.ui_client_channel_id.get() != 0 {
         std::process::abort();
     }
 
@@ -267,7 +268,7 @@ pub fn ui_refresh() {
     }
 
     if had_message != ui_state(|st| st.ui_ext.get()[K_UIMESSAGES]) {
-        if g_st().ui_refresh_cmdheight.get() {
+        if g_st().screen.ui_refresh_cmdheight.get() {
             set_option_value(
                 K_OPT_CMDHEIGHT,
                 integer_obj(Integer::from(had_message)),
@@ -287,7 +288,7 @@ pub fn ui_refresh() {
         return;
     }
 
-    if g_st().updating_screen.get() {
+    if g_st().screen.updating_screen.get() {
         ui_schedule_refresh();
         return;
     }
@@ -340,7 +341,7 @@ pub fn ui_refresh_event() {
 }
 
 pub fn ui_schedule_refresh() {
-    multiqueue_put_event(g_st().resize_events.get(), Event::UiRefresh);
+    multiqueue_put_event(g_st().screen.resize_events.get(), Event::UiRefresh);
 }
 
 pub fn ui_default_colors_set() {
@@ -353,11 +354,11 @@ pub fn ui_default_colors_set() {
 fn ui_may_set_default_colors() {
     if ui_state(|st| st.pending_default_colors.replace(false)) {
         ui_call_default_colors_set(
-            Integer::from(g_st().normal_fg.get()),
-            Integer::from(g_st().normal_bg.get()),
-            Integer::from(g_st().normal_sp.get()),
-            Integer::from(g_st().cterm_normal_fg_color.get()),
-            Integer::from(g_st().cterm_normal_bg_color.get()),
+            Integer::from(g_st().screen.normal_fg.get()),
+            Integer::from(g_st().screen.normal_bg.get()),
+            Integer::from(g_st().screen.normal_sp.get()),
+            Integer::from(g_st().screen.cterm_normal_fg_color.get()),
+            Integer::from(g_st().screen.cterm_normal_bg_color.get()),
         );
     }
 }
@@ -385,13 +386,14 @@ pub fn ui_busy_stop() {
 }
 
 pub fn vim_beep(val: u32) {
-    if g_st().emsg_silent.get() != 0 || g_st().in_assert_fails.get() {
+    if g_st().msg.emsg_silent.get() != 0 || g_st().msg.in_assert_fails.get() {
         g_st()
+            .msg
             .did_beep_silent
-            .set(g_st().did_beep_silent.get() + (1));
+            .set(g_st().msg.did_beep_silent.get() + (1));
         return;
     }
-    g_st().did_beep.set(g_st().did_beep.get() + (1));
+    g_st().msg.did_beep.set(g_st().msg.did_beep.get() + (1));
 
     if (opt_vars().bo_flags.get() & val) == 0
         && (opt_vars().bo_flags.get() & K_OPT_BO_FLAG_ALL) == 0
@@ -441,7 +443,7 @@ pub fn ui_attach_impl(ui_rc: &std::rc::Rc<std::cell::RefCell<RemoteUI>>, chanid:
         let mut ui = ui_rc.borrow_mut();
         if !ui.ui_ext[K_UIMULTIGRID]
             && !ui.ui_ext[K_UIFLOAT_DEBUG]
-            && g_st().ui_client_channel_id.get() == 0
+            && g_st().screen.ui_client_channel_id.get() == 0
         {
             ui_comp_attach(&mut ui);
         }
@@ -491,7 +493,7 @@ pub fn ui_detach_impl(ui_rc: &std::rc::Rc<std::cell::RefCell<RemoteUI>>, chanid:
         uis.is_empty()
     });
 
-    if !is_empty && !g_st().exiting.get() {
+    if !is_empty && !g_st().exc.exiting.get() {
         ui_schedule_refresh();
     }
 
@@ -613,12 +615,12 @@ pub fn ui_current_col() -> i32 {
 }
 
 pub fn ui_flush() {
-    debug_assert!(g_st().ui_client_channel_id.get() == 0);
+    debug_assert!(g_st().screen.ui_client_channel_id.get() == 0);
     if ui_active() == 0 {
         return;
     }
 
-    if (g_st().state_global.get() & MODE_CMDLINE) == 0
+    if (g_st().edit.state_global.get() & MODE_CMDLINE) == 0
         && curwin().w_floating.get()
         && curwin().w_config.borrow().hide
     {
@@ -630,7 +632,7 @@ pub fn ui_flush() {
     }
 
     win_ui_flush(false);
-    if g_st().textlock.get() == 0 && g_st().expr_map_lock.get() == 0 {
+    if g_st().input.textlock.get() == 0 && g_st().input.expr_map_lock.get() == 0 {
         cmdline_ui_flush();
         msg_ext_ui_flush();
     }
@@ -704,18 +706,18 @@ pub fn ui_check_mouse() {
         return;
     }
 
-    let checkfor = if g_st().visual_global.borrow().active {
+    let checkfor = if g_st().edit.visual_global.active.get() {
         K_MOUSE_VISUAL
-    } else if g_st().state_global.get() == MODE_HITRETURN
-        || g_st().state_global.get() == MODE_ASKMORE
-        || g_st().state_global.get() == MODE_SETWSIZE
+    } else if g_st().edit.state_global.get() == MODE_HITRETURN
+        || g_st().edit.state_global.get() == MODE_ASKMORE
+        || g_st().edit.state_global.get() == MODE_SETWSIZE
     {
         K_MOUSE_RETURN
-    } else if (g_st().state_global.get() & MODE_INSERT) != 0 {
+    } else if (g_st().edit.state_global.get() & MODE_INSERT) != 0 {
         K_MOUSE_INSERT
-    } else if (g_st().state_global.get() & MODE_CMDLINE) != 0 {
+    } else if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0 {
         K_MOUSE_COMMAND_CONST
-    } else if g_st().state_global.get() == MODE_EXTERNCMD {
+    } else if g_st().edit.state_global.get() == MODE_EXTERNCMD {
         b' ' as i32
     } else {
         K_MOUSE_NORMAL
@@ -744,7 +746,7 @@ pub fn ui_mouse_has(mode: i32) -> bool {
 }
 
 pub fn ui_cursor_shape_no_check_conceal() {
-    if !g_st().full_screen.get() {
+    if !g_st().screen.full_screen.get() {
         return;
     }
     let new_mode_idx = cursor_get_mode_idx();
@@ -762,7 +764,7 @@ pub fn ui_cursor_shape() {
 }
 
 fn ui_cursor_is_behind_floatwin() -> bool {
-    if (g_st().state_global.get() & MODE_CMDLINE) != 0 || !ui_comp_should_draw() {
+    if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0 || !ui_comp_should_draw() {
         return false;
     }
 
@@ -777,7 +779,7 @@ fn ui_cursor_is_behind_floatwin() -> bool {
 
     let top_grid = ui_comp_get_grid_at_coord(crow, ccol);
     !ptr::eq(&*top_grid, &raw const curwin().w_grid_alloc)
-        && !ptr::eq(&*top_grid, &raw const g_st().default_grid)
+        && !ptr::eq(&*top_grid, &raw const g_st().screen.default_grid)
         && top_grid.zindex.get() >= curwin().w_grid_alloc.zindex.get() + 50
 }
 
@@ -890,13 +892,13 @@ fn ui_attach_error(ns_id: u32, name: &CStr, msg: Option<&CStr>) {
 pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
     let mut ctx = CONTEXT_INIT;
     ctx_save(&mut ctx, K_CTX_COUNT);
-    let save_expr_map_lock = g_st().expr_map_lock.get();
-    let save_textlock = g_st().textlock.get();
-    g_st().expr_map_lock.set(0);
-    g_st().textlock.set(0);
+    let save_expr_map_lock = g_st().input.expr_map_lock.get();
+    let save_textlock = g_st().input.textlock.get();
+    g_st().input.expr_map_lock.set(0);
+    g_st().input.textlock.set(0);
 
     let mut handled = false;
-    let fast = g_st().msg_ext_fast.get() && name == c"msg_show";
+    let fast = g_st().msg.msg_ext_fast.get() && name == c"msg_show";
     let entries: Vec<(u32, LuaRef)> = ui_state(|st| {
         st.ui_event_cbs
             .borrow()
@@ -908,9 +910,9 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
         if !ui_state(|st| st.ui_event_cbs.borrow().contains_key(&ns_id)) {
             continue;
         }
-        g_st().ui_event_ns_id.set(ns_id);
+        g_st().screen.ui_event_ns_id.set(ns_id);
         let res = nlua_call_ref_ctx(fast, cb_ref, Some(name), args.clone(), K_RET_NIL_BOOL);
-        g_st().ui_event_ns_id.set(0);
+        g_st().screen.ui_event_ns_id.set(0);
         match res {
             Ok(res) => {
                 if res.obj_type == ObjectType::ObjectTypeBoolean && res.data.boolean() {
@@ -923,8 +925,8 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
             }
         }
     }
-    g_st().expr_map_lock.set(save_expr_map_lock);
-    g_st().textlock.set(save_textlock);
+    g_st().input.expr_map_lock.set(save_expr_map_lock);
+    g_st().input.textlock.set(save_textlock);
     ctx_load(&mut ctx, K_CTX_COUNT, 0);
     ctx_free(&mut ctx);
 
