@@ -345,7 +345,7 @@ fn arglist_del_files(alist_ga: &[CString]) {
             break;
         };
         regmatch.set_prog(vim_regcomp(
-            &p,
+            p.as_bytes(),
             if opt_vars().p_magic.get() {
                 RE_MAGIC
             } else {
@@ -362,7 +362,7 @@ fn arglist_del_files(alist_ga: &[CString]) {
             let entry = arg_entry(match_idx as usize);
             if vim_regexec(
                 &mut regmatch,
-                alist_name(&entry).as_deref().unwrap_or(c""),
+                alist_name(&entry).as_deref().map_or(b"", CStr::to_bytes),
                 0,
             ) {
                 didone = true;

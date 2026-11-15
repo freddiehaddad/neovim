@@ -1129,8 +1129,9 @@ pub fn ex_catch(eap: &mut Exarg) {
         (crate::option_vars::RcSlice::from_cstr(c".*"), None)
     } else {
         let pat = eap.arg.wrapping_add(1);
-        let end_opt = skip_regexp_err(pat.as_cstr(), i32::from(eap.arg.first_byte()), 1)
-            .map(|s| pat.advance_to_cstr(s));
+        let pat_bytes = pat.as_bytes();
+        let end_opt = skip_regexp_err(pat_bytes, i32::from(eap.arg.first_byte()), 1)
+            .map(|s| pat.wrapping_add(pat_bytes.len() - s.len()));
         if end_opt.is_none() {
             give_up = true;
         }
@@ -1162,28 +1163,27 @@ pub fn ex_catch(eap: &mut Exarg) {
             }
 
             if !dbg_check_skipped(eap) || !do_intthrow(eap.cstack_mut()) {
-                let pat_cstr = if let Some(ref end_slice) = end {
-                    let pat_len = end_slice.offset_from(&pat);
-                    Some(crate::memory::bytes_to_cstring(pat.slice(pat_len)))
+                let pat_bytes = if let Some(ref end_slice) = end {
+                    pat.slice(end_slice.offset_from(&pat))
                 } else {
-                    None
+                    pat.as_bytes()
                 };
-                let pat_ref: &CStr = pat_cstr.as_deref().unwrap_or_else(|| pat.as_cstr());
                 let save_cpo = opt_vars().p_cpo.take();
                 g_st().emsg_off.set(g_st().emsg_off.get() + (1));
                 let mut regmatch: Regmatch = Regmatch::new();
-                regmatch.set_prog(vim_regcomp(pat_ref, RE_MAGIC + RE_STRING));
+                regmatch.set_prog(vim_regcomp(pat_bytes, RE_MAGIC + RE_STRING));
                 g_st().emsg_off.set(g_st().emsg_off.get() - (1));
                 regmatch.rm_ic = false;
                 opt_vars().p_cpo.set(save_cpo);
                 if regmatch.regprog.is_null() {
-                    semsg!(gettext(E_INVARG2), pat_ref);
+                    let pat_err = crate::memory::bytes_to_cstring(pat_bytes);
+                    semsg!(gettext(E_INVARG2), pat_err.as_c_str());
                 } else {
                     let prev_got_int = g_st().got_int.get();
                     g_st().got_int.set(false);
                     let cur_excp = g_st().current_exception.get().unwrap();
                     let val_cstr = cur_excp.value.as_c_str();
-                    caught = vim_regexec_nl(&mut regmatch, Some(val_cstr), 0);
+                    caught = vim_regexec_nl(&mut regmatch, Some(val_cstr.to_bytes()), 0);
                     g_st().got_int.set(g_st().got_int.get() | (prev_got_int));
                     regmatch.free_prog();
                 }

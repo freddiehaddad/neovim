@@ -4990,7 +4990,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
             }
         }
 
-        regmatch.set_prog(vim_regcomp(pat_cstr, RE_MAGIC + RE_STRING));
+        regmatch.set_prog(vim_regcomp(pat_cstr.to_bytes(), RE_MAGIC + RE_STRING));
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = opt_vars().p_ic.get();
 
@@ -5011,7 +5011,8 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                     }
                 }
 
-                match_found = vim_regexec_nl(&mut regmatch, str_cstr_opt, startcol);
+                match_found =
+                    vim_regexec_nl(&mut regmatch, str_cstr_opt.map(CStr::to_bytes), startcol);
 
                 if match_found {
                     nth -= 1;
@@ -5029,7 +5030,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                     idx += 1;
                 } else {
                     let str_cstr = str_cstr_opt.unwrap_or(c"");
-                    let match_start = regmatch.start_offset(0, str_cstr);
+                    let match_start = regmatch.start_offset(0, str_cstr.to_bytes());
                     let adv = utfc_ptr2len(regmatch.startp[0]) as usize;
                     startcol = (match_start + adv) as Colnr;
                     if i64::from(startcol) > len || (startcol as usize) <= match_start {
@@ -5040,8 +5041,8 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
             }
 
             if match_found {
-                let expr_cstr = expr_cstr_opt.unwrap_or(c"");
-                let str_cstr = str_cstr_opt.unwrap_or(c"");
+                let expr_bytes = expr_cstr_opt.map_or(&b""[..], CStr::to_bytes);
+                let str_bytes = str_cstr_opt.map_or(&b""[..], CStr::to_bytes);
                 match type_ {
                     SomeMatchType::SomeMatchStrPos => {
                         let ret_l = rettv.vval.v_list();
@@ -5057,11 +5058,11 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                         );
 
                         li3.tv_mut().vval = crate::eval::typval::TypvalVval::Number(
-                            regmatch.start_offset(0, expr_cstr) as Varnumber,
+                            regmatch.start_offset(0, expr_bytes) as Varnumber,
                         );
 
                         li4.tv_mut().vval = crate::eval::typval::TypvalVval::Number(
-                            regmatch.end_offset(0, expr_cstr) as Varnumber,
+                            regmatch.end_offset(0, expr_bytes) as Varnumber,
                         );
 
                         if !l.is_null() {
@@ -5074,11 +5075,10 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                             if regmatch.endp[i].is_null() {
                                 tv_list_append_string(rettv.vval.v_list_ref(), None, 0);
                             } else {
-                                regmatch.startp[i].with_cstr(|cs| {
-                                    tv_list_append_string(
+                                regmatch.startp[i].with_span(regmatch.endp[i], |bytes| {
+                                    crate::eval::typval::tv_list_append_bytes(
                                         rettv.vval.v_list_ref(),
-                                        Some(cs),
-                                        regmatch.span_len(i) as isize,
+                                        bytes,
                                     );
                                 });
                             }
@@ -5101,15 +5101,15 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                         } else {
                             if type_ == SomeMatchType::SomeMatch {
                                 rettv.vval = crate::eval::typval::TypvalVval::Number(
-                                    regmatch.start_offset(0, str_cstr) as Varnumber,
+                                    regmatch.start_offset(0, str_bytes) as Varnumber,
                                 );
                             } else {
                                 rettv.vval = crate::eval::typval::TypvalVval::Number(
-                                    regmatch.end_offset(0, str_cstr) as Varnumber,
+                                    regmatch.end_offset(0, str_bytes) as Varnumber,
                                 );
                             }
-                            *rettv.vval.v_number_mut() += ((str_cstr.as_ptr() as isize)
-                                - (expr_cstr.as_ptr() as isize))
+                            *rettv.vval.v_number_mut() += ((str_bytes.as_ptr() as isize)
+                                - (expr_bytes.as_ptr() as isize))
                                 as Varnumber;
                         }
                     }
@@ -5138,8 +5138,9 @@ fn get_matches_in_str(
     submatches: bool,
     matchbuf: bool,
 ) {
-    let len = str_cstr.to_bytes().len();
-    let str_opt = Some(str_cstr);
+    let str_bytes = str_cstr.to_bytes();
+    let len = str_bytes.len();
+    let str_opt = Some(str_bytes);
     let mut startidx: Colnr = 0;
 
     loop {
@@ -5156,8 +5157,8 @@ fn get_matches_in_str(
             tv_dict_add_nr(&d, c"idx", Varnumber::from(idx));
         }
 
-        let match_start = rmp.start_offset(0, str_cstr);
-        let match_end = rmp.end_offset(0, str_cstr);
+        let match_start = rmp.start_offset(0, str_bytes);
+        let match_end = rmp.end_offset(0, str_bytes);
         tv_dict_add_nr(&d, c"byteidx", match_start as Varnumber);
 
         tv_dict_add_str_len(&d, c"text", Some(&rmp.span_bytes(0)));
@@ -5168,8 +5169,8 @@ fn get_matches_in_str(
                 if rmp.endp[i].is_null() {
                     tv_list_append_string(&sml, Some(c""), 0);
                 } else {
-                    rmp.startp[i].with_cstr(|cs| {
-                        tv_list_append_string(&sml, Some(cs), rmp.span_len(i) as isize);
+                    rmp.startp[i].with_span(rmp.endp[i], |bytes| {
+                        crate::eval::typval::tv_list_append_bytes(&sml, bytes);
                     });
                 }
             }
@@ -5255,7 +5256,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let save_cpo = opt_vars().p_cpo.take();
 
     let mut regmatch: Regmatch = Regmatch::new();
-    regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
+    regmatch.set_prog(vim_regcomp(pat.to_bytes(), RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = opt_vars().p_ic.get();
 
@@ -5319,7 +5320,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let save_cpo = opt_vars().p_cpo.take();
 
     let mut regmatch: Regmatch = Regmatch::new();
-    regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
+    regmatch.set_prog(vim_regcomp(pat.to_bytes(), RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = opt_vars().p_ic.get();
 
@@ -6445,7 +6446,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
                 &mut pos,
                 None,
                 dir,
-                &pat,
+                pat.to_bytes(),
                 patlen,
                 1,
                 options,
@@ -6821,7 +6822,7 @@ pub fn do_searchpair(
             &mut pos,
             None,
             dir,
-            pat,
+            pat.to_bytes(),
             patlen,
             1,
             options,
@@ -7658,25 +7659,26 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
     if !typeerr {
         let mut regmatch = Regmatch::new();
-        regmatch.set_prog(vim_regcomp(pat_cstr, RE_MAGIC + RE_STRING));
+        regmatch.set_prog(vim_regcomp(pat_cstr.to_bytes(), RE_MAGIC + RE_STRING));
         if !regmatch.regprog.is_null() {
             while !str_cstr.is_empty() || keepempty {
-                let match_found = if str_cstr.is_empty() {
+                let str_bytes = str_cstr.to_bytes();
+                let match_found = if str_bytes.is_empty() {
                     false
                 } else {
-                    vim_regexec_nl(&mut regmatch, Some(str_cstr), col)
+                    vim_regexec_nl(&mut regmatch, Some(str_bytes), col)
                 };
                 let end_off = if match_found {
-                    regmatch.start_offset(0, str_cstr)
+                    regmatch.start_offset(0, str_bytes)
                 } else {
-                    str_cstr.to_bytes().len()
+                    str_bytes.len()
                 };
                 if keepempty
                     || end_off > 0
                     || (tv_list_len(rettv.vval.v_list_opt()) > 0
-                        && !str_cstr.is_empty()
+                        && !str_bytes.is_empty()
                         && match_found
-                        && end_off < regmatch.end_offset(0, str_cstr))
+                        && end_off < regmatch.end_offset(0, str_bytes))
                 {
                     tv_list_append_string(
                         rettv.vval.v_list_ref(),
@@ -7687,13 +7689,13 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
                 if !match_found {
                     break;
                 }
-                let match_end_off = regmatch.end_offset(0, str_cstr);
+                let match_end_off = regmatch.end_offset(0, str_bytes);
                 if match_end_off > 0 {
                     col = 0;
                 } else {
                     col = utfc_ptr2len(regmatch.endp[0]);
                 }
-                str_cstr = &str_cstr[match_end_off.min(str_cstr.to_bytes().len())..];
+                str_cstr = &str_cstr[match_end_off.min(str_bytes.len())..];
             }
             regmatch.free_prog();
         }

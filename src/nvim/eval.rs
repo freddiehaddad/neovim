@@ -1955,7 +1955,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
 }
 
 /// Does not use 'cpo' and always uses 'magic'.
-pub fn pattern_match(pat: &CStr, text: Option<&CStr>, ic: bool) -> bool {
+pub fn pattern_match(pat: &[u8], text: Option<&[u8]>, ic: bool) -> bool {
     let mut matches = false;
     let mut regmatch: Regmatch = Regmatch::new();
 
@@ -6388,16 +6388,17 @@ pub fn do_string_sub(
     let save_cpo = opt_vars().p_cpo.take();
 
     regmatch.rm_ic = opt_vars().p_ic.get();
-    regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
+    regmatch.set_prog(vim_regcomp(pat.to_bytes(), RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
         let mut tail_off: usize = 0;
         let do_all = flags.to_bytes().first() == Some(&b'g');
         let mut zero_width: Option<usize> = None;
-        let str_opt = Some(str_cstr);
+        let str_opt = Some(str_bytes);
+        let sub_bytes = sub_cstr.to_bytes();
 
         while vim_regexec_nl(&mut regmatch, str_opt, tail_off as Colnr) {
-            let start_off = regmatch.start_offset(0, str_cstr);
-            let end_off = regmatch.end_offset(0, str_cstr);
+            let start_off = regmatch.start_offset(0, str_bytes);
+            let end_off = regmatch.end_offset(0, str_bytes);
             if start_off == end_off {
                 if zero_width == Some(start_off) {
                     let i = crate::mbyte::utfc_slice2len(&str_bytes[tail_off..]);
@@ -6410,7 +6411,7 @@ pub fn do_string_sub(
                 zero_width = Some(start_off);
             }
 
-            let sublen = vim_regsub(&mut regmatch, sub_cstr, expr, &mut [], REGSUB_MAGIC);
+            let sublen = vim_regsub(&mut regmatch, sub_bytes, expr, &mut [], REGSUB_MAGIC);
             if sublen <= 0 {
                 out = None;
                 break;
@@ -6425,7 +6426,7 @@ pub fn do_string_sub(
             buf.resize(cur_len + (sublen as usize), 0);
             vim_regsub(
                 &mut regmatch,
-                sub_cstr,
+                sub_bytes,
                 expr,
                 &mut buf[cur_len..cur_len + (sublen as usize)],
                 REGSUB_COPY | REGSUB_MAGIC,
@@ -6902,8 +6903,8 @@ pub fn typval_compare(typ1: &mut TypVal, typ2: &mut TypVal, expr_type: Exprtype,
             EXPR_GEQUAL => i >= 0,
             EXPR_SMALLER => i < 0,
             EXPR_SEQUAL => i <= 0,
-            EXPR_MATCH => pattern_match(s2, Some(s1), ic),
-            EXPR_NOMATCH => !pattern_match(s2, Some(s1), ic),
+            EXPR_MATCH => pattern_match(s2.to_bytes(), Some(s1.to_bytes()), ic),
+            EXPR_NOMATCH => !pattern_match(s2.to_bytes(), Some(s1.to_bytes()), ic),
             _ => false,
         };
         n1 = Varnumber::from(cmp);

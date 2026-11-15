@@ -963,10 +963,10 @@ pub fn nvim_cmd(
             ) {
                 cmod.cmod_filter_force = filter.force;
                 if !filter.pattern.cstr_bytes().is_empty() || cmod.cmod_filter_force {
-                    let pat = bytes_to_cstring(filter.pattern.as_bytes());
+                    let pat_bytes = filter.pattern.cstr_bytes();
                     cmod.cmod_filter_regmatch
-                        .set_prog(vim_regcomp(&pat, RE_MAGIC));
-                    cmod.cmod_filter_pat = Some(pat);
+                        .set_prog(vim_regcomp(pat_bytes, RE_MAGIC));
+                    cmod.cmod_filter_pat = Some(bytes_to_cstring(pat_bytes));
                 }
             }
         }

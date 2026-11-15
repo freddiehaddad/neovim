@@ -336,7 +336,7 @@ fn find_substr(haystack: &CStr, needle: &[u8]) -> bool {
 
 /// Translate search pattern for `vim_regcomp()`.
 pub fn search_regcomp(
-    pat_cstr: &CStr,
+    pat: &[u8],
     mut patlen: usize,
     used_pat: Option<&mut CString>,
     pat_save: i32,
@@ -346,12 +346,13 @@ pub fn search_regcomp(
     regmatch: &mut Regmmatch,
 ) -> bool {
     let owned_pat: Option<CString>;
+    let pat_in = crate::memory::bytes_until_nul(pat);
     let mut pat_from_spat: Option<usize> = None;
-    let mut pat_ref = pat_cstr;
+    let mut pat_ref = pat_in;
     {
         g_st().rc_did_emsg.set(false);
 
-        if pat_cstr.is_empty()
+        if pat_in.is_empty()
             && used_pat.is_none()
             && ((options & SEARCH_KEEP) != 0
                 || (g_st().cmdmod.borrow().cmod_flags & CMOD_KEEPPATTERNS) != 0)
@@ -365,14 +366,15 @@ pub fn search_regcomp(
                     pat_use
                 } as usize;
                 let spat_cstr = s.spats[i].pat.as_deref()?;
+                let spat_bytes = spat_cstr.to_bytes();
                 let pmagic = s.spats[i].magic;
                 let no_scs = s.spats[i].no_scs;
                 g_st().search_global.no_smartcase.set(no_scs);
                 let prog = crate::regexp::vim_regcomp_cached(
-                    spat_cstr,
+                    spat_bytes,
                     if pmagic { RE_MAGIC } else { 0 },
                 )?;
-                let ic = ignorecase(spat_cstr);
+                let ic = ignorecase(spat_bytes);
                 if s.mr_pattern.as_deref() != Some(spat_cstr) {
                     s.mr_pattern = Some(spat_cstr.to_owned());
                 }
@@ -386,7 +388,7 @@ pub fn search_regcomp(
             }
         }
 
-        if pat_cstr.is_empty() {
+        if pat_in.is_empty() {
             let (spat_idx, has_pat, cloned_pat, plen, pmagic, no_scs) = with_srch(|s| {
                 let i = if pat_use == RE_LAST {
                     s.last_idx
@@ -413,31 +415,29 @@ pub fn search_regcomp(
             }
             pat_from_spat = Some(spat_idx);
             owned_pat = cloned_pat;
-            pat_ref = owned_pat.as_deref().unwrap_or(c"");
+            pat_ref = owned_pat.as_deref().map_or(&b""[..], CStr::to_bytes);
             patlen = plen;
             magic = pmagic;
             g_st().search_global.no_smartcase.set(no_scs);
         } else if (options & SEARCH_HIS) != 0 {
-            let pat_bytes = pat_ref.to_bytes();
             add_to_history(
                 HIST_SEARCH,
-                &pat_bytes[..patlen.min(pat_bytes.len())],
+                &pat_ref[..patlen.min(pat_ref.len())],
                 true,
                 i32::from(NUL),
             );
         }
 
         if let Some(used_pat) = used_pat {
-            *used_pat = pat_ref.to_owned();
+            *used_pat = crate::memory::bytes_to_cstring(pat_ref);
         }
 
         let mr = if curwin().w_onebuf_opt.wo_rl.get()
             && curwin().w_onebuf_opt.wo_rlc.first_byte() == b's'
         {
-            Some(reverse_text(pat_ref.to_bytes()))
+            Some(reverse_text(pat_ref))
         } else {
-            let pat_bytes = pat_ref.to_bytes();
-            let pat_slice = &pat_bytes[..patlen.min(pat_bytes.len())];
+            let pat_slice = &pat_ref[..patlen.min(pat_ref.len())];
             Some(CString::new(pat_slice).unwrap_or_default())
         };
         with_srch_mut(|s| s.mr_pattern = mr);
@@ -472,18 +472,18 @@ pub fn get_search_pat() -> Option<CString> {
     with_srch(|s| s.mr_pattern.clone())
 }
 
-pub fn save_re_pat(idx: i32, pat_cstr: &CStr, patlen: usize, magic: i32) {
-    let pat = pat_cstr.as_ptr();
+pub fn save_re_pat(idx: i32, pat: &[u8], patlen: usize, magic: i32) {
+    let pat_bytes = crate::memory::bytes_until_nul(pat);
+    let pat_ptr = pat_bytes.as_ptr().cast::<std::ffi::c_char>();
     let i = idx as usize;
     if with_srch(|s| {
         s.spats[i]
             .pat_ptr()
-            .is_some_and(|p| ptr::eq(p.as_ptr(), pat))
+            .is_some_and(|p| ptr::eq(p.as_ptr(), pat_ptr))
     }) {
         return;
     }
 
-    let pat_bytes = pat_cstr.to_bytes();
     let new_pat = CString::new(&pat_bytes[..patlen.min(pat_bytes.len())]).unwrap_or_default();
     let now = os_time();
     with_srch_mut(|s| {
@@ -609,11 +609,11 @@ fn restore_incsearch_state() {
     g_st().search_global.match_lines.set(lines);
 }
 
-pub fn ignorecase(pat: &CStr) -> bool {
+pub fn ignorecase(pat: &[u8]) -> bool {
     ignorecase_opt(pat, opt_vars().p_ic.get(), opt_vars().p_scs.get())
 }
 
-pub fn ignorecase_opt(pat: &CStr, ic_in: bool, scs: bool) -> bool {
+pub fn ignorecase_opt(pat: &[u8], ic_in: bool, scs: bool) -> bool {
     let mut ic = ic_in;
     if ic
         && !g_st().search_global.no_smartcase.get()
@@ -626,17 +626,18 @@ pub fn ignorecase_opt(pat: &CStr, ic_in: bool, scs: bool) -> bool {
     ic
 }
 
-pub fn pat_has_uppercase(pat: &CStr) -> bool {
+pub fn pat_has_uppercase(pat: &[u8]) -> bool {
+    let pat_bytes = crate::memory::bytes_until_nul(pat);
     let mut magic_val: RegMagic = MAGIC_ON;
 
     skip_regexp_magic(
-        pat.to_bytes(),
+        pat_bytes,
         i32::from(NUL),
         i32::from(opt_vars().p_magic.get()),
         Some(&mut magic_val),
     );
 
-    let mut rem = pat.to_bytes();
+    let mut rem = pat_bytes;
     while !rem.is_empty() {
         let l = crate::mbyte::utfc_slice2len(rem).min(rem.len());
 
@@ -710,9 +711,12 @@ pub fn reset_search_dir() {
     set_vv_searchforward();
 }
 
-pub fn set_last_search_pat(s: Option<&CStr>, idx: i32, magic: i32, setlast: bool) {
+pub fn set_last_search_pat(s: Option<&[u8]>, idx: i32, magic: i32, setlast: bool) {
     let i = idx as usize;
-    let new_pat = s.filter(|s| !s.is_empty()).map(CStr::to_owned);
+    let new_pat = s
+        .map(crate::memory::bytes_until_nul)
+        .filter(|s| !s.is_empty())
+        .map(crate::memory::bytes_to_cstring);
     let now = os_time();
     with_srch_mut(|st| {
         free_spat(&mut st.spats[i]);
@@ -751,7 +755,7 @@ pub fn last_pat_prog(regmatch: &mut Regmmatch) {
     }
     g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     search_regcomp(
-        c"",
+        b"",
         0,
         None,
         0,
@@ -784,7 +788,7 @@ pub fn searchit(
     pos: &mut CursorPos,
     mut end_pos: Option<&mut CursorPos>,
     dir: Direction,
-    pat: &CStr,
+    pat: &[u8],
     patlen: usize,
     mut count: i32,
     options: i32,
@@ -1335,16 +1339,16 @@ pub fn do_search(
     mut oap: Option<&mut Oparg>,
     mut dirc: i32,
     mut search_delim: i32,
-    pat_opt: Option<&CStr>,
+    pat_opt: Option<&[u8]>,
     mut patlen: usize,
     count: i32,
     options: i32,
     magic: bool,
     mut sia: Option<&mut SearchitArg>,
 ) -> i32 {
-    let mut pat_buf: Vec<u8> = match pat_opt {
+    let mut pat_buf: Vec<u8> = match pat_opt.map(crate::memory::bytes_until_nul) {
         Some(p) => {
-            let mut v = p.to_bytes()[..patlen.min(p.to_bytes().len())].to_vec();
+            let mut v = p[..patlen.min(p.len())].to_vec();
             v.push(0);
             v
         }
@@ -1624,7 +1628,7 @@ pub fn do_search(
             } else {
                 BACKWARD
             },
-            &searchstr_cstr,
+            searchstr_cstr.as_bytes(),
             searchstrlen,
             count,
             i32::from(off0.end) * SEARCH_END
@@ -1758,8 +1762,9 @@ pub fn search_for_exact_line(
     buf: &FileBuf,
     pos: &mut CursorPos,
     dir: Direction,
-    pat: &CStr,
+    pat: &[u8],
 ) -> bool {
+    let pat_b = crate::memory::bytes_until_nul(pat);
     {
         let mut start: Linenr = 0;
         let compl_len = ins_compl_len();
@@ -1807,18 +1812,17 @@ pub fn search_for_exact_line(
                         mb_strcmp_ic(
                             opt_vars().p_ic.get(),
                             crate::memory::bytes_until_nul(p_slice),
-                            pat.to_bytes(),
+                            pat_b,
                         ) == 0
                     } else if !p_slice.is_empty() {
                         debug_assert!(compl_len >= 0);
                         if opt_vars().p_ic.get() {
                             mb_strnicmp(
                                 crate::memory::bytes_until_nul(p_slice),
-                                pat.to_bytes(),
+                                pat_b,
                                 compl_len as usize,
                             ) == 0
                         } else {
-                            let pat_b = pat.to_bytes();
                             p_slice[..p_slice.len().min(compl_len as usize)]
                                 == pat_b[..(compl_len as usize).min(pat_b.len())]
                         }
@@ -2713,7 +2717,7 @@ pub fn current_search(count: i32, forward: bool) -> bool {
             &mut pos,
             Some(&mut end_pos),
             if dir { FORWARD } else { BACKWARD },
-            last_pat.as_deref().unwrap_or(c""),
+            last_pat.as_deref().map_or(b"", CStr::to_bytes),
             last_patlen,
             if i != 0 { count } else { 1 },
             SEARCH_KEEP | flags,
@@ -2812,7 +2816,7 @@ fn is_zero_width(
         };
 
         if !search_regcomp(
-            &pattern_cstr,
+            pattern_cstr.as_bytes(),
             patternlen,
             None,
             RE_SEARCH,
@@ -2837,7 +2841,7 @@ fn is_zero_width(
             &mut pos,
             None,
             direction,
-            &pattern_cstr,
+            pattern_cstr.as_bytes(),
             patternlen,
             1,
             SEARCH_KEEP + flag,
@@ -3049,7 +3053,7 @@ fn update_search_stat(
                 &mut lastpos,
                 Some(&mut endpos),
                 FORWARD,
-                c"",
+                b"",
                 0,
                 1,
                 SEARCH_KEEP,
@@ -3291,10 +3295,10 @@ pub fn find_pattern_in_path(
                 len as i32,
                 ptr_pat,
             );
-            let pat_cstr = crate::memory::bytes_as_cstr(&pat_vec);
-            regmatch.rm_ic = ignorecase(pat_cstr);
+            let pat_bytes = crate::memory::bytes_until_nul(&pat_vec);
+            regmatch.rm_ic = ignorecase(pat_bytes);
             regmatch.set_prog(vim_regcomp(
-                pat_cstr,
+                pat_bytes,
                 if opt_vars().p_magic.get() {
                     RE_MAGIC
                 } else {
@@ -3313,7 +3317,7 @@ pub fn find_pattern_in_path(
         let inc_opt_cstr = inc_opt_owned.as_c_str();
         if !inc_opt_cstr.to_bytes().is_empty() {
             incl_regmatch.set_prog(vim_regcomp(
-                inc_opt_cstr,
+                inc_opt_cstr.to_bytes(),
                 if opt_vars().p_magic.get() {
                     RE_MAGIC
                 } else {
@@ -3333,7 +3337,7 @@ pub fn find_pattern_in_path(
                 curbuf().b_p_def.to_owned()
             };
             def_regmatch.set_prog(vim_regcomp(
-                &def_opt_owned,
+                def_opt_owned.as_bytes(),
                 if opt_vars().p_magic.get() {
                     RE_MAGIC
                 } else {
@@ -3359,8 +3363,8 @@ pub fn find_pattern_in_path(
         get_line_and_copy(lnum, &mut file_line_vec);
 
         loop {
-            let line_cstr = crate::memory::bytes_as_cstr(&file_line_vec);
-            if !incl_regmatch.regprog.is_null() && vim_regexec(&mut incl_regmatch, line_cstr, 0) {
+            let line_bytes = crate::memory::bytes_until_nul(&file_line_vec);
+            if !incl_regmatch.regprog.is_null() && vim_regexec(&mut incl_regmatch, line_bytes, 0) {
                 let ffname_rc;
                 let p_fname_opt = if curr_fname.as_deref() == curbuf().fname_opt().as_deref() {
                     ffname_rc = curbuf().ffname_opt();
@@ -3457,13 +3461,12 @@ pub fn find_pattern_in_path(
                         if let Some(ref nf) = new_fname_cstr {
                             msg_outtrans(nf, HLF_D, false);
                         } else {
-                            let line_cstr = crate::memory::bytes_as_cstr(&file_line_vec);
-                            let line_bytes = line_cstr.to_bytes();
+                            let line_bytes = crate::memory::bytes_until_nul(&file_line_vec);
                             if find_substr(inc_opt_cstr, b"\\zs") {
-                                p_idx = incl_regmatch.start_offset(0, line_cstr);
+                                p_idx = incl_regmatch.start_offset(0, line_bytes);
                                 i = incl_regmatch.span_len(0) as i32;
                             } else {
-                                p_idx = incl_regmatch.end_offset(0, line_cstr);
+                                p_idx = incl_regmatch.end_offset(0, line_bytes);
                                 let p_bytes = &line_bytes[p_idx.min(line_bytes.len())..];
                                 let skip_n = p_bytes
                                     .iter()
@@ -3477,7 +3480,7 @@ pub fn find_pattern_in_path(
                             }
 
                             if i == 0 {
-                                let end_off = incl_regmatch.end_offset(0, line_cstr);
+                                let end_off = incl_regmatch.end_offset(0, line_bytes);
                                 p_idx = end_off;
                                 i = (line_bytes.len() - end_off) as i32;
                             } else if p_idx > 0 {
@@ -3566,12 +3569,11 @@ pub fn find_pattern_in_path(
                 p_idx = 0;
                 loop {
                     define_matched = false;
-                    let line_cstr = crate::memory::bytes_as_cstr(&file_line_vec);
-                    let line_bytes = line_cstr.to_bytes();
+                    let line_bytes = crate::memory::bytes_until_nul(&file_line_vec);
                     if !def_regmatch.regprog.is_null()
-                        && vim_regexec(&mut def_regmatch, line_cstr, 0)
+                        && vim_regexec(&mut def_regmatch, line_bytes, 0)
                     {
-                        p_idx = def_regmatch.end_offset(0, line_cstr);
+                        p_idx = def_regmatch.end_offset(0, line_bytes);
                         let p_bytes = &line_bytes[p_idx.min(line_bytes.len())..];
                         let skip_n = p_bytes
                             .iter()
@@ -3602,10 +3604,10 @@ pub fn find_pattern_in_path(
                                 matched = false;
                             }
                         } else if !regmatch.regprog.is_null()
-                            && vim_regexec(&mut regmatch, line_cstr, p_idx as Colnr)
+                            && vim_regexec(&mut regmatch, line_bytes, p_idx as Colnr)
                         {
                             matched = true;
-                            let sp_idx = regmatch.start_offset(0, line_cstr);
+                            let sp_idx = regmatch.start_offset(0, line_bytes);
                             startp_idx = Some(sp_idx);
                             if skip_comments {
                                 if (line_bytes.first() != Some(&b'#')
@@ -4221,7 +4223,7 @@ mod tests {
             (c"aa\\%Ab", false),
             (c"aab\\%AU", true),
         ] {
-            assert_eq!(pat_has_uppercase(pat), expected);
+            assert_eq!(pat_has_uppercase(pat.to_bytes()), expected);
         }
         opt_vars().p_magic.set(save_magic);
         opt_vars().cmp_flags.set(save_cmp);

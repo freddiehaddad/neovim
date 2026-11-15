@@ -2734,7 +2734,7 @@ fn list_functions(mut regmatch: Option<&mut Regmatch>) {
         };
         let key = uf2hikey(&fp);
         let matches = if let Some(ref mut regmatch) = regmatch {
-            !key.to_bytes_with_nul()[0].is_ascii_digit() && vim_regexec(regmatch, key, 0)
+            !key.to_bytes_with_nul()[0].is_ascii_digit() && vim_regexec(regmatch, key.to_bytes(), 0)
         } else {
             !message_filtered(key) && !func_name_refcount(key)
         };
@@ -2751,12 +2751,13 @@ fn list_functions(mut regmatch: Option<&mut Regmatch>) {
 
 fn list_functions_matching_pat(eap: &mut Exarg) -> crate::option_vars::RcSlice {
     let pat_start = eap.arg.wrapping_add(1);
-    let mut p = pat_start.advance_to_cstr(skip_regexp(pat_start.as_cstr(), b'/' as i32, 1));
+    let pat_bytes = pat_start.as_bytes();
+    let rem = skip_regexp(pat_bytes, b'/' as i32, 1);
+    let pat_len = pat_bytes.len() - rem.len();
+    let mut p = pat_start.wrapping_add(pat_len);
     if !eap.skip {
         let mut regmatch: Regmatch = Regmatch::new();
-        let pat_len = p.offset_from(&pat_start);
-        let pat_cstr = bytes_to_cstring(pat_start.slice(pat_len));
-        regmatch.set_prog(vim_regcomp(&pat_cstr, RE_MAGIC));
+        regmatch.set_prog(vim_regcomp(&pat_bytes[..pat_len], RE_MAGIC));
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = opt_vars().p_ic.get();
             list_functions(Some(&mut regmatch));

@@ -717,11 +717,11 @@ pub fn ex_sort(eap: &mut Exarg) {
                 break;
             } else if !ascii_isalpha(pb) && regmatch.regprog.is_null() {
                 let s_off = {
-                    let p_after = crate::memory::bytes_as_cstr(&eap.arg.cstr_buf()[p_idx + 1..]);
-                    let Some(s_cstr) = skip_regexp_err(p_after, pb as i32, 1) else {
+                    let p_after = crate::memory::bytes_until_nul(&eap.arg.cstr_buf()[p_idx + 1..]);
+                    let Some(s_rem) = skip_regexp_err(p_after, pb as i32, 1) else {
                         break 'sortend;
                     };
-                    p_idx + 1 + ((s_cstr.as_ptr() as usize) - (p_after.as_ptr() as usize))
+                    p_idx + 1 + (p_after.len() - s_rem.len())
                 };
 
                 eap.set_arg_byte(s_off, 0);
@@ -731,10 +731,10 @@ pub fn ex_sort(eap: &mut Exarg) {
                         emsg(gettext(E_NOPREVRE));
                         break 'sortend;
                     };
-                    regmatch.set_prog(vim_regcomp(&last_pat, RE_MAGIC));
+                    regmatch.set_prog(vim_regcomp(last_pat.as_bytes(), RE_MAGIC));
                 } else {
-                    let pat_cstr = crate::memory::bytes_as_cstr(&eap.arg.cstr_buf()[p_idx + 1..]);
-                    regmatch.set_prog(vim_regcomp(pat_cstr, RE_MAGIC));
+                    let pat_bytes = &eap.arg.cstr_buf()[p_idx + 1..s_off];
+                    regmatch.set_prog(vim_regcomp(pat_bytes, RE_MAGIC));
                 }
                 if regmatch.regprog.is_null() {
                     break 'sortend;
@@ -757,18 +757,19 @@ pub fn ex_sort(eap: &mut Exarg) {
         EXCMDS_STATE.with(|s| s.sort_nr.set(s.sort_nr.get() | sort_what));
 
         for lnum in eap.line1..=eap.line2 {
-            let s_cstr = ml_get(lnum);
+            let s_slice = crate::memline::ml_get_slice(lnum);
+            let s_bytes: &[u8] = &s_slice;
             let len = ml_get_len(lnum);
             maxlen = maxlen.max(len);
 
             let mut start_col: Colnr = 0;
             let mut end_col: Colnr = len;
-            if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, &s_cstr, 0) {
+            if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s_bytes, 0) {
                 if EXCMDS_STATE.with(|s| s.sort_rx.get()) {
-                    start_col = regmatch.start_offset(0, &s_cstr) as Colnr;
-                    end_col = regmatch.end_offset(0, &s_cstr) as Colnr;
+                    start_col = regmatch.start_offset(0, s_bytes) as Colnr;
+                    end_col = regmatch.end_offset(0, s_bytes) as Colnr;
                 } else {
-                    start_col = regmatch.end_offset(0, &s_cstr) as Colnr;
+                    start_col = regmatch.end_offset(0, s_bytes) as Colnr;
                 }
             } else if !regmatch.regprog.is_null() {
                 end_col = 0;
@@ -997,11 +998,11 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 break;
             } else if !b0.is_ascii_alphabetic() && regmatch.regprog.is_null() {
                 let s_off = {
-                    let p_after = crate::memory::bytes_as_cstr(&eap.arg.cstr_buf()[p_idx + 1..]);
-                    let Some(s_cstr) = skip_regexp_err(p_after, b0 as i32, 1) else {
+                    let p_after = crate::memory::bytes_until_nul(&eap.arg.cstr_buf()[p_idx + 1..]);
+                    let Some(s_rem) = skip_regexp_err(p_after, b0 as i32, 1) else {
                         break 'uniqend;
                     };
-                    p_idx + 1 + ((s_cstr.as_ptr() as usize) - (p_after.as_ptr() as usize))
+                    p_idx + 1 + (p_after.len() - s_rem.len())
                 };
 
                 eap.set_arg_byte(s_off, 0);
@@ -1011,10 +1012,10 @@ pub fn ex_uniq(eap: &mut Exarg) {
                         emsg(gettext(E_NOPREVRE));
                         break 'uniqend;
                     };
-                    regmatch.set_prog(vim_regcomp(&last_pat, RE_MAGIC));
+                    regmatch.set_prog(vim_regcomp(last_pat.as_bytes(), RE_MAGIC));
                 } else {
-                    let pat_cstr = crate::memory::bytes_as_cstr(&eap.arg.cstr_buf()[p_idx + 1..]);
-                    regmatch.set_prog(vim_regcomp(pat_cstr, RE_MAGIC));
+                    let pat_bytes = &eap.arg.cstr_buf()[p_idx + 1..s_off];
+                    regmatch.set_prog(vim_regcomp(pat_bytes, RE_MAGIC));
                 }
                 if regmatch.regprog.is_null() {
                     break 'uniqend;
@@ -1050,18 +1051,18 @@ pub fn ex_uniq(eap: &mut Exarg) {
         while i < count {
             let get_lnum = eap.line1 + i;
 
-            let s_cstr = ml_get(get_lnum);
-            let s_bytes = s_cstr.to_bytes();
+            let s_slice = crate::memline::ml_get_slice(get_lnum);
+            let s_bytes: &[u8] = &s_slice;
             let len = ml_get_len(get_lnum);
 
             let mut start_col: Colnr = 0;
             let mut end_col: Colnr = len;
-            if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, &s_cstr, 0) {
+            if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s_bytes, 0) {
                 if EXCMDS_STATE.with(|s| s.sort_rx.get()) {
-                    start_col = regmatch.start_offset(0, &s_cstr) as Colnr;
-                    end_col = regmatch.end_offset(0, &s_cstr) as Colnr;
+                    start_col = regmatch.start_offset(0, s_bytes) as Colnr;
+                    end_col = regmatch.end_offset(0, s_bytes) as Colnr;
                 } else {
-                    start_col = regmatch.end_offset(0, &s_cstr) as Colnr;
+                    start_col = regmatch.end_offset(0, s_bytes) as Colnr;
                 }
             } else if !regmatch.regprog.is_null() {
                 end_col = 0;
@@ -3577,7 +3578,7 @@ fn sub_joining_lines(
             if !keeppatterns {
                 save_re_pat(
                     RE_SUBST,
-                    pat.as_cstr(),
+                    pat.as_bytes(),
                     pat.size,
                     i32::from(opt_vars().p_magic.get()),
                 );
@@ -3964,7 +3965,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         opt_vars().p_magic.get()
     };
     if !search_regcomp(
-        pat.as_cstr(),
+        pat.as_bytes(),
         pat.size,
         None,
         RE_SUBST,
@@ -4318,11 +4319,11 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                         g_st().textlock.set(g_st().textlock.get() + (1));
                         let rel_lnum = sub_firstlnum - regmatch.startpos[0].lnum;
-                        let sub_cstr = sub_owned.as_deref().unwrap_or(c"");
+                        let sub_bytes = sub_owned.as_deref().map_or(&b""[..], CStr::to_bytes);
                         let sublen_i = vim_regsub_multi(
                             &mut regmatch,
                             rel_lnum,
-                            sub_cstr,
+                            sub_bytes,
                             &mut [],
                             REGSUB_BACKSLASH
                                 | if opt_vars().p_magic.get() {
@@ -4378,7 +4379,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         let mut n = vim_regsub_multi(
                             &mut regmatch,
                             rel_lnum,
-                            sub_cstr,
+                            sub_bytes,
                             &mut new_start.as_mut_slice()[new_end_idx..new_end_idx + sublen],
                             REGSUB_COPY
                                 | REGSUB_BACKSLASH
@@ -4892,13 +4893,13 @@ pub fn ex_global(eap: &mut Exarg) {
         patlen = crate::memory::bytes_until_nul(&eap.arg.cstr_buf()[pat_idx.unwrap()..]).len();
     }
 
-    let pat_cstr = match pat_idx {
-        Some(idx) => crate::memory::bytes_as_cstr(&eap.arg.cstr_buf()[idx..]),
-        None => c"",
+    let pat_bytes: &[u8] = match pat_idx {
+        Some(idx) => crate::memory::bytes_until_nul(&eap.arg.cstr_buf()[idx..]),
+        None => b"",
     };
     let mut used_pat = std::ffi::CString::default();
     if !search_regcomp(
-        pat_cstr,
+        pat_bytes,
         patlen,
         Some(&mut used_pat),
         RE_BOTH,
@@ -5247,9 +5248,9 @@ pub fn skip_vimgrep_pat<'a>(
         return None;
     } else {
         let c = i32::from(first_b);
-        let after_delim = crate::memory::CStrSubslice::advance(p_cstr, 1);
-        let end_cstr = skip_regexp(after_delim, c, 1);
-        let pat_len = (end_cstr.as_ptr() as usize) - (after_delim.as_ptr() as usize);
+        let after_delim = &p_bytes[1..];
+        let end_rem = skip_regexp(after_delim, c, 1);
+        let pat_len = after_delim.len() - end_rem.len();
         off = 1 + pat_len;
         if p_bytes.get(off).copied().map_or(0, i32::from) != c {
             return None;

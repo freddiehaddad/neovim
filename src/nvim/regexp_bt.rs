@@ -2093,7 +2093,7 @@ fn reg(paren: i32, flagp: &mut i32) -> Option<usize> {
     ret
 }
 
-pub(super) fn bt_regcomp(expr: &CStr, re_flags: i32) -> Option<BtRegprog> {
+pub(super) fn bt_regcomp(expr: &[u8], re_flags: i32) -> Option<BtRegprog> {
     let mut flags: i32 = 0;
 
     regcomp_start(expr, re_flags);
@@ -4112,9 +4112,9 @@ fn regtry(
                     if sz.lnum >= 0
                         && ez.lnum == sz.lnum
                         && ez.col >= sz.col
-                        && let Some(line_cstr) = reg_getline(sz.lnum)
+                        && let Some(line_slice) = reg_getline(sz.lnum)
                     {
-                        let line_bytes = line_cstr.to_bytes();
+                        let line_bytes: &[u8] = &line_slice;
                         let start = (sz.col as usize).min(line_bytes.len());
                         let end = (ez.col as usize).min(line_bytes.len());
                         extmatch.matches[i] = cstring_from_bytes(&line_bytes[start..end]);
@@ -4135,13 +4135,13 @@ fn regtry(
 
 fn bt_regexec_both(
     prog: &mut BtRegprog,
-    line_opt: Option<&CStr>,
+    line_opt: Option<&[u8]>,
     startcol: Colnr,
     tm: Option<Proftime>,
     mut timed_out: Option<&mut i32>,
 ) -> i32 {
     RE_STATE.with(|re_s| {
-        let mut line = reg_line_from_opt_cstr(line_opt);
+        let mut line = reg_line_from_opt_bytes(line_opt);
         let mut col = startcol;
         let mut retval: i32 = 0;
 
@@ -4373,7 +4373,7 @@ fn finish_bt_regexec(
 pub(super) fn bt_regexec_nl(
     prog: &mut BtRegprog,
     rmp: &mut Regmatch,
-    line: Option<&CStr>,
+    line: Option<&[u8]>,
     col: Colnr,
     line_lbr: bool,
 ) -> i32 {

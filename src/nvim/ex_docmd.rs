@@ -7017,7 +7017,7 @@ pub fn parse_command_modifiers(
                     let pat_owned = reg_pat.unwrap_or_default();
                     cmod.cmod_filter_regmatch.free_prog();
                     cmod.cmod_filter_regmatch
-                        .set_prog(vim_regcomp(&pat_owned, RE_MAGIC));
+                        .set_prog(vim_regcomp(pat_owned.as_bytes(), RE_MAGIC));
                     cmod.cmod_filter_pat = Some(pat_owned);
                     if cmod.cmod_filter_regmatch.regprog.is_null() {
                         break;
@@ -7808,11 +7808,13 @@ pub fn skip_range<'a>(cmd_in: &'a CStr, mut ctx: Option<&mut i32>) -> &'a CStr {
                 **ctx = EXPAND_NOTHING;
             }
         } else if b0 == b'/' || b0 == b'?' {
-            cmd = skip_regexp(
-                crate::memory::CStrSubslice::advance(cmd, 1),
+            let cmd_bytes = cmd.to_bytes();
+            let rem = skip_regexp(
+                &cmd_bytes[1..],
                 i32::from(b0),
                 i32::from(opt_vars().p_magic.get()),
             );
+            cmd = &cmd[cmd_bytes.len() - rem.len()..];
             if cmd.to_bytes().is_empty()
                 && let Some(ref mut ctx) = ctx
             {
@@ -7970,8 +7972,9 @@ pub fn get_address(
                         break 'error;
                     }
                     if skip {
-                        let mut skipped =
-                            skip_regexp(after_delim, c, i32::from(opt_vars().p_magic.get()));
+                        let ad_bytes = after_delim.to_bytes();
+                        let rem = skip_regexp(ad_bytes, c, i32::from(opt_vars().p_magic.get()));
+                        let mut skipped = &after_delim[ad_bytes.len() - rem.len()..];
                         if skipped.to_bytes().first().copied().map(i32::from) == Some(c) {
                             skipped = crate::memory::CStrSubslice::advance(skipped, 1);
                         }
@@ -7996,12 +7999,13 @@ pub fn get_address(
                         } else {
                             SEARCH_HIS | SEARCH_MSG
                         };
+                        let ad_bytes = after_delim.to_bytes();
                         if do_search(
                             None,
                             c,
                             c,
-                            Some(after_delim),
-                            after_delim.to_bytes().len(),
+                            Some(ad_bytes),
+                            ad_bytes.len(),
                             1,
                             search_flags,
                             opt_vars().p_magic.get(),
@@ -8053,7 +8057,7 @@ pub fn get_address(
                             &mut pos,
                             None,
                             if b_next == b'?' { BACKWARD } else { FORWARD },
-                            c"",
+                            b"",
                             0,
                             1,
                             SEARCH_MSG,
@@ -11908,9 +11912,9 @@ fn ex_findpat(eap: &mut Exarg) {
         whole = false;
         eap.arg = eap.arg.wrapping_add(1);
         let pat_len = {
-            let arg_cstr = eap.arg.as_cstr();
-            let p_cstr = skip_regexp(arg_cstr, b'/' as i32, i32::from(opt_vars().p_magic.get()));
-            (p_cstr.as_ptr() as usize) - (arg_cstr.as_ptr() as usize)
+            let arg_bytes = eap.arg.as_bytes();
+            let p_rem = skip_regexp(arg_bytes, b'/' as i32, i32::from(opt_vars().p_magic.get()));
+            arg_bytes.len() - p_rem.len()
         };
         if eap.arg.byte_at(pat_len) != 0 {
             eap.set_arg_byte(pat_len, NUL as u8);

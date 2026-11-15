@@ -166,7 +166,7 @@ fn match_add(
         return -1;
     }
     if let Some(pat) = pat {
-        let Some(prog_box) = vim_regcomp(pat, RE_MAGIC) else {
+        let Some(prog_box) = vim_regcomp(pat.to_bytes(), RE_MAGIC) else {
             semsg!(gettext(E_INVARG2), pat);
             return -1;
         };
@@ -1361,8 +1361,10 @@ pub fn ex_match(eap: &mut Exarg) {
                 semsg!(gettext(E_INVARG2), arg);
                 return;
             }
-            let p0 = p.to_bytes()[0];
-            end = skip_regexp(&p[1..], i32::from(p0), 1);
+            let p_bytes = p.to_bytes();
+            let p0 = p_bytes[0];
+            let rem = skip_regexp(&p_bytes[1..], i32::from(p0), 1);
+            end = &p[p_bytes.len() - rem.len()..];
             if !eap.skip {
                 if !end.is_empty()
                     && ends_excmd(i32::from(

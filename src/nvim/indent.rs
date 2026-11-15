@@ -752,14 +752,14 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
     }
 
     let mut regmatch = Regmatch::new();
-    regmatch.set_prog(vim_regcomp(&curbuf().b_p_flp.as_cstr(), RE_MAGIC));
+    regmatch.set_prog(vim_regcomp(&curbuf().b_p_flp.as_bytes(), RE_MAGIC));
 
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = false;
-        let line = ml_get(lnum);
+        let line = crate::memline::ml_get_slice(lnum);
         if vim_regexec(
             &mut regmatch,
-            crate::memory::CStrSubslice::advance(&line, lead_len as usize),
+            line.get(lead_len as usize..).unwrap_or(&[]),
             0,
         ) {
             pos.lnum = lnum;
@@ -895,12 +895,12 @@ pub fn get_breakindent_win(wp: &WinInfoInfo, line: &[u8]) -> i32 {
 
             let mut regmatch = Regmatch::new();
             regmatch.set_prog(vim_regcomp(
-                &new_flp,
+                new_flp.as_bytes(),
                 RE_MAGIC + RE_STRING + RE_AUTO + RE_STRICT,
             ));
             if !regmatch.regprog.is_null() {
                 regmatch.rm_ic = false;
-                if vim_regexec(&mut regmatch, &new_line, 0) {
+                if vim_regexec(&mut regmatch, new_line.to_bytes(), 0) {
                     if wp.w_briopt_list.get() > 0 {
                         INDENT_STATE.with_borrow_mut(|st| st.prev_list += wp.w_briopt_list.get());
                     } else {

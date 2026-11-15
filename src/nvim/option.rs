@@ -7727,7 +7727,7 @@ fn match_str(
     fuzmatch: &mut Vec<FuzmatchStr>,
 ) -> bool {
     if !fuzzy {
-        if vim_regexec(regmatch, str_arg, 0) {
+        if vim_regexec(regmatch, str_arg.to_bytes(), 0) {
             matches.push(str_arg.to_owned());
             return true;
         }
@@ -7785,7 +7785,9 @@ pub fn expand_settings(
             fuzzystr,
             &mut fuzmatch,
         ) && !fuzzy
-            && opt.shortname.is_some_and(|s| vim_regexec(regmatch, s, 0))
+            && opt
+                .shortname
+                .is_some_and(|s| vim_regexec(regmatch, s.to_bytes(), 0))
         {
             matches.push(opt.fullname.to_owned());
         }
@@ -7961,11 +7963,8 @@ pub fn expand_setting_subtract(
             }
 
             let item_bytes = &option_copy[start..end];
-            if !item_bytes.is_empty() {
-                let item_cstr = crate::memory::bytes_to_cstring(item_bytes);
-                if vim_regexec(regmatch, &item_cstr, 0) {
-                    matches.push(escape_option_str_cmdline(item_bytes));
-                }
+            if !item_bytes.is_empty() && vim_regexec(regmatch, item_bytes, 0) {
+                matches.push(escape_option_str_cmdline(item_bytes));
             }
 
             if end >= copy_len {

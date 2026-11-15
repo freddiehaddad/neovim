@@ -367,9 +367,9 @@ pub fn spell_check(
                 let mut regmatch = Regmatch::new();
                 regmatch.borrow_prog(w_s.b_cap_prog.borrow().as_deref());
                 regmatch.rm_ic = false;
-                let r = vim_regexec(&mut regmatch, ptr_cstr, 0);
+                let r = vim_regexec(&mut regmatch, ptr_bytes, 0);
                 if r {
-                    *capcol = regmatch.end_offset(0, ptr_cstr) as i32;
+                    *capcol = regmatch.end_offset(0, ptr_bytes) as i32;
                 }
             }
             return utfc_ptr2len(ptr_bytes) as usize;
@@ -874,12 +874,7 @@ pub fn can_compound(slang: &Slang, word: &[u8], flags: &[u8]) -> bool {
     for &b in flags_bytes {
         p_idx += utf_char2bytes(i32::from(b), &mut uflags[p_idx..p_idx + 6]) as usize;
     }
-    if !vim_regexec_prog(
-        slang.sl_compprog.as_deref(),
-        false,
-        crate::memory::bytes_as_cstr(&uflags),
-        0,
-    ) {
+    if !vim_regexec_prog(slang.sl_compprog.as_deref(), false, &uflags[..p_idx], 0) {
         return false;
     }
     if slang.sl_compsylmax < MAXWLEN as i32 && count_syllables(slang, word) > slang.sl_compsylmax {
@@ -944,7 +939,7 @@ pub fn valid_word_prefix(
         }
         let rp = &(&slang.sl_prefprog)[(((pidx as u32) >> 8) & 0xffff) as usize];
         if rp.is_some() {
-            if !vim_regexec_prog(rp.as_deref(), false, word, 0) {
+            if !vim_regexec_prog(rp.as_deref(), false, word.to_bytes(), 0) {
                 continue;
             }
         } else if cond_req {
@@ -2226,12 +2221,12 @@ pub fn check_need_cap(wp: &WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
         let mut p_idx = endcol as usize;
         loop {
             p_idx = p_idx - 1 - crate::mbyte::utf_head_off_slice(line_bytes, p_idx - 1) as usize;
-            let p_cstr = crate::memory::CStrSubslice::advance(line_cstr, p_idx);
-            if p_idx == 0 || spell_iswordp_nmw(p_cstr.to_bytes(), wp) {
+            let p_bytes = &line_bytes[p_idx..];
+            if p_idx == 0 || spell_iswordp_nmw(p_bytes, wp) {
                 break;
             }
-            if vim_regexec(&mut regmatch, p_cstr, 0)
-                && p_idx + regmatch.end_offset(0, p_cstr) == endcol as usize
+            if vim_regexec(&mut regmatch, p_bytes, 0)
+                && p_idx + regmatch.end_offset(0, p_bytes) == endcol as usize
             {
                 need_cap = true;
                 break;
@@ -2267,12 +2262,12 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
     g_st().sub_nlines.set(0);
     curwin().w_cursor.set_lnum(0);
     while !g_st().got_int.get() {
-        let frompat_cstr = crate::memory::bytes_as_cstr(&frompat_vec);
+        let frompat_bytes = &frompat_vec[..frompatlen];
         if do_search(
             None,
             b'/' as i32,
             b'/' as i32,
-            Some(frompat_cstr),
+            Some(frompat_bytes),
             frompatlen,
             1,
             SEARCH_KEEP,
@@ -3173,7 +3168,7 @@ pub fn compile_cap_prog(
     let mut rp: Option<Box<Regprog>> = None;
     if !value.to_bytes().is_empty() {
         let re = concat_str(b"^", value.to_bytes());
-        rp = crate::regexp::vim_regcomp_box(&re, RE_MAGIC);
+        rp = crate::regexp::vim_regcomp_box(re.as_bytes(), RE_MAGIC);
         if rp.is_none() {
             return Some(E_INVARG);
         }

@@ -1990,7 +1990,7 @@ fn ins_compl_build_pum() -> i32 {
             if ctrl_x_mode_normal()
                 && !opt_vars().p_inf.get()
                 && !INSEXPAND.with(|s| s.compl_orig_text.get()).data.is_null()
-                && !ignorecase(INSEXPAND.with(|s| s.compl_orig_text.get()).as_cstr())
+                && !ignorecase(INSEXPAND.with(|s| s.compl_orig_text.get()).as_bytes())
                 && !cot_fuzzy()
             {
                 comp.cp_flags &= !CP_ICASE;
@@ -2215,18 +2215,19 @@ fn ins_compl_dictionaries(
         opt_vars().p_scs.set(false);
     }
 
+    let pat_bytes = pat_cstr.to_bytes();
     if ctrl_x_mode_line_or_eval() {
-        let pat_esc = vim_strsave_escaped(pat_cstr.to_bytes(), b"\\");
+        let pat_esc = vim_strsave_escaped(pat_bytes, b"\\");
         let len = pat_esc.as_bytes().len() + 10;
         let mut ptr_vec = vec![0u8; len];
         format_to_buf!(&mut ptr_vec, c"^\\s*\\zs\\V%s", &pat_esc);
         regmatch.set_prog(vim_regcomp(
-            crate::memory::bytes_as_cstr(&ptr_vec),
+            crate::memory::bytes_until_nul(&ptr_vec),
             RE_MAGIC,
         ));
     } else {
         regmatch.set_prog(vim_regcomp(
-            pat_cstr,
+            pat_bytes,
             if opt_vars().p_magic.get() {
                 RE_MAGIC
             } else {
@@ -2240,7 +2241,7 @@ fn ins_compl_dictionaries(
         }
     }
 
-    regmatch.rm_ic = ignorecase(pat_cstr);
+    regmatch.rm_ic = ignorecase(pat_bytes);
     while !dict.to_bytes().is_empty()
         && !g_st().got_int.get()
         && !INSEXPAND.with(|s| s.compl_interrupted.get())
@@ -2436,11 +2437,10 @@ fn ins_compl_files(
                     }
                 }
             } else {
-                let buf_cstr = crate::memory::bytes_as_cstr(buf_slice);
-                let buf_base = buf_cstr.as_ptr() as usize;
+                let buf_base = line_bytes.as_ptr() as usize;
                 let mut col_off: usize = 0;
-                while vim_regexec(&mut *regmatch, buf_cstr, col_off as Colnr) {
-                    let start_off = regmatch.start_offset(0, buf_cstr);
+                while vim_regexec(&mut *regmatch, line_bytes, col_off as Colnr) {
+                    let start_off = regmatch.start_offset(0, line_bytes);
                     let from_start = &line_bytes[start_off.min(line_bytes.len())..];
                     let end_tail = if ctrl_x_mode_line_or_eval() {
                         find_line_end(from_start)
@@ -4286,7 +4286,7 @@ fn get_next_tag_completion() {
     let save_p_ic = opt_vars().p_ic.get();
     let pat = compl_pattern();
     let pat_cstr = pat.as_deref().unwrap_or(c"");
-    opt_vars().p_ic.set(ignorecase(pat_cstr));
+    opt_vars().p_ic.set(ignorecase(pat_cstr.to_bytes()));
 
     g_st().g_tag_at_cursor.set(true);
     let mut matches: Vec<Vec<u8>> = Vec::new();
@@ -4775,7 +4775,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
                 &ins_buf_ref,
                 &mut *st.cur_match_pos_ptr(),
                 INSEXPAND.with(|s| s.compl_direction.get()),
-                pat.as_deref().unwrap_or(c""),
+                pat.as_deref().map_or(b"", CStr::to_bytes),
             );
         } else {
             let pat = compl_pattern();
@@ -4785,7 +4785,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
                 st.cur_match_pos_ptr(),
                 None,
                 INSEXPAND.with(|s| s.compl_direction.get()),
-                pat.as_deref().unwrap_or(c""),
+                pat.as_deref().map_or(b"", CStr::to_bytes),
                 compl_pattern_len(),
                 1,
                 SEARCH_KEEP + SEARCH_NFMSG,
@@ -5552,7 +5552,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> Option<NvimS
             if ctrl_x_mode_normal()
                 && !opt_vars().p_inf.get()
                 && !INSEXPAND.with(|s| s.compl_orig_text.get()).data.is_null()
-                && !ignorecase(INSEXPAND.with(|s| s.compl_orig_text.get()).as_cstr())
+                && !ignorecase(INSEXPAND.with(|s| s.compl_orig_text.get()).as_bytes())
             {
                 compl.cp_flags &= !CP_ICASE;
             }

@@ -225,11 +225,11 @@ fn emit2(c: i32) {
     emit_fn(NFA_CONCAT);
 }
 
-fn nfa_regcomp_start(expr_cstr: &std::ffi::CStr, re_flags: i32) {
+fn nfa_regcomp_start(expr: &[u8], re_flags: i32) {
     RE_STATE.with(|re_s| {
         re_s.nstate.set(0);
         re_s.istate.set(0);
-        let nstate_max = (expr_cstr.to_bytes().len() + 1) * 25 + 1000;
+        let nstate_max = (crate::memory::bytes_until_nul(expr).len() + 1) * 25 + 1000;
         POST_VEC.with(|cell| {
             let mut pv = cell.borrow_mut();
             pv.clear();
@@ -240,7 +240,7 @@ fn nfa_regcomp_start(expr_cstr: &std::ffi::CStr, re_flags: i32) {
         re_s.rex.nfa_has_backref.set(false);
         re_s.nfa_reg_parse_depth.set(0);
 
-        regcomp_start(expr_cstr, re_flags);
+        regcomp_start(expr, re_flags);
     })
 }
 
@@ -4781,9 +4781,9 @@ fn nfa_regtry(
                     if mpos.start_lnum >= 0
                         && mpos.start_lnum == mpos.end_lnum
                         && mpos.end_col >= mpos.start_col
-                        && let Some(line_cstr) = reg_getline(mpos.start_lnum)
+                        && let Some(line_slice) = reg_getline(mpos.start_lnum)
                     {
-                        let line_bytes = line_cstr.to_bytes();
+                        let line_bytes: &[u8] = &line_slice;
                         let start = (mpos.start_col as usize).min(line_bytes.len());
                         let end = (mpos.end_col as usize).min(line_bytes.len());
                         extmatch.matches[i] = cstring_from_bytes(&line_bytes[start..end]);
@@ -4808,13 +4808,13 @@ fn nfa_regtry(
 
 fn nfa_regexec_both(
     prog: &mut NfaRegprog,
-    line_in: Option<&std::ffi::CStr>,
+    line_in: Option<&[u8]>,
     startcol: Colnr,
     tm: Option<Proftime>,
     timed_out: Option<&mut i32>,
 ) -> i32 {
     RE_STATE.with(|re_s| {
-        let mut line = crate::regexp::reg_line_from_opt_cstr(line_in);
+        let mut line = crate::regexp::reg_line_from_opt_bytes(line_in);
         let mut retval: i32 = 0;
         let mut col = startcol;
 
@@ -4916,7 +4916,7 @@ fn finish_nfa_regexec(re_s: &RegexpState, retval: i32, col: Colnr) -> i32 {
     retval
 }
 
-pub(super) fn nfa_regcomp(expr: &std::ffi::CStr, re_flags: i32) -> Option<NfaRegprog> {
+pub(super) fn nfa_regcomp(expr: &[u8], re_flags: i32) -> Option<NfaRegprog> {
     RE_STATE.with(|re_s| {
         re_s.nfa_re_flags.set(re_flags);
         nfa_regcomp_start(expr, re_flags);
@@ -4962,7 +4962,7 @@ pub(super) fn nfa_regcomp(expr: &std::ffi::CStr, re_flags: i32) -> Option<NfaReg
         prog.regstart = nfa_get_regstart(&prog.state, prog.start, 0);
         prog.match_text = nfa_get_match_text(&prog.state, prog.start);
         prog.reghasz = re_s.re_has_z.get();
-        prog.pattern = expr.to_owned();
+        prog.pattern = crate::memory::bytes_to_cstring(expr);
 
         cleanup_nfa_regcomp(Some(prog))
     })
@@ -4983,7 +4983,7 @@ fn cleanup_nfa_regcomp(prog: Option<NfaRegprog>) -> Option<NfaRegprog> {
 pub(super) fn nfa_regexec_nl(
     prog: &mut NfaRegprog,
     rmp: &mut Regmatch,
-    line: Option<&std::ffi::CStr>,
+    line: Option<&[u8]>,
     col: Colnr,
     line_lbr: bool,
 ) -> i32 {

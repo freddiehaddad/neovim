@@ -2414,7 +2414,9 @@ pub fn autocmd_register(
             let reg_pat = file_pat_to_reg_pat(pat_slice, Some(&mut allow_dirs_b), 1);
             allow_dirs = u8::from(allow_dirs_b);
             let prog = match reg_pat {
-                Some(ref rp) => crate::regexp::vim_regcomp_box(rp, RE_MAGIC | RE_NOBREAK),
+                Some(ref rp) => {
+                    crate::regexp::vim_regcomp_box(rp.as_bytes(), RE_MAGIC | RE_NOBREAK)
+                }
                 None => None,
             };
             if reg_pat.is_none() || prog.is_none() {

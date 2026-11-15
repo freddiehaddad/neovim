@@ -80,11 +80,12 @@ fn regex_match(lstate: *mut lua_State, regex: &mut LuaRegex, str_: &CStr) -> i32
     let mut rm: Regmatch = Regmatch::new();
     rm.regprog = regex.prog.clone();
     rm.rm_ic = false;
-    let matched = vim_regexec(&mut rm, str_, 0);
+    let str_bytes = str_.to_bytes();
+    let matched = vim_regexec(&mut rm, str_bytes, 0);
 
     if matched {
-        lua_pushinteger_safe(lstate, rm.start_offset(0, str_) as lua_Integer);
-        lua_pushinteger_safe(lstate, rm.end_offset(0, str_) as lua_Integer);
+        lua_pushinteger_safe(lstate, rm.start_offset(0, str_bytes) as lua_Integer);
+        lua_pushinteger_safe(lstate, rm.end_offset(0, str_bytes) as lua_Integer);
         return 2;
     }
     0
@@ -284,7 +285,7 @@ pub extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let prog = vim_regcomp(text, RE_AUTO | RE_MAGIC | RE_STRICT | RE_NOBREAK);
+    let prog = vim_regcomp(text.to_bytes(), RE_AUTO | RE_MAGIC | RE_STRICT | RE_NOBREAK);
     if let Err(err) = try_leave(&tstate) {
         luaL_where_safe(lstate, 1);
         lua_push_bytes(lstate, b"couldn't parse regex: ");

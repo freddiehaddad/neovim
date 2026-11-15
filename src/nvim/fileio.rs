@@ -3858,15 +3858,14 @@ pub fn match_file_pat(
     if let Some(prog) = prog {
         regmatch.borrow_prog(Some(prog));
     } else {
-        regmatch.set_prog(vim_regcomp(pattern.unwrap_or(c""), RE_MAGIC));
+        regmatch.set_prog(vim_regcomp(pattern.map_or(b"", CStr::to_bytes), RE_MAGIC));
     }
 
     if !regmatch.regprog.is_null()
         && ((allow_dirs != 0
-            && (vim_regexec(&mut regmatch, fname.unwrap_or(c""), 0)
-                || sfname.is_some_and(|sf| vim_regexec(&mut regmatch, sf, 0))))
-            || (allow_dirs == 0
-                && vim_regexec(&mut regmatch, &crate::memory::bytes_to_cstring(tail), 0)))
+            && (vim_regexec(&mut regmatch, fname.map_or(b"", CStr::to_bytes), 0)
+                || sfname.is_some_and(|sf| vim_regexec(&mut regmatch, sf.to_bytes(), 0))))
+            || (allow_dirs == 0 && vim_regexec(&mut regmatch, tail, 0)))
     {
         result = true;
     }

@@ -3059,7 +3059,7 @@ pub fn message_filtered(msg: &std::ffi::CStr) -> bool {
     }
 
     let mut rm = std::mem::take(&mut g_st().cmdmod.borrow_mut().cmod_filter_regmatch);
-    let match_ = vim_regexec(&mut rm, msg, 0);
+    let match_ = vim_regexec(&mut rm, msg.to_bytes(), 0);
     g_st().cmdmod.borrow_mut().cmod_filter_regmatch = rm;
     if g_st().cmdmod.borrow().cmod_filter_force {
         match_

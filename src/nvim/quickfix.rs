@@ -1004,7 +1004,7 @@ fn parse_efm_option(efm: &[u8]) -> Vec<Efm> {
             break;
         }
         fmt_item.prog = crate::regexp::vim_regcomp_box(
-            crate::memory::bytes_as_cstr(&fmtstr),
+            crate::memory::bytes_until_nul(&fmtstr),
             RE_MAGIC + RE_STRING,
         );
         if fmt_item.prog.is_none() {
@@ -1885,9 +1885,9 @@ fn qf_parse_get_fields(
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.rm_ic = true;
     regmatch.borrow_prog(fmt_ptr.prog.as_deref());
-    let line_cstr = crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(line));
-    let line_base = line_cstr.as_ptr() as usize;
-    let r = vim_regexec(&mut regmatch, &line_cstr, 0);
+    let line_bytes = crate::memory::bytes_until_nul(line);
+    let line_base = line_bytes.as_ptr() as usize;
+    let r = vim_regexec(&mut regmatch, line_bytes, 0);
     let mut status = QfStatus::Fail;
     if r {
         status = qf_parse_match(
@@ -3061,12 +3061,13 @@ fn qf_jump_goto_line(qf_lnum: Linenr, qf_col: i32, qf_viscol: bool, qf_pattern: 
     if let Some(qf_pattern) = qf_pattern {
         let save_cursor = curwin().w_cursor.get();
         curwin().w_cursor.set_lnum(0);
+        let qf_pat_bytes = qf_pattern.to_bytes();
         if do_search(
             None,
             b'/' as i32,
             b'/' as i32,
-            Some(qf_pattern),
-            qf_pattern.to_bytes().len(),
+            Some(qf_pat_bytes),
+            qf_pat_bytes.len(),
             1,
             SEARCH_KEEP,
             opt_vars().p_magic.get(),
@@ -5213,13 +5214,13 @@ fn vgr_init_regmatch(regmatch: &mut Regmmatch, s: Option<&CStr>) {
     regmatch.free_prog();
 
     if let Some(s) = s.filter(|s| !s.to_bytes().is_empty()) {
-        regmatch.set_prog(vim_regcomp(s, RE_MAGIC));
+        regmatch.set_prog(vim_regcomp(s.to_bytes(), RE_MAGIC));
     } else {
         let Some(last_pat) = last_search_pat() else {
             emsg(gettext(E_NOPREVRE));
             return;
         };
-        regmatch.set_prog(vim_regcomp(&last_pat, RE_MAGIC));
+        regmatch.set_prog(vim_regcomp(last_pat.as_bytes(), RE_MAGIC));
     }
 
     regmatch.rmm_ic = opt_vars().p_ic.get();
@@ -7184,11 +7185,11 @@ fn hgr_search_file(qfl_rc: &QfListRc, fname: &CStr, p_regmatch: &mut Regmatch) {
     let mut lnum: Linenr = 1;
     let mut iobuff = [0u8; IOSIZE];
     while !vim_fgets(&mut iobuff, &fd) && !g_st().got_int.get() {
-        let orig_cstr = crate::memory::bytes_as_cstr(&iobuff);
-        if vim_regexec(p_regmatch, orig_cstr, 0) {
-            let start_off = p_regmatch.start_offset(0, orig_cstr);
-            let end_off = p_regmatch.end_offset(0, orig_cstr);
-            let mut l = orig_cstr.to_bytes().len();
+        let orig_bytes = crate::memory::bytes_until_nul(&iobuff);
+        if vim_regexec(p_regmatch, orig_bytes, 0) {
+            let start_off = p_regmatch.start_offset(0, orig_bytes);
+            let end_off = p_regmatch.end_offset(0, orig_bytes);
+            let mut l = orig_bytes.len();
             while l > 0 && iobuff[l - 1] <= b' ' {
                 l -= 1;
                 iobuff[l] = 0;
@@ -7310,7 +7311,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
     };
     let lang = lang_owned.as_deref();
     let mut regmatch: Regmatch = Regmatch::new();
-    regmatch.set_prog(vim_regcomp(eap.arg.as_cstr(), RE_MAGIC + RE_STRING));
+    regmatch.set_prog(vim_regcomp(eap.arg.as_bytes(), RE_MAGIC + RE_STRING));
     regmatch.rm_ic = false;
     if !regmatch.regprog.is_null() {
         qf_new_list(qi, Some(&qf_cmdtitle(eap.cmdline_cstr())));

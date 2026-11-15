@@ -3117,7 +3117,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         } else {
             pat_owned = crate::eval::typval::tv_dict_get_cstring(arg_dict, c"name");
             if let Some(ref pat) = pat_owned {
-                regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
+                regmatch.set_prog(vim_regcomp(pat.as_bytes(), RE_MAGIC + RE_STRING));
             }
             if !regmatch.regprog.is_null() {
                 filterpat = true;
@@ -3132,7 +3132,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         });
 
         if let Some(ref sn) = sn_opt
-            && (!filterpat || vim_regexec(&mut regmatch, sn, 0))
+            && (!filterpat || vim_regexec(&mut regmatch, sn.as_bytes(), 0))
         {
             let d = tv_dict_alloc();
             tv_list_append_dict(l, Some(&d));

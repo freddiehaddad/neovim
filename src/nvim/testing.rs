@@ -263,7 +263,8 @@ fn assert_match_common(argvars: &mut [TypVal], atype: AssertType) -> bool {
     let text = tv_get_string_buf_chk(&argvars[1], &mut buf2);
 
     if let (Some(pat), Some(text)) = (pat, text)
-        && pattern_match(pat, Some(text), false) != (atype == AssertType::Match)
+        && pattern_match(pat.to_bytes(), Some(text.to_bytes()), false)
+            != (atype == AssertType::Match)
     {
         let mut ga = Vec::new();
         prepare_assert_error(&mut ga);
@@ -574,7 +575,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 let expected = tv_get_string_buf_chk(&first_tv, &mut buf).map(CStr::to_owned);
                 drop(first_tv);
                 if let Some(expected) = expected {
-                    if !pattern_match(&expected, Some(actual_cstr), false) {
+                    if !pattern_match(expected.as_bytes(), Some(actual_cstr.to_bytes()), false) {
                         error_found = true;
                         expected_str = Some(expected);
                     } else if list_len == 2 {
@@ -587,7 +588,11 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                             tv_get_string_buf_chk(&last_tv, &mut buf2).map(CStr::to_owned);
                         drop(last_tv);
                         if let Some(expected2) = expected2 {
-                            if !pattern_match(&expected2, Some(actual_cstr), false) {
+                            if !pattern_match(
+                                expected2.as_bytes(),
+                                Some(actual_cstr.to_bytes()),
+                                false,
+                            ) {
                                 error_found = true;
                                 expected_str = Some(expected2);
                             }
@@ -630,8 +635,12 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                     valid_args = false;
                 } else if !arg4.vval.v_string_is_null()
                     && !pattern_match(
-                        arg4.vval.v_string_cstr_or_empty(),
-                        g_st().emsg_assert_fails_context.get().as_deref(),
+                        arg4.vval.v_string_cstr_or_empty().to_bytes(),
+                        g_st()
+                            .emsg_assert_fails_context
+                            .get()
+                            .as_deref()
+                            .map(CStr::to_bytes),
                         false,
                     )
                 {

@@ -1532,7 +1532,7 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
         };
         let mut score: i32 = 0;
         let match_found = if !fuzzy {
-            vim_regexec(regmatch, p_cstr, 0)
+            vim_regexec(regmatch, p_cstr.to_bytes(), 0)
         } else {
             score = fuzzy_match_str(Some(p_cstr.to_bytes()), Some(pat.to_bytes()));
             score != FUZZY_SCORE_NONE
@@ -1578,7 +1578,7 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
     for p_cstr in candidates {
         let mut score: i32 = 0;
         let match_found = if !fuzzy {
-            vim_regexec(regmatch, &p_cstr, 0)
+            vim_regexec(regmatch, p_cstr.as_bytes(), 0)
         } else {
             score = fuzzy_match_str(Some(p_cstr.to_bytes()), Some(pat.to_bytes()));
             score != FUZZY_SCORE_NONE

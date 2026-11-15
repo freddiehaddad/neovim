@@ -4690,17 +4690,18 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
         }
 
         let delim = arg_bytes[0];
-        let mut end = skip_regexp(&arg_cstr[1..], delim as i32, 1);
-        if end.to_bytes().first() != Some(&delim) {
+        let rem = skip_regexp(&arg_bytes[1..], delim as i32, 1);
+        let mut end = &arg_cstr[arg_bytes.len() - rem.len()..];
+        if rem.first() != Some(&delim) {
             semsg!(gettext(c"E401: Pattern delimiter not found: %s"), arg_cstr,);
             return None;
         }
-        let pat_len = arg_bytes.len() - 1 - end.to_bytes().len();
+        let pat_len = arg_bytes.len() - 1 - rem.len();
         let pat_slice = &arg_bytes[1..1 + pat_len];
         let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
 
         let cpo_save = opt_vars().p_cpo.take();
-        ci.sp_prog = crate::regexp::vim_regcomp_box(&pat_cstr, RE_MAGIC);
+        ci.sp_prog = crate::regexp::vim_regcomp_box(pat_slice, RE_MAGIC);
         opt_vars().p_cpo.set(cpo_save);
         ci.sp_pattern = Some(pat_cstr);
 
@@ -4862,27 +4863,24 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                 break;
             }
             let next_plus1 = next_arg.wrapping_add(1);
-            arg_end = next_plus1.advance_to_cstr(skip_regexp(
-                next_plus1.as_cstr(),
-                i32::from((next_arg).first_byte()),
-                1,
-            ));
+            let next_bytes = next_plus1.as_bytes();
+            let rem = skip_regexp(next_bytes, i32::from((next_arg).first_byte()), 1);
+            let pat_len = next_bytes.len() - rem.len();
+            arg_end = next_plus1.wrapping_add(pat_len);
             if (arg_end).first_byte() != (next_arg).first_byte() {
                 illegal = true;
                 break;
             }
 
             if !eap.skip {
-                let pat_slice =
-                    next_plus1.slice(((arg_end).offset_from(&next_arg) as isize) as usize - 1);
-                let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
+                let pat_slice = &next_bytes[..pat_len];
                 win_s(&curwin())
                     .b_syn_linecont_ic
                     .set(win_s(&curwin()).b_syn_ic.get());
 
                 let cpo_save = opt_vars().p_cpo.take();
                 *win_s(&curwin()).b_syn_linecont_prog.borrow_mut() =
-                    crate::regexp::vim_regcomp_box(&pat_cstr, RE_MAGIC);
+                    crate::regexp::vim_regcomp_box(pat_slice, RE_MAGIC);
                 opt_vars().p_cpo.set(cpo_save);
                 syn_clear_time(&win_s(&curwin()).b_syn_linecont_time);
 
@@ -4891,6 +4889,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                     finished = true;
                     break;
                 }
+                let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
                 win_s(&curwin()).b_syn_linecont_pat.set(Some(pat_cstr));
             }
             next_arg = arg_end.wrapping_add(1).skipwhite();
@@ -4998,10 +4997,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     name_buf[0] = b'^';
                     name_buf[1 + item_len] = b'$';
                     name_buf[2 + item_len] = 0;
-                    regmatch.set_prog(vim_regcomp(
-                        crate::memory::bytes_as_cstr(&name_buf),
-                        RE_MAGIC,
-                    ));
+                    regmatch.set_prog(vim_regcomp(&name_buf[..2 + item_len], RE_MAGIC));
                     if regmatch.regprog.is_null() {
                         failed = true;
                         break;
@@ -5011,7 +5007,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     id = 0;
                     let mut i = highlight_num_groups() - 1;
                     while i >= 0 {
-                        if vim_regexec(&mut regmatch, &highlight_group_name(i), 0) {
+                        if vim_regexec(&mut regmatch, highlight_group_name(i).to_bytes(), 0) {
                             if round == 2 {
                                 if count >= total_count {
                                     retval.clear();

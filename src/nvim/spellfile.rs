@@ -986,10 +986,8 @@ fn read_prefcond_section(fd: &CFile, lp: &mut Slang) -> i32 {
                 return ret;
             }
             buf[(n + 1) as usize] = 0;
-            lp.sl_prefprog.as_mut_slice()[i as usize] = crate::regexp::vim_regcomp_box(
-                crate::memory::bytes_as_cstr(&buf),
-                RE_MAGIC | RE_STRING,
-            );
+            lp.sl_prefprog.as_mut_slice()[i as usize] =
+                crate::regexp::vim_regcomp_box(&buf[..(n + 1) as usize], RE_MAGIC | RE_STRING);
         }
     }
     0
@@ -1345,7 +1343,7 @@ fn read_compound(fd: &CFile, slang: &mut Slang, len: i32) -> i32 {
     slang.sl_comprules = crp_vec.map(|v| std::ffi::CString::new(v).unwrap_or_default());
 
     slang.sl_compprog = crate::regexp::vim_regcomp_box(
-        crate::memory::bytes_as_cstr(&pat_vec),
+        crate::memory::bytes_until_nul(&pat_vec),
         RE_MAGIC + RE_STRING + RE_STRICT,
     );
     drop(pat_vec);
@@ -2200,7 +2198,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                             items[4],
                         );
                         aff_entry.ae_prog = crate::regexp::vim_regcomp_box(
-                            crate::memory::bytes_as_cstr(&buf),
+                            crate::memory::bytes_until_nul(&buf),
                             RE_MAGIC + RE_STRING + RE_STRICT,
                         );
                         if aff_entry.ae_prog.is_none() {
@@ -2247,7 +2245,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                                         format_to_buf!(&mut buf[..], c"^%s", &cond_cstr,);
                                         aff_entry.ae_cond = Some(cond_cstr);
                                         aff_entry.ae_prog = crate::regexp::vim_regcomp_box(
-                                            crate::memory::bytes_as_cstr(&buf),
+                                            crate::memory::bytes_until_nul(&buf),
                                             RE_MAGIC + RE_STRING,
                                         );
                                     }
@@ -3106,7 +3104,7 @@ fn store_aff_word(
                     || ae_flags.is_some())
                     && ae_chop.is_none_or(|c| c.to_bytes().len() < wordlen)
                     && (ae.ae_prog.is_none()
-                        || vim_regexec_prog(ae.ae_prog.as_deref(), false, &word_cstr, 0))
+                        || vim_regexec_prog(ae.ae_prog.as_deref(), false, word_cstr.as_bytes(), 0))
                     && (((condit & CONDIT_CFIX) == 0)
                         == ((condit & CONDIT_AFF) == 0
                             || ae_flags.is_none_or(|fl| {

@@ -8,8 +8,8 @@ use crate::cursor::{Colnr, Linenr, Lpos, lt};
 use crate::errors::*;
 use crate::eval::eval_to_string;
 use crate::eval::typval::{
-    TvList, TypVal, VarType, tv_clear, tv_list_alloc, tv_list_alloc_static, tv_list_append_string,
-    tv_list_free_contents, tv_list_init_static10, tv_set_string, unref_var_list,
+    TvList, TypVal, VarType, tv_clear, tv_list_alloc, tv_list_alloc_static, tv_list_free_contents,
+    tv_list_init_static10, tv_set_string, unref_var_list,
 };
 use crate::eval::userfunc::{Funcexe, UserFunc};
 use crate::globals::*;
@@ -20,7 +20,7 @@ use crate::mbyte::{
     mb_tolower, mb_toupper, utf_char2bytes, utf_char2len, utf_composinglike, utf_fold,
     utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utf_strnicmp, utfc_ptr2len,
 };
-use crate::memline::{ml_get_buf, ml_get_buf_len};
+use crate::memline::ml_get_buf_len;
 use crate::message::{emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
@@ -486,11 +486,6 @@ impl RegLineSlice {
     }
 
     #[inline(always)]
-    pub fn with_cstr<R>(self, f: impl FnOnce(&CStr) -> R) -> R {
-        self.with_raw_bytes(|b| f(CStr::from_bytes_until_nul(b).unwrap_or(c"")))
-    }
-
-    #[inline(always)]
     pub fn with_slice<R>(self, len: usize, f: impl FnOnce(&[u8]) -> R) -> R {
         self.with_raw_bytes(|b| f(&b[..len.min(b.len())]))
     }
@@ -600,12 +595,18 @@ fn reg_line_from_bytes_inner(
     tick: u64,
     firstlnum: Linenr,
     bytes: &[u8],
+    has_trailing_nul: bool,
 ) -> RegLineSlice {
-    let len = bytes.len();
-    let addr = bytes.as_ptr() as usize;
+    let clean = if has_trailing_nul {
+        &bytes[..bytes.len().saturating_sub(1)]
+    } else {
+        crate::memory::bytes_until_nul(bytes)
+    };
+    let len = clean.len() + 1;
+    let addr = clean.as_ptr() as usize;
     let mut b = [0u8; 8];
-    let copy_len = len.min(8);
-    b[..copy_len].copy_from_slice(&bytes[..copy_len]);
+    let copy_len = clean.len().min(8);
+    b[..copy_len].copy_from_slice(&clean[..copy_len]);
     let (slot, evicted) = LINE_SLOTS.with(|cell| {
         let mut st = cell.borrow_mut();
         let cur_gen = st.cur_gen;
@@ -619,7 +620,7 @@ fn reg_line_from_bytes_inner(
                         && st.line_slot_fnums[idx] == fnum
                         && st.line_slot_ticks[idx] == tick
                         && st.line_slot_lnums[idx] == firstlnum)
-                    || st.line_slots[idx].as_slice() == bytes)
+                    || &st.line_slots[idx][..clean.len()] == clean)
             {
                 st.line_slot_gens[idx] = cur_gen;
                 return (idx as u8, false);
@@ -633,7 +634,12 @@ fn reg_line_from_bytes_inner(
         st.line_slot_ticks[next] = tick;
         st.line_slot_lnums[next] = firstlnum;
         st.line_slots[next].clear();
-        st.line_slots[next].extend_from_slice(bytes);
+        if has_trailing_nul {
+            st.line_slots[next].extend_from_slice(bytes);
+        } else {
+            st.line_slots[next].extend_from_slice(clean);
+            st.line_slots[next].push(0);
+        }
         (next as u8, true)
     });
     if evicted {
@@ -653,18 +659,18 @@ fn reg_line_from_bytes_inner(
 
 #[inline(always)]
 pub fn reg_line_from_bytes_with_nul(bytes: &[u8]) -> RegLineSlice {
-    reg_line_from_bytes_inner(0, 0, 0, bytes)
+    reg_line_from_bytes_inner(0, 0, 0, bytes, true)
 }
 
 #[inline(always)]
-pub fn reg_line_from_cstr(s: &std::ffi::CStr) -> RegLineSlice {
-    reg_line_from_bytes_with_nul(s.to_bytes_with_nul())
+pub fn reg_line_from_bytes(bytes: &[u8]) -> RegLineSlice {
+    reg_line_from_bytes_inner(0, 0, 0, bytes, false)
 }
 
 #[inline(always)]
-pub fn reg_line_from_opt_cstr(s: Option<&std::ffi::CStr>) -> RegLineSlice {
+pub fn reg_line_from_opt_bytes(s: Option<&[u8]>) -> RegLineSlice {
     match s {
-        Some(s) => reg_line_from_cstr(s),
+        Some(s) => reg_line_from_bytes(s),
         None => REG_LINE_NULL,
     }
 }
@@ -700,14 +706,14 @@ impl Regmatch {
     }
 
     #[inline(always)]
-    pub fn start_offset(&self, idx: usize, base: &std::ffi::CStr) -> usize {
+    pub fn start_offset(&self, idx: usize, base: &[u8]) -> usize {
         self.startp[idx]
             .addr()
             .saturating_sub(base.as_ptr() as usize)
     }
 
     #[inline(always)]
-    pub fn end_offset(&self, idx: usize, base: &std::ffi::CStr) -> usize {
+    pub fn end_offset(&self, idx: usize, base: &[u8]) -> usize {
         self.endp[idx].addr().saturating_sub(base.as_ptr() as usize)
     }
 
@@ -2208,11 +2214,11 @@ thread_local! {
 }
 
 #[inline]
-pub(super) fn set_regparse_base(s: &CStr) {
+pub(super) fn set_regparse_base(s: &[u8]) {
     REGPARSE_BASE.with(|cell| {
         let mut b = cell.borrow_mut();
         b.clear();
-        b.extend_from_slice(s.to_bytes());
+        b.extend_from_slice(crate::memory::bytes_until_nul(s));
     });
 }
 
@@ -2558,17 +2564,19 @@ pub fn skip_regexp_slice(start: &[u8], dirc: i32, magic: i32) -> &[u8] {
 }
 
 /// Skip past regular expression.
-pub fn skip_regexp(start: &std::ffi::CStr, delim: i32, magic: i32) -> &std::ffi::CStr {
-    let bytes = start.to_bytes();
-    let rem = skip_regexp_slice(bytes, delim, magic);
-    crate::memory::CStrSubslice::advance(start, bytes.len() - rem.len())
+pub fn skip_regexp(start: &[u8], delim: i32, magic: i32) -> &[u8] {
+    skip_regexp_slice(start, delim, magic)
 }
 
 /// Call `skip_regexp()` and when the delimiter does not match give an error and return `None`.
-pub fn skip_regexp_err(start: &std::ffi::CStr, delim: i32, magic: i32) -> Option<&std::ffi::CStr> {
-    let p = skip_regexp(start, delim, magic);
-    if p.to_bytes().first().copied().unwrap_or(0) as i32 != delim {
-        semsg!(tr(E_MISSING_DELIMITER_AFTER_SEARCH_PATTERN_STR), start,);
+pub fn skip_regexp_err(start: &[u8], delim: i32, magic: i32) -> Option<&[u8]> {
+    let bytes = crate::memory::bytes_until_nul(start);
+    let p = skip_regexp_slice(bytes, delim, magic);
+    if p.first().copied().unwrap_or(0) as i32 != delim {
+        semsg!(
+            tr(E_MISSING_DELIMITER_AFTER_SEARCH_PATTERN_STR),
+            crate::memory::bytes_to_cstring(bytes).as_c_str(),
+        );
         return None;
     }
     Some(p)
@@ -2704,7 +2712,7 @@ pub fn skip_regexp_ex(
     off
 }
 
-pub(super) fn initchr(str_: &CStr) {
+pub(super) fn initchr(str_: &[u8]) {
     set_regparse_base(str_);
     RE_STATE.with(|s| s.regparse_off.set(0));
     RE_STATE.with(|s| s.prevchr_len.set(0));
@@ -3091,22 +3099,25 @@ pub(super) fn reg_load_line_slice(lnum: Linenr) -> RegLineSlice {
             let fnum = buf.b_fnum.get();
             let tick = crate::buffer::buf_get_changedtick(buf) as u64;
             crate::memline::with_ml_buf_bytes_with_nul(buf, firstlnum, |bytes| {
-                reg_line_from_bytes_inner(fnum, tick, firstlnum, bytes)
+                reg_line_from_bytes_inner(fnum, tick, firstlnum, bytes, true)
             })
         })
     })
 }
 
-pub(super) fn reg_getline(lnum: Linenr) -> Option<crate::option_vars::RcCStr> {
+pub(super) fn reg_getline(lnum: Linenr) -> Option<crate::option_vars::RcSlice> {
     RE_STATE.with(|s| {
         let firstlnum = s.rex.reg_firstlnum.get() + lnum;
         if firstlnum < 1 {
             return None;
         }
         if lnum > s.rex.reg_maxline.get() {
-            return Some(crate::option_vars::RcCStr::EMPTY);
+            return Some(crate::option_vars::RcSlice::default());
         }
-        Some(s.rex.with_buf(|buf| ml_get_buf(buf, firstlnum)))
+        Some(
+            s.rex
+                .with_buf(|buf| crate::memline::ml_get_buf_slice(buf, firstlnum)),
+        )
     })
 }
 
@@ -3335,8 +3346,8 @@ pub(super) fn match_with_backref(
 
     *bytelen = 0;
     loop {
-        let p_cstr = reg_getline(clnum).unwrap();
-        let p_bytes = p_cstr.to_bytes_with_nul();
+        let p_slice = reg_getline(clnum).unwrap();
+        let p_bytes: &[u8] = &p_slice;
 
         let mut len = if clnum == end_lnum {
             end_col - ccol
@@ -3347,9 +3358,9 @@ pub(super) fn match_with_backref(
         let no_match = RE_STATE.with(|s| {
             let reg_ic = s.rex.reg_ic.get();
             s.rex.input.get().with_bytes(|input_bytes| {
-                (!reg_ic && cstrncmp(&p_bytes[ccol as usize..], input_bytes, &mut len) != 0)
-                    || (reg_ic
-                        && mb_strnicmp(&p_bytes[ccol as usize..], input_bytes, len as usize) != 0)
+                let sub = p_bytes.get(ccol as usize..).unwrap_or(&[]);
+                (!reg_ic && cstrncmp(sub, input_bytes, &mut len) != 0)
+                    || (reg_ic && mb_strnicmp(sub, input_bytes, len as usize) != 0)
             })
         });
         if no_match {
@@ -3624,7 +3635,7 @@ pub(crate) fn fill_submatch_list(
 
 pub fn vim_regsub(
     rmp: &mut Regmatch,
-    source: &CStr,
+    source: &[u8],
     expr: Option<&TypVal>,
     dest: &mut [u8],
     flags: i32,
@@ -3657,7 +3668,7 @@ pub fn vim_regsub(
 pub fn vim_regsub_multi(
     rmp: &mut Regmmatch,
     lnum: Linenr,
-    source: &CStr,
+    source: &[u8],
     dest: &mut [u8],
     flags: i32,
 ) -> i32 {
@@ -3692,7 +3703,7 @@ pub fn vim_regsub_multi(
 }
 
 fn vim_regsub_both(
-    source: Option<&CStr>,
+    source: Option<&[u8]>,
     expr: Option<&TypVal>,
     dest: &mut [u8],
     flags: i32,
@@ -3720,7 +3731,8 @@ fn vim_regsub_both(
     let mut dest_slice = copy.then_some(dest);
     let mut dst_off = 0usize;
 
-    if expr.is_some() || source.is_some_and(|s| s.to_bytes().starts_with(b"\\=")) {
+    let src_opt = source.map(crate::memory::bytes_until_nul);
+    if expr.is_some() || src_opt.is_some_and(|s| s.starts_with(b"\\=")) {
         if copy {
             EVAL_RESULT.with(|er| {
                 let mut slot = er[nested].borrow_mut();
@@ -3803,8 +3815,9 @@ fn vim_regsub_both(
                     tv_list_free_contents(match_list);
                     unref_var_list(match_list);
                 }
-            } else if let Some(src) = source {
-                let val = eval_to_string(crate::memory::CStrSubslice::advance(src, 2), true, false);
+            } else if let Some(src) = src_opt {
+                let expr_cstr = crate::memory::bytes_to_cstring(src.get(2..).unwrap_or(&[]));
+                let val = eval_to_string(&expr_cstr, true, false);
                 EVAL_RESULT.with(|er| *er[nested].borrow_mut() = val);
             }
             RE_STATE.with(|s| s.regsub_nesting.set(s.regsub_nesting.get() - (1)));
@@ -3847,8 +3860,7 @@ fn vim_regsub_both(
                 RE_STATE.with(|s| s.rsm.set(rsm_save));
             }
         }
-    } else if let Some(src) = source {
-        let src_bytes = src.to_bytes();
+    } else if let Some(src_bytes) = src_opt {
         let mut idx = 0usize;
         while idx < src_bytes.len() {
             let mut c = src_bytes[idx] as i32;
@@ -3992,7 +4004,7 @@ fn vim_regsub_both(
                     if clnum < 0 || epos.lnum < 0 {
                         s = REG_LINE_NULL;
                     } else {
-                        let line_ptr = reg_line_from_opt_cstr(reg_getline(clnum).as_deref());
+                        let line_ptr = reg_load_line_slice(clnum);
                         s = line_ptr.wrapping_add(spos.col as usize);
                         if epos.lnum == clnum {
                             len = epos.col - spos.col;
@@ -4027,7 +4039,7 @@ fn vim_regsub_both(
                                 }
                                 dst_off += 1;
                                 clnum += 1;
-                                s = reg_line_from_opt_cstr(reg_getline(clnum).as_deref());
+                                s = reg_load_line_slice(clnum);
                                 if epos.lnum == clnum {
                                     len = epos.col;
                                 } else {
@@ -4200,7 +4212,9 @@ pub fn reg_submatch_list(no: i32) -> Option<crate::eval::typval::ListId> {
             return None;
         }
         list = tv_list_alloc(1);
-        s.with_cstr(|cs| tv_list_append_string(&list, Some(cs), e.offset_from(s) as isize));
+        s.with_span(e, |bytes| {
+            crate::eval::typval::tv_list_append_bytes(&list, bytes);
+        });
     }
 
     tv_list_ref(Some(&list));
@@ -4304,7 +4318,7 @@ pub(super) fn get_char_class_bits(slice: &[u8], newl: &mut bool) -> i32 {
     config
 }
 
-pub(super) fn regcomp_start(expr: &CStr, re_flags: i32) {
+pub(super) fn regcomp_start(expr: &[u8], re_flags: i32) {
     RE_STATE.with(|re_s| {
         initchr(expr);
         if (re_flags & RE_MAGIC) != 0 {
@@ -4375,11 +4389,11 @@ pub fn vim_regcomp_had_eol() -> bool {
 }
 
 #[inline]
-pub fn vim_regcomp_cached(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
+pub fn vim_regcomp_cached(expr_arg: &[u8], re_flags: i32) -> Option<Box<Regprog>> {
     if g_st().reg_do_extmatch.get() != 0 || opt_vars().p_verbose.get() != 0 {
         return None;
     }
-    let mut expr_bytes = expr_arg.to_bytes();
+    let mut expr_bytes = crate::memory::bytes_until_nul(expr_arg);
     let mut engine = opt_vars().p_re.get() as i32;
     if expr_bytes.starts_with(b"\\%#=") {
         let newengine = expr_bytes.get(4).copied().unwrap_or(0).wrapping_sub(b'0') as i32;
@@ -4423,13 +4437,12 @@ pub fn vim_regcomp_cached(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>
 }
 
 /// Compile a regular expression into internal code.
-pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
+pub fn vim_regcomp(expr_arg: &[u8], re_flags: i32) -> Option<Box<Regprog>> {
     RE_STATE.with(|re_s| {
-    let mut expr = expr_arg;
+    let mut expr_bytes = crate::memory::bytes_until_nul(expr_arg);
 
     re_s.regexp_engine.set(opt_vars().p_re.get() as i32);
 
-    let expr_bytes = expr.to_bytes();
     if expr_bytes.starts_with(b"\\%#=") {
         let newengine = expr_bytes.get(4).copied().unwrap_or(0).wrapping_sub(b'0') as i32;
         if newengine == AUTOMATIC_ENGINE
@@ -4437,7 +4450,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
             || newengine == NFA_ENGINE
         {
             re_s.regexp_engine.set(newengine);
-            expr = crate::memory::CStrSubslice::advance(expr, 5);
+            expr_bytes = &expr_bytes[5..];
         } else {
             emsg(tr(
                 c"E864: \\%#= can only be followed by 0, 1, or 2. The automatic engine will be used ",
@@ -4453,8 +4466,8 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
     let chartab = re_s.rex.reg_chartab.get();
     let can_cache = g_st().reg_do_extmatch.get() == 0
         && opt_vars().p_verbose.get() == 0
-        && !expr.to_bytes().contains(&b'~')
-        && !expr.to_bytes().windows(2).any(|w| w == b"[:");
+        && !expr_bytes.contains(&b'~')
+        && !expr_bytes.windows(2).any(|w| w == b"[:");
     if can_cache {
         let cached = LAST_REGPROG.with(|cell| {
             let borrow = cell.borrow();
@@ -4464,7 +4477,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
                 && c.engine == engine
                 && c.cpo_lit == cpo_lit
                 && c.chartab == chartab
-                && c.expr.as_slice() == expr.to_bytes()
+                && c.expr.as_slice() == expr_bytes
             {
                 Some((c.prog.clone(), c.had_eol))
             } else {
@@ -4480,7 +4493,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
     let called_emsg_before = g_st().called_emsg.get();
     let mut prog_opt = if engine != BACKTRACKING_ENGINE {
         nfa_regcomp(
-            expr,
+            expr_bytes,
             re_flags
                 + if engine == AUTOMATIC_ENGINE {
                     RE_AUTO
@@ -4498,7 +4511,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
             )
         })
     } else {
-        bt_regcomp(expr, re_flags).map(|bt| {
+        bt_regcomp(expr_bytes, re_flags).map(|bt| {
             Regprog::new(
                 bt.regflags,
                 re_s.regexp_engine.get() as u32,
@@ -4513,8 +4526,8 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
         && g_st().called_emsg.get() == called_emsg_before
     {
         re_s.regexp_engine.set(BACKTRACKING_ENGINE);
-        report_re_switch(expr);
-        prog_opt = bt_regcomp(expr, re_flags).map(|bt| {
+        report_re_switch(expr_bytes);
+        prog_opt = bt_regcomp(expr_bytes, re_flags).map(|bt| {
             Regprog::new(
                 bt.regflags,
                 re_s.regexp_engine.get() as u32,
@@ -4530,7 +4543,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
     {
         LAST_REGPROG.with(|cell| {
             *cell.borrow_mut() = Some(CachedRegprog {
-                expr: expr.to_bytes().to_vec(),
+                expr: expr_bytes.to_vec(),
                 re_flags,
                 engine,
                 cpo_lit,
@@ -4546,7 +4559,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
 }
 
 #[inline(always)]
-pub fn vim_regcomp_box(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
+pub fn vim_regcomp_box(expr_arg: &[u8], re_flags: i32) -> Option<Box<Regprog>> {
     vim_regcomp(expr_arg, re_flags)
 }
 
@@ -4557,16 +4570,16 @@ pub fn free_regexp_stuff() {
     POST_VEC.with(|c| *c.borrow_mut() = Vec::new());
 }
 
-fn report_re_switch(pat: &CStr) {
+fn report_re_switch(pat: &[u8]) {
     if opt_vars().p_verbose.get() > 0 {
         verbose_enter();
         msg_puts(tr(c"Switching to backtracking RE engine for pattern: "));
-        msg_puts(pat);
+        msg_puts(&crate::memory::bytes_to_cstring(pat));
         verbose_leave();
     }
 }
 
-fn exec_regmatch_nl(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: bool) -> i32 {
+fn exec_regmatch_nl(rmp: &mut Regmatch, line: Option<&[u8]>, col: Colnr, nl: bool) -> i32 {
     LINE_SLOTS.with(|cell| {
         let mut st = cell.borrow_mut();
         st.cur_gen = st.cur_gen.wrapping_add(1);
@@ -4598,7 +4611,7 @@ fn exec_regmmatch_multi(
     }
 }
 
-fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: bool) -> bool {
+fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&[u8]>, col: Colnr, nl: bool) -> bool {
     let rex_in_use_save = RE_STATE.with(|s| s.rex_in_use.get());
 
     if rmp.regprog.re_in_use() {
@@ -4619,8 +4632,8 @@ fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: b
         let pat_owned = rmp.regprog.nfa_pattern();
 
         opt_vars().p_re.set(OptInt::from(BACKTRACKING_ENGINE));
-        report_re_switch(&pat_owned);
-        if let Some(new_prog) = vim_regcomp(&pat_owned, re_flags) {
+        report_re_switch(pat_owned.as_bytes());
+        if let Some(new_prog) = vim_regcomp(pat_owned.as_bytes(), re_flags) {
             rmp.regprog.replace_from(&new_prog);
             rmp.regprog.set_re_in_use(true);
             result = exec_regmatch_nl(rmp, line, col, nl);
@@ -4641,7 +4654,7 @@ fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: b
 pub fn vim_regexec_prog(
     prog: Option<&Regprog>,
     ignore_case: bool,
-    line: &CStr,
+    line: &[u8],
     col: Colnr,
 ) -> bool {
     let mut regmatch = Regmatch {
@@ -4652,11 +4665,11 @@ pub fn vim_regexec_prog(
     vim_regexec_string(&mut regmatch, Some(line), col, false)
 }
 
-pub fn vim_regexec(rmp: &mut Regmatch, line: &CStr, col: Colnr) -> bool {
+pub fn vim_regexec(rmp: &mut Regmatch, line: &[u8], col: Colnr) -> bool {
     vim_regexec_string(rmp, Some(line), col, false)
 }
 
-pub fn vim_regexec_nl(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr) -> bool {
+pub fn vim_regexec_nl(rmp: &mut Regmatch, line: Option<&[u8]>, col: Colnr) -> bool {
     vim_regexec_string(rmp, line, col, true)
 }
 
@@ -4690,9 +4703,9 @@ pub fn vim_regexec_multi(
 
         opt_vars().p_re.set(OptInt::from(BACKTRACKING_ENGINE));
 
-        report_re_switch(&pat_owned);
+        report_re_switch(pat_owned.as_bytes());
         g_st().reg_do_extmatch.set(REX_ALL);
-        let new_prog = vim_regcomp(&pat_owned, re_flags);
+        let new_prog = vim_regcomp(pat_owned.as_bytes(), re_flags);
         g_st().reg_do_extmatch.set(0);
 
         if let Some(new_prog) = new_prog {
@@ -4816,5 +4829,30 @@ mod tests {
             CLASS_NOT | CLASS_O9 | CLASS_AF_CONST | CLASS_AF
         );
         assert!(newl);
+    }
+
+    #[test]
+    fn byte_slice_skip_and_exec_work_without_trailing_nul() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let raw_cmd = b"foo\\/bar/baz/g";
+        let rem = skip_regexp(&raw_cmd[..12], b'/' as i32, 1);
+        assert_eq!(rem, b"/baz");
+        assert_eq!(
+            skip_regexp_err(&raw_cmd[..12], b'/' as i32, 1),
+            Some(&b"/baz"[..])
+        );
+
+        let pat_buf = b"ba[rz]EXTRA";
+        let line_buf = b"xxbarzz";
+        let mut rm = Regmatch::new();
+        rm.set_prog(vim_regcomp(&pat_buf[..6], RE_MAGIC + RE_STRING));
+        assert!(!rm.regprog.is_null());
+        assert!(vim_regexec(&mut rm, &line_buf[..5], 0));
+        assert_eq!(rm.start_offset(0, &line_buf[..5]), 2);
+        assert_eq!(rm.end_offset(0, &line_buf[..5]), 5);
+        assert!(!vim_regexec(&mut rm, &line_buf[..4], 0));
+        rm.free_prog();
     }
 }

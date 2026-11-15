@@ -1223,7 +1223,7 @@ fn prepare_pats(pats: &mut Pat, has_re: bool) {
 
     if has_re {
         pats.regmatch.set_prog(vim_regcomp(
-            &pats.pat,
+            pats.pat.as_bytes(),
             if opt_vars().p_magic.get() {
                 RE_MAGIC
             } else {
@@ -1246,8 +1246,7 @@ fn tagfunc_cmd_kind(cmd: &std::ffi::CStr) -> Tagcmd {
         };
     }
     if first_b == b'/' || first_b == b'?' {
-        let end = skip_regexp(&cmd[1..], first_b as i32, 0);
-        let end_bytes = end.to_bytes();
+        let end_bytes = skip_regexp(&cmd_bytes[1..], first_b as i32, 0);
         return if end_bytes == [first_b] {
             Tagcmd::TagcmdAddress
         } else {
@@ -1931,13 +1930,12 @@ fn findtags_match_tag(
 
     margs.match_re = false;
     if !match_ && !st.orgpat.regmatch.regprog.is_null() {
-        let tagname_cstr = std::ffi::CString::new(tagpp.tagname).unwrap_or_default();
-        match_ = vim_regexec(&mut st.orgpat.regmatch, &tagname_cstr, 0);
+        match_ = vim_regexec(&mut st.orgpat.regmatch, tagpp.tagname, 0);
         if match_ {
-            margs.matchoff = st.orgpat.regmatch.start_offset(0, &tagname_cstr) as i32;
+            margs.matchoff = st.orgpat.regmatch.start_offset(0, tagpp.tagname) as i32;
             if st.orgpat.regmatch.rm_ic {
                 st.orgpat.regmatch.rm_ic = false;
-                margs.match_no_ic = vim_regexec(&mut st.orgpat.regmatch, &tagname_cstr, 0);
+                margs.match_no_ic = vim_regexec(&mut st.orgpat.regmatch, tagpp.tagname, 0);
                 st.orgpat.regmatch.rm_ic = true;
             }
         }
@@ -2257,8 +2255,12 @@ pub fn find_tags(
             K_OPT_TC_FLAG_FOLLOWIC => {}
             K_OPT_TC_FLAG_IGNORE => opt_vars().p_ic.set(true),
             K_OPT_TC_FLAG_MATCH => opt_vars().p_ic.set(false),
-            K_OPT_TC_FLAG_FOLLOWSCS => opt_vars().p_ic.set(ignorecase(pat_cstr)),
-            K_OPT_TC_FLAG_SMART => opt_vars().p_ic.set(ignorecase_opt(pat_cstr, true, true)),
+            K_OPT_TC_FLAG_FOLLOWSCS => opt_vars().p_ic.set(ignorecase(pat_cstr.to_bytes())),
+            K_OPT_TC_FLAG_SMART => {
+                opt_vars()
+                    .p_ic
+                    .set(ignorecase_opt(pat_cstr.to_bytes(), true, true))
+            }
             _ => std::process::abort(),
         }
 
@@ -2775,15 +2777,10 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
             let mut str_ = pbuf;
             if pbuf_vec[0] == b'/' || pbuf_vec[0] == b'?' {
-                str_ = skip_regexp(
-                    crate::memory::bytes_as_cstr(&pbuf_vec[1..]),
-                    i32::from(pbuf_vec[0]),
-                    0,
-                )
-                .as_ptr()
-                .wrapping_add(1)
-                .cast_mut()
-                .cast();
+                let pbuf_after = crate::memory::bytes_until_nul(&pbuf_vec[1..]);
+                let rem = skip_regexp(pbuf_after, i32::from(pbuf_vec[0]), 0);
+                let step = 1 + (pbuf_after.len() - rem.len()) + 1;
+                str_ = pbuf.wrapping_add(step);
             }
             if str_ > pbuf_end.wrapping_sub(1) {
                 let mut pbuflen = pbuf_len;
@@ -2803,8 +2800,8 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                 });
 
                 let search_dirc = i32::from(pbuf_vec[0]);
-                let pbuf1_cstr = crate::memory::bytes_as_cstr(&pbuf_vec[1..]);
-                let pbuf1_opt = Some(pbuf1_cstr);
+                let pbuf1_bytes = crate::memory::bytes_until_nul(&pbuf_vec[1..]);
+                let pbuf1_opt = Some(pbuf1_bytes);
                 if do_search(
                     None,
                     search_dirc,
@@ -2841,12 +2838,11 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                             c"^%s\\s\\*(",
                             &tagname_cstr,
                         ) as usize;
-                        let pbuf_cstr = crate::memory::bytes_as_cstr(&pbuf_vec);
                         if do_search(
                             None,
                             b'/' as i32,
                             b'/' as i32,
-                            Some(pbuf_cstr),
+                            Some(&pbuf_vec[..pbuflen]),
                             pbuflen,
                             1,
                             search_options,
@@ -2859,12 +2855,11 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                                 c"^\\[#a-zA-Z_]\\.\\*\\<%s\\s\\*(",
                                 &tagname_cstr,
                             ) as usize;
-                            let pbuf_cstr = crate::memory::bytes_as_cstr(&pbuf_vec);
                             if do_search(
                                 None,
                                 b'/' as i32,
                                 b'/' as i32,
-                                Some(pbuf_cstr),
+                                Some(&pbuf_vec[..pbuflen]),
                                 pbuflen,
                                 1,
                                 search_options,

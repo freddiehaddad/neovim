@@ -772,7 +772,9 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
                 firstc
             },
             search_delim,
-            (get_cmdline_info().cmdbuff().wrapping_add(skiplen as usize)).as_opt_cstr(),
+            (get_cmdline_info().cmdbuff().wrapping_add(skiplen as usize))
+                .as_opt_cstr()
+                .map(CStr::to_bytes),
             patlen as usize,
             count,
             search_flags,
@@ -907,7 +909,7 @@ fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> b
             if opt_vars().p_ic.get()
                 && opt_vars().p_scs.get()
                 && !pat_has_uppercase(
-                    (get_cmdline_info().cmdbuff().wrapping_add(skiplen as usize)).as_cstr(),
+                    (get_cmdline_info().cmdbuff().wrapping_add(skiplen as usize)).as_bytes(),
                 )
             {
                 *c = mb_tolower(*c);
@@ -2024,7 +2026,7 @@ fn may_do_command_line_next_incsearch(
         &mut t,
         None,
         if next_match { FORWARD } else { BACKWARD },
-        &searchstr_cstr,
+        searchstr_cstr.as_bytes(),
         searchstrlen,
         count,
         search_flags,

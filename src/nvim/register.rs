@@ -2889,8 +2889,7 @@ pub fn write_reg_contents_ex(
     };
 
     if name == i32::from(b'/') {
-        let pat_cstr = crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(str_slice));
-        set_last_search_pat(Some(&pat_cstr), RE_SEARCH, 1, true);
+        set_last_search_pat(Some(str_slice), RE_SEARCH, 1, true);
         return;
     }
 

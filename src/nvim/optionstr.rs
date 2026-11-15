@@ -1309,7 +1309,7 @@ fn expand_set_opt_string(
         {
             continue;
         }
-        if vim_regexec(regmatch, val, 0) {
+        if vim_regexec(regmatch, val.to_bytes(), 0) {
             matches.push(val.to_owned());
         }
     }

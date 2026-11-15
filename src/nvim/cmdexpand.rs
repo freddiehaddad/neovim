@@ -3477,11 +3477,13 @@ fn set_context_in_match_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&'a
         p = crate::charset::skipwhite(crate::memory::CStrSubslice::advance(p, ws_off));
         if !p.to_bytes().is_empty() {
             xp.xp_context = EXPAND_NOTHING;
-            p = skip_regexp(
-                crate::memory::CStrSubslice::advance(p, 1),
-                i32::from(p.to_bytes()[0]),
+            let p_bytes = p.to_bytes();
+            let rem = skip_regexp(
+                &p_bytes[1..],
+                i32::from(p_bytes[0]),
                 i32::from(opt_vars().p_magic.get()),
             );
+            p = &p[p_bytes.len() - rem.len()..];
         }
     }
     find_nextcmd(p)
@@ -3513,11 +3515,13 @@ fn find_cmd_after_substitute_cmd(arg: &CStr) -> Option<&CStr> {
     let mut p = arg;
     let delim = p.to_bytes().first().copied().unwrap_or(0);
     if delim != 0 {
-        p = skip_regexp(
-            crate::memory::CStrSubslice::advance(p, 1),
+        let p_bytes = p.to_bytes();
+        let rem_pat = skip_regexp(
+            &p_bytes[1..],
             i32::from(delim),
             i32::from(opt_vars().p_magic.get()),
         );
+        p = &p[p_bytes.len() - rem_pat.len()..];
         let bytes = p.to_bytes();
         if let Some(mut rem) = bytes.strip_prefix(&[delim]) {
             while !rem.is_empty() && rem[0] != delim {
@@ -5045,7 +5049,7 @@ fn expand_from_context(
 
     if !fuzzy {
         regmatch.set_prog(vim_regcomp(
-            pat_cstr,
+            pat_cstr.to_bytes(),
             if opt_vars().p_magic.get() {
                 RE_MAGIC
             } else {
@@ -5055,7 +5059,7 @@ fn expand_from_context(
         if regmatch.regprog.is_null() {
             return false;
         }
-        regmatch.rm_ic = ignorecase(pat_cstr);
+        regmatch.rm_ic = ignorecase(pat_cstr.to_bytes());
     }
 
     let ret = if xp.xp_context == EXPAND_SETTINGS || xp.xp_context == EXPAND_BOOL_SETTINGS {
@@ -5114,7 +5118,7 @@ pub fn expand_generic(
         let mut score: i32 = 0;
         if has_pat {
             if !fuzzy {
-                match_ok = vim_regexec(regmatch, str_item, 0);
+                match_ok = vim_regexec(regmatch, str_item.to_bytes(), 0);
             } else {
                 score = fuzzy_match_str(Some(str_item.to_bytes()), Some(pat.to_bytes()));
                 match_ok = score != FUZZY_SCORE_NONE;
@@ -5379,15 +5383,15 @@ fn expand_user_defined(
     let mut rem = retstr_cstr.to_bytes();
     while !rem.is_empty() {
         let line_len = rem.iter().position(|&b| b == b'\n').unwrap_or(rem.len());
-        let line_cstr = bytes_to_cstring(&rem[..line_len]);
+        let line_bytes = crate::memory::bytes_until_nul(&rem[..line_len]);
 
         let match_ok: bool;
         let mut score: i32 = 0;
         if !xp.xp_pattern.is_empty() {
             if !fuzzy {
-                match_ok = vim_regexec(regmatch, &line_cstr, 0);
+                match_ok = vim_regexec(regmatch, line_bytes, 0);
             } else {
-                score = fuzzy_match_str(Some(line_cstr.to_bytes()), Some(pat.to_bytes()));
+                score = fuzzy_match_str(Some(line_bytes), Some(pat.to_bytes()));
                 match_ok = score != FUZZY_SCORE_NONE;
             }
         } else {
@@ -5395,6 +5399,7 @@ fn expand_user_defined(
         }
 
         if match_ok {
+            let line_cstr = bytes_to_cstring(line_bytes);
             if !fuzzy {
                 str_ga.push(line_cstr);
             } else {
@@ -6059,7 +6064,8 @@ fn is_regex_match(pat: &CStr, str_arg: &CStr) -> bool {
 
     g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     g_st().msg_silent.set(g_st().msg_silent.get() + (1));
-    regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
+    let pat_bytes = pat.to_bytes();
+    regmatch.set_prog(vim_regcomp(pat_bytes, RE_MAGIC + RE_STRING));
     g_st().emsg_off.set(g_st().emsg_off.get() - (1));
     g_st().msg_silent.set(g_st().msg_silent.get() - (1));
 
@@ -6068,12 +6074,12 @@ fn is_regex_match(pat: &CStr, str_arg: &CStr) -> bool {
     }
     regmatch.rm_ic = opt_vars().p_ic.get();
     if opt_vars().p_ic.get() && opt_vars().p_scs.get() {
-        regmatch.rm_ic = !pat_has_uppercase(pat);
+        regmatch.rm_ic = !pat_has_uppercase(pat_bytes);
     }
 
     g_st().emsg_off.set(g_st().emsg_off.get() + (1));
     g_st().msg_silent.set(g_st().msg_silent.get() + (1));
-    let result = vim_regexec_nl(&mut regmatch, Some(str_arg), 0);
+    let result = vim_regexec_nl(&mut regmatch, Some(str_arg.to_bytes()), 0);
     g_st().emsg_off.set(g_st().emsg_off.get() - (1));
     g_st().msg_silent.set(g_st().msg_silent.get() - (1));
 
@@ -6155,7 +6161,7 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
             &mut cur_match_pos,
             Some(&mut end_match_pos),
             dir,
-            pat,
+            pat.to_bytes(),
             pat_len as usize,
             1,
             search_flags,

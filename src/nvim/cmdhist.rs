@@ -443,7 +443,7 @@ fn del_history_entry(histype: i32, str_ptr: &CStr) -> bool {
     let htype = histype as usize;
     let idx = hist_st(|st| st.hisidx.get()[htype]);
     let mut regmatch = Regmatch::new();
-    regmatch.set_prog(vim_regcomp(str_ptr, RE_MAGIC + RE_STRING));
+    regmatch.set_prog(vim_regcomp(str_ptr.to_bytes(), RE_MAGIC + RE_STRING));
     if regmatch.regprog.is_null() {
         return false;
     }
@@ -452,7 +452,7 @@ fn del_history_entry(histype: i32, str_ptr: &CStr) -> bool {
     let mut i = idx;
     let mut last = idx;
     while let Some(hisstr) = hist_st(|st| st.history.borrow()[htype][i as usize].hisstr.clone()) {
-        if vim_regexec(&mut regmatch, &hisstr, 0) {
+        if vim_regexec(&mut regmatch, hisstr.as_bytes(), 0) {
             found = true;
             hist_st(|st| hist_free_entry(&mut st.history.borrow_mut()[htype][i as usize]));
         } else {
