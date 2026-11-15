@@ -2340,20 +2340,18 @@ fn readfile_linenr(linecnt: Linenr, slice: &[u8]) -> Linenr {
 
 /// Fill "*eap" to force the 'fileencoding', 'fileformat' and 'binary' to be
 /// equal to the buffer "buf".
-pub fn prep_exarg(eap: &mut Exarg, buf: &FileBuf) -> std::ffi::CString {
+pub fn prep_exarg(eap: &mut Exarg, buf: &FileBuf) {
     let fenc_bytes = buf.b_p_fenc.as_bytes();
     let mut cmd_vec = Vec::with_capacity(8 + fenc_bytes.len());
     cmd_vec.extend_from_slice(b"e ++enc=");
     cmd_vec.extend_from_slice(&fenc_bytes);
-    let cmd_cstr = std::ffi::CString::new(cmd_vec).unwrap_or_default();
-    eap.cmd = crate::option_vars::RcSlice::from_cstr(&cmd_cstr);
+    eap.cmd = crate::option_vars::RcSlice::from_bytes(&cmd_vec);
     eap.force_enc = 8;
     eap.bad_char = buf.b_bad_char.get();
     eap.force_ff = (buf.b_p_ff.first_byte()) as i32;
     eap.force_bin = Some(buf.b_p_bin.get());
     eap.read_edit = false;
     eap.forceit = false;
-    cmd_cstr
 }
 
 /// Set default or forced 'fileformat' and 'binary'.
@@ -2421,7 +2419,7 @@ fn readfile_charconvert(fname: &CStr, fenc: &CStr, fdp: &mut i32) -> Option<std:
         Some(ref tn) => {
             os_close(*fdp);
             *fdp = -1;
-            if !eval_charconvert(fenc, c"utf-8", fname, tn) {
+            if !eval_charconvert(fenc.to_bytes(), b"utf-8", fname.to_bytes(), tn.as_bytes()) {
                 errmsg = Some(tr(c"Conversion with 'charconvert' failed"));
             }
             if errmsg.is_none() {
@@ -3396,11 +3394,9 @@ pub fn buf_reload(buf: &FileBuf, orig_mode: i32, reload_options: bool) {
 
     mc_buf_clear(buf);
 
-    let _ea_cmd = if !reload_options {
-        Some(prep_exarg(&mut ea, buf))
-    } else {
-        None
-    };
+    if !reload_options {
+        prep_exarg(&mut ea, buf);
+    }
 
     let old_cursor = curwin().w_cursor.get();
     let old_topline = curwin().w_topline.get();
@@ -3479,7 +3475,6 @@ pub fn buf_reload(buf: &FileBuf, orig_mode: i32, reload_options: bool) {
             curbuf().b_mod_set.set(true);
         }
     }
-    drop(_ea_cmd);
 
     if !savebuf.is_null() && bufref_valid(Some(&bufref)) {
         wipe_buffer(savebuf.borrow(), false);

@@ -1298,7 +1298,7 @@ pub extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let _ = call_func(
-            name_cstr,
+            name_cstr.to_bytes(),
             name_len as i32,
             &mut rettv,
             nargs,

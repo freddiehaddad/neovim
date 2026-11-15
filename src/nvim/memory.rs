@@ -228,22 +228,22 @@ pub fn free_all_mem() {
         if !g_st().first_tabpage.get().is_null()
             && !crate::globals::first_tabpage().tp_next.get().is_null()
         {
-            do_cmdline_cmd(c"tabonly!");
+            do_cmdline_cmd(b"tabonly!");
         }
 
         spell_free_all();
         ex_comclear(&mut Exarg::new());
 
         if !g_st().curbuf.get().is_null() {
-            do_cmdline_cmd(c"aunmenu *");
-            do_cmdline_cmd(c"tlunmenu *");
-            do_cmdline_cmd(c"menutranslate clear");
+            do_cmdline_cmd(b"aunmenu *");
+            do_cmdline_cmd(b"tlunmenu *");
+            do_cmdline_cmd(b"menutranslate clear");
 
             map_clear_mode(&curbuf(), MAP_ALL_MODES, false, false);
             map_clear_mode(&curbuf(), MAP_ALL_MODES, false, true);
-            do_cmdline_cmd(c"breakdel *");
-            do_cmdline_cmd(c"profdel *");
-            do_cmdline_cmd(c"set keymap=");
+            do_cmdline_cmd(b"breakdel *");
+            do_cmdline_cmd(b"profdel *");
+            do_cmdline_cmd(b"set keymap=");
         }
 
         free_titles();

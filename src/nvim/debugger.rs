@@ -372,7 +372,7 @@ pub fn do_debug(cmd: &CStr) {
                 let n2 = g_st().debug_break_level.get();
                 g_st().debug_break_level.set(-1);
                 do_cmdline(
-                    Some(cmdline_cstr),
+                    Some(cmdline_cstr.to_bytes()),
                     crate::cmdexpand::LineGetter::ExLine,
                     DOCMD_VERBOSE | DOCMD_EXCRESET,
                 );
@@ -405,7 +405,7 @@ pub fn do_debug(cmd: &CStr) {
 pub fn ex_debug(eap: &mut Exarg) {
     let save = g_st().debug_break_level.get();
     g_st().debug_break_level.set(9999);
-    do_cmdline_cmd(eap.arg.as_cstr());
+    do_cmdline_cmd(eap.arg.as_bytes());
     g_st().debug_break_level.set(save);
 }
 
@@ -472,7 +472,7 @@ pub fn dbg_check_skipped(eap: &mut Exarg) -> bool {
 
 fn eval_expr_no_emsg(name: &CStr) -> Option<TypVal> {
     g_st().emsg_off.set(g_st().emsg_off.get() + (1));
-    let tv = eval_expr(name, None);
+    let tv = eval_expr(name.to_bytes(), None);
     g_st().emsg_off.set(g_st().emsg_off.get() - (1));
     tv
 }

@@ -2072,7 +2072,7 @@ pub fn keymap_init() -> Option<&'static CStr> {
 
     if curbuf().b_p_keymap.is_empty() {
         keymap_unload();
-        do_cmdline_cmd(c"unlet! b:keymap_name");
+        do_cmdline_cmd(b"unlet! b:keymap_name");
     } else {
         let kmap_rc = curbuf().b_p_keymap.as_cstr();
         let kmap = kmap_rc.to_string_lossy();
@@ -2207,7 +2207,7 @@ pub fn get_keymap_str(wp: &WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
     g_st().curbuf.set(wp.w_buffer.get());
     set_curwin(wp);
     g_st().emsg_skip.set(g_st().emsg_skip.get() + (1));
-    let s = eval_to_string(c"b:keymap_name", false, false);
+    let s = eval_to_string(b"b:keymap_name", false, false);
     let mut p_cstr = s.as_deref().unwrap_or(c"");
     g_st().emsg_skip.set(g_st().emsg_skip.get() - (1));
     g_st().curbuf.set(old_curbuf);

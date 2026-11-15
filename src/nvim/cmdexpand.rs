@@ -3486,7 +3486,9 @@ fn set_context_in_match_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&'a
             p = &p[p_bytes.len() - rem.len()..];
         }
     }
-    find_nextcmd(p)
+    let p_bytes = p.to_bytes();
+    let next = find_nextcmd(p_bytes)?;
+    Some(&p[p_bytes.len() - next.len()..])
 }
 
 /// Returns a slice to the next command after a :global or a :v command.
@@ -3912,7 +3914,7 @@ fn set_context_by_cmdname<'a>(
         | Cmdidx::CmdLexpr
         | Cmdidx::CmdLaddexpr
         | Cmdidx::CmdLgetexpr => {
-            set_context_for_expression(xp, arg_cstr, cmdidx);
+            set_context_for_expression(xp, arg_cstr.to_bytes(), cmdidx);
         }
         Cmdidx::CmdUnlet => {
             set_context_in_unlet_cmd(xp, arg_cstr);
@@ -4158,7 +4160,9 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         return None;
     }
 
-    cmd = skip_range(cmd, Some(&mut xp.xp_context));
+    let cmd_bytes = cmd.to_bytes();
+    let after_range = skip_range(cmd_bytes, Some(&mut xp.xp_context));
+    cmd = &cmd[cmd_bytes.len() - after_range.len()..];
     xp.xp_pattern = xp.line_slice(cmd);
     if cmd.to_bytes().is_empty() {
         return None;
@@ -4237,7 +4241,9 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
 
     if (ea.argt & EX_CMDARG) != 0 && !usefilter && arg.to_bytes().first() == Some(&b'+') {
         p = crate::memory::CStrSubslice::advance(arg, 1);
-        arg = skip_cmd_arg(arg, false);
+        let arg_bytes = arg.to_bytes();
+        let after_arg = skip_cmd_arg(arg_bytes, false);
+        arg = &arg[arg_bytes.len() - after_arg.len()..];
 
         if arg.to_bytes().is_empty() {
             return Some(p);
@@ -4324,7 +4330,7 @@ pub fn set_cmd_context(xp: &mut ExpandCtx, str_buf: &[u8], len: i32, col: i32, u
     CMDEXP_STATE.with(|s| s.breakpt_expand_what.set(BreakptExpandWhat::Add));
 
     if use_ccline && ccline.cmdfirstc.get() == b'=' as i32 {
-        set_context_for_expression(xp, work_cstr, Cmdidx::CmdSize);
+        set_context_for_expression(xp, work_cstr.to_bytes(), Cmdidx::CmdSize);
     } else if use_ccline && ccline.input_fn.get() != 0 {
         xp.xp_context = ccline.xp_context.get();
         xp.xp_pattern = ccline.cmdbuff();
@@ -5371,7 +5377,7 @@ fn expand_user_defined(
     matches.clear();
 
     let Some(retstr_cstr) = call_user_expand_func(
-        |name, argc, argv| call_func_retstr(name, argc, argv),
+        |name, argc, argv| call_func_retstr(name.to_bytes(), argc, argv),
         xp,
         None,
     ) else {
@@ -5489,7 +5495,7 @@ pub fn expand_process_user_list(
 fn expand_user_list(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
     matches.clear();
     let Some(retlist) = call_user_expand_func(
-        |name, argc, argv| call_func_retlist(name, argc, argv),
+        |name, argc, argv| call_func_retlist(name.to_bytes(), argc, argv),
         xp,
         None,
     ) else {

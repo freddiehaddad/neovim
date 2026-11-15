@@ -1811,7 +1811,7 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
             }
         }
     } else {
-        p = eval_to_string(crate::memory::bytes_as_cstr(&expr_bytes), false, false);
+        p = eval_to_string(&expr_bytes, false, false);
     }
     g_st().expr_map_lock.set(g_st().expr_map_lock.get() - (1));
     curwin().w_cursor.set(save_cursor);
@@ -2513,7 +2513,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
             .tv()
             .vval
             .v_string_cstr()
-            .and_then(|s| find_func(Some(s)))
+            .and_then(|s| find_func(Some(s.to_bytes())))
         && (fp.uf_flags.get() & FC_LUAREF) != 0
     {
         rhs_lua = api_new_luaref(fp.uf_luaref.get());

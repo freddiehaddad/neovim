@@ -1126,7 +1126,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
     let tmp_new = dio.dio_new.din_fname.as_deref().unwrap_or(c"");
     let tmp_diff = dio.dio_diff.dout_fname.as_deref().unwrap_or(c"");
     if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != K_CALLBACK_NONE_CONST {
-        eval_diff(tmp_orig, tmp_new, tmp_diff);
+        eval_diff(tmp_orig.to_bytes(), tmp_new.to_bytes(), tmp_diff.to_bytes());
         return true;
     }
     if dio.dio_internal {
@@ -1252,12 +1252,18 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_pex) != K_CALLBACK_NONE_CONST {
             #[cfg(unix)]
             eval_patch(
-                tmp_orig_cstr,
-                fullname.as_deref().unwrap_or_else(|| eap.arg.as_cstr()),
-                tmp_new_cstr,
+                tmp_orig_cstr.to_bytes(),
+                fullname
+                    .as_ref()
+                    .map_or_else(|| eap.arg.as_bytes(), |s| s.as_bytes()),
+                tmp_new_cstr.to_bytes(),
             );
             #[cfg(not(unix))]
-            eval_patch(tmp_orig_cstr, eap.arg.as_cstr(), tmp_new_cstr);
+            eval_patch(
+                tmp_orig_cstr.to_bytes(),
+                eap.arg.as_bytes(),
+                tmp_new_cstr.to_bytes(),
+            );
         } else {
             format_to_buf!(
                 &mut buf_vec,
@@ -1315,7 +1321,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                         eap.arg = crate::option_vars::RcSlice::from_bytes(&newname_vec);
                         ex_file(eap);
                         if crate::autocmd::augroup_exists(Some(c"filetypedetect")) {
-                            do_cmdline_cmd(c":doau filetypedetect BufRead");
+                            do_cmdline_cmd(b":doau filetypedetect BufRead");
                         }
                     }
                 }
@@ -1447,7 +1453,7 @@ pub fn diff_win_options(wp: &WinInfoInfo, addbuf: bool) {
     fold_update_all(wp);
     changed_window_setting(wp);
     if !crate::strings::vim_haschr(&opt_vars().p_sbo.as_cstr(), b'h' as i32) {
-        do_cmdline_cmd(c"set sbo+=hor");
+        do_cmdline_cmd(b"set sbo+=hor");
     }
     wp.w_onebuf_opt.wo_diff_saved.set(true);
     set_diff_option(wp, true);
@@ -1531,7 +1537,7 @@ pub fn ex_diffoff(eap: &mut Exarg) {
         diff_clear(&curtab());
     }
     if !diffwin && crate::strings::vim_haschr(&opt_vars().p_sbo.as_cstr(), b'h' as i32) {
-        do_cmdline_cmd(c"set sbo-=hor");
+        do_cmdline_cmd(b"set sbo-=hor");
     }
 }
 fn extract_hunk_internal(dout: &mut Diffout, hunk: &mut Diffhunk, line_idx: &mut i32) -> bool {
@@ -2263,7 +2269,8 @@ fn parse_diffanchors(
         g_st().curbuf.set((buf).into());
         set_curwin(&bufwin);
         let mut errormsg = None;
-        let mut dia_opt = Some(dia);
+        let dia_bytes = dia.to_bytes();
+        let mut dia_opt = Some(dia_bytes);
         let lnum = get_address(
             None,
             &mut dia_opt,
@@ -2282,7 +2289,7 @@ fn parse_diffanchors(
         let Some(next_dia) = dia_opt else {
             return false;
         };
-        dia = next_dia;
+        dia = &dia[dia_bytes.len() - next_dia.len()..];
         if dia.to_bytes().first() != Some(&b',') && !dia.is_empty() {
             return false;
         }

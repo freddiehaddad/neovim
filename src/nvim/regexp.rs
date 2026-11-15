@@ -3793,13 +3793,13 @@ fn vim_regsub_both(
                     fe_found_var: false,
                 };
                 if expr.v_type == VarType::VarFunc {
-                    let s_cstr = expr.vval.v_string_cstr_or_empty();
-                    call_func(s_cstr, -1, &mut rettv, 1, &mut argv, &mut funcexe);
+                    let s_bytes = expr.vval.v_string_bytes();
+                    call_func(s_bytes, -1, &mut rettv, 1, &mut argv, &mut funcexe);
                 } else if expr.v_type == VarType::VarPartial {
                     let partial = expr.vval.v_partial();
                     let s = partial_name(partial.opt());
                     funcexe.fe_partial = partial.clone();
-                    call_func(s, -1, &mut rettv, 1, &mut argv, &mut funcexe);
+                    call_func(s.to_bytes(), -1, &mut rettv, 1, &mut argv, &mut funcexe);
                 }
                 if rettv.v_type == VarType::VarUnknown {
                     EVAL_RESULT.with(|er| *er[nested].borrow_mut() = None);
@@ -3816,8 +3816,7 @@ fn vim_regsub_both(
                     unref_var_list(match_list);
                 }
             } else if let Some(src) = src_opt {
-                let expr_cstr = crate::memory::bytes_to_cstring(src.get(2..).unwrap_or(&[]));
-                let val = eval_to_string(&expr_cstr, true, false);
+                let val = eval_to_string(src.get(2..).unwrap_or(&[]), true, false);
                 EVAL_RESULT.with(|er| *er[nested].borrow_mut() = val);
             }
             RE_STATE.with(|s| s.regsub_nesting.set(s.regsub_nesting.get() - (1)));

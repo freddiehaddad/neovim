@@ -3766,14 +3766,14 @@ pub fn qf_view_result(split: bool) {
 
     if split {
         qf_jump_newwin(Some(qi), 0, curwin().w_cursor.get().lnum, false, true);
-        do_cmdline_cmd(c"clearjumps");
+        do_cmdline_cmd(b"clearjumps");
         return;
     }
 
     do_cmdline_cmd(if is_ll_window(&curwin()) {
-        c".ll"
+        b".ll"
     } else {
-        c".cc"
+        b".cc"
     });
 }
 
@@ -7152,8 +7152,8 @@ pub fn ex_cexpr(eap: &mut Exarg) {
         return;
     }
 
-    let arg = eap.arg.to_cstring();
-    let Some(mut tv) = eval_expr(&arg, Some(&mut *eap)) else {
+    let arg = eap.arg.clone();
+    let Some(mut tv) = eval_expr(arg.as_bytes(), Some(&mut *eap)) else {
         return;
     };
 
@@ -7548,14 +7548,14 @@ mod tests {
         crate::main_init::ensure_test_editor_init();
         g_st().msg_silent.set(g_st().msg_silent.get() + 1);
         qf_init_stack();
-        let _ = crate::ex_docmd::do_cmdline_cmd(c"silent! augroup QfReentrancyTest | autocmd! | autocmd BufNew * call getqflist({'items': 0}) | augroup END");
+        let _ = crate::ex_docmd::do_cmdline_cmd(b"silent! augroup QfReentrancyTest | autocmd! | autocmd BufNew * call getqflist({'items': 0}) | augroup END");
         let _ = crate::ex_docmd::do_cmdline_cmd(
-            c"silent! call setqflist([{'filename': 'Xqf_bufnew_reentrant_1.txt', 'lnum': 1, 'text': 'e1'}])",
+            b"silent! call setqflist([{'filename': 'Xqf_bufnew_reentrant_1.txt', 'lnum': 1, 'text': 'e1'}])",
         );
-        let _ = crate::ex_docmd::do_cmdline_cmd(c"silent! cexpr 'Xqf_bufnew_reentrant_2.txt:2:e2'");
-        let _ = crate::ex_docmd::do_cmdline_cmd(c"silent! autocmd! QfReentrancyTest");
+        let _ = crate::ex_docmd::do_cmdline_cmd(b"silent! cexpr 'Xqf_bufnew_reentrant_2.txt:2:e2'");
+        let _ = crate::ex_docmd::do_cmdline_cmd(b"silent! autocmd! QfReentrancyTest");
         let _ = crate::ex_docmd::do_cmdline_cmd(
-            c"silent! bwipeout! Xqf_bufnew_reentrant_1.txt Xqf_bufnew_reentrant_2.txt",
+            b"silent! bwipeout! Xqf_bufnew_reentrant_1.txt Xqf_bufnew_reentrant_2.txt",
         );
         g_st().msg_silent.set(g_st().msg_silent.get() - 1);
     }

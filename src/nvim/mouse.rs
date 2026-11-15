@@ -366,7 +366,7 @@ fn call_click_def_func(click_defs: &[StlClickDefinition], col: i32, which_button
     let mut rettv: TypVal = TypVal::new();
 
     call_vim_function(
-        def.func.as_deref().unwrap_or(c""),
+        def.func.as_deref().map_or(b"", std::ffi::CStr::to_bytes),
         argv.len() as i32,
         &mut argv,
         &mut rettv,
@@ -1060,9 +1060,9 @@ pub fn do_mouse(
         && bt_quickfix(Some(&crate::globals::curbuf()))
     {
         if curwin().w_llist_ref.get().is_null() {
-            do_cmdline_cmd(c".cc");
+            do_cmdline_cmd(b".cc");
         } else {
-            do_cmdline_cmd(c".ll");
+            do_cmdline_cmd(b".ll");
         }
         mouse_st(|st| st.got_click.set(false));
     } else if curbuf().b_help.get()

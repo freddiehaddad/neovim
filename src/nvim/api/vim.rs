@@ -921,7 +921,10 @@ pub fn nvim_set_current_dir(dir: NvimString) -> Result<(), Error> {
     validate_s(dir.size < MAXPATHL, c"directory name", Some(c"(too long)"))?;
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    do_chdir(dir.as_opt_cstr(), K_CD_SCOPE_GLOBAL);
+    do_chdir(
+        (!dir.data.is_null()).then(|| dir.as_bytes()),
+        K_CD_SCOPE_GLOBAL,
+    );
     try_leave(&tstate)
 }
 

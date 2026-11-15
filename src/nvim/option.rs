@@ -8111,14 +8111,14 @@ pub fn option_set_callback_func(optval: &[u8], optcb: &mut Callback) -> bool {
         return true;
     }
 
-    let optval_cstr = crate::memory::bytes_to_cstring(bytes);
     let mut tv: TypVal =
         if bytes[0] == b'{' || bytes.starts_with(b"function(") || bytes.starts_with(b"funcref(") {
-            let Some(evaluated) = eval_expr(&optval_cstr, None) else {
+            let Some(evaluated) = eval_expr(bytes, None) else {
                 return false;
             };
             evaluated
         } else {
+            let optval_cstr = crate::memory::bytes_to_cstring(bytes);
             let mut allocated = TypVal::new();
             crate::eval::typval::tv_set_string(&mut allocated, Some(optval_cstr.as_c_str()));
             allocated

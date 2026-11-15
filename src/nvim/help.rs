@@ -463,12 +463,12 @@ pub fn get_local_additions() {
 
 /// `:exusage` (`ex_exusage`).
 pub fn ex_exusage(_eap: &mut Exarg) {
-    do_cmdline_cmd(c"help ex-cmd-index");
+    do_cmdline_cmd(b"help ex-cmd-index");
 }
 
 /// `:viusage` (`ex_viusage`).
 pub fn ex_viusage(_eap: &mut Exarg) {
-    do_cmdline_cmd(c"help normal-index");
+    do_cmdline_cmd(b"help normal-index");
 }
 
 /// `:helptags` (`ex_helptags`).

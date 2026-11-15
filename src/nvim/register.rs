@@ -382,7 +382,7 @@ pub fn get_expr_line() -> Option<std::ffi::CString> {
         s.get_expr_line_nested
             .set(s.get_expr_line_nested.get() + (1))
     });
-    let rv = eval_to_string(&expr_copy, true, false);
+    let rv = eval_to_string(expr_copy.as_bytes(), true, false);
     REG_STATE.with(|s| {
         s.get_expr_line_nested
             .set(s.get_expr_line_nested.get() - (1))

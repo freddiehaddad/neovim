@@ -161,7 +161,7 @@ pub fn exec_impl(
 pub fn nvim_command(cmd: NvimString) -> Result<(), Error> {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    do_cmdline_cmd(cmd.as_cstr());
+    do_cmdline_cmd(cmd.as_bytes());
     try_leave(&tstate)
 }
 
@@ -188,9 +188,9 @@ pub fn nvim_eval(expr: NvimString) -> Result<Object, Error> {
     try_enter(&mut tstate);
     let ok = eval0(
         if expr.data.is_null() {
-            c""
+            b""
         } else {
-            expr.as_cstr()
+            expr.as_bytes()
         },
         &mut rettv,
         None,
@@ -262,7 +262,7 @@ fn call_function_impl(
     try_enter(&mut tstate);
     let save_current_sctx = api_set_sctx(channel_id);
     let _ = call_func(
-        fn_name.as_cstr(),
+        fn_name.as_bytes(),
         fn_name.size as i32,
         &mut rettv,
         args.size as i32,
@@ -327,7 +327,7 @@ pub fn nvim_call_dict_function(
             try_enter(&mut tstate);
             let s_val = dict.data.string();
             let eval_ret = eval0(
-                s_val.as_cstr(),
+                s_val.as_bytes(),
                 &mut rettv,
                 None,
                 &mut crate::eval::vars::Evalarg { eval_flags: 1 },

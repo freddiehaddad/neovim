@@ -76,7 +76,7 @@ fn convert_one_value(
         }
         VarType::VarFunc => {
             let obj = if let Some(fun) = tv.vval.v_string_cstr()
-                && let Some(fp) = find_func(Some(fun))
+                && let Some(fp) = find_func(Some(fun.to_bytes()))
                 && (fp.uf_flags.get() & FC_LUAREF) != 0
             {
                 Object {
@@ -91,7 +91,7 @@ fn convert_one_value(
         VarType::VarPartial => {
             let obj = if let Some(pt) = tv.vval.v_partial_opt() {
                 let fun = partial_name(Some(pt));
-                if let Some(fp) = find_func(Some(fun))
+                if let Some(fp) = find_func(Some(fun.to_bytes()))
                     && (fp.uf_flags.get() & FC_LUAREF) != 0
                 {
                     Object {

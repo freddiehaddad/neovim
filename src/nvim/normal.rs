@@ -4065,7 +4065,7 @@ fn nv_q_fn(cap: &mut Cmdarg) {
         vim_beep(0);
     } else if !checkclearop(&mut cap.oap) {
         if g_st().visual_global.borrow().active {
-            do_cmdline_cmd(c"normal! zqj");
+            do_cmdline_cmd(b"normal! zqj");
             mc_follow_set(K_TRUE);
         } else {
             mc_toggle(
@@ -4196,18 +4196,18 @@ fn nv_zet_fn(cap: &mut Cmdarg) {
 
     match cap.nchar {
         c if c == b'Z' as i32 => {
-            do_cmdline_cmd(c"x");
+            do_cmdline_cmd(b"x");
         }
         c if c == b'Q' as i32 => {
-            do_cmdline_cmd(c"q!");
+            do_cmdline_cmd(b"q!");
         }
         c if c == b'R' as i32 => {
             if cap.count0 >= 1 && cap.count0 <= 8 {
-                do_cmdline_cmd(c"restart!");
+                do_cmdline_cmd(b"restart!");
             } else if cap.count0 == 9 {
-                do_cmdline_cmd(c"restart! +qall!");
+                do_cmdline_cmd(b"restart! +qall!");
             } else {
-                do_cmdline_cmd(c"restart");
+                do_cmdline_cmd(b"restart");
             }
         }
         _ => {
@@ -4262,7 +4262,7 @@ fn nv_k_getcmd(
         *buflen = format_to_buf!(&mut *buf_slice, c".,.+%lld", (cap.count0 - 1) as i64) as usize;
     }
 
-    do_cmdline_cmd(c"tabnew");
+    do_cmdline_cmd(b"tabnew");
     *buflen += format_to_buf!(&mut buf_slice[*buflen..], c"terminal ") as usize;
     if cap.count0 == 0 && isman_s {
         *buflen += format_to_buf!(&mut buf_slice[*buflen..], c"man ") as usize;
@@ -4487,7 +4487,7 @@ fn nv_ident(cap: &mut Cmdarg) {
         );
     } else {
         g_st().g_tag_at_cursor.set(true);
-        do_cmdline_cmd(crate::memory::bytes_as_cstr(&buf_vec));
+        do_cmdline_cmd(&buf_vec);
         g_st().g_tag_at_cursor.set(false);
 
         if cmdchar == b'K' as i32 && !kp_ex && !kp_help {
@@ -6204,7 +6204,7 @@ fn nv_suspend(cap: &mut Cmdarg) {
     if g_st().visual_global.borrow().active {
         end_visual_mode();
     }
-    do_cmdline_cmd(c"stop");
+    do_cmdline_cmd(b"stop");
 }
 
 fn nv_gv_cmd(cap: &mut Cmdarg) {
@@ -6449,7 +6449,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
             nv_vreplace(cap);
         }
         c if c == b'&' as i32 => {
-            do_cmdline_cmd(c"%s//~/&");
+            do_cmdline_cmd(b"%s//~/&");
         }
         c if c == b'v' as i32 => {
             nv_gv_cmd(cap);
@@ -7239,7 +7239,7 @@ fn nv_q(cap: &mut Cmdarg) {
             return;
         }
         if cap.nchar == b':' as i32 && cap.count0 > 0 {
-            do_cmdline_cmd(c"exmode");
+            do_cmdline_cmd(b"exmode");
             return;
         }
         let insert_range = g_st().visual_global.borrow().active && cap.nchar == b':' as i32;

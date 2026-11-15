@@ -1609,7 +1609,7 @@ pub fn execute_menu(eap: &Exarg, menu: &Vimmenu, mode_idx: i32) {
             let mut save_state = SaveState::new();
             g_st().ex_normal_busy.set(g_st().ex_normal_busy.get() + (1));
             save_current_state(&mut save_state);
-            exec_normal_cmd(cmd_str, menu.noremap[u_idx], menu.silent[u_idx]);
+            exec_normal_cmd(cmd_str.as_bytes(), menu.noremap[u_idx], menu.silent[u_idx]);
             restore_current_state(&mut save_state);
             g_st().ex_normal_busy.set(g_st().ex_normal_busy.get() - (1));
         } else {

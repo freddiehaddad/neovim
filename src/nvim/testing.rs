@@ -324,7 +324,7 @@ fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> bool {
     let beeps = g_st().did_beep.get();
     g_st().suppress_errthrow.set(true);
     g_st().emsg_silent.set(0);
-    do_cmdline_cmd(cmd_owned.as_deref().unwrap_or(c""));
+    do_cmdline_cmd(cmd_owned.as_deref().map_or(b"", CStr::to_bytes));
     let beeped = g_st().did_beep.get() != beeps;
     if if no_beep { beeped } else { !beeped } {
         let mut ga = Vec::new();
@@ -524,7 +524,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
 
     let cmd_owned = tv_get_string_chk(&argvars[0]).map(std::borrow::Cow::into_owned);
-    do_cmdline_cmd(cmd_owned.as_deref().unwrap_or(c""));
+    do_cmdline_cmd(cmd_owned.as_deref().map_or(b"", CStr::to_bytes));
 
     g_st().trylevel.set(save_trylevel);
     g_st().suppress_errthrow.set(false);

@@ -518,7 +518,7 @@ pub fn parse_pattern_and_range(
     parse_command_modifiers(&mut ea, &mut dummy, &mut dummy_cmdmod, true);
 
     // Skip over the range to find the command.
-    let cmd = ea.cmd.advance_to_cstr(skip_range(ea.cmd.as_cstr(), None));
+    let cmd = ea.cmd.advance_to_slice(skip_range(ea.cmd.as_bytes(), None));
     let cmd_bytes = cmd.as_bytes();
     let Some(&first_b) = cmd_bytes.first() else {
         return false;

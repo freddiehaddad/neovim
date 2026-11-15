@@ -1769,7 +1769,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
         }
     }
     do_cmdline(
-        Some(crate::memory::bytes_as_cstr(&buf_vec)),
+        Some(&buf_vec),
         eap.ea_getline.clone(),
         DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_KEYTYPED,
     );

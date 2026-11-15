@@ -619,7 +619,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             i += 1;
             if execute {
                 do_cmdline(
-                    eap.arg.as_opt_cstr(),
+                    (!eap.arg.is_null()).then(|| eap.arg.as_bytes()),
                     eap.ea_getline.clone(),
                     DOCMD_VERBOSE + DOCMD_NOWAIT,
                 );
@@ -735,8 +735,8 @@ pub fn ex_compiler(eap: &mut Exarg) {
     let mut old_cur_comp: Option<std::ffi::CString> = None;
 
     if eap.arg.is_empty() {
-        do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.vim')");
-        do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.lua')");
+        do_cmdline_cmd(b"echo globpath(&rtp, 'compiler/*.vim')");
+        do_cmdline_cmd(b"echo globpath(&rtp, 'compiler/*.lua')");
         return;
     }
 
@@ -745,12 +745,12 @@ pub fn ex_compiler(eap: &mut Exarg) {
     let mut buf = vec![0u8; bufsize];
 
     if eap.forceit {
-        do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet set <args>");
+        do_cmdline_cmd(b"command -nargs=* -keepscript CompilerSet set <args>");
     } else {
         if let Some(p) = get_var_value(c"g:current_compiler") {
             old_cur_comp = Some(p.into_owned());
         }
-        do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet setlocal <args>");
+        do_cmdline_cmd(b"command -nargs=* -keepscript CompilerSet setlocal <args>");
     }
     do_unlet(b"g:current_compiler", true);
     do_unlet(b"b:current_compiler", true);
@@ -761,7 +761,7 @@ pub fn ex_compiler(eap: &mut Exarg) {
     }
     drop(buf);
 
-    do_cmdline_cmd(c":delcommand CompilerSet");
+    do_cmdline_cmd(b":delcommand CompilerSet");
 
     if let Some(p) = get_var_value(c"g:current_compiler") {
         set_internal_string_var(c"b:current_compiler", &p);
@@ -869,7 +869,7 @@ pub fn ex_drop(eap: &mut Exarg) {
                 if let Some(ref cmd) = eap.do_ecmd_cmd {
                     let did_set_swapcommand = set_swapcommand(Some(cmd.as_c_str()), 0);
                     do_cmdline(
-                        Some(cmd.as_c_str()),
+                        Some(cmd.as_bytes()),
                         crate::cmdexpand::LineGetter::None,
                         DOCMD_VERBOSE,
                     );

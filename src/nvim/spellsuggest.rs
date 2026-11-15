@@ -937,7 +937,7 @@ fn spell_find_suggest(
     }
 }
 fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
-    let list_opt = eval_spell_expr(crate::memory::bytes_as_cstr(&su.su_badword), expr);
+    let list_opt = eval_spell_expr(&su.su_badword, expr.to_bytes());
     if let Some(list) = list_opt {
         for li in crate::eval::typval::list_iter_ptr(list.first_opt()) {
             let li_tv = li.tv();

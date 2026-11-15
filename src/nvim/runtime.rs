@@ -1586,8 +1586,8 @@ fn load_pack_plugin(opt: bool, fname: &std::ffi::CStr) -> bool {
         &mut RuntimeCallback::SourceVimLua,
     );
 
-    if opt && eval_to_number(c"g:did_load_filetypes", false) > 0 {
-        do_cmdline_cmd(c"augroup filetypedetect");
+    if opt && eval_to_number(b"g:did_load_filetypes", false) > 0 {
+        do_cmdline_cmd(b"augroup filetypedetect");
         format_to_buf!(&mut pat_vec[..len], c"%s/ftdetect/*", &ffname_cstr);
         gen_expand_wildcards_and_cb(
             crate::memory::bytes_as_cstr(&pat_vec),
@@ -1595,7 +1595,7 @@ fn load_pack_plugin(opt: bool, fname: &std::ffi::CStr) -> bool {
             true,
             &mut RuntimeCallback::SourceVimLua,
         );
-        do_cmdline_cmd(c"augroup END");
+        do_cmdline_cmd(b"augroup END");
     }
 
     true
@@ -2843,7 +2843,7 @@ fn do_source_ext(
             }
             let cookie = std::rc::Rc::new(std::cell::RefCell::new(cookie));
             do_cmdline(
-                firstline.as_deref(),
+                firstline.as_deref().map(CStr::to_bytes),
                 LineGetter::Source(cookie),
                 DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_REPEAT,
             );

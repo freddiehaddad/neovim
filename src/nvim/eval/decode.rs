@@ -508,9 +508,9 @@ fn parse_json_number(
     let exp_num_len = p - s;
     if fracs.is_some() || exps.is_some() {
         let mut flt: f64 = 0.0;
-        let num_cstr = crate::memory::bytes_to_cstring(&buf[s..p]);
-        let num_len = string2float(&num_cstr, &mut flt);
+        let num_len = string2float(&buf[s..p], &mut flt);
         if exp_num_len != num_len {
+            let num_cstr = crate::memory::bytes_to_cstring(&buf[s..p]);
             semsg!(
                 c"E685: internal error: while converting number \"%s\" to float string2float consumed %zu bytes in place of %zu",
                 &num_cstr,

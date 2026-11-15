@@ -2897,7 +2897,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                 curwin().w_cursor.set_lnum(1);
                 curwin().w_cursor.set_col(0);
                 curwin().w_cursor.set_coladd(0);
-                do_cmdline_cmd(crate::memory::bytes_as_cstr(&pbuf_vec));
+                do_cmdline_cmd(&pbuf_vec);
                 retval = Some(true);
 
                 if g_st().secure.get() == 2 {

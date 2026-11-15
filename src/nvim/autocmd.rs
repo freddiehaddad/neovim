@@ -2208,7 +2208,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
             }
 
             if !cmd.to_bytes().is_empty() && cmd.to_bytes().contains(&b'<') {
-                cmd_owned = expand_sfile(cmd);
+                cmd_owned = expand_sfile(cmd.to_bytes());
                 match cmd_owned {
                     Some(ref co) => cmd = co.as_c_str(),
                     None => break 'run,

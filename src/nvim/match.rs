@@ -1398,5 +1398,5 @@ pub fn ex_match(eap: &mut Exarg) {
             }
         }
     }
-    eap.nextcmd = arg_slice.advance_to_opt_cstr(find_nextcmd(end));
+    eap.nextcmd = arg_slice.advance_to_opt_slice(find_nextcmd(end.to_bytes()));
 }

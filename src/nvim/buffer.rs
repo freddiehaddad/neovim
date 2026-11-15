@@ -971,7 +971,7 @@ fn trigger_undo_ftplugin(buf: &FileBuf, win: &WinInfoInfo) {
     window_layout_lock();
     buf.b_locked.set(buf.b_locked.get() + (1));
     win.w_locked.set(win.w_locked.get() + (1));
-    do_cmdline_cmd(c"if exists('b:undo_ftplugin') | exe b:undo_ftplugin | endif");
+    do_cmdline_cmd(b"if exists('b:undo_ftplugin') | exe b:undo_ftplugin | endif");
     buf.b_locked.set(buf.b_locked.get() - (1));
     win.w_locked.set(win.w_locked.get() - (1));
     window_layout_unlock();
@@ -5010,7 +5010,7 @@ pub fn buf_contents_changed(buf: &FileBuf) -> bool {
     let newbuf = newbuf_ref;
 
     let mut ea: Exarg = Exarg::new();
-    let _ea_cmd = prep_exarg(&mut ea, buf);
+    prep_exarg(&mut ea, buf);
 
     let mut aco: CtxSwitch = CtxSwitch::new();
     ctx_switch(&mut aco, None, None, newbuf.opt(), 0);
@@ -5038,7 +5038,6 @@ pub fn buf_contents_changed(buf: &FileBuf) -> bool {
             }
         }
     }
-    drop(_ea_cmd);
 
     ctx_restore(&mut aco);
 

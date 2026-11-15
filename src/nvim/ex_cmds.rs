@@ -710,10 +710,8 @@ pub fn ex_sort(eap: &mut Exarg) {
                 unique = true;
             } else if pb == b'"' {
                 break;
-            } else if let Some(nc) =
-                check_nextcmd(crate::memory::bytes_as_cstr(&eap.arg.cstr_buf()[p_idx..]))
-            {
-                eap.nextcmd = crate::option_vars::RcSlice::from_cstr(nc);
+            } else if let Some(nc) = check_nextcmd(&eap.arg.cstr_buf()[p_idx..]) {
+                eap.nextcmd = crate::option_vars::RcSlice::from_bytes(nc);
                 break;
             } else if !ascii_isalpha(pb) && regmatch.regprog.is_null() {
                 let s_off = {
@@ -991,10 +989,9 @@ pub fn ex_uniq(eap: &mut Exarg) {
             } else if b0 == b'"' {
                 break;
             } else if eap.nextcmd.is_null()
-                && let Some(nc) =
-                    check_nextcmd(crate::memory::bytes_as_cstr(&eap.arg.cstr_buf()[p_idx..]))
+                && let Some(nc) = check_nextcmd(&eap.arg.cstr_buf()[p_idx..])
             {
-                eap.nextcmd = crate::option_vars::RcSlice::from_cstr(nc);
+                eap.nextcmd = crate::option_vars::RcSlice::from_bytes(nc);
                 break;
             } else if !b0.is_ascii_alphabetic() && regmatch.regprog.is_null() {
                 let s_off = {
@@ -3113,7 +3110,7 @@ pub fn do_ecmd(
 
         if let Some(ref cmd) = command {
             do_cmdline(
-                Some(cmd.as_c_str()),
+                Some(cmd.as_bytes()),
                 crate::cmdexpand::LineGetter::None,
                 DOCMD_VERBOSE,
             );
@@ -3940,8 +3937,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     cmd_off += crate::charset::skipwhite_len(off_cstr!(cmd_off, eap).to_bytes());
     let b0 = off_first_byte(cmd_off, eap);
     if b0 != 0 && b0 != b'"' {
-        eap.nextcmd =
-            crate::option_vars::RcSlice::from_opt_cstr(check_nextcmd(off_cstr!(cmd_off, eap)));
+        eap.nextcmd = crate::option_vars::RcSlice::from_opt_bytes(check_nextcmd(
+            off_cstr!(cmd_off, eap).to_bytes(),
+        ));
         if eap.nextcmd.is_null() {
             semsg!(gettext(E_TRAILING_ARG), off_cstr!(cmd_off, eap));
             return 0;
@@ -4820,9 +4818,13 @@ fn global_exe_one(cmd: &CStr, lnum: Linenr) {
     curwin().w_cursor.set_col(0);
     let bytes = cmd.to_bytes();
     if bytes.is_empty() || bytes.first() == Some(&b'\n') {
-        do_cmdline(Some(c"p"), crate::cmdexpand::LineGetter::None, DOCMD_NOWAIT);
+        do_cmdline(Some(b"p"), crate::cmdexpand::LineGetter::None, DOCMD_NOWAIT);
     } else {
-        do_cmdline(Some(cmd), crate::cmdexpand::LineGetter::None, DOCMD_NOWAIT);
+        do_cmdline(
+            Some(bytes),
+            crate::cmdexpand::LineGetter::None,
+            DOCMD_NOWAIT,
+        );
     }
 }
 

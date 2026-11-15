@@ -1586,11 +1586,7 @@ pub fn build_stl_str_hl_slice(
         };
         set_var(b"g:statusline_winid", &mut tv, false);
 
-        if let Some(evaluated) = eval_to_string_safe(
-            crate::memory::bytes_as_cstr(&usefmt_vec[2..]),
-            use_sandbox,
-            false,
-        ) {
+        if let Some(evaluated) = eval_to_string_safe(&usefmt_vec[2..], use_sandbox, false) {
             usefmt_vec = evaluated.into_bytes_with_nul();
         }
 
@@ -2067,11 +2063,7 @@ pub fn build_stl_str_hl_slice(
                         g_st().visual_global.borrow_mut().active = false;
                     }
 
-                    owned_str = eval_to_string_safe(
-                        crate::memory::bytes_as_cstr(&out_buf[out_idx..]),
-                        use_sandbox,
-                        false,
-                    );
+                    owned_str = eval_to_string_safe(&out_buf[out_idx..], use_sandbox, false);
                     str_slice = owned_str.as_deref().map(std::ffi::CStr::to_bytes_with_nul);
 
                     set_curwin(save_curwin);

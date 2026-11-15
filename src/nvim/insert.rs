@@ -1168,9 +1168,9 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             }
             if bt_quickfix(Some(&crate::globals::curbuf())) && s.c == CAR {
                 if curwin().w_llist_ref.get().is_null() {
-                    do_cmdline_cmd(c".cc");
+                    do_cmdline_cmd(b".cc");
                 } else {
-                    do_cmdline_cmd(c".ll");
+                    do_cmdline_cmd(b".ll");
                 }
             } else if s.c == CAR && bt_cmdwin(g_st().curbuf.get().opt()) {
                 cmdwin_do_action(c"confirm");

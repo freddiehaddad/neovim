@@ -603,7 +603,7 @@ fn lua_convert_one_value(
         }
         VarType::VarFunc => {
             if let Some(fun) = tv_ref.vval.v_string_cstr() {
-                if let Some(fp) = find_func(Some(fun))
+                if let Some(fp) = find_func(Some(fun.to_bytes()))
                     && (fp.uf_flags.get() & FC_LUAREF) != 0
                 {
                     nlua_pushref(lstate, fp.uf_luaref.get());
@@ -618,7 +618,7 @@ fn lua_convert_one_value(
             let pt = tv_ref.vval.v_partial();
             if !pt.is_null() {
                 let fun = partial_name(pt.opt());
-                if let Some(fp) = find_func(Some(fun))
+                if let Some(fp) = find_func(Some(fun.to_bytes()))
                     && (fp.uf_flags.get() & FC_LUAREF) != 0
                 {
                     nlua_pushref(lstate, fp.uf_luaref.get());

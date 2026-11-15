@@ -1751,10 +1751,10 @@ pub fn buf_write(
                     if wfname_owned.is_some() {
                         if end != 0
                             && !eval_charconvert(
-                                c"utf-8",
-                                fenc,
-                                wfname.unwrap_or(c""),
-                                fname.unwrap_or(c""),
+                                b"utf-8",
+                                fenc.to_bytes(),
+                                wfname.map_or(b"", CStr::to_bytes),
+                                fname.map_or(b"", CStr::to_bytes),
                             )
                         {
                             write_info.bw_conv_error = 1;

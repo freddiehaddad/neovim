@@ -803,7 +803,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     }
 
     if params.exmode {
-        do_cmdline_cmd(c"exmode");
+        do_cmdline_cmd(b"exmode");
     }
 
     time_msg_if_enabled(c"before starting main loop");
@@ -1871,7 +1871,7 @@ fn handle_tag(tagname: Option<&CStr>) {
         g_st().swap_exists_did_quit.set(false);
         let mut iobuff = [0u8; IOSIZE];
         format_to_buf!(&mut iobuff, c"ta %s", tagname);
-        do_cmdline_cmd(crate::memory::bytes_as_cstr(&iobuff));
+        do_cmdline_cmd(&iobuff);
         time_msg_if_enabled(c"jumping to tag");
 
         if g_st().swap_exists_did_quit.get() {
@@ -1902,18 +1902,18 @@ fn read_stdin() {
 
         let mut buf = [0u8; 100];
         format_to_buf!(&mut buf, c"silent! buffer %d", initial_buf_handle);
-        do_cmdline_cmd(crate::memory::bytes_as_cstr(&buf));
+        do_cmdline_cmd(&buf);
 
         if stdin_buf_empty {
             format_to_buf!(&mut buf, c"silent! bwipeout! %d", stdin_buf_handle);
-            do_cmdline_cmd(crate::memory::bytes_as_cstr(&buf));
+            do_cmdline_cmd(&buf);
         }
     } else {
         set_buflisted(1);
         open_buffer(true, None, 0);
         if buf_is_empty(&curbuf()) && !curbuf().b_next.get().is_null() {
-            do_cmdline_cmd(c"silent! bnext");
-            do_cmdline_cmd(c"silent! bwipeout 1");
+            do_cmdline_cmd(b"silent! bnext");
+            do_cmdline_cmd(b"silent! bwipeout 1");
         }
     }
 
@@ -2167,7 +2167,7 @@ fn exe_pre_commands(parmp: &mut Mparm) {
         g_st().current_sctx.set(v);
     }
     for cmd in &parmp.pre_commands {
-        do_cmdline_cmd(cmd);
+        do_cmdline_cmd(cmd.as_bytes());
     }
     estack_pop();
     {
@@ -2196,7 +2196,7 @@ fn exe_commands(parmp: &mut Mparm) {
     }
     let cmds = std::mem::take(&mut parmp.commands);
     for cmd in &cmds {
-        do_cmdline_cmd(cmd);
+        do_cmdline_cmd(cmd.as_bytes());
     }
     estack_pop();
     {
@@ -2407,7 +2407,7 @@ fn execute_env(env: &std::ffi::CStr) -> bool {
         v.sc_lnum = 0;
         g_st().current_sctx.set(v);
     }
-    do_cmdline_cmd(&initstr);
+    do_cmdline_cmd(initstr.as_bytes());
 
     estack_pop();
     g_st().current_sctx.set(save_current_sctx);

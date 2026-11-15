@@ -504,7 +504,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         scope = K_CD_SCOPE_TABPAGE;
     }
 
-    if !do_chdir(argvars[0].vval.v_string_cstr(), scope) {
+    if !do_chdir(argvars[0].vval.v_string_cstr().map(CStr::to_bytes), scope) {
         // Directory change failed
         tv_clear(rettv);
         rettv.v_type = VarType::VarString;
@@ -1291,7 +1291,8 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     }
     if rettv.vval.v_number() == 0 {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_mkdir_emsg(
-            dir_cstr, prot,
+            dir_cstr.to_bytes(),
+            prot,
         )));
     }
 

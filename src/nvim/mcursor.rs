@@ -1363,7 +1363,7 @@ fn mc_zq_step(keys: &CStr, pos: CursorPos) -> CursorPos {
     let mut sst = SaveState::new();
     save_current_state(&mut sst);
     let beeps = g_st().did_beep_silent.get();
-    exec_normal_cmd(keys, REMAP_NONE, true);
+    exec_normal_cmd(keys.to_bytes(), REMAP_NONE, true);
     let failed = g_st().did_beep_silent.get() != beeps;
     restore_current_state(&mut sst);
     unblock_on_key();

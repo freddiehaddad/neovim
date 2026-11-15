@@ -492,18 +492,17 @@ pub fn expand_env_esc(
     while !src_cstr.to_bytes().is_empty() && dst_rem > 0 {
         let src_bytes = src_cstr.to_bytes();
         if src_bytes.starts_with(b"`=") {
-            let start_ptr = src_cstr.as_ptr() as usize;
-            let mut expr_cstr = crate::memory::CStrSubslice::advance(src_cstr, 2);
-            let _ = skip_expr(&mut expr_cstr, None);
-            if expr_cstr.to_bytes().first() == Some(&b'`') {
-                expr_cstr = crate::memory::CStrSubslice::advance(expr_cstr, 1);
+            let mut expr_bytes = &src_bytes[2..];
+            let _ = skip_expr(&mut expr_bytes, None);
+            if expr_bytes.first() == Some(&b'`') {
+                expr_bytes = &expr_bytes[1..];
             }
-            let adv = (expr_cstr.as_ptr() as usize) - start_ptr;
+            let adv = src_bytes.len() - expr_bytes.len();
             let len = adv.min(dst_rem as usize);
             dst_slice[dst_idx..dst_idx + len].copy_from_slice(&src_bytes[..len]);
             dst_idx += len;
             dst_rem -= len as i32;
-            src_cstr = expr_cstr;
+            src_cstr = crate::memory::CStrSubslice::advance(src_cstr, adv);
             continue;
         }
 

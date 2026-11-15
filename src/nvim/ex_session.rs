@@ -957,10 +957,10 @@ pub fn ex_mkrc(eap: &mut Exarg) {
     }
 
     if using_vdir && !os_isdir(&opt_vars().p_vdir.as_cstr()) {
-        vim_mkdir_emsg(&opt_vars().p_vdir.as_cstr(), 0o755);
+        vim_mkdir_emsg(&opt_vars().p_vdir.as_bytes(), 0o755);
     }
 
-    if let Some(fd) = open_exfile(fname, eap.forceit, c"wb") {
+    if let Some(fd) = open_exfile(fname.to_bytes(), eap.forceit, c"wb") {
         let mut failed = false;
 
         if eap.cmdidx == Cmdidx::CmdMksession {

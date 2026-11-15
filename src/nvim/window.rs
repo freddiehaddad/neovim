@@ -1068,7 +1068,7 @@ fn do_window_newwindow(nchar: i32, Prenum: i32, cbuf: &mut [u8; 40]) {
         crate::memory::append_bytes_to_c_buf(cbuf, b"v");
     }
     crate::memory::append_bytes_to_c_buf(cbuf, b"new");
-    do_cmdline_cmd(crate::memory::bytes_as_cstr(cbuf));
+    do_cmdline_cmd(cbuf);
 }
 
 fn do_window_gotofile(nchar: i32, prenum1: i32) {
@@ -1182,16 +1182,16 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
         c if c == CTRL_Q_CONST || c == b'q' as i32 => {
             reset_visual_and_resel();
             cmd_with_count(c"quit", &mut cbuf, i64::from(prenum));
-            do_cmdline_cmd(crate::memory::bytes_as_cstr(&cbuf));
+            do_cmdline_cmd(&cbuf);
         }
         c if c == CTRL_C_CONST || c == b'c' as i32 => {
             reset_visual_and_resel();
             cmd_with_count(c"close", &mut cbuf, i64::from(prenum));
-            do_cmdline_cmd(crate::memory::bytes_as_cstr(&cbuf));
+            do_cmdline_cmd(&cbuf);
         }
         c if c == CTRL_Z_CONST || c == b'z' as i32 => {
             reset_visual_and_resel();
-            do_cmdline_cmd(c"pclose");
+            do_cmdline_cmd(b"pclose");
         }
         c if c == b'P' as i32 => {
             let mut wp = crate::globals::WinPtr::NULL;
@@ -1210,7 +1210,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
         c if c == CTRL_O || c == b'o' as i32 => {
             reset_visual_and_resel();
             cmd_with_count(c"only", &mut cbuf, i64::from(prenum));
-            do_cmdline_cmd(crate::memory::bytes_as_cstr(&cbuf));
+            do_cmdline_cmd(&cbuf);
         }
         c if c == CTRL_W_CONST || c == b'w' as i32 || c == b'W' as i32 => {
             if one_window_macro() && prenum != 1 {
@@ -3791,7 +3791,7 @@ pub fn win_close(win_in: &WinInfoInfo, free_buf: bool, force: bool) -> bool {
             }
         }
         if diffcount == 1 {
-            do_cmdline_cmd(c"diffoff!");
+            do_cmdline_cmd(b"diffoff!");
         }
     }
 

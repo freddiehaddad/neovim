@@ -53,7 +53,7 @@ fn filter_map_one(
 
     newtv.v_type = VarType::VarUnknown;
     if filtermap == FilterMap::ForEach && expr.v_type == VarType::VarString {
-        do_cmdline_cmd(expr.vval.v_string_cstr_or_empty());
+        do_cmdline_cmd(expr.vval.v_string_bytes());
         if g_st().did_emsg.get() == 0 {
             retval = true;
         }
@@ -134,7 +134,11 @@ fn filter_map_dict(
                 todo -= 1;
                 if filtermap == FilterMap::Map
                     && (value_check_lock(di.tv().v_lock, Some(arg_errmsg), TV_TRANSLATE)
-                        || var_check_ro(i32::from(di.di_flags.get()), arg_errmsg, TV_TRANSLATE))
+                        || var_check_ro(
+                            i32::from(di.di_flags.get()),
+                            arg_errmsg.to_bytes(),
+                            TV_TRANSLATE,
+                        ))
                 {
                     break;
                 }
@@ -164,9 +168,15 @@ fn filter_map_dict(
                         break;
                     }
                 } else if filtermap == FilterMap::Filter && rem {
-                    if var_check_fixed(i32::from(di.di_flags.get()), arg_errmsg, TV_TRANSLATE)
-                        || var_check_ro(i32::from(di.di_flags.get()), arg_errmsg, TV_TRANSLATE)
-                    {
+                    if var_check_fixed(
+                        i32::from(di.di_flags.get()),
+                        arg_errmsg.to_bytes(),
+                        TV_TRANSLATE,
+                    ) || var_check_ro(
+                        i32::from(di.di_flags.get()),
+                        arg_errmsg.to_bytes(),
+                        TV_TRANSLATE,
+                    ) {
                         break;
                     }
                     d.dv_hashtab.remove_at(i);

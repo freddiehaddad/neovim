@@ -749,8 +749,8 @@ pub fn ex_eval(eap: &mut Exarg) {
 
     fill_evalarg_from_eap(&mut evalarg, eap.skip);
 
-    let arg = eap.arg.to_cstring();
-    if eval0(&arg, &mut tv, Some(&mut *eap), &mut evalarg) {
+    let arg = eap.arg.clone();
+    if eval0(arg.as_bytes(), &mut tv, Some(&mut *eap), &mut evalarg) {
         tv_clear(&mut tv);
     }
 }
@@ -769,8 +769,8 @@ pub fn ex_if(eap: &mut Exarg) {
             (idx, check_skip(&*cstack))
         };
         let mut error = false;
-        let arg = eap.arg.to_cstring();
-        let result = eval_to_bool(&arg, &mut error, eap, skip, false);
+        let arg = eap.arg.clone();
+        let result = eval_to_bool(arg.as_bytes(), &mut error, eap, skip, false);
 
         let cstack = eap.cstack_mut();
         if !skip && !error {
@@ -849,8 +849,8 @@ pub fn ex_else(eap: &mut Exarg) {
         {
             semsg!(gettext(E_INVEXPR2), eap.arg);
         } else {
-            let arg = eap.arg.to_cstring();
-            result = eval_to_bool(&arg, &mut error, eap, skip, false);
+            let arg = eap.arg.clone();
+            result = eval_to_bool(arg.as_bytes(), &mut error, eap, skip, false);
         }
 
         if !skip && !error {
@@ -892,23 +892,23 @@ pub fn ex_while(eap: &mut Exarg) {
             )
         };
 
-        let arg = eap.arg.to_cstring();
+        let arg = eap.arg.clone();
         let result = if is_while {
-            eval_to_bool(&arg, &mut error, eap, skip, false)
+            eval_to_bool(arg.as_bytes(), &mut error, eap, skip, false)
         } else {
             let mut evalarg = Evalarg::new();
             fill_evalarg_from_eap(&mut evalarg, skip);
             if had_loop {
                 error = false;
             } else {
-                let fi = eval_for_line(&arg, &mut error, eap, &mut evalarg);
+                let fi = eval_for_line(arg.as_bytes(), &mut error, eap, &mut evalarg);
                 (&mut eap.cstack_mut().cs_forinfo)[idx] = Some(fi);
             }
 
             let cstack = eap.cstack_mut();
             let res = if !error && !skip {
                 if let Some(fi) = (&mut cstack.cs_forinfo)[idx].as_deref_mut() {
-                    next_for_item(fi, &arg)
+                    next_for_item(fi, arg.as_bytes())
                 } else {
                     false
                 }
@@ -1030,7 +1030,7 @@ pub fn ex_endwhile(eap: &mut Exarg) {
 pub fn ex_throw(eap: &mut Exarg) {
     let arg = eap.arg.clone();
     let value = if !(arg).is_empty() && (arg).first_byte() != b'|' && (arg).first_byte() != b'\n' {
-        eval_to_string_skip((arg).as_cstr(), eap, eap.skip)
+        eval_to_string_skip((arg).as_bytes(), eap, eap.skip)
     } else {
         emsg(gettext(E_ARGREQ));
         None
@@ -1125,7 +1125,9 @@ pub fn ex_catch(eap: &mut Exarg) {
     }
 
     let (pat, end) = if ends_excmd(i32::from(eap.arg.first_byte())) != 0 {
-        eap.nextcmd = eap.arg.advance_to_opt_cstr(find_nextcmd(eap.arg.as_cstr()));
+        eap.nextcmd = eap
+            .arg
+            .advance_to_opt_slice(find_nextcmd(eap.arg.as_bytes()));
         (crate::option_vars::RcSlice::from_cstr(c".*"), None)
     } else {
         let pat = eap.arg.wrapping_add(1);
@@ -1217,7 +1219,7 @@ pub fn ex_catch(eap: &mut Exarg) {
     }
 
     if let Some(ref end_slice) = end {
-        eap.nextcmd = end_slice.advance_to_opt_cstr(find_nextcmd(end_slice.as_cstr()));
+        eap.nextcmd = end_slice.advance_to_opt_slice(find_nextcmd(end_slice.as_bytes()));
     }
 }
 

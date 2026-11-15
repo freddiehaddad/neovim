@@ -2978,7 +2978,7 @@ fn match_keyword_ctx<'a>(
 
 fn syn_cmd_conceal(eap: &mut Exarg, _syncing: i32) {
     let arg = eap.arg.clone();
-    eap.nextcmd = arg.advance_to_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = arg.advance_to_opt_slice(find_nextcmd((arg).as_bytes()));
     if eap.skip {
         return;
     }
@@ -3004,7 +3004,7 @@ fn syn_cmd_conceal(eap: &mut Exarg, _syncing: i32) {
 
 fn syn_cmd_case(eap: &mut Exarg, _syncing: i32) {
     let arg = eap.arg.clone();
-    eap.nextcmd = arg.advance_to_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = arg.advance_to_opt_slice(find_nextcmd((arg).as_bytes()));
     if eap.skip {
         return;
     }
@@ -3031,7 +3031,7 @@ fn syn_cmd_case(eap: &mut Exarg, _syncing: i32) {
 
 fn syn_cmd_foldlevel(eap: &mut Exarg, _syncing: i32) {
     let mut arg = eap.arg.clone();
-    eap.nextcmd = arg.advance_to_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = arg.advance_to_opt_slice(find_nextcmd((arg).as_bytes()));
     if eap.skip {
         return;
     }
@@ -3070,7 +3070,7 @@ fn syn_cmd_foldlevel(eap: &mut Exarg, _syncing: i32) {
 
 fn syn_cmd_spell(eap: &mut Exarg, _syncing: i32) {
     let arg = eap.arg.clone();
-    eap.nextcmd = arg.advance_to_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = arg.advance_to_opt_slice(find_nextcmd((arg).as_bytes()));
     if eap.skip {
         return;
     }
@@ -3225,7 +3225,7 @@ fn syn_remove_pattern(block: &Synblock, idx: i32) {
 
 fn syn_cmd_clear(eap: &mut Exarg, syncing: i32) {
     let mut arg = eap.arg.clone();
-    eap.nextcmd = arg.advance_to_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = arg.advance_to_opt_slice(find_nextcmd((arg).as_bytes()));
     if eap.skip {
         return;
     }
@@ -3298,7 +3298,7 @@ fn syn_cmd_on(eap: &mut Exarg, _syncing: i32) {
 fn syn_cmd_reset(eap: &mut Exarg, _syncing: i32) {
     eap.nextcmd = eap
         .arg
-        .advance_to_opt_cstr(check_nextcmd(eap.arg.as_cstr()));
+        .advance_to_opt_slice(check_nextcmd(eap.arg.as_bytes()));
     if !eap.skip {
         init_highlight(true, true);
     }
@@ -3315,13 +3315,13 @@ fn syn_cmd_off(eap: &mut Exarg, _syncing: i32) {
 fn syn_cmd_onoff(eap: &mut Exarg, name: &std::ffi::CStr) {
     eap.nextcmd = eap
         .arg
-        .advance_to_opt_cstr(check_nextcmd(eap.arg.as_cstr()));
+        .advance_to_opt_slice(check_nextcmd(eap.arg.as_bytes()));
     if !eap.skip {
         SYN_STATE.with(|s| s.did_syntax_onoff.set(true));
         let mut buf = [0u8; 100];
         buf[..3].copy_from_slice(b"so ");
         format_to_buf!(&mut buf[3..], SYNTAX_FNAME, name);
-        do_cmdline_cmd(crate::memory::bytes_as_cstr(&buf));
+        do_cmdline_cmd(&buf);
     }
 }
 
@@ -3336,7 +3336,7 @@ pub fn syn_maybe_enable() {
 
 fn syn_cmd_list(eap: &mut Exarg, syncing: i32) {
     let mut arg = eap.arg.clone();
-    eap.nextcmd = arg.advance_to_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = arg.advance_to_opt_slice(find_nextcmd((arg).as_bytes()));
     if eap.skip {
         return;
     }
@@ -3421,7 +3421,7 @@ fn syn_cmd_list(eap: &mut Exarg, syncing: i32) {
             arg = arg_end.skipwhite();
         }
     }
-    eap.nextcmd = arg.advance_to_opt_cstr(check_nextcmd((arg).as_cstr()));
+    eap.nextcmd = arg.advance_to_opt_slice(check_nextcmd((arg).as_bytes()));
 }
 
 fn syn_lines_msg() {
@@ -4041,7 +4041,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
     let mut errormsg = None;
     let mut source = false;
 
-    eap.nextcmd = arg.advance_to_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = arg.advance_to_opt_slice(find_nextcmd((arg).as_bytes()));
     if eap.skip {
         return;
     }
@@ -4225,7 +4225,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
     }
 
     if let Some(rest_cstr) = rest_opt {
-        eap.nextcmd = arg.advance_to_opt_cstr(check_nextcmd(rest_cstr));
+        eap.nextcmd = arg.advance_to_opt_slice(check_nextcmd(rest_cstr.to_bytes()));
     } else {
         semsg!(gettext(E_INVARG2), arg);
     }
@@ -4261,7 +4261,7 @@ fn syn_cmd_match(eap: &mut Exarg, syncing: i32) {
     rest = get_syn_options(rest, &mut syn_opt_arg, &mut conceal_char, eap.skip);
 
     if let Some(rest_cstr) = rest {
-        eap.nextcmd = arg.advance_to_opt_cstr(check_nextcmd(rest_cstr));
+        eap.nextcmd = arg.advance_to_opt_slice(check_nextcmd(rest_cstr.to_bytes()));
         if ends_excmd(rest_cstr.to_bytes().first().copied().unwrap_or(0)) == 0 || eap.skip {
             rest = None;
         } else {
@@ -4433,7 +4433,7 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
     }
 
     if let Some(rest_cstr) = rest_opt {
-        eap.nextcmd = arg.advance_to_opt_cstr(check_nextcmd(rest_cstr));
+        eap.nextcmd = arg.advance_to_opt_slice(check_nextcmd(rest_cstr.to_bytes()));
         if ends_excmd(rest_cstr.to_bytes().first().copied().unwrap_or(0)) == 0 || eap.skip {
             rest_opt = None;
         } else {
@@ -4613,7 +4613,7 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: i32) {
     let mut group_name_len = 0usize;
     let mut got_clstr = false;
 
-    eap.nextcmd = arg.advance_to_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = arg.advance_to_opt_slice(find_nextcmd((arg).as_bytes()));
     if eap.skip {
         return;
     }
@@ -4912,7 +4912,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
     if illegal {
         semsg!(gettext(c"E404: Illegal arguments: %s"), arg_start);
     } else if !finished {
-        eap.nextcmd = arg_start.advance_to_opt_cstr(check_nextcmd(arg_start.as_cstr()));
+        eap.nextcmd = arg_start.advance_to_opt_slice(check_nextcmd(arg_start.as_bytes()));
         redraw_curbuf_later(UPD_SOME_VALID);
         syn_stack_free_all(&win_s(&curwin()));
     }

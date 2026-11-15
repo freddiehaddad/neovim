@@ -1474,9 +1474,9 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         return;
     };
     if argvars[0].v_type == VarType::VarString {
-        let mut p = func_cstr.as_c_str();
+        let mut p = func_cstr.as_bytes();
         let Some(tf) = trans_function_name(&mut p, false, TFN_INT | TFN_QUIET, None, None) else {
-            emsg_funcname(E_UNKNOWN_FUNCTION_STR, &func_cstr);
+            emsg_funcname(E_UNKNOWN_FUNCTION_STR, func_cstr.as_bytes());
             return;
         };
         func_cstr = tf;
@@ -1986,10 +1986,10 @@ pub fn f_eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let s_cow = tv_get_string_chk(&argvars[0]);
     let s_opt = s_cow.as_deref().map(crate::charset::skipwhite);
     let expr_start = s_opt;
-    let mut s_cstr = s_opt.unwrap_or(c"");
+    let mut s_bytes = s_opt.unwrap_or(c"").to_bytes();
     let ok = s_opt.is_some()
         && eval1(
-            &mut s_cstr,
+            &mut s_bytes,
             &mut *rettv,
             Some(&mut crate::eval::vars::Evalarg { eval_flags: 1 }),
         );
@@ -2002,8 +2002,11 @@ pub fn f_eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         g_st().need_clr_eos.set(false);
         rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-    } else if !s_cstr.is_empty() {
-        semsg!(gettext(E_TRAILING_ARG), s_cstr);
+    } else if !s_bytes.is_empty() {
+        semsg!(
+            gettext(E_TRAILING_ARG),
+            crate::memory::bytes_to_cstring(s_bytes).as_c_str()
+        );
     }
 }
 
@@ -2070,7 +2073,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
     }
 
     if argvars[off].v_type != VarType::VarList {
-        do_cmdline_cmd(&tv_get_string(&argvars[off]));
+        do_cmdline_cmd(tv_get_string(&argvars[off]).to_bytes());
     } else if let Some(list) = argvars[off].vval.v_list_opt() {
         let list_id = argvars[off].vval.v_list();
         let first_li = list.lv_first.get();
@@ -2111,7 +2114,7 @@ pub fn f_execute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut n: i32 = 0;
     let p_cow = tv_get_string(&argvars[0]);
-    let mut p_cstr: &CStr = &p_cow;
+    let p_cstr: &CStr = &p_cow;
     let p_bytes = p_cstr.to_bytes();
     match p_bytes.first() {
         Some(&b'$') => {
@@ -2125,8 +2128,9 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             }
         }
         Some(&b'&' | &b'+') => {
-            n = i32::from(eval_option(&mut p_cstr, None, true));
-            if !crate::charset::skipwhite_slice(p_cstr.to_bytes()).is_empty() {
+            let mut p_opt_bytes = p_bytes;
+            n = i32::from(eval_option(&mut p_opt_bytes, None, true));
+            if !crate::charset::skipwhite_slice(p_opt_bytes).is_empty() {
                 n = 0;
             }
         }
@@ -2134,11 +2138,11 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             n = i32::from(if p_bytes.starts_with(b"*v:lua.") {
                 nlua_func_exists(&p_cstr[7..])
             } else {
-                function_exists(&p_cstr[1..], false)
+                function_exists(&p_bytes[1..], false)
             });
         }
         Some(&b':') => {
-            n = cmd_exists(&p_cstr[1..]);
+            n = cmd_exists(&p_bytes[1..]);
         }
         Some(&b'#') => {
             if p_bytes.get(1) == Some(&b'#') {
@@ -2427,14 +2431,14 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
     if (use_string && !crate::strings::vim_haschr(s_owned.as_deref().unwrap_or(c""), AUTOLOAD_CHAR))
         || is_funcref
     {
-        let mut name_cstr = s_owned.as_deref().unwrap_or(c"");
+        let mut name_bytes = s_owned.as_deref().unwrap_or(c"").to_bytes();
         trans_name_owned = save_function_name(
-            &mut name_cstr,
+            &mut name_bytes,
             false,
             TFN_INT | TFN_QUIET | TFN_NO_AUTOLOAD | TFN_NO_DEREF,
             None,
         );
-        if !name_cstr.is_empty() {
+        if !name_bytes.is_empty() {
             s_owned = None;
         }
     }
@@ -2460,7 +2464,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
             );
         } else if let Some(tn) = trans_name
             && if is_funcref {
-                find_func(Some(tn)).is_none()
+                find_func(Some(tn.to_bytes())).is_none()
             } else {
                 !translated_function_exists(tn)
             }
@@ -2506,7 +2510,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                     if tv_list_len(list.opt()) == 0 {
                         arg_idx = 0;
                     } else if (tv_list_len(list.opt()) as usize) > MAX_FUNC_ARGS {
-                        emsg_funcname(E_TOOMANYARG, s_ref);
+                        emsg_funcname(E_TOOMANYARG, s_ref.to_bytes());
                         break 'theend;
                     }
                 }
@@ -2558,7 +2562,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                     func_ptr_ref(Some(&arg_fp));
                     pt.set_func(Some(arg_fp));
                 } else if is_funcref {
-                    let found_fp = find_func(trans_name);
+                    let found_fp = find_func(trans_name.map(CStr::to_bytes));
                     func_ptr_ref(found_fp.as_deref());
                     pt.set_func(found_fp);
                 } else {
@@ -4047,7 +4051,7 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     let arg0_cow = tv_get_string(&argvars[0]);
     let end = get_lval(
-        &arg0_cow,
+        arg0_cow.to_bytes(),
         None,
         &mut lv,
         false,
@@ -4055,20 +4059,22 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         GLV_NO_AUTOLOAD | GLV_READ_ONLY,
         FNE_CHECK_START,
     );
-    if let Some(end_cstr) = end
+    if let Some(end_bytes) = end
         && let Some(ll_name) = lv.ll_name_cstr()
     {
-        if !end_cstr.to_bytes().is_empty() {
+        if !end_bytes.is_empty() {
             semsg!(
                 gettext(if lv.ll_name_len == 0 {
                     E_INVARG2
                 } else {
                     E_TRAILING_ARG
                 }),
-                end_cstr,
+                crate::memory::bytes_to_cstring(end_bytes).as_c_str(),
             );
         } else if lv.ll_tv.is_null() {
-            if let Some(di) = crate::eval::vars::find_var_opt(ll_name, lv.ll_name_len, false, 1) {
+            if let Some(di) =
+                crate::eval::vars::find_var_opt(ll_name.to_bytes(), lv.ll_name_len, false, 1)
+            {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
                     (di.di_flags.get() & DI_FLAGS_LOCK) != 0 || tv_islocked(&di.tv()),
                 ));
@@ -5733,7 +5739,7 @@ pub fn f_pumvisible(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// "py3eval()" and "pyxeval()" functions
 pub fn f_py3eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    script_host_eval(c"python3", argvars, rettv);
+    script_host_eval(b"python3", argvars, rettv);
 }
 
 fn init_srand(x: &mut u32) {
@@ -5861,12 +5867,12 @@ pub fn f_srand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
 /// "perleval()" function
 pub fn f_perleval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    script_host_eval(c"perl", argvars, rettv);
+    script_host_eval(b"perl", argvars, rettv);
 }
 
 /// "rubyeval()" function
 pub fn f_rubyeval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    script_host_eval(c"ruby", argvars, rettv);
+    script_host_eval(b"ruby", argvars, rettv);
 }
 
 /// "range()" function
@@ -7779,10 +7785,10 @@ pub fn f_stdpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 /// "str2float()" function
 pub fn f_str2float(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let s_cow = tv_get_string(&argvars[0]);
-    let mut p = crate::charset::skipwhite(&s_cow);
-    let isneg = p.to_bytes().first() == Some(&b'-');
-    if matches!(p.to_bytes().first(), Some(b'+' | b'-')) {
-        p = crate::charset::skipwhite_at(p, 1);
+    let mut p = crate::charset::skipwhite_slice(s_cow.to_bytes());
+    let isneg = p.first() == Some(&b'-');
+    if matches!(p.first(), Some(b'+' | b'-')) {
+        p = crate::charset::skipwhite_slice(&p[1..]);
     }
     string2float(p, rettv.vval.v_float_mut());
     if isneg {

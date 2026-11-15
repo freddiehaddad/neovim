@@ -1350,7 +1350,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
                 c"autocmd VimEnter * call v:lua.require'nvim.spellfile'.get('%s')|set spell",
                 lang_cstr,
             );
-            do_cmdline_cmd(crate::memory::bytes_as_cstr(&autocmd_buf));
+            do_cmdline_cmd(&autocmd_buf);
         } else {
             smsg!(
                 0,
@@ -2705,7 +2705,7 @@ pub fn ex_spelldump(eap: &mut Exarg) {
         return;
     }
     let spl = get_option_value(K_OPT_SPELLLANG, OPT_LOCAL);
-    do_cmdline_cmd(c"new");
+    do_cmdline_cmd(b"new");
     set_option_value_give_err(K_OPT_SPELL, boolean_obj(true), OPT_LOCAL);
     set_option_value_give_err(K_OPT_SPELLLANG, spl.clone(), OPT_LOCAL);
     optval_free(spl);

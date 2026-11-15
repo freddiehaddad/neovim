@@ -3242,7 +3242,14 @@ fn item_compare2(
     funcexe.fe_evaluate = true;
     funcexe.fe_partial = partial.clone();
     funcexe.fe_selfdict = info.item_compare_selfdict.clone();
-    let ok = call_func(func_name, -1, &mut rettv, 2, &mut argv, &mut funcexe);
+    let ok = call_func(
+        func_name.to_bytes(),
+        -1,
+        &mut rettv,
+        2,
+        &mut argv,
+        &mut funcexe,
+    );
     tv_clear(&mut argv[0]);
     tv_clear(&mut argv[1]);
 
@@ -4064,6 +4071,21 @@ pub fn tv_dict_unref(d: Option<&TvDict>) {
     }
 }
 
+/// Find item in dictionary by byte slice key.
+pub fn tv_dict_find_len(d: Option<&TvDict>, key: &[u8]) -> Option<DictitemId> {
+    let d = d?;
+    let hi = d
+        .dv_hashtab
+        .find_hi_len(crate::memory::bytes_until_nul(key));
+    hi.and_then(|hi| {
+        if hi.hi_di.is_null() {
+            None
+        } else {
+            Some(hi.hi_di)
+        }
+    })
+}
+
 /// Find item in dictionary.
 pub fn tv_dict_find(d: Option<&TvDict>, key: &CStr, len: isize) -> Option<DictitemId> {
     let d = d?;
@@ -4222,7 +4244,7 @@ pub fn tv_dict_wrong_func_name(d: &TvDict, tv: &TypVal, name: &CStr) -> bool {
     (ptr::eq(d, &*get_globvar_dict())
         || get_funccal_local_ht().is_some_and(|lht| ptr::eq(&raw const d.dv_hashtab, lht)))
         && tv_is_func_inline(tv)
-        && var_wrong_func_name(name, true)
+        && var_wrong_func_name(name.to_bytes(), true)
 }
 
 /// Add item to dictionary.
@@ -4405,7 +4427,7 @@ pub fn tv_dict_extend(d1: &TvDict, d2: &TvDict, action: &[u8]) {
             todo -= 1;
             let key2 = crate::memory::bytes_as_cstr(&di2.di_key);
             let di1_opt = tv_dict_find_opt(Some(d1), key2, -1);
-            if d1.dv_scope.get() != VAR_NO_SCOPE && !valid_varname(di2.key_cstr()) {
+            if d1.dv_scope.get() != VAR_NO_SCOPE && !valid_varname(di2.key_cstr().to_bytes()) {
                 break;
             }
             if let Some(di1) = di1_opt {
@@ -4414,7 +4436,11 @@ pub fn tv_dict_extend(d1: &TvDict, d2: &TvDict, action: &[u8]) {
                     break;
                 } else if first_action == b'f' && !ptr::eq(di2, &*di1) {
                     if value_check_lock(di1.tv().v_lock, Some(arg_errmsg), arg_errmsg_len)
-                        || var_check_ro(i32::from(di1.di_flags.get()), arg_errmsg, arg_errmsg_len)
+                        || var_check_ro(
+                            i32::from(di1.di_flags.get()),
+                            arg_errmsg.to_bytes(),
+                            arg_errmsg_len,
+                        )
                     {
                         break;
                     }
@@ -4927,9 +4953,15 @@ pub fn tv_dict_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
             semsg!(tr(E_DICTKEY), key);
             return;
         };
-        if !var_check_fixed(i32::from(di.di_flags.get()), arg_errmsg, TV_TRANSLATE)
-            && !var_check_ro(i32::from(di.di_flags.get()), arg_errmsg, TV_TRANSLATE)
-        {
+        if !var_check_fixed(
+            i32::from(di.di_flags.get()),
+            arg_errmsg.to_bytes(),
+            TV_TRANSLATE,
+        ) && !var_check_ro(
+            i32::from(di.di_flags.get()),
+            arg_errmsg.to_bytes(),
+            TV_TRANSLATE,
+        ) {
             *rettv = std::mem::replace(&mut *di.tv_mut(), tv_initial_value());
             tv_dict_item_remove(d, &di);
             if tv_dict_is_watched_inline(Some(d)) {
