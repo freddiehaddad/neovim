@@ -1399,12 +1399,12 @@ pub fn os_can_exe(
     abspath: Option<&mut Option<std::ffi::CString>>,
     use_path: bool,
 ) -> bool {
-    let name_ptr = name.as_ptr();
-    if !use_path || gettail_dir(name).as_ptr() != name_ptr {
+    let name_bytes = name.to_bytes();
+    if !use_path || gettail_dir(name_bytes).len() != name_bytes.len() {
         #[cfg(windows)]
         return is_executable_ext(name, abspath);
         #[cfg(not(windows))]
-        return (use_path || gettail_dir(name).as_ptr() != name_ptr)
+        return (use_path || gettail_dir(name_bytes).len() != name_bytes.len())
             && is_executable(name, abspath);
     }
     is_executable_in_path(name, abspath)
@@ -1435,7 +1435,7 @@ fn is_executable(name: &CStr, abspath: Option<&mut Option<std::ffi::CString>>) -
         };
 
     if ok && let Some(out) = abspath {
-        *out = save_abs_path(name);
+        *out = save_abs_path(name.to_bytes());
     }
     ok
 }
@@ -1503,7 +1503,7 @@ fn is_executable_ext_with(
 #[cfg(windows)]
 fn is_executable_ext(name_cstr: &CStr, abspath: Option<&mut Option<std::ffi::CString>>) -> bool {
     let p_sh = opt_vars().p_sh.as_cstr();
-    let sh_tail = path_tail(&p_sh).to_bytes();
+    let sh_tail = path_tail(p_sh.to_bytes());
     let has_sub =
         |haystack: &[u8], needle: &[u8]| haystack.windows(needle.len()).any(|w| w == needle);
     let is_unix_shell =
@@ -1532,7 +1532,7 @@ fn is_executable_in_path(
     #[cfg(windows)]
     let (path_vec, is_unix_shell): (Vec<u8>, bool) = {
         let p_sh = opt_vars().p_sh.as_cstr();
-        let sh_tail = path_tail(&p_sh).to_bytes();
+        let sh_tail = path_tail(p_sh.to_bytes());
         let has_sub =
             |haystack: &[u8], needle: &[u8]| haystack.windows(needle.len()).any(|w| w == needle);
         let unix_sh = !has_sub(sh_tail, b"powershell")
@@ -1575,7 +1575,7 @@ fn is_executable_in_path(
             .unwrap_or(rem.len());
         buf_vec[..seg_len].copy_from_slice(&rem[..seg_len]);
         buf_vec[seg_len] = 0;
-        let _ = append_path(&mut buf_vec, name_cstr);
+        let _ = append_path(&mut buf_vec, name_cstr.to_bytes());
 
         #[cfg(windows)]
         let found = is_executable_ext_with(
@@ -2491,15 +2491,16 @@ pub fn os_mkdir_recurse(
     failed_dir: &mut Option<std::ffi::CString>,
     mut created: Option<&mut Option<std::ffi::CString>>,
 ) -> i32 {
-    let dirlen = dir.to_bytes().len();
+    let dir_bytes = dir.to_bytes();
+    let dirlen = dir_bytes.len();
     let mut curdir_vec: Vec<u8> = dir.to_bytes_with_nul().to_vec();
-    let past_head_idx = (get_past_head(dir).as_ptr() as usize) - (dir.as_ptr() as usize);
+    let past_head_idx = dirlen - get_past_head(dir_bytes).len();
     let mut e_idx = dirlen;
     let past_head_save = curdir_vec[past_head_idx];
 
     while !os_isdir(crate::memory::bytes_as_cstr(&curdir_vec)) {
-        let cur_cstr = crate::memory::bytes_as_cstr(&curdir_vec);
-        e_idx = (path_tail_with_sep(cur_cstr).as_ptr() as usize) - (cur_cstr.as_ptr() as usize);
+        let cur_bytes = &curdir_vec[..e_idx];
+        e_idx = cur_bytes.len() - path_tail_with_sep(cur_bytes).len();
         if e_idx <= past_head_idx {
             curdir_vec[past_head_idx] = 0;
             break;
@@ -2530,7 +2531,7 @@ pub fn os_mkdir_recurse(
         } else if let Some(ref mut c_out) = created
             && c_out.is_none()
         {
-            **c_out = FullName_save(Some(curdir_cstr), false);
+            **c_out = FullName_save(Some(curdir_cstr.to_bytes()), false);
         }
     }
     0
@@ -2538,10 +2539,10 @@ pub fn os_mkdir_recurse(
 
 /// Create the parent directory of a file if it does not exist.
 pub fn os_file_mkdir(fname_in: &CStr, mode: i32) -> i32 {
+    let fname_bytes = fname_in.to_bytes();
     let mut fname_vec = fname_in.to_bytes_with_nul().to_vec();
-    if !dir_of_file_exists(fname_in) {
-        let tail_cstr = path_tail_with_sep(fname_in);
-        let tail_off = (tail_cstr.as_ptr() as usize) - (fname_in.as_ptr() as usize);
+    if !dir_of_file_exists(fname_bytes) {
+        let tail_off = fname_bytes.len() - path_tail_with_sep(fname_bytes).len();
         if fname_vec.len() >= 2 && vim_ispathsep(i32::from(fname_vec[fname_vec.len() - 2])) {
             emsg(gettext(E_NONAME));
             return -1;
@@ -2654,25 +2655,25 @@ pub fn os_fileinfo(path: &CStr, file_info: &mut FileInfo) -> bool {
 /// Parses `path` into a `FileInfo` structure.
 pub fn os_fileinfo2(path: &CStr, info: &mut FileInfo) -> bool {
     *info = FileInfo::new();
-    if path_with_url(path.to_bytes()) {
+    let path_bytes = path.to_bytes();
+    if path_with_url(path_bytes) {
         return true;
     }
     #[cfg(windows)]
-    let mut p = path_skip_sep(path, false);
+    let mut p = path_skip_sep(path_bytes, false);
     #[cfg(not(windows))]
-    let p = path_skip_sep(path, false);
-    let path_len = path.to_bytes().len();
-    let leading_slashes = path_len - p.to_bytes().len();
+    let p = path_skip_sep(path_bytes, false);
+    let path_len = path_bytes.len();
+    let leading_slashes = path_len - p.len();
 
     #[cfg(windows)]
     {
-        let p_bytes = p.to_bytes();
-        let p0 = p_bytes.first().copied().unwrap_or(0);
-        let p1 = p_bytes.get(1).copied().unwrap_or(0);
+        let p0 = p.first().copied().unwrap_or(0);
+        let p1 = p.get(1).copied().unwrap_or(0);
         if leading_slashes == 0 && p0.is_ascii_alphabetic() && p1 == b':' {
             info.r#type = K_PATH_DRIVE;
             p = path_skip_sep(&p[2..], false);
-            info.rest_off = path_len - p.to_bytes().len();
+            info.rest_off = path_len - p.len();
             return true;
         }
         if leading_slashes >= 2 && (p0 == b'?' || p0 == b'.') {
@@ -2682,36 +2683,31 @@ pub fn os_fileinfo2(path: &CStr, info: &mut FileInfo) -> bool {
             info.r#type = K_PATH_DEVICE;
             info.prefix_off = leading_slashes - 2;
             p = path_skip_sep(&p[2..], false);
-            let p_bytes = p.to_bytes();
-            if p_bytes
-                .get(..3)
-                .is_some_and(|s| s.eq_ignore_ascii_case(b"unc"))
-                && p_bytes
-                    .get(3)
+            if p.get(..3).is_some_and(|s| s.eq_ignore_ascii_case(b"unc"))
+                && p.get(3)
                     .is_some_and(|&b| vim_ispathsep_nocolon(i32::from(b)))
             {
                 info.r#type = K_PATH_DEVICE_UNC;
                 p = path_skip_sep(&p[4..], false);
-                info.root_off = path_len - p.to_bytes().len();
+                info.root_off = path_len - p.len();
                 p = path_skip_sep(path_next_component(p), false);
                 p = path_skip_sep(path_next_component(p), false);
-                info.rest_off = path_len - p.to_bytes().len();
+                info.rest_off = path_len - p.len();
                 return true;
             }
-            info.root_off = path_len - p.to_bytes().len();
-            if p_bytes.first().is_some_and(u8::is_ascii_alphabetic) && p_bytes.get(1) == Some(&b':')
-            {
+            info.root_off = path_len - p.len();
+            if p.first().is_some_and(u8::is_ascii_alphabetic) && p.get(1) == Some(&b':') {
                 p = &p[2..];
             }
             p = path_skip_sep(path_next_component(p), false);
-            info.rest_off = path_len - p.to_bytes().len();
+            info.rest_off = path_len - p.len();
             return true;
         }
         if leading_slashes == 2 {
             info.r#type = K_PATH_UNC;
             p = path_skip_sep(path_next_component(p), false);
             p = path_skip_sep(path_next_component(p), false);
-            info.rest_off = path_len - p.to_bytes().len();
+            info.rest_off = path_len - p.len();
             return true;
         }
     }

@@ -162,8 +162,8 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
     #[cfg(unix)]
     let is_fish_shell = {
         let p_sh = opt_vars().p_sh.to_owned();
-        let tail = invocation_path_tail(&p_sh, None);
-        tail.to_bytes().starts_with(b"fish")
+        let tail = invocation_path_tail(p_sh.to_bytes(), None);
+        tail.starts_with(b"fish")
     };
     #[cfg(not(unix))]
     let is_fish_shell = false;
@@ -209,7 +209,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
     }
     if shell_style == STYLE_ECHO {
         let p_sh = opt_vars().p_sh.to_owned();
-        let sh_tail = path_tail(&p_sh).to_bytes();
+        let sh_tail = path_tail(p_sh.to_bytes());
         if sh_tail.windows(4).any(|w| w == b"bash") {
             shell_style = STYLE_GLOBSTAR;
         } else if sh_tail.windows(2).any(|w| w == b"sh") {

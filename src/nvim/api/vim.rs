@@ -79,7 +79,7 @@ use crate::lua::executor::{
 use crate::mapping::{MAPTYPE_MAP, REMAP_NONE, REMAP_YES, keymap_array, modify_keymap};
 use crate::mark::mark_get_global;
 use crate::math::xpopcount;
-use crate::mbyte::{mb_string2cells, utf_cluster_info, utf_ptr2_str_char_info};
+use crate::mbyte::{mb_string2cells, utf_cluster_info, utf_slice2_str_char_info};
 use crate::memline::ml_open;
 use crate::message::{
     msg_ext_no_fast, msg_id_exists, msg_multihl, verbose_enter, verbose_leave, verbose_stop,
@@ -2529,7 +2529,7 @@ pub fn nvim_eval_statusline(
     let window = opts.winid;
 
     if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_FILLCHAR)) != 0 {
-        let ci = utf_ptr2_str_char_info(opts.fillchar.as_cstr());
+        let ci = utf_slice2_str_char_info(opts.fillchar.as_bytes());
         let cli = utf_cluster_info(ci);
         if ci.ptr.is_empty() || !cli.next.ptr.is_empty() || cli.cells != 1 {
             return Err(api_err_exp(

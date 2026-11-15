@@ -1815,7 +1815,7 @@ pub fn make_filter_cmd(
     do_in: bool,
 ) -> std::ffi::CString {
     let p_sh = opt_vars().p_sh.to_owned();
-    let sh_tail = invocation_path_tail(&p_sh, None).to_bytes();
+    let sh_tail = invocation_path_tail(p_sh.to_bytes(), None);
     #[cfg(unix)]
     let is_fish_shell = sh_tail.starts_with(b"fish");
     #[cfg(not(unix))]
@@ -2113,7 +2113,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             other = false;
         } else {
             fname = ffname;
-            free_fname = fix_fname(ffname);
+            free_fname = fix_fname(ffname.map(CStr::to_bytes));
             if let Some(ref ff) = free_fname {
                 ffname = Some(ff.as_c_str());
             }
@@ -2669,7 +2669,7 @@ pub fn do_ecmd(
                     ffname = curbuf_ffname.as_deref();
                     sfname = curbuf_fname.as_deref();
                 }
-                free_fname = fix_fname(ffname);
+                free_fname = fix_fname(ffname.map(CStr::to_bytes));
                 if let Some(ref ff) = free_fname {
                     ffname = Some(ff.as_c_str());
                 }

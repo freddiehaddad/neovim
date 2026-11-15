@@ -607,7 +607,7 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
     while !dirp.is_empty() {
         let mut dir_len = copy_option_part(&mut dirp, &mut dir_name[..MAXPATHL], c",");
         if dir_len == 1 && dir_name[0] == b'.' {
-            let tail_off = path_tail(ffname).as_ptr() as usize - ffname.as_ptr() as usize;
+            let tail_off = ffname_slice.len() - path_tail(ffname_slice).len();
             let mut ufn_vec: Vec<u8> = Vec::with_capacity(ffname_len + 5);
             ufn_vec.extend_from_slice(&ffname_slice[..tail_off]);
             ufn_vec.push(b'.');
@@ -2897,7 +2897,7 @@ pub fn f_undofile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let fname = tv_get_string(&argvars[0]);
 
     if !fname.to_bytes().is_empty()
-        && let Some(ffname) = FullName_save(Some(&fname), true)
+        && let Some(ffname) = FullName_save(Some(fname.to_bytes()), true)
         && let Some(ufile) = u_get_undo_file_name(Some(ffname.as_c_str()), false)
     {
         crate::eval::typval::tv_set_string(rettv, Some(ufile.as_c_str()));

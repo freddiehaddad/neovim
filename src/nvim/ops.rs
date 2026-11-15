@@ -55,7 +55,7 @@ use crate::mark::{mark_col_adjust, mark_mb_adjustpos};
 use crate::math::trim_to_int;
 use crate::mbyte::{
     bomb_size, mb_islower, mb_isupper, mb_tolower, mb_toupper, utf_char2cells, utf_char2len,
-    utf_char2slice, utf_cluster_info, utf_eat_space, utf_ptr2_str_char_info, utfc_ptr2len,
+    utf_char2slice, utf_cluster_info, utf_eat_space, utf_slice2_str_char_info, utfc_ptr2len,
 };
 use crate::mcursor::mc_zq;
 use crate::memline::{
@@ -496,7 +496,8 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         let cstype: CSType =
             init_charsize_arg(&mut csarg, &wp, wp.w_cursor.get().lnum, &bd.textstart);
         let textstart_rc = bd.textstart.clone();
-        let mut ci = utf_ptr2_str_char_info(&textstart_rc);
+        let textstart_bytes = textstart_rc.to_bytes();
+        let mut ci = utf_slice2_str_char_info(textstart_bytes);
         let mut vcol = bd.start_vcol;
         while ascii_iswhite(ci.chr.value) {
             let cli = utf_cluster_info(ci);
@@ -506,7 +507,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             total += incr;
             vcol += incr;
         }
-        bd.textstart = textstart_rc.slice(ci.offset_from(&textstart_rc));
+        bd.textstart = textstart_rc.slice(ci.offset_from(textstart_bytes));
         bd.start_vcol = vcol;
 
         let mut tabs: i32 = 0;
@@ -584,7 +585,8 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             verbatim_copy_width -= bd.start_char_vcols;
         }
         cstype = init_charsize_arg(&mut csarg, &wp, 0, &bd.textstart);
-        let mut ci = utf_ptr2_str_char_info(&bd.textstart);
+        let textstart_bytes = bd.textstart.to_bytes();
+        let mut ci = utf_slice2_str_char_info(textstart_bytes);
         while verbatim_copy_width < destination_col {
             let cli = utf_cluster_info(ci);
             let incr = win_charsize(
@@ -603,7 +605,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             ci = cli.next;
         }
         let verbatim_copy_end =
-            crate::memory::CStrSubslice::advance(&bd.textstart, ci.offset_from(&bd.textstart));
+            crate::memory::CStrSubslice::advance(&bd.textstart, ci.offset_from(textstart_bytes));
 
         debug_assert!(destination_col - verbatim_copy_width >= 0);
         let fill = destination_col - verbatim_copy_width;
@@ -2161,12 +2163,13 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
     bdp.start_char_vcols = 0;
 
     let line_cstr = ml_get(lnum);
+    let line_bytes = line_cstr.to_bytes();
     let mut prev_pstart_off = 0usize;
 
     let wp = curwin();
     let mut csarg = CharsizeArg::new();
     let mut cstype = init_charsize_arg(&mut csarg, &wp, lnum, &line_cstr);
-    let mut ci = utf_ptr2_str_char_info(&line_cstr);
+    let mut ci = utf_slice2_str_char_info(line_bytes);
     let mut vcol = bdp.start_vcol;
     while vcol < oap.start_vcol && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
@@ -2179,11 +2182,11 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
             bdp.pre_whitesp = 0;
             bdp.pre_whitesp_c = 0;
         }
-        prev_pstart_off = ci.offset_from(&line_cstr);
+        prev_pstart_off = ci.offset_from(line_bytes);
         ci = cli.next;
     }
     bdp.start_vcol = vcol;
-    let mut pstart_off = ci.offset_from(&line_cstr);
+    let mut pstart_off = ci.offset_from(line_bytes);
 
     bdp.start_char_vcols = incr;
     if bdp.start_vcol < oap.start_vcol {
@@ -2215,11 +2218,11 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
             }
         } else {
             cstype = init_charsize_arg(&mut csarg, &wp, lnum, &line_cstr);
-            ci = utf_ptr2_str_char_info(&line_cstr[pend_off..]);
+            ci = utf_slice2_str_char_info(&line_bytes[pend_off..]);
             vcol = bdp.end_vcol;
             let mut prev_pend_off = pend_off;
             while vcol <= oap.end_vcol && !ci.ptr.is_empty() {
-                prev_pend_off = ci.offset_from(&line_cstr);
+                prev_pend_off = ci.offset_from(line_bytes);
                 let cli = utf_cluster_info(ci);
                 incr = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells)
                     .width;
@@ -2227,7 +2230,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 ci = cli.next;
             }
             bdp.end_vcol = vcol;
-            pend_off = ci.offset_from(&line_cstr);
+            pend_off = ci.offset_from(line_bytes);
 
             if bdp.end_vcol <= oap.end_vcol
                 && (!is_del || oap.op_type == OP_APPEND || oap.op_type == OP_REPLACE)

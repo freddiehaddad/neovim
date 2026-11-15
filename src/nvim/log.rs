@@ -149,7 +149,7 @@ fn log_path_init() {
         }
         let state_home =
             get_xdg_home(crate::os::stdpaths::XDGVarType::XDGStateHome).unwrap_or_default();
-        let loghome = concat_fnames_cstr(&state_home, c"logs", true);
+        let loghome = concat_fnames_cstr(state_home.as_bytes(), b"logs", true);
         let mut failed_dir: Option<std::ffi::CString> = None;
         let mut log_dir_failure: i32 = 0;
         if !os_isdir(&loghome) {
@@ -348,20 +348,22 @@ fn do_log_to_file_str(
 
     if regen {
         let mut parent_buf = [0u8; MAXPATHL];
-        let parent = path_tail(os_getenv_buf(c"NVIM", &mut parent_buf).unwrap_or(c""));
+        let parent = path_tail(
+            os_getenv_buf(c"NVIM", &mut parent_buf)
+                .unwrap_or(c"")
+                .to_bytes(),
+        );
         let serv_cow = get_vim_var_str(VV_SEND_SERVER);
-        let serv = path_tail(&serv_cow);
+        let serv = path_tail(serv_cow.to_bytes());
         let mut formatted = Vec::with_capacity(32);
-        if !parent.to_bytes().is_empty() {
-            let p = parent.to_bytes();
+        if !parent.is_empty() {
             formatted.extend_from_slice(if ui { b"ui/c/" } else { b"c/" });
-            formatted.extend_from_slice(p);
-        } else if !serv.to_bytes().is_empty() {
-            let s = serv.to_bytes();
+            formatted.extend_from_slice(parent);
+        } else if !serv.is_empty() {
             if ui {
                 formatted.extend_from_slice(b"ui/");
             }
-            formatted.extend_from_slice(s);
+            formatted.extend_from_slice(serv);
         } else {
             let pid = os_get_pid();
             let prefix = if ui { "ui" } else { "?" };

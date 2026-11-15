@@ -983,8 +983,8 @@ fn spell_suggest_file(su: &mut Suginfo, fname: &CStr) {
         };
         line[slash_pos] = 0;
         if mb_stricmp(
-            crate::memory::bytes_as_cstr(&su.su_badword),
-            crate::memory::bytes_as_cstr(&line),
+            crate::memory::bytes_until_nul(&su.su_badword),
+            &line[..slash_pos],
         ) == 0
         {
             let len = crate::memory::bytes_as_cstr(&line[slash_pos + 1..])
@@ -2791,7 +2791,7 @@ fn sug_compare(p1: &Suggest, p2: &Suggest) -> std::cmp::Ordering {
     p1.st_score
         .cmp(&p2.st_score)
         .then_with(|| p1.st_altscore.cmp(&p2.st_altscore))
-        .then_with(|| mb_stricmp(p1.st_word.as_c_str(), p2.st_word.as_c_str()).cmp(&0))
+        .then_with(|| mb_stricmp(p1.st_word.as_bytes(), p2.st_word.as_bytes()).cmp(&0))
 }
 fn cleanup_suggestions(gap: &mut Vec<Suggest>, maxscore: i32, keep: i32) -> i32 {
     if gap.is_empty() {

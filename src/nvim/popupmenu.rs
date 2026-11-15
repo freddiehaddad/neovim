@@ -229,19 +229,19 @@ fn pum_compute_size() {
     let size = (PUM.with(|s| s.size.get()).max(0) as usize).min(items.len());
     for item in &items[..size] {
         if let Some(ref text) = item.pum_text {
-            let w = vim_strsize(text);
+            let w = vim_strsize(text.as_bytes());
             if PUM.with(|s| s.base_width.get()) < w {
                 PUM.with(|s| s.base_width.set(w));
             }
         }
         if let Some(ref kind) = item.pum_kind {
-            let w = vim_strsize(kind) + 1;
+            let w = vim_strsize(kind.as_bytes()) + 1;
             if PUM.with(|s| s.kind_width.get()) < w {
                 PUM.with(|s| s.kind_width.set(w));
             }
         }
         if let Some(ref extra) = item.pum_extra {
-            let w = vim_strsize(extra) + 1;
+            let w = vim_strsize(extra.as_bytes()) + 1;
             if PUM.with(|s| s.extra_width.get()) < w {
                 PUM.with(|s| s.extra_width.set(w));
             }
@@ -699,7 +699,7 @@ fn pum_compute_text_attrs(
         match_positions.as_ref()?;
     }
 
-    let mut attrs = vec![0; vim_strsize(text_cstr) as usize];
+    let mut attrs = vec![0; vim_strsize(text_cstr.to_bytes()) as usize];
     let mut rem_bytes = text_cstr.to_bytes();
     let mut cell_idx: usize = 0;
     let mut char_pos: u32 = 0;

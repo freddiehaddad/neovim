@@ -131,7 +131,7 @@ use crate::memline::{
     decl, incl, ml_find_line_or_offset, ml_get_buf, ml_get_buf_len, ml_get_len, ml_open,
     recover_names, swapfile_dict,
 };
-use crate::memory::{ARENA_BLOCK_SIZE, bytes_to_cstring};
+use crate::memory::ARENA_BLOCK_SIZE;
 use crate::menu::{get_menu_cmd_modes, menu_get};
 use crate::message::{
     emsg, internal_error, msg_clr_eos, msg_ext_set_kind, msg_putchar, msg_puts, msg_scroll_flush,
@@ -4491,7 +4491,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             }
 
             let mut name_buff = [0u8; MAXPATHL];
-            vim_full_name(cwd_opt, &mut name_buff, false);
+            vim_full_name(cwd_opt.map(CStr::to_bytes), &mut name_buff, false);
             let namebuff_cstr = crate::memory::cstring_until_nul(&name_buff);
             let mut iobuff = [0u8; IOSIZE];
             let len = home_replace(None, Some(namebuff_cstr.as_c_str()), &mut iobuff, true);
@@ -6985,7 +6985,7 @@ pub fn f_serverstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             emsg(gettext(E_INVARG));
             return;
         }
-        to_slash_save(Some(&tv_get_string(&argvars[0]))).unwrap_or_default()
+        to_slash_save(Some(tv_get_string(&argvars[0]).to_bytes())).unwrap_or_default()
     } else {
         server_address_new(None)
     };
@@ -7425,7 +7425,7 @@ pub fn f_sockconnect(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     }
 
     let mode = tv_get_string(&argvars[0]);
-    let address = to_slash_save(Some(&tv_get_string(&argvars[1]))).unwrap_or_default();
+    let address = to_slash_save(Some(tv_get_string(&argvars[1]).to_bytes())).unwrap_or_default();
 
     'cleanup: {
         let tcp = if mode.to_bytes() == b"tcp" {
@@ -7717,8 +7717,7 @@ fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut TypVal) {
         let mut dir: &[u8] = &[];
         iter = vim_env_iter(ENV_SEPCHAR, dirs_bytes, iter, &mut dir);
         if !dir.is_empty() {
-            let dir_cstr = bytes_to_cstring(dir);
-            let dir_with_nvim = concat_fnames_cstr(&dir_cstr, &appname, true);
+            let dir_with_nvim = concat_fnames_cstr(dir, appname.to_bytes(), true);
             tv_list_append_string(&list, Some(dir_with_nvim.as_c_str()), -1);
         }
         if iter.is_none() {
@@ -7758,7 +7757,7 @@ pub fn f_stdpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         }
         b"log" => {
             if let Some(state_home) = get_xdg_home(XDGVarType::XDGStateHome) {
-                let log_dir = concat_fnames_cstr(&state_home, c"logs", true);
+                let log_dir = concat_fnames_cstr(state_home.to_bytes(), b"logs", true);
                 crate::eval::typval::tv_set_string(rettv, Some(log_dir.as_c_str()));
             }
         }
@@ -7809,7 +7808,11 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut conv = Vimconv::new();
     conv.vc_type = CONV_NONE;
     let enc = enc_locale();
-    convert_setup(&mut conv, Some(&opt_vars().p_enc.as_cstr()), enc.as_deref());
+    convert_setup(
+        &mut conv,
+        Some(&opt_vars().p_enc.as_bytes()),
+        enc.as_deref().map(CStr::to_bytes),
+    );
     let p_owned: Option<Vec<u8>> = if conv.vc_type != CONV_NONE {
         string_convert(&conv, p_in.to_bytes(), None)
     } else {
@@ -7826,7 +7829,11 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     }
     drop(p_owned);
 
-    convert_setup(&mut conv, enc.as_deref(), Some(&opt_vars().p_enc.as_cstr()));
+    convert_setup(
+        &mut conv,
+        enc.as_deref().map(CStr::to_bytes),
+        Some(&opt_vars().p_enc.as_bytes()),
+    );
     if conv.vc_type != CONV_NONE {
         if let Some(conv_bytes) =
             string_convert(&conv, crate::memory::bytes_until_nul(&result_buf), None)
@@ -7854,7 +7861,11 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut conv = Vimconv::new();
     conv.vc_type = CONV_NONE;
     let enc = enc_locale();
-    convert_setup(&mut conv, Some(&opt_vars().p_enc.as_cstr()), enc.as_deref());
+    convert_setup(
+        &mut conv,
+        Some(&opt_vars().p_enc.as_bytes()),
+        enc.as_deref().map(CStr::to_bytes),
+    );
     let fmt_owned: Option<Vec<u8>> = if conv.vc_type != CONV_NONE {
         string_convert(&conv, fmt_in.to_bytes(), None)
     } else {

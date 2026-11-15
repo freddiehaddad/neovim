@@ -1636,7 +1636,7 @@ pub fn call_user_func(
                     let tf = encode_tv2string(arg_tv, None);
                     g_st().emsg_off.set(g_st().emsg_off.get() - (1));
                     let mut buf = [0u8; MSG_BUF_LEN];
-                    let s = if vim_strsize(tf.as_c_str()) > MSG_BUF_CLEN {
+                    let s = if vim_strsize(tf.as_bytes()) > MSG_BUF_CLEN {
                         trunc_string(Some(tf.as_bytes()), &mut buf, MSG_BUF_CLEN);
                         crate::memory::bytes_as_cstr(&buf)
                     } else {
@@ -1785,7 +1785,7 @@ pub fn call_user_func(
             g_st().emsg_off.set(g_st().emsg_off.get() + (1));
             let tf = encode_tv2string(rettv, None);
             g_st().emsg_off.set(g_st().emsg_off.get() - (1));
-            let s = if vim_strsize(tf.as_c_str()) > MSG_BUF_CLEN {
+            let s = if vim_strsize(tf.as_bytes()) > MSG_BUF_CLEN {
                 trunc_string(Some(tf.as_bytes()), &mut buf, MSG_BUF_CLEN);
                 crate::memory::bytes_as_cstr(&buf)
             } else {
@@ -3473,8 +3473,8 @@ pub fn ex_function(eap: &mut Exarg) {
                 let slen = sname.to_bytes().len() as i32;
                 if slen > plen
                     && path_equal(
-                        p_slash,
-                        &sname.as_c_str()[(slen - plen) as usize..],
+                        p_slash.to_bytes(),
+                        &sname.as_bytes()[(slen - plen) as usize..],
                         K_PATH_CMP_LITERAL,
                     )
                 {

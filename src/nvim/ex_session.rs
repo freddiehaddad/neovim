@@ -223,7 +223,7 @@ fn ses_arglist(
     for entry in gap {
         if let Some(s_cstr) = alist_name(entry) {
             let s = if fullname {
-                vim_full_name(Some(&s_cstr), &mut buf, false);
+                vim_full_name(Some(s_cstr.to_bytes()), &mut buf, false);
                 crate::memory::bytes_as_cstr(&buf)
             } else {
                 &s_cstr
@@ -1069,7 +1069,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
             emsg(gettext(E_WRITE));
         } else if eap.cmdidx == Cmdidx::CmdMksession {
             let mut tbuf: Vec<u8> = vec![0; MAXPATHL];
-            if vim_full_name(Some(fname), &mut tbuf, false) {
+            if vim_full_name(Some(fname.to_bytes()), &mut tbuf, false) {
                 set_vim_var_string(
                     VV_THIS_SESSION,
                     Some(crate::memory::bytes_as_cstr(&tbuf)),

@@ -1417,8 +1417,8 @@ fn syn_stack_equal(sp: &Synstate) -> bool {
                     };
                     if mb_strcmp_ic(
                         syn_items(&syn_block_mut(), cur_si.si_idx as isize).sp_ic,
-                        bs_m.as_c_str(),
-                        si_m.as_c_str(),
+                        bs_m.as_bytes(),
+                        si_m.as_bytes(),
                     ) != 0
                     {
                         break;

@@ -708,7 +708,7 @@ pub fn ex_history(eap: &mut Exarg) {
                     let prefix_bytes = prefix.as_bytes();
                     let len = prefix_bytes.len();
                     iobuf[..len].copy_from_slice(prefix_bytes);
-                    if vim_strsize(entry_cstr) > g_st().columns_global.get() - 10 {
+                    if vim_strsize(entry_cstr.to_bytes()) > g_st().columns_global.get() - 10 {
                         trunc_string(
                             Some(entry_cstr.to_bytes()),
                             &mut iobuf[len..],

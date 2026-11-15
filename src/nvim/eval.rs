@@ -6891,7 +6891,7 @@ pub fn typval_compare(typ1: &mut TypVal, typ2: &mut TypVal, expr_type: Exprtype,
         let s1 = tv_get_string_buf(&*typ1, &mut buf1);
         let s2 = tv_get_string_buf(&*typ2, &mut buf2);
         let i = if expr_type != EXPR_MATCH && expr_type != EXPR_NOMATCH {
-            mb_strcmp_ic(ic, s1, s2)
+            mb_strcmp_ic(ic, s1.to_bytes(), s2.to_bytes())
         } else {
             0
         };

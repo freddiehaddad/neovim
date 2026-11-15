@@ -5539,7 +5539,7 @@ pub fn tv_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
             let mut buf2: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
             let s1 = tv_get_string_buf(tv1, &mut buf1);
             let s2 = tv_get_string_buf(tv2, &mut buf2);
-            mb_strcmp_ic(ic, s1, s2) == 0
+            mb_strcmp_ic(ic, s1.to_bytes(), s2.to_bytes()) == 0
         }
         VarType::VarBool => tv1.vval.v_bool() == tv2.vval.v_bool(),
         VarType::VarSpecial => tv1.vval.v_special() == tv2.vval.v_special(),

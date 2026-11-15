@@ -781,7 +781,11 @@ pub fn ml_setname(buf: &FileBuf) {
         let renamed = {
             let mfp = &mut *buf.b_ml.mfp_mut();
             let mf_fname_cstr = mfp.mf_fname.as_deref().unwrap_or(c"");
-            if path_equal(&fname, mf_fname_cstr, K_PATH_CMP_LITERAL) {
+            if path_equal(
+                fname.to_bytes(),
+                mf_fname_cstr.to_bytes(),
+                K_PATH_CMP_LITERAL,
+            ) {
                 success = true;
                 break;
             }
@@ -1037,8 +1041,8 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &FileBuf) {
 
 fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &FileBuf) {
     if same_directory(
-        buf.b_ml.mf_fname_cstr().as_deref(),
-        buf.ffname_opt().as_deref(),
+        buf.b_ml.mf_fname_cstr().as_deref().map(CStr::to_bytes),
+        buf.ffname_opt().as_deref().map(CStr::to_bytes),
     ) {
         b0p.set_flags(b0p.flags() | B0_SAME_DIR);
     } else {
@@ -1775,8 +1779,12 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &TvList)
             {
                 make_percent_swname(&dir_bytes[..dir_bytes.len() - 1], Some(f_res))
             } else {
-                let t = path_tail(f_res);
-                Some(concat_fnames(dir_name, cstr_as_string(Some(t)), true))
+                let t = path_tail(f_res.to_bytes());
+                Some(concat_fnames(
+                    dir_name,
+                    crate::api::private::helpers::bytes_to_string(t),
+                    true,
+                ))
             };
             if let Some(ref tail) = tail {
                 recov_file_names(&mut names_vec, tail, false);
@@ -1793,8 +1801,8 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &TvList)
 
         let mut files: Vec<std::ffi::CString> = Vec::new();
         if !names_vec.is_empty() {
-            let name_cstrs: Vec<&std::ffi::CStr> =
-                names_vec.iter().map(std::ffi::CString::as_c_str).collect();
+            let name_cstrs: Vec<&[u8]> =
+                names_vec.iter().map(std::ffi::CString::as_bytes).collect();
             let _ = expand_wildcards_vec(&name_cstrs, &mut files, EW_KEEPALL | EW_FILE | EW_SILENT);
         }
 
@@ -1805,7 +1813,7 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &TvList)
         };
 
         if let Some(ref cur_p) = cur_mfp_fname {
-            files.retain(|f| !path_equal(cur_p, f, K_PATH_CMP_FULL));
+            files.retain(|f| !path_equal(cur_p.to_bytes(), f.as_bytes(), K_PATH_CMP_FULL));
         }
 
         if dirp.is_empty()
@@ -1814,9 +1822,9 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &TvList)
             && let Some(f_res) = fname_res
             && let Some(swapname) = modname(Some(f_res), c".swp", true)
             && os_path_exists(&swapname)
-            && cur_mfp_fname
-                .as_deref()
-                .is_none_or(|cur_p| !path_equal(cur_p, &swapname, K_PATH_CMP_FULL))
+            && cur_mfp_fname.as_deref().is_none_or(|cur_p| {
+                !path_equal(cur_p.to_bytes(), swapname.as_bytes(), K_PATH_CMP_FULL)
+            })
         {
             crate::eval::typval::tv_list_append_string(ret_list, Some(swapname.as_c_str()), -1);
         }
@@ -1833,7 +1841,7 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &TvList)
 
 /// Append the full path to `name` with path separators made into percent signs to `dir_slice`.
 pub fn make_percent_swname(dir_slice: &[u8], name: Option<&CStr>) -> Option<std::ffi::CString> {
-    let fname = fix_fname(Some(name.unwrap_or(c"")))?;
+    let fname = fix_fname(Some(name.map_or(b"", CStr::to_bytes)))?;
     let mut fname_vec: Vec<u8> = fname.into_bytes_with_nul();
 
     let mut file_info = FileInfo::new();
@@ -3737,17 +3745,17 @@ pub fn resolve_symlink(fname: Option<&CStr>, buf: &mut [u8]) -> bool {
         if path_is_absolute(buf_bytes) {
             crate::memory::copy_bytes_to_c_buf(&mut tmp, buf_bytes);
         } else {
-            let tmp_cstr = crate::memory::bytes_as_cstr(&tmp);
-            let tail = path_tail(tmp_cstr);
-            let off = tmp_cstr.to_bytes().len() - tail.to_bytes().len();
-            if tail.to_bytes().len() + buf_bytes.len() >= MAXPATHL {
+            let tmp_bytes = crate::memory::bytes_until_nul(&tmp);
+            let tail_len = path_tail(tmp_bytes).len();
+            let off = tmp_bytes.len() - tail_len;
+            if tail_len + buf_bytes.len() >= MAXPATHL {
                 return false;
             }
             crate::memory::copy_bytes_to_c_buf(&mut tmp[off..], buf_bytes);
         }
     }
 
-    vim_full_name(Some(crate::memory::bytes_as_cstr(&tmp)), buf, true)
+    vim_full_name(Some(crate::memory::bytes_until_nul(&tmp)), buf, true)
 }
 
 /// Make swapfile name out of the file name and a directory name.
@@ -3779,9 +3787,9 @@ pub fn makeswapname(fname: Option<&CStr>, dir_name: &CStr) -> Option<std::ffi::C
 pub fn get_file_in_dir(fname: Option<&CStr>, dname: &CStr) -> Option<std::ffi::CString> {
     let fname = fname.unwrap_or(c"");
     let fname_bytes = fname.to_bytes();
-    let tail_cstr = path_tail(fname);
-    let tail = cstr_as_string(Some(tail_cstr));
-    let tail_off = fname_bytes.len() - tail_cstr.to_bytes().len();
+    let tail_bytes = path_tail(fname_bytes);
+    let tail = crate::api::private::helpers::bytes_to_string(tail_bytes);
+    let tail_off = fname_bytes.len() - tail_bytes.len();
     let dname_bytes = dname.to_bytes();
 
     if dname_bytes == b"." {
@@ -3923,7 +3931,7 @@ fn findswapname(
         }
 
         if let Some(old_f) = old_fname
-            && path_equal(fname_cstr, old_f, K_PATH_CMP_LITERAL)
+            && path_equal(fname_cstr.to_bytes(), old_f.to_bytes(), K_PATH_CMP_LITERAL)
         {
             break;
         }
@@ -3950,11 +3958,13 @@ fn findswapname(
                     let buf_ffname_opt = buf.ffname_opt();
                     if (b0.flags() & B0_SAME_DIR) != 0 {
                         if !path_equal(
-                            path_tail(buf_ffname_opt.as_deref().unwrap_or(c"")),
-                            path_tail(b0_fname_cstr),
+                            path_tail(buf_ffname_opt.as_deref().map_or(b"", CStr::to_bytes)),
+                            path_tail(b0_fname_cstr.to_bytes()),
                             K_PATH_CMP_LITERAL,
-                        ) || !same_directory(Some(fname_cstr), buf_ffname_opt.as_deref())
-                        {
+                        ) || !same_directory(
+                            Some(fname_cstr.to_bytes()),
+                            buf_ffname_opt.as_deref().map(CStr::to_bytes),
+                        ) {
                             let mut name_buff = [0u8; crate::os::fs::MAXPATHL];
                             expand_env(b0_fname_cstr, &mut name_buff);
                             if fnamecmp_ino(
@@ -4149,8 +4159,8 @@ fn fnamecmp_ino(fname_c: Option<&CStr>, fname_s: Option<&CStr>, ino_block0: i64)
         return ino_c != ino_s;
     }
 
-    let retval_c = vim_full_name(fname_c, &mut buf_c, true);
-    let retval_s = vim_full_name(fname_s, &mut buf_s, true);
+    let retval_c = vim_full_name(fname_c.map(CStr::to_bytes), &mut buf_c, true);
+    let retval_s = vim_full_name(fname_s.map(CStr::to_bytes), &mut buf_s, true);
     if retval_c && retval_s {
         return crate::memory::bytes_as_cstr(&buf_c) != crate::memory::bytes_as_cstr(&buf_s);
     }

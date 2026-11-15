@@ -1804,12 +1804,11 @@ pub fn search_for_exact_line(
                     pos.col = skip_len as Colnr;
 
                     if compl_status_adding() && !compl_status_sol() {
-                        let sub_cstr =
-                            std::ffi::CStr::from_bytes_with_nul(&line_with_nul[skip_len..])
-                                .unwrap_or_else(|_| {
-                                    crate::memory::bytes_as_cstr(&line_with_nul[skip_len..])
-                                });
-                        mb_strcmp_ic(opt_vars().p_ic.get(), sub_cstr, pat) == 0
+                        mb_strcmp_ic(
+                            opt_vars().p_ic.get(),
+                            crate::memory::bytes_until_nul(p_slice),
+                            pat.to_bytes(),
+                        ) == 0
                     } else if !p_slice.is_empty() {
                         debug_assert!(compl_len >= 0);
                         if opt_vars().p_ic.get() {
@@ -3405,8 +3404,8 @@ pub fn find_pattern_in_path(
                             break;
                         }
                         if path_equal(
-                            nf,
-                            files[i as usize].name_ptr().unwrap_or(c""),
+                            nf.to_bytes(),
+                            files[i as usize].name_ptr().map_or(b"", CStr::to_bytes),
                             K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                         ) {
                             if type_ != CHECK_PATH
@@ -3758,7 +3757,11 @@ pub fn find_pattern_in_path(
                                     {
                                         None
                                     } else {
-                                        path_try_shorten_fname(curr_fname.as_deref())
+                                        curr_fname.as_deref().and_then(|cf| {
+                                            let cf_b = cf.to_bytes();
+                                            let pb = path_try_shorten_fname(Some(cf_b))?;
+                                            Some(&cf[cf_b.len() - pb.len()..])
+                                        })
                                     };
                                     let add_r = if use_iobuff {
                                         ins_compl_add_infercase(

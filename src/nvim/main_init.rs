@@ -1693,10 +1693,10 @@ fn command_line_scan(parmp: &mut Mparm) {
                 let name0_rc = alist_name(&e0);
                 let name0 = name0_rc.as_deref().unwrap_or(c"");
                 if !os_isdir(name0) {
-                    let tail = path_tail(name0);
+                    let tail = path_tail(name0.to_bytes());
                     let joined = concat_fnames(
                         cstr_as_string(Some(crate::memory::bytes_as_cstr(&p_vec))),
-                        cstr_as_string(Some(tail)),
+                        crate::api::private::helpers::bytes_to_string(tail),
                         true,
                     );
                     p_vec = joined.as_bytes_with_nul().to_vec();
@@ -1755,7 +1755,7 @@ fn set_argf_var() {
     for i in 0..count {
         let entry = garg_entry(i as usize);
         if let Some(fname) = alist_name(&entry) {
-            let _ = vim_full_name(Some(&fname), &mut name_buff, false);
+            let _ = vim_full_name(Some(fname.to_bytes()), &mut name_buff, false);
             tv_list_append_string(&list, Some(crate::memory::bytes_as_cstr(&name_buff)), -1);
         }
     }
@@ -1810,15 +1810,17 @@ fn check_and_set_isatty(_paramp: &mut Mparm) {
 fn init_path(exename: &CStr) {
     let mut exepath = [0u8; MAXPATHL];
     let mut exepathlen: usize = MAXPATHL;
+    let exename_bytes = exename.to_bytes();
     if os_exepath(&mut exepath, &mut exepathlen) != 0 {
-        path_guess_exepath(exename, &mut exepath);
+        path_guess_exepath(exename_bytes, &mut exepath);
     }
     set_vim_var_string(
         VV_PROGPATH,
         Some(crate::memory::bytes_as_cstr(&exepath)),
         -1,
     );
-    set_vim_var_string(VV_PROGNAME, Some(path_tail(exename)), -1);
+    let tail_off = exename_bytes.len() - path_tail(exename_bytes).len();
+    set_vim_var_string(VV_PROGNAME, Some(&exename[tail_off..]), -1);
 
     #[cfg(windows)]
     {
@@ -2273,7 +2275,7 @@ fn do_user_initialization() -> bool {
     if do_source(user_vimrc.as_c_str(), true, DOSO_VIMRC, None) {
         do_exrc = opt_vars().p_exrc.get();
         if do_exrc {
-            do_exrc = !path_equal(c".nvimrc", user_vimrc.as_c_str(), K_PATH_CMP_EXPAND);
+            do_exrc = !path_equal(b".nvimrc", user_vimrc.as_bytes(), K_PATH_CMP_EXPAND);
         }
         return do_exrc;
     }
@@ -2334,8 +2336,8 @@ fn do_user_initialization() -> bool {
                 do_exrc = opt_vars().p_exrc.get();
                 if do_exrc {
                     do_exrc = !path_equal(
-                        c".nvimrc",
-                        crate::memory::bytes_as_cstr(&init_vim),
+                        b".nvimrc",
+                        crate::memory::bytes_until_nul(&init_vim),
                         K_PATH_CMP_EXPAND,
                     );
                 }
@@ -2420,7 +2422,9 @@ fn mainerr(msg1: &CStr, msg2: Option<&CStr>, msg3: Option<&CStr>) -> ! {
 
 fn print_mainerr(msg1: &CStr, msg2: Option<&CStr>, msg3: Option<&CStr>) {
     let argv0 = main_init_st(|st| st.argv0.borrow().clone());
-    let prgname = path_tail(argv0.as_deref().unwrap_or(c""));
+    let argv0_cstr = argv0.as_deref().unwrap_or(c"");
+    let argv0_bytes = argv0_cstr.to_bytes();
+    let prgname = &argv0_cstr[argv0_bytes.len() - path_tail(argv0_bytes).len()..];
     signal_stop();
 
     let stderr = log_get_stderr();

@@ -278,7 +278,7 @@ fn get_arglist(gap: &mut Vec<CString>, str_: &[u8], escaped: bool) {
 pub fn get_arglist_exp(str_: &[u8], fnames: &mut Vec<CString>, wig: bool) -> bool {
     let mut ga: Vec<CString> = Vec::new();
     get_arglist(&mut ga, str_, true);
-    let ptrs: Vec<&CStr> = ga.iter().map(CString::as_c_str).collect();
+    let ptrs: Vec<&[u8]> = ga.iter().map(CString::as_bytes).collect();
 
     if wig {
         expand_wildcards_vec(&ptrs, fnames, EW_FILE | EW_NOTFOUND | EW_NOTWILD)
@@ -410,7 +410,7 @@ fn do_arglist(str_cstr: &CStr, what: i32, after: i32, will_edit: bool) -> bool {
     if what == AL_DEL {
         arglist_del_files(&new_ga);
     } else {
-        let ptrs: Vec<&CStr> = new_ga.iter().map(CString::as_c_str).collect();
+        let ptrs: Vec<&[u8]> = new_ga.iter().map(CString::as_bytes).collect();
         let i = expand_wildcards_vec(
             &ptrs,
             &mut exp_files,
@@ -452,8 +452,8 @@ pub fn editing_arg_idx(win: &WinInfoInfo) -> bool {
     }
     win.buf().ffname_opt().is_some_and(|ffname| {
         path_equal(
-            alist_name(&entry).as_deref().unwrap_or(c""),
-            &ffname,
+            alist_name(&entry).as_deref().map_or(b"", CStr::to_bytes),
+            ffname.to_bytes(),
             K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
         )
     })
@@ -476,8 +476,10 @@ pub fn check_arg_idx(win: &WinInfoInfo) {
             if buf.b_fnum.get() == last_entry.ae_fnum
                 || (buf.b_ffname.get().is_some()
                     && path_equal(
-                        alist_name(&last_entry).as_deref().unwrap_or(c""),
-                        &buf.ffname_cstr(),
+                        alist_name(&last_entry)
+                            .as_deref()
+                            .map_or(b"", CStr::to_bytes),
+                        buf.ffname_cstr().to_bytes(),
                         K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                     ))
             {
@@ -615,7 +617,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
         let mut other = true;
         if buf_hide(&curbuf()) {
             let entry = arg_entry(argn as usize);
-            let p = fix_fname(alist_name(&entry).as_deref());
+            let p = fix_fname(alist_name(&entry).as_deref().map(CStr::to_bytes));
             other = otherfile(p.as_deref());
         }
         if (!buf_hide(&curbuf()) || !other)
@@ -682,14 +684,15 @@ pub fn ex_argdedupe(_eap: &mut Exarg) {
     let mut i: i32 = 0;
     while i < argcount() {
         let first_entry = arg_entry(i as usize);
-        let first_fullname = FullName_save(first_entry.fname_cstr(), false);
+        let first_fullname = FullName_save(first_entry.fname_cstr().map(CStr::to_bytes), false);
         let mut j = i + 1;
         while j < argcount() {
             let second_entry = arg_entry(j as usize);
-            let second_fullname = FullName_save(second_entry.fname_cstr(), false);
+            let second_fullname =
+                FullName_save(second_entry.fname_cstr().map(CStr::to_bytes), false);
             let dup = path_equal(
-                first_fullname.as_deref().unwrap_or(c""),
-                second_fullname.as_deref().unwrap_or(c""),
+                first_fullname.as_deref().map_or(b"", CStr::to_bytes),
+                second_fullname.as_deref().map_or(b"", CStr::to_bytes),
                 K_PATH_CMP_LITERAL,
             );
 
@@ -880,8 +883,8 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     if let Some(ref entry) = entry_opt
                         && (entry.ae_fnum == buf.b_fnum.get()
                             || path_equal(
-                                alist_name(entry).as_deref().unwrap_or(c""),
-                                &buf.ffname_cstr(),
+                                alist_name(entry).as_deref().map_or(b"", CStr::to_bytes),
+                                buf.ffname_cstr().to_bytes(),
                                 K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                             ))
                     {

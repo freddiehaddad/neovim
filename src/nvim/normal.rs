@@ -3562,7 +3562,7 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
         validate_virtcol(&curwin());
         let mut virtcol = cursor_disp_vcol(&curwin());
         if virtcol > width1 && !get_showbreak_value(&curwin()).is_empty() {
-            virtcol -= vim_strsize(&get_showbreak_value(&curwin()));
+            virtcol -= vim_strsize(get_showbreak_value(&curwin()).as_bytes());
         }
 
         let c = crate::mbyte::utf_slice2char(&crate::cursor::get_cursor_pos_slice());

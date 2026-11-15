@@ -3000,7 +3000,7 @@ pub fn apply_autocmds_group(
                 }
                 Some(fname.unwrap_or(c"").to_owned())
             } else {
-                let fname_opt = fname;
+                let fname_opt = fname.map(CStr::to_bytes);
                 sfname_owned = to_slash_save(fname_opt);
                 if event == EVENT_CMDATOM
                     || event == EVENT_CMDLINECHANGED
@@ -3330,13 +3330,16 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
                 continue;
             }
             let matches = if ap.buflocal_nr == 0 {
-                let tail_cstr = apc.fname.as_deref().map_or(c"", |f| path_tail(f));
+                let tail = apc
+                    .fname
+                    .as_deref()
+                    .map_or(&b""[..], |f| path_tail(f.to_bytes()));
                 match_file_pat(
                     None,
                     ap.reg_prog.as_deref(),
                     apc.fname.as_deref(),
                     apc.sfname.as_deref(),
-                    tail_cstr,
+                    tail,
                     i32::from(ap.allow_dirs),
                 )
             } else {
@@ -3544,7 +3547,7 @@ fn has_autocmd_ext(
         return false;
     }
 
-    let tail = path_tail(sfname.unwrap_or(c""));
+    let tail = path_tail(sfname.map_or(b"", CStr::to_bytes));
     let mut retval = false;
 
     if sfname.is_none() {
@@ -3563,7 +3566,7 @@ fn has_autocmd_ext(
                 fname = if is_full {
                     sfname.map(CStr::to_owned)
                 } else {
-                    FullName_save(sfname, false)
+                    FullName_save(sfname.map(CStr::to_bytes), false)
                 };
                 debug_assert!(fname.is_some());
             }
@@ -3777,8 +3780,11 @@ pub fn au_exists(arg: &CStr) -> bool {
                             if let Some(fnum) = buflocal_fnum {
                                 ap.buflocal_nr == fnum
                             } else {
-                                mb_strcmp_ic(opt_vars().p_fic.get(), ap.pat.as_c_str(), pattern)
-                                    == 0
+                                mb_strcmp_ic(
+                                    opt_vars().p_fic.get(),
+                                    ap.pat.as_bytes(),
+                                    pattern.to_bytes(),
+                                ) == 0
                             }
                         } else {
                             true

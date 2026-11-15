@@ -446,8 +446,8 @@ pub extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> i32 {
 }
 
 extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> i32 {
-    let (mut slice1, mut with_nul1) = luaL_checkbytes_with_nul(lstate, 1);
-    let (mut slice2, mut with_nul2) = luaL_checkbytes_with_nul(lstate, 2);
+    let (mut slice1, with_nul1) = luaL_checkbytes_with_nul(lstate, 1);
+    let (mut slice2, with_nul2) = luaL_checkbytes_with_nul(lstate, 2);
     let mut ret: i32;
     assert_eq!(with_nul1[slice1.len()], NUL as u8);
     assert_eq!(with_nul2[slice2.len()], NUL as u8);
@@ -456,8 +456,8 @@ extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> i32 {
         let nul1 = slice1.iter().position(|&b| b == 0);
         let nul2 = slice2.iter().position(|&b| b == 0);
         ret = mb_stricmp(
-            crate::memory::bytes_as_cstr(with_nul1),
-            crate::memory::bytes_as_cstr(with_nul2),
+            &slice1[..nul1.unwrap_or(slice1.len())],
+            &slice2[..nul2.unwrap_or(slice2.len())],
         );
         if ret == 0 {
             if nul1.is_some() != nul2.is_some() {
@@ -467,8 +467,6 @@ extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> i32 {
             if let (Some(p1), Some(p2)) = (nul1, nul2) {
                 slice1 = &slice1[p1 + 1..];
                 slice2 = &slice2[p2 + 1..];
-                with_nul1 = &with_nul1[p1 + 1..];
-                with_nul2 = &with_nul2[p2 + 1..];
             } else {
                 break;
             }
@@ -496,8 +494,8 @@ extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> i32 {
 
     let str_slice = lua_tolstring_bytes(lstate, 1);
     let mut str_len = str_slice.len();
-    let from = enc_canonize(enc_skip(lua_tolstring_cstr(lstate, 2)));
-    let to = enc_canonize(enc_skip(lua_tolstring_cstr(lstate, 3)));
+    let from = enc_canonize(enc_skip(lua_tolstring_cstr(lstate, 2).to_bytes()));
+    let to = enc_canonize(enc_skip(lua_tolstring_cstr(lstate, 3).to_bytes()));
 
     let mut vimconv = Vimconv {
         vc_type: CONV_NONE,
@@ -507,9 +505,9 @@ extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> i32 {
     };
     let _ = convert_setup_ext(
         &mut vimconv,
-        Some(from.as_c_str()),
+        Some(from.as_bytes()),
         false,
-        Some(to.as_c_str()),
+        Some(to.as_bytes()),
         false,
     );
 

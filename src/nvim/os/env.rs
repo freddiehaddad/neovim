@@ -448,7 +448,7 @@ pub fn init_homedir() {
     }
 
     if let Some(ref v) = var {
-        let saved = to_slash_save(Some(v));
+        let saved = to_slash_save(Some(v.as_bytes()));
         HOMEDIR.with_borrow_mut(|h| *h = saved);
     }
 }
@@ -721,9 +721,12 @@ fn remove_tail(path_slice: &[u8], pend_off: usize, dirname: &[u8]) -> usize {
     let len = dirname.len();
     if pend_off > len {
         let new_tail_off = pend_off - len - 1;
-        let new_tail_cstr = bytes_to_cstring(&path_slice[new_tail_off..pend_off]);
-        let dirname_cstr = bytes_to_cstring(dirname);
-        if path_cmp(opt_vars().p_fic.get(), &new_tail_cstr, &dirname_cstr, len) == 0
+        if path_cmp(
+            opt_vars().p_fic.get(),
+            &path_slice[new_tail_off..pend_off],
+            dirname,
+            len,
+        ) == 0
             && (new_tail_off == 0 || after_pathsep(&path_slice[..new_tail_off]))
         {
             return new_tail_off;
@@ -768,11 +771,11 @@ pub fn vim_env_iter_rev<'a>(
 
 pub fn vim_get_prefix_from_exepath(exe_name: &mut [u8]) {
     crate::memory::copy_bytes_to_c_buf(exe_name, get_vim_var_str(VV_PROGPATH).to_bytes());
-    let base = exe_name.as_ptr() as usize;
-    let end1 =
-        (path_tail_with_sep(crate::memory::bytes_as_cstr(exe_name)).as_ptr() as usize) - base;
+    let exe_bytes = crate::memory::bytes_until_nul(exe_name);
+    let end1 = exe_bytes.len() - path_tail_with_sep(exe_bytes).len();
     exe_name[end1] = 0;
-    let end2 = (path_tail(crate::memory::bytes_as_cstr(exe_name)).as_ptr() as usize) - base;
+    let exe_bytes = &exe_name[..end1];
+    let end2 = exe_bytes.len() - path_tail(exe_bytes).len();
     exe_name[end2] = 0;
 }
 
@@ -835,15 +838,15 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
                 let mut exe_name = [0u8; MAXPATHL];
                 if vim_path_opt.is_none() {
                     vim_get_prefix_from_exepath(&mut exe_name);
-                    if append_path(&mut exe_name, c"share/nvim/runtime/") {
+                    if append_path(&mut exe_name, b"share/nvim/runtime/") {
                         vim_path_opt = Some(crate::memory::cstring_until_nul(&exe_name));
                     }
                 }
 
                 if let Some(ref vim_path) = vim_path_opt {
-                    let vim_path_end = path_tail(vim_path).as_ptr() as usize;
-                    let mut end_off = vim_path_end - (vim_path.as_ptr() as usize);
-                    let vim_path_slice = &vim_path.as_bytes()[..end_off];
+                    let vp_bytes = vim_path.as_bytes();
+                    let mut end_off = vp_bytes.len() - path_tail(vp_bytes).len();
+                    let vim_path_slice = &vp_bytes[..end_off];
                     if is_helpfile {
                         end_off = remove_tail(vim_path_slice, end_off, b"doc");
                     }
@@ -906,7 +909,7 @@ pub fn home_replace(
     };
 
     if buf.is_some() && buf.unwrap().b_help.get() {
-        let dlen = crate::memory::copy_bytes_to_c_buf(dst_slice, path_tail(src_cstr).to_bytes());
+        let dlen = crate::memory::copy_bytes_to_c_buf(dst_slice, path_tail(src_cstr.to_bytes()));
         return dlen.min(dstlen - 1);
     }
 
@@ -968,8 +971,8 @@ pub fn home_replace(
                 && p_opt.is_some_and(|p| {
                     path_cmp(
                         opt_vars().p_fic.get(),
-                        crate::memory::CStrSubslice::advance(src_cstr, src_idx),
-                        p,
+                        &src_bytes[src_idx..],
+                        p.to_bytes(),
                         len,
                     ) == 0
                 });
@@ -1055,9 +1058,8 @@ pub fn os_setenv_append_path(fname_cstr: &CStr) -> bool {
         internal_error(c"os_setenv_append_path()");
         return false;
     }
-    let tail = path_tail_with_sep(fname_cstr).as_ptr();
-    let dirlen = (tail as usize) - (fname_cstr.as_ptr() as usize);
-    assert!((tail as usize) >= (fname_cstr.as_ptr() as usize) && dirlen + 1 < MAXPATHL);
+    let dirlen = fname_bytes.len() - path_tail_with_sep(fname_bytes).len();
+    assert!(dirlen + 1 < MAXPATHL);
     let path_cstr = os_getenv_cstr(c"PATH");
     let pathlen = path_cstr.as_ref().map_or(0, |c| c.as_bytes().len());
     let newlen = pathlen + dirlen + 2;
@@ -1090,14 +1092,12 @@ pub fn os_shell_is_cmdexe(sh: &CStr) -> bool {
         let Some(comspec) = os_getenv_buf(c"COMSPEC", &mut buf) else {
             return false;
         };
-        return path_tail(comspec)
-            .to_bytes()
-            .eq_ignore_ascii_case(b"cmd.exe");
+        return path_tail(comspec.to_bytes()).eq_ignore_ascii_case(b"cmd.exe");
     }
     if sh_bytes.eq_ignore_ascii_case(b"cmd.exe") || sh_bytes.eq_ignore_ascii_case(b"cmd") {
         return true;
     }
-    path_tail(sh).to_bytes().eq_ignore_ascii_case(b"cmd.exe")
+    path_tail(sh_bytes).eq_ignore_ascii_case(b"cmd.exe")
 }
 
 /// Removes environment variable `var` and takes care of side effects.

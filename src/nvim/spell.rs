@@ -48,7 +48,7 @@ use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
 use crate::search::{BACKWARD, Direction, FORWARD, K_SHM_SEARCH, do_search};
 use crate::spellfile::{MAXREGIONS, spell_load_file};
 use crate::spellsuggest::{Idx, Langp, Slang, SlangId, Spelltab, spell_suggest_list};
-use crate::strings::{concat_str, format_to_buf, gettext, vim_strchr};
+use crate::strings::{concat_str, format_to_buf, gettext};
 use crate::syntax::{syn_get_id, syntax_present};
 use crate::undo::u_save_cursor;
 use crate::window::{WinInfoInfo, win_valid_any_tab};
@@ -1622,18 +1622,20 @@ pub fn parse_spelllang(wp: &WinInfoInfo) -> Option<&'static std::ffi::CStr> {
             }
             let (filename, slang) = if len > 4
                 && path_equal(
-                    crate::memory::bytes_as_cstr(&lang[(len - 4) as usize..]),
-                    c".spl",
+                    &lang[(len - 4) as usize..len as usize],
+                    b".spl",
                     K_PATH_CMP_LITERAL as PathCmpFlags,
                 ) {
-                if let Some(p_cstr) = vim_strchr(path_tail(lang_cstr), b'_' as i32) {
-                    let p_bytes = p_cstr.to_bytes();
+                let lang_bytes = &lang[..len as usize];
+                let tail_bytes = path_tail(lang_bytes);
+                if let Some(u_pos) = tail_bytes.iter().position(|&b| b == b'_') {
+                    let p_bytes = &tail_bytes[u_pos..];
                     if p_bytes.get(1).is_some_and(u8::is_ascii_alphabetic)
                         && p_bytes.get(2).is_some_and(u8::is_ascii_alphabetic)
                         && !p_bytes.get(3).is_some_and(u8::is_ascii_alphabetic)
                     {
                         let region_cp = [p_bytes[1], p_bytes[2], 0];
-                        let p_off = (p_cstr.as_ptr() as usize) - (lang.as_ptr() as usize);
+                        let p_off = (len as usize) - p_bytes.len();
                         let move_len = (len as usize) - p_off - 2;
                         lang.copy_within(p_off + 3..p_off + 3 + move_len, p_off);
                         region = Some(region_cp);
@@ -1643,7 +1645,7 @@ pub fn parse_spelllang(wp: &WinInfoInfo) -> Option<&'static std::ffi::CStr> {
                 } else {
                     dont_use_region = true;
                 }
-                let lang_cstr = crate::memory::bytes_as_cstr(&lang);
+                let lang_bytes = crate::memory::bytes_until_nul(&lang);
                 let slang = with_spell_ext(|ext| {
                     ext.first_lang
                         .borrow()
@@ -1653,7 +1655,11 @@ pub fn parse_spelllang(wp: &WinInfoInfo) -> Option<&'static std::ffi::CStr> {
                         .find(|(_, s)| {
                             s.as_ref().is_some_and(|s| {
                                 s.sl_fname.as_ref().is_some_and(|f| {
-                                    path_equal(lang_cstr, f, K_PATH_CMP_EXPAND as PathCmpFlags)
+                                    path_equal(
+                                        lang_bytes,
+                                        f.as_bytes(),
+                                        K_PATH_CMP_EXPAND as PathCmpFlags,
+                                    )
                                 })
                             })
                         })
@@ -1667,7 +1673,7 @@ pub fn parse_spelllang(wp: &WinInfoInfo) -> Option<&'static std::ffi::CStr> {
                 } else {
                     dont_use_region = true;
                 }
-                let lang_cstr = crate::memory::bytes_as_cstr(&lang);
+                let lang_bytes = crate::memory::bytes_until_nul(&lang);
                 let slang = with_spell_ext(|ext| {
                     ext.first_lang
                         .borrow()
@@ -1678,7 +1684,7 @@ pub fn parse_spelllang(wp: &WinInfoInfo) -> Option<&'static std::ffi::CStr> {
                             s.as_ref().is_some_and(|s| {
                                 s.sl_name
                                     .as_ref()
-                                    .is_some_and(|n| mb_stricmp(lang_cstr, n.as_c_str()) == 0)
+                                    .is_some_and(|n| mb_stricmp(lang_bytes, n.as_bytes()) == 0)
                             })
                         })
                         .map_or(SlangId::NULL, |(idx, _)| SlangId::from_slot(idx))
@@ -1706,7 +1712,7 @@ pub fn parse_spelllang(wp: &WinInfoInfo) -> Option<&'static std::ffi::CStr> {
                     }
                 }
             }
-            let lang_cstr = crate::memory::bytes_as_cstr(&lang);
+            let lang_bytes = crate::memory::bytes_until_nul(&lang);
             let matched_slangs: Vec<SlangId> = with_spell_ext(|ext| {
                 ext.first_lang
                     .borrow()
@@ -1719,13 +1725,17 @@ pub fn parse_spelllang(wp: &WinInfoInfo) -> Option<&'static std::ffi::CStr> {
                         };
                         if filename {
                             slang.sl_fname.as_ref().is_some_and(|f| {
-                                path_equal(lang_cstr, f, K_PATH_CMP_EXPAND as PathCmpFlags)
+                                path_equal(
+                                    lang_bytes,
+                                    f.as_bytes(),
+                                    K_PATH_CMP_EXPAND as PathCmpFlags,
+                                )
                             })
                         } else {
                             slang
                                 .sl_name
                                 .as_ref()
-                                .is_some_and(|n| mb_stricmp(lang_cstr, n.as_c_str()) == 0)
+                                .is_some_and(|n| mb_stricmp(lang_bytes, n.as_bytes()) == 0)
                         }
                     })
                     .map(|(idx, _)| SlangId::from_slot(idx))
@@ -1781,16 +1791,12 @@ pub fn parse_spelllang(wp: &WinInfoInfo) -> Option<&'static std::ffi::CStr> {
             } else {
                 let len = copy_option_part(&mut spf_bytes, &mut spf_name[..MAXPATHL - 4], c",");
                 spf_name[len..len + 5].copy_from_slice(b".spl\0");
-                let spf_cstr = crate::memory::bytes_as_cstr(&spf_name);
+                let spf_b = &spf_name[..len + 4];
                 let mut c = 0;
                 while c < ga.len() {
-                    if ga[c]
-                        .lp_slang
-                        .rc()
-                        .sl_fname
-                        .as_ref()
-                        .is_some_and(|p| path_equal(spf_cstr, p, K_PATH_CMP_EXPAND as PathCmpFlags))
-                    {
+                    if ga[c].lp_slang.rc().sl_fname.as_ref().is_some_and(|p| {
+                        path_equal(spf_b, p.as_bytes(), K_PATH_CMP_EXPAND as PathCmpFlags)
+                    }) {
                         break;
                     }
                     c += 1;
@@ -1799,7 +1805,7 @@ pub fn parse_spelllang(wp: &WinInfoInfo) -> Option<&'static std::ffi::CStr> {
                     continue;
                 }
             }
-            let spf_cstr = crate::memory::bytes_as_cstr(&spf_name);
+            let spf_b = crate::memory::bytes_until_nul(&spf_name);
             let mut slang_id = with_spell_ext(|ext| {
                 ext.first_lang
                     .borrow()
@@ -1809,7 +1815,7 @@ pub fn parse_spelllang(wp: &WinInfoInfo) -> Option<&'static std::ffi::CStr> {
                     .find(|(_, s)| {
                         s.as_ref().is_some_and(|s| {
                             s.sl_fname.as_ref().is_some_and(|f| {
-                                path_equal(spf_cstr, f, K_PATH_CMP_EXPAND as PathCmpFlags)
+                                path_equal(spf_b, f.as_bytes(), K_PATH_CMP_EXPAND as PathCmpFlags)
                             })
                         })
                     })
@@ -1819,7 +1825,7 @@ pub fn parse_spelllang(wp: &WinInfoInfo) -> Option<&'static std::ffi::CStr> {
                 if cur_round == 0 {
                     lang[..18].copy_from_slice(b"internal wordlist\0");
                 } else {
-                    let tail = path_tail(spf_cstr).to_bytes();
+                    let tail = path_tail(spf_b);
                     let dot_pos = tail.iter().position(|&b| b == b'.').unwrap_or(tail.len());
                     crate::memory::copy_bytes_to_c_buf(&mut lang, &tail[..dot_pos]);
                 }

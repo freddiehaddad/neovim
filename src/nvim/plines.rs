@@ -376,7 +376,7 @@ pub fn init_charsize_arg<'a>(
         {
             let mut indent_width = 0;
             if csarg.has_sbr {
-                indent_width += vim_strsize(&sbr);
+                indent_width += vim_strsize(sbr.as_bytes());
             }
             if csarg.wo_bri {
                 indent_width += get_breakindent_win(wp, csarg.line.to_bytes());
@@ -736,7 +736,7 @@ pub fn charsize_regular(
                     head_prev = 0;
                     if csarg.has_sbr {
                         let sbr = get_showbreak_value(wp);
-                        head_prev += vim_strsize(&sbr);
+                        head_prev += vim_strsize(sbr.as_bytes());
                     }
                     if csarg.wo_bri {
                         head_prev += get_breakindent_win(wp, line_bytes);
@@ -762,7 +762,7 @@ pub fn charsize_regular(
                     head_mid = 0;
                     if csarg.has_sbr {
                         let sbr = get_showbreak_value(wp);
-                        head_mid += vim_strsize(&sbr);
+                        head_mid += vim_strsize(sbr.as_bytes());
                     }
                     if csarg.wo_bri {
                         head_mid += get_breakindent_win(wp, line_bytes);
@@ -1260,7 +1260,7 @@ pub fn linesize_fast(csarg: &CharsizeArg<'_>, mut vcol_arg: i32, len: Colnr) -> 
         let ascii_run = printable_ascii_run_len(ci.ptr, rem_limit);
         if ascii_run > 0 {
             vcol += ascii_run as i64;
-            ci = utf_slice2_str_char_info(&ci.ptr[ascii_run..]);
+            ci = ci.advance_bytes(ascii_run);
             if vcol > i64::from(MAXCOL) {
                 vcol_arg = MAXCOL;
                 break;
@@ -1345,7 +1345,7 @@ pub fn getvcol(
                         let ascii_run = printable_ascii_run_len(ci.ptr, max_adv);
                         if ascii_run > 0 {
                             vcol += ascii_run as Colnr;
-                            ci = utf_slice2_str_char_info(&ci.ptr[ascii_run..]);
+                            ci = ci.advance_bytes(ascii_run);
                         }
                     }
                     if ci.ptr.is_empty() {
@@ -1634,7 +1634,7 @@ pub fn plines_win_col(wp: &WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
                 let ascii_run = printable_ascii_run_len(ci.ptr, max_adv);
                 if ascii_run > 0 {
                     vcol += ascii_run as Colnr;
-                    ci = utf_slice2_str_char_info(&ci.ptr[ascii_run..]);
+                    ci = ci.advance_bytes(ascii_run);
                     continue;
                 }
                 let cli = utf_cluster_info(ci);

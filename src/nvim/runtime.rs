@@ -695,7 +695,7 @@ fn source_callback_vim_lua(
     let mut did_one = false;
 
     for fname_cstr in fnames {
-        if path_with_extension(fname_cstr, c"vim") {
+        if path_with_extension(fname_cstr.as_bytes(), b"vim") {
             do_source(fname_cstr, false, DOSO_NONE, cookie.as_deref_mut());
             did_one = true;
             if !all {
@@ -705,7 +705,7 @@ fn source_callback_vim_lua(
     }
 
     for fname_cstr in fnames {
-        if path_with_extension(fname_cstr, c"lua") {
+        if path_with_extension(fname_cstr.as_bytes(), b"lua") {
             do_source(fname_cstr, false, DOSO_NONE, cookie.as_deref_mut());
             did_one = true;
             if !all {
@@ -725,7 +725,8 @@ fn source_callback(fnames: &[std::ffi::CString], all: bool, mut cookie: Option<&
     }
 
     for fname_cstr in fnames {
-        if !path_with_extension(fname_cstr, c"vim") && !path_with_extension(fname_cstr, c"lua") {
+        let fb = fname_cstr.as_bytes();
+        if !path_with_extension(fb, b"vim") && !path_with_extension(fb, b"lua") {
             do_source(fname_cstr, false, DOSO_NONE, cookie.as_deref_mut());
             did_one = true;
             if !all {
@@ -1122,7 +1123,7 @@ fn expand_rtp_entry(
     }
 
     let mut files: Vec<std::ffi::CString> = Vec::new();
-    if gen_expand_wildcards_vec(&[entry], &mut files, EW_DIR | EW_NOBREAK) {
+    if gen_expand_wildcards_vec(&[entry.to_bytes()], &mut files, EW_DIR | EW_NOBREAK) {
         for file in &files {
             push_path(search_path, rtp_used, file, after, pos_in_rtp);
         }
@@ -1344,7 +1345,7 @@ fn gen_expand_wildcards_and_cb(
 ) -> bool {
     let mut files: Vec<std::ffi::CString> = Vec::new();
 
-    if !gen_expand_wildcards_vec(&[pat], &mut files, flags) {
+    if !gen_expand_wildcards_vec(&[pat.to_bytes()], &mut files, flags) {
         return false;
     }
 
@@ -1354,31 +1355,28 @@ fn gen_expand_wildcards_and_cb(
 }
 
 fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
-    let fname = fname_cstr.as_ptr().cast_mut();
+    let fname_bytes = fname_cstr.to_bytes();
     let mut retval = false;
 
-    let past_head_cstr = get_past_head(fname_cstr);
-    let past_head = past_head_cstr.as_ptr();
-    let mut p1 = past_head;
-    let mut p2 = p1;
-    let mut p3 = p1;
-    let mut p4 = p1;
-    let rem_bytes = past_head_cstr.to_bytes();
+    let rem_bytes = get_past_head(fname_bytes);
+    let past_head_off = fname_bytes.len() - rem_bytes.len();
+    let mut p1_off = past_head_off;
+    let mut p2_off = p1_off;
+    let mut p3_off = p1_off;
+    let mut p4_off = p1_off;
     let mut idx = 0usize;
     while idx < rem_bytes.len() {
         if vim_ispathsep_nocolon(rem_bytes[idx] as i32) {
-            p4 = p3;
-            p3 = p2;
-            p2 = p1;
-            p1 = past_head.wrapping_add(idx);
+            p4_off = p3_off;
+            p3_off = p2_off;
+            p2_off = p1_off;
+            p1_off = past_head_off + idx;
         }
         idx += utfc_ptr2len(&rem_bytes[idx..]) as usize;
     }
 
-    p4 = p4.wrapping_add(1);
-    let prefix_len = (p4 as usize) - (fname as usize);
-    let prefix_cstr = bytes_to_cstring(&fname_cstr.to_bytes()[..prefix_len]);
-    let ffname_cstr = fix_fname(Some(&prefix_cstr));
+    let prefix_len = p4_off + 1;
+    let ffname_cstr = fix_fname(Some(&fname_bytes[..prefix_len]));
 
     let Some(ref ffname_owned) = ffname_cstr else {
         return false;
@@ -1430,14 +1428,13 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
 
             if insp_off.is_none() {
                 add_pathsep(&mut buf_data[..buf_size + 3]);
-                let Some(rtp_ffname) = fix_fname(Some(crate::memory::bytes_as_cstr(&buf_data)))
-                else {
+                let Some(rtp_ffname) = fix_fname(Some(&buf_data)) else {
                     break 'block;
                 };
                 if path_cmp(
                     opt_vars().p_fic.get(),
-                    &rtp_ffname,
-                    ffname_owned.as_c_str(),
+                    rtp_ffname.as_bytes(),
+                    ffname_owned.as_bytes(),
                     fname_len,
                 ) == 0
                 {
@@ -1449,8 +1446,8 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         p_rtp_len += rtp_bytes[p_rtp_len..].len();
         let insp_idx = insp_off.unwrap_or(p_rtp_len);
 
-        fname_len = fname_cstr.to_bytes().len();
-        let ad = crate::path::concat_fnames_cstr(fname_cstr, c"after", true);
+        fname_len = fname_bytes.len();
+        let ad = crate::path::concat_fnames_cstr(fname_bytes, b"after", true);
         let mut afterdir = NvimString::from_cstr(&ad);
         let afterdir_has_entries = if is_pack {
             pack_has_entries(&ad)
@@ -1577,7 +1574,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
 }
 
 fn load_pack_plugin(opt: bool, fname: &std::ffi::CStr) -> bool {
-    let ffname_cstr = fix_fname(Some(fname)).unwrap_or_default();
+    let ffname_cstr = fix_fname(Some(fname.to_bytes())).unwrap_or_default();
     let len = ffname_cstr.as_bytes().len() + 14;
     let mut pat_vec = vec![0u8; len + 1];
 
@@ -1614,12 +1611,8 @@ fn add_pack_plugins(opt: bool, fnames: &[std::ffi::CString], all: bool, action: 
             let mut found = false;
             let mut p = p_rtp.as_bytes();
             while !p.is_empty() {
-                copy_option_part(&mut p, &mut buf[..MAXPATHL], c",");
-                if path_equal(
-                    crate::memory::bytes_as_cstr(&buf),
-                    fname_cstr.as_c_str(),
-                    K_PATH_CMP_LITERAL,
-                ) {
+                let part_len = copy_option_part(&mut p, &mut buf[..MAXPATHL], c",");
+                if path_equal(&buf[..part_len], fname_cstr.as_bytes(), K_PATH_CMP_LITERAL) {
                     found = true;
                     break;
                 }
@@ -1661,7 +1654,7 @@ pub fn add_pack_start_dirs() {
 
 fn pack_has_entries(buf: &std::ffi::CStr) -> bool {
     let mut files: Vec<std::ffi::CString> = Vec::new();
-    gen_expand_wildcards_vec(&[buf], &mut files, EW_DIR) && !files.is_empty()
+    gen_expand_wildcards_vec(&[buf.to_bytes()], &mut files, EW_DIR) && !files.is_empty()
 }
 
 fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
@@ -2021,8 +2014,8 @@ pub fn ExpandPackAddDir(pat_cstr: &std::ffi::CStr, file: &mut Vec<std::ffi::CStr
     drop(s_vec);
 
     for slot in file.iter_mut() {
-        let tail = path_tail(slot);
-        *slot = (*tail).to_owned();
+        let tail = path_tail(slot.as_bytes());
+        *slot = bytes_to_cstring(tail);
     }
 
     if file.is_empty() {
@@ -2167,7 +2160,7 @@ pub fn get_lib_dir() -> Option<std::ffi::CString> {
 
     let mut exe_name = [0u8; MAXPATHL];
     vim_get_prefix_from_exepath(&mut exe_name);
-    if append_path(&mut exe_name, c"lib/nvim") {
+    if append_path(&mut exe_name, b"lib/nvim") {
         return Some(crate::memory::cstring_until_nul(&exe_name));
     }
     None
@@ -2571,7 +2564,7 @@ fn do_source_ext(
             fname_cstr.to_owned()
         } else {
             let p = expand_env_save(fname_cstr);
-            let Some(fe) = fix_fname(Some(&p)) else {
+            let Some(fe) = fix_fname(Some(p.as_bytes())) else {
                 return retval;
             };
             if os_isdir(&fe) {
@@ -2648,15 +2641,11 @@ fn do_source_ext(
             cookie.fp = fopen_noinh_readbin(&fname_exp_owned);
         }
         if cookie.fp.is_none() && check_other {
-            let tail_ptr = path_tail(fname_exp_owned.as_c_str()).as_ptr();
-            let tail_off = (tail_ptr as usize) - (fname_exp_owned.as_ptr() as usize);
-            let first_b = fname_exp_owned
-                .as_bytes()
-                .get(tail_off)
-                .copied()
-                .unwrap_or(0);
+            let exp_bytes = fname_exp_owned.as_bytes();
+            let tail_off = exp_bytes.len() - path_tail(exp_bytes).len();
+            let first_b = exp_bytes.get(tail_off).copied().unwrap_or(0);
             if first_b == b'.' || first_b == b'_' {
-                let rest = &fname_exp_owned.as_bytes()[tail_off + 1..];
+                let rest = &exp_bytes[tail_off + 1..];
                 if rest.eq_ignore_ascii_case(b"nvimrc") || rest.eq_ignore_ascii_case(b"exrc") {
                     let mut bytes = fname_exp_owned.into_bytes();
                     bytes[tail_off] = if first_b == b'_' { b'.' } else { b'_' };
@@ -2747,7 +2736,7 @@ fn do_source_ext(
         } else if str_opt.is_none() {
             new_script_item(Some(fname_exp_owned.clone()), &mut sid);
             has_si = true;
-            let is_lua = path_with_extension(fname_exp_owned.as_c_str(), c"lua");
+            let is_lua = path_with_extension(fname_exp_owned.as_bytes(), b"lua");
             with_script_item_mut(sid, |si| si.sn_lua = is_lua);
             if let Some(ref mut ret_sid_ref) = ret_sid {
                 **ret_sid_ref = sid;
@@ -2805,7 +2794,7 @@ fn do_source_ext(
             && curbuf().b_p_ft.as_bytes() != b"lua"
             && !curbuf()
                 .fname_opt()
-                .is_some_and(|f| path_with_extension(&f, c"lua"))
+                .is_some_and(|f| path_with_extension(f.to_bytes(), b"lua"))
         {
             let mut args_items = [
                 integer_obj(Integer::from(curbuf().b_fnum.get())),
@@ -2831,7 +2820,7 @@ fn do_source_ext(
                 || curbuf().b_p_ft.as_bytes() == b"lua"
                 || curbuf()
                     .fname_opt()
-                    .is_some_and(|f| path_with_extension(&f, c"lua")))
+                    .is_some_and(|f| path_with_extension(f.to_bytes(), b"lua")))
         {
             nlua_exec_lines(&cookie.buflines, &fname_exp_owned);
         } else if has_si && with_script_item(sid, |si| si.sn_lua) {
@@ -2843,8 +2832,8 @@ fn do_source_ext(
             {
                 convert_setup(
                     &mut cookie.conv,
-                    Some(c"utf-8"),
-                    Some(&opt_vars().p_enc.as_cstr()),
+                    Some(b"utf-8"),
+                    Some(&opt_vars().p_enc.as_bytes()),
                 );
                 let after_bom = &fl.to_bytes()[3..];
                 firstline = Some(string_convert(&cookie.conv, after_bom, None).map_or_else(
@@ -2963,7 +2952,7 @@ pub fn find_script_by_name(name: &std::ffi::CStr) -> Option<i32> {
         let matched = with_script_item(sid, |si| {
             si.sn_name
                 .as_ref()
-                .is_some_and(|sn| path_equal(sn, name, K_PATH_CMP_LITERAL))
+                .is_some_and(|sn| path_equal(sn.as_bytes(), name.to_bytes(), K_PATH_CMP_LITERAL))
         });
         if matched {
             return Some(sid);
@@ -3369,17 +3358,17 @@ pub fn ex_scriptencoding(eap: &mut Exarg) {
         return;
     };
 
-    let name_owned = (!eap.arg.is_empty()).then(|| enc_canonize(eap.arg.as_cstr()));
+    let name_owned = (!eap.arg.is_empty()).then(|| enc_canonize(eap.arg.as_bytes()));
     let name_opt = if let Some(ref n) = name_owned {
-        Some(n.as_c_str())
+        Some(n.as_bytes())
     } else {
-        eap.arg.as_opt_cstr()
+        eap.arg.as_opt_cstr().map(CStr::to_bytes)
     };
 
     convert_setup(
         &mut sp.borrow_mut().conv,
         name_opt,
-        Some(&opt_vars().p_enc.as_cstr()),
+        Some(&opt_vars().p_enc.as_bytes()),
     );
 }
 

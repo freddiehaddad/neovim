@@ -679,7 +679,7 @@ pub fn readfile(
                         }
                     }
                     if !silent {
-                        if dir_of_file_exists(fname.unwrap_or(c"")) {
+                        if dir_of_file_exists(fname.map_or(b"", CStr::to_bytes)) {
                             filemess(g_st().curbuf.get().opt(), sfname, tr(c"[New]"), None);
                         } else {
                             filemess(
@@ -966,7 +966,7 @@ pub fn readfile(
                 && eap.force_enc != 0
             {
                 fenc_owned = Some(enc_canonize(
-                    eap.cmd.wrapping_add(eap.force_enc as usize).as_cstr(),
+                    eap.cmd.wrapping_add(eap.force_enc as usize).as_bytes(),
                 ));
                 keep_dest_enc = true;
             } else if curbuf().b_p_bin.get() {
@@ -1054,8 +1054,8 @@ pub fn readfile(
                     }
 
                     if fio_flags == 0 && !did_iconv {
-                        iconv_fd =
-                            my_iconv_open(c"utf-8", fenc_cstr).map_or(-1, |fd| fd as iconv_t);
+                        iconv_fd = my_iconv_open(b"utf-8", fenc_cstr.to_bytes())
+                            .map_or(-1, |fd| fd as iconv_t);
                     }
 
                     if fio_flags == 0
@@ -2388,7 +2388,7 @@ pub fn set_forced_fenc(eap: &Exarg) {
         return;
     }
 
-    let fenc = enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize).as_cstr());
+    let fenc = enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize).as_bytes());
     set_option_direct(K_OPT_FILEENCODING, cstr_as_obj(Some(&*fenc)), OPT_LOCAL, 0);
 }
 
@@ -2399,13 +2399,13 @@ fn next_fenc(pp: &mut &[u8]) -> std::ffi::CString {
         return std::ffi::CString::default();
     }
     if let Some(comma_pos) = pp.iter().position(|&b| b == b',') {
-        let tmp = std::ffi::CString::new(&pp[..comma_pos]).unwrap_or_default();
+        let part = &pp[..comma_pos];
         *pp = &pp[comma_pos + 1..];
-        enc_canonize(&tmp)
+        enc_canonize(part)
     } else {
-        let tmp = std::ffi::CString::new(crate::memory::bytes_until_nul(pp)).unwrap_or_default();
+        let part = crate::memory::bytes_until_nul(pp);
         *pp = b"";
-        enc_canonize(&tmp)
+        enc_canonize(part)
     }
 }
 
@@ -2700,7 +2700,14 @@ pub fn shorten_buf_fname(buf: &FileBuf, dirname: &CStr, force: i32) -> bool {
     }
 
     let ffname_opt = buf.ffname_opt();
-    let p = path_shorten_fname(ffname_opt.as_deref(), dirname);
+    let p_bytes = path_shorten_fname(
+        ffname_opt.as_deref().map(CStr::to_bytes),
+        dirname.to_bytes(),
+    );
+    let p = ffname_opt
+        .as_deref()
+        .zip(p_bytes)
+        .map(|(ff, pb)| &ff[ff.to_bytes().len() - pb.len()..]);
     let shorten = p.is_some_and(|s| !s.to_bytes().is_empty());
     if shorten && buf.b_sfname.get().is_some() && p == Some(&buf.sfname_cstr()) {
         return false;
@@ -2782,8 +2789,8 @@ pub fn modname(
     retval_vec[s_idx..(s_idx + extlen)].copy_from_slice(ext_bytes);
     retval_vec[s_idx + extlen] = 0;
 
-    let e_ptr = path_tail(crate::memory::bytes_as_cstr(&retval_vec)).as_ptr();
-    let e_idx = (e_ptr as usize) - (retval_vec.as_ptr() as usize);
+    let retval_len = s_idx + extlen;
+    let e_idx = retval_len - path_tail(&retval_vec[..retval_len]).len();
     if prepend_dot && retval_vec[e_idx] != b'.' {
         let end_idx = fnamelen + extlen;
         retval_vec.copy_within(e_idx..=end_idx, e_idx + 1);
@@ -2959,8 +2966,8 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> bool {
     let mut tempname: [u8; MAXPATHL + 1] = [0; MAXPATHL + 1];
     crate::memory::copy_bytes_to_c_buf(&mut tempname, from_bytes);
     for n in 123..99999 {
-        let tail = path_tail(crate::memory::bytes_as_cstr(&tempname)).as_ptr();
-        let tail_off = (tail as usize) - (tempname.as_ptr() as usize);
+        let temp_bytes = crate::memory::bytes_until_nul(&tempname);
+        let tail_off = temp_bytes.len() - path_tail(temp_bytes).len();
         format_to_buf!(&mut tempname[tail_off..], c"%d", n);
 
         let temp_cstr = crate::memory::bytes_as_cstr(&tempname);
@@ -2993,8 +3000,8 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> bool {
 pub fn vim_rename(from: &CStr, to: &CStr) -> bool {
     let mut use_tmp_file = false;
 
-    if path_equal(from, to, K_PATH_CMP_LITERAL) {
-        if opt_vars().p_fic.get() && path_tail(from) != path_tail(to) {
+    if path_equal(from.to_bytes(), to.to_bytes(), K_PATH_CMP_LITERAL) {
+        if opt_vars().p_fic.get() && path_tail(from.to_bytes()) != path_tail(to.to_bytes()) {
             use_tmp_file = true;
         } else {
             return true;
@@ -3755,8 +3762,8 @@ pub fn vim_deltempdir() {
     vim_closetempdir();
 
     let mut td_vec: Vec<u8> = td.into_bytes_with_nul();
-    let tail_ptr = path_tail(crate::memory::bytes_as_cstr(&td_vec)).as_ptr();
-    let tail_off = (tail_ptr as usize) - (td_vec.as_ptr() as usize);
+    let td_bytes = crate::memory::bytes_until_nul(&td_vec);
+    let tail_off = td_bytes.len() - path_tail(td_bytes).len();
     if tail_off > 0 {
         td_vec[tail_off - 1] = 0;
     }
@@ -3801,7 +3808,11 @@ pub fn vim_gettempdir() -> Option<std::ffi::CString> {
 fn vim_settempdir(tempdir: &CStr) -> bool {
     let mut buf_vec: Vec<u8> = vec![0; MAXPATHL + 2];
 
-    vim_full_name(Some(tempdir), &mut buf_vec[..MAXPATHL], cfg!(windows));
+    vim_full_name(
+        Some(tempdir.to_bytes()),
+        &mut buf_vec[..MAXPATHL],
+        cfg!(windows),
+    );
 
     let mut buflen = crate::memory::bytes_until_nul(&buf_vec).len();
     if !after_pathsep(&buf_vec[..buflen]) {
@@ -3837,7 +3848,7 @@ pub fn match_file_pat(
     prog: Option<&Regprog>,
     fname: Option<&CStr>,
     sfname: Option<&CStr>,
-    tail: &CStr,
+    tail: &[u8],
     allow_dirs: i32,
 ) -> bool {
     let mut regmatch: Regmatch = Regmatch::new();
@@ -3854,7 +3865,8 @@ pub fn match_file_pat(
         && ((allow_dirs != 0
             && (vim_regexec(&mut regmatch, fname.unwrap_or(c""), 0)
                 || sfname.is_some_and(|sf| vim_regexec(&mut regmatch, sf, 0))))
-            || (allow_dirs == 0 && vim_regexec(&mut regmatch, tail, 0)))
+            || (allow_dirs == 0
+                && vim_regexec(&mut regmatch, &crate::memory::bytes_to_cstring(tail), 0)))
     {
         result = true;
     }
@@ -3867,7 +3879,7 @@ pub fn match_file_pat(
 
 /// Check if a file matches with a pattern in "list".
 pub fn match_file_list(list: &CStr, sfname: Option<&CStr>, ffname: &CStr) -> bool {
-    let tail = path_tail(sfname.unwrap_or(c""));
+    let tail = path_tail(sfname.map_or(b"", CStr::to_bytes));
 
     let mut p = list.to_bytes();
     while !p.is_empty() {

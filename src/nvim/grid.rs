@@ -1682,7 +1682,7 @@ pub fn schar_from_cluster(ci: StrCharInfo<'_>, cli: ClusterInfo<'_>) -> Schar {
 
 #[cfg(test)]
 pub fn unittest_schar_from_cluster(buf: &std::ffi::CStr, firstc: &mut i32) -> Schar {
-    let ci = crate::mbyte::utf_ptr2_str_char_info(buf);
+    let ci = crate::mbyte::utf_slice2_str_char_info(buf.to_bytes());
     let cli = crate::mbyte::utf_cluster_info(ci);
     *firstc = ci.chr.value;
     if ci.chr.value >= 0 {

@@ -815,7 +815,7 @@ pub fn msg_keep(s_in: &std::ffi::CStr, hl_id: i32, keep: bool, multiline: bool) 
 
         if keep
             && retval
-            && vim_strsize(s)
+            && vim_strsize(s.to_bytes())
                 < (g_st().rows_global.get() - g_st().cmdline_row.get() - 1)
                     * g_st().columns_global.get()
                     + g_st().sc_col.get()
@@ -844,7 +844,7 @@ pub fn msg_strtrunc(s: &std::ffi::CStr, force: i32) -> Option<std::ffi::CString>
             && !ui_has(K_UIMESSAGES))
             || force != 0
         {
-            let len = vim_strsize(s);
+            let len = vim_strsize(s.to_bytes());
             let room = if g_st().msg_scrolled.get() != 0 {
                 // Use all the columns.
                 (g_st().rows_global.get() - g_st().msg_row.get()) * g_st().columns_global.get() - 1
@@ -1347,7 +1347,7 @@ pub fn msg_may_trunc(force: bool, s: &mut [u8]) -> &std::ffi::CStr {
         - 1;
     let mut off = 0usize;
     if room > 0 && (force || shortmess(K_SHM_TRUNC)) && slen - room > 0 {
-        let mut size = vim_strsize(crate::memory::bytes_as_cstr(s));
+        let mut size = vim_strsize(crate::memory::bytes_until_nul(s));
 
         // There may be room anyway when there are multibyte chars.
         if size <= room {
@@ -1988,7 +1988,7 @@ pub fn wait_return(redraw: i32) {
     g_st().lines_left.set(-1);
     reset_last_sourcing();
     if g_st().keep_msg.get().as_ref().is_some_and(|km| {
-        vim_strsize(km)
+        vim_strsize(km.as_bytes())
             >= (g_st().rows_global.get() - g_st().cmdline_row.get() - 1)
                 * g_st().columns_global.get()
                 + g_st().sc_col.get()
@@ -2372,7 +2372,7 @@ pub fn msg_outtrans_special(strstart: &[u8], from: bool, maxlen: i32) -> i32 {
             text =
                 SpecialKeyBuf::from_cstr(&transchar_byte_buf(None, i32::from(text.to_bytes()[0])));
         }
-        let len = vim_strsize(&text);
+        let len = vim_strsize(text.to_bytes());
         if maxlen > 0 && retval + len >= maxlen {
             break;
         }

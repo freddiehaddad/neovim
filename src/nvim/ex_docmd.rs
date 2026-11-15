@@ -4958,7 +4958,11 @@ fn is_other_file(fnum: i32, ffname: Option<&CStr>) -> bool {
         && curbuf().b_sfname.get().is_some()
         && !curbuf().sfname_bytes().is_empty()
     {
-        return !path_equal(ffname, &curbuf().sfname_cstr(), K_PATH_CMP_LITERAL);
+        return !path_equal(
+            ffname.to_bytes(),
+            &curbuf().sfname_bytes(),
+            K_PATH_CMP_LITERAL,
+        );
     }
 
     otherfile(Some(ffname))
@@ -9408,7 +9412,7 @@ fn ex_restart(eap: &mut Exarg) {
                     .iter()
                     .any(|b| matches!(b, b':' | b'/' | b'\\'))
                 {
-                    listen_arg = to_slash_save(Some(&addr));
+                    listen_arg = to_slash_save(Some(addr.to_bytes()));
                     #[cfg(windows)]
                     {
                         drop(next_tv);
@@ -10412,7 +10416,7 @@ fn ex_connect(eap: &mut Exarg) {
     } else {
         if !is_tcp && !crate::path::path_is_absolute(addr_bytes) {
             // Relative to the current directory (not the UI's), like other file args.
-            if let Some(full_addr) = crate::path::FullName_save(addr.as_opt_cstr(), true) {
+            if let Some(full_addr) = crate::path::FullName_save(addr.as_opt_bytes(), true) {
                 addr = crate::option_vars::RcSlice::from_cstr(full_addr.as_c_str());
             }
         }
@@ -10934,13 +10938,13 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
         new_dir_cstr = home_dir_cstr.as_deref().unwrap();
     }
 
-    let new_dir_owned = to_slash_save(Some(new_dir_cstr)).unwrap_or_default();
+    let new_dir_owned = to_slash_save(Some(new_dir_cstr.to_bytes())).unwrap_or_default();
 
     let bcd_active = scope != K_CD_SCOPE_BUFFER && curbuf().b_localdir.get().is_some();
 
     let dir_differs = pdir
         .as_ref()
-        .is_none_or(|p| !path_equal(p, new_dir_owned.as_c_str(), K_PATH_CMP_LITERAL));
+        .is_none_or(|p| !path_equal(p.as_bytes(), new_dir_owned.as_bytes(), K_PATH_CMP_LITERAL));
     if dir_differs {
         if !bcd_active {
             do_autocmd_dirchanged(&new_dir_owned, scope, K_CD_CAUSE_MANUAL, true);
@@ -12210,7 +12214,7 @@ pub fn eval_vars(
                     && let Some(ref cur_fname) = g_st().autocmd_fname.get()
                 {
                     g_st().autocmd_fname_full.set(true);
-                    if let Some(full) = FullName_save(Some(cur_fname), false) {
+                    if let Some(full) = FullName_save(Some(cur_fname.as_bytes()), false) {
                         g_st().autocmd_fname.set(Some(full));
                     }
                 }
@@ -12221,8 +12225,13 @@ pub fn eval_vars(
                     return None;
                 };
                 resultbuf = Some(af.into_bytes_with_nul());
-                result_cstr =
-                    path_try_shorten_fname(resultbuf.as_deref().map(crate::memory::bytes_as_cstr));
+                result_cstr = resultbuf.as_deref().and_then(|rb| {
+                    let bytes = crate::memory::bytes_until_nul(rb);
+                    let short = path_try_shorten_fname(Some(bytes))?;
+                    Some(crate::memory::bytes_as_cstr(
+                        &rb[bytes.len() - short.len()..],
+                    ))
+                });
             }
             SPEC_ABUF => {
                 if g_st().autocmd_bufnr.get() <= 0 {
@@ -12316,10 +12325,9 @@ pub fn eval_vars(
         let mut fname_off = 0usize;
         if src_buf.get(src_off + *usedlen) == Some(&b'<') {
             *usedlen += 1;
-            let cur_cstr = crate::memory::bytes_as_cstr(&fbuf);
-            let tail_off = resultlen - path_tail(cur_cstr).to_bytes().len();
-            if let Some(dot_off) = cur_cstr
-                .to_bytes()
+            let cur_bytes = &fbuf[..resultlen];
+            let tail_off = resultlen - path_tail(cur_bytes).len();
+            if let Some(dot_off) = cur_bytes
                 .iter()
                 .rposition(|&b| b == b'.')
                 .filter(|&off| off >= tail_off)

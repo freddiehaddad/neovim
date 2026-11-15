@@ -1115,7 +1115,7 @@ pub fn draw_tabline() {
 
                 shorten_dir(&mut name_buff);
                 let name_cstr = crate::memory::bytes_as_cstr(&name_buff);
-                let mut len = vim_strsize(name_cstr);
+                let mut len = vim_strsize(name_cstr.to_bytes());
                 let mut p_cstr: &CStr = name_cstr;
                 while len > room {
                     let b = p_cstr.to_bytes();
@@ -1292,7 +1292,7 @@ fn stl_truncate(
     }
 
     if *width
-        - vim_strsize(crate::memory::bytes_as_cstr(
+        - vim_strsize(crate::memory::bytes_until_nul(
             &out_buf[trunc_idx.min(out_buf.len())..],
         ))
         >= maxwid
@@ -1704,9 +1704,7 @@ pub fn build_stl_str_hl_slice(
             let start_idx = stl_items!()[gidx as usize].start_off;
             out_buf[out_idx] = 0;
 
-            let mut group_len = vim_strsize(crate::memory::bytes_as_cstr(
-                &out_buf[start_idx.min(out_buf.len())..],
-            ));
+            let mut group_len = vim_strsize(&out_buf[start_idx.min(out_idx)..out_idx]);
 
             if curitem > gidx + 1 && stl_items!()[gidx as usize].minwid == 0 {
                 let mut group_start_userhl = 0;
@@ -2015,7 +2013,9 @@ pub fn build_stl_str_hl_slice(
                 if opt != STL_FILENAME {
                     str_slice = Some(nb_cstr.to_bytes_with_nul());
                 } else {
-                    str_slice = Some(path_tail(nb_cstr).to_bytes_with_nul());
+                    let nb_bytes = nb_cstr.to_bytes();
+                    let tail_off = nb_bytes.len() - path_tail(nb_bytes).len();
+                    str_slice = Some(&nb_cstr.to_bytes_with_nul()[tail_off..]);
                 }
             }
             STL_VIM_EXPR => {
@@ -2438,7 +2438,7 @@ pub fn build_stl_str_hl_slice(
                 prevchar_isflag = true;
             }
 
-            let mut l = vim_strsize(crate::memory::bytes_as_cstr(&s_buf[t_idx..]));
+            let mut l = vim_strsize(crate::memory::bytes_until_nul(&s_buf[t_idx..]));
             if l > 0 {
                 prevchar_isitem = true;
             }
@@ -2602,7 +2602,7 @@ pub fn build_stl_str_hl_slice(
     }
     out_buf[out_idx] = 0;
 
-    let mut width = vim_strsize(crate::memory::bytes_as_cstr(out_buf));
+    let mut width = vim_strsize(&out_buf[..out_idx]);
     if maxwidth > 0 && width > maxwidth && (stcp.is_none() || width > MAX_STCWIDTH) {
         stl_truncate(
             &mut width,

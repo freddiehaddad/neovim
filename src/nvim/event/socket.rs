@@ -383,8 +383,8 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
         debug_assert!(result <= 0);
         if result < 0 {
             if result == UV_EACCES {
-                let tail_off = (path_tail(watcher.addr_cstr()).as_ptr() as usize)
-                    - (watcher.addr.as_ptr() as usize);
+                let addr_bytes = watcher.addr_cstr().to_bytes();
+                let tail_off = addr_bytes.len() - path_tail(addr_bytes).len();
                 watcher.addr[tail_off] = 0;
                 if !os_path_exists(watcher.addr_cstr()) {
                     result = UV_ENOENT;

@@ -48,8 +48,8 @@ use crate::mapping::{
     map_hash, map_luaid_get, with_maphash_list,
 };
 use crate::mbyte::{
-    mb_cptr2char_adv, mb_unescape, utf_byte2len, utf_char2bytes, utf_cluster_info,
-    utf_ptr2_str_char_info, utf_ptr2cells, utf_ptr2char, utf_slice2char,
+    mb_cptr2char_adv, mb_unescape, utf_byte2len, utf_char2bytes, utf_cluster_info, utf_ptr2cells,
+    utf_ptr2char, utf_slice2_str_char_info, utf_slice2char,
 };
 use crate::mcursor::mc_replaying;
 use crate::memline::ml_sync_all;
@@ -2704,9 +2704,10 @@ fn vgetorpeek(advance: bool) -> i32 {
                                     wp.w_cursor.get().lnum,
                                     &ptr_cstr,
                                 );
-                                let mut ci: StrCharInfo = utf_ptr2_str_char_info(&ptr_cstr);
+                                let ptr_bytes = ptr_cstr.to_bytes();
+                                let mut ci: StrCharInfo = utf_slice2_str_char_info(ptr_bytes);
                                 let mut vcol: i32 = 0;
-                                while ci.offset_from(&ptr_cstr) < end_off {
+                                while ci.offset_from(ptr_bytes) < end_off {
                                     if !ascii_iswhite(ci.chr.value) {
                                         curwin().w_wcol.set(vcol);
                                     }

@@ -3250,7 +3250,7 @@ fn buflist_getfpos() {
 
 /// Find file in buffer list by name (it has to be for the current window).
 pub fn buflist_findname_exp(fname: Option<&CStr>) -> Option<crate::globals::BufPtr> {
-    let ffname = FullName_save(fname, cfg!(unix))?;
+    let ffname = FullName_save(fname.map(CStr::to_bytes), cfg!(unix))?;
     buflist_findname(Some(ffname.as_c_str()))
 }
 
@@ -3835,7 +3835,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         )
         .min(IOSIZE - 20);
 
-        let mut i = 40 - vim_strsize(crate::memory::bytes_as_cstr(&iobuff));
+        let mut i = 40 - vim_strsize(crate::memory::bytes_until_nul(&iobuff));
         loop {
             iobuff[len] = b' ';
             len += 1;
@@ -4043,7 +4043,11 @@ fn otherfile_buf(
     if ffname_cstr.to_bytes().is_empty() {
         return true;
     }
-    if path_equal(ffname_cstr, &buf_ffname, K_PATH_CMP_LITERAL) {
+    if path_equal(
+        ffname_cstr.to_bytes(),
+        buf_ffname.to_bytes(),
+        K_PATH_CMP_LITERAL,
+    ) {
         return false;
     }
     let mut local_file_id: FileID = FileID::new();
@@ -4343,7 +4347,7 @@ pub fn maketitle() {
             let name_bytes = if let Some(ref sp) = sp {
                 sp.to_bytes()
             } else {
-                path_tail(&ffname).to_bytes()
+                path_tail(ffname.to_bytes())
             };
             let mut off = 0usize;
             if name_bytes.len() > 100 {
@@ -4456,26 +4460,23 @@ pub fn fname_expand(
     let _ = buf;
     let ffname_in = ffname?;
     let sfname_in = sfname.unwrap_or(ffname_in);
-    let mut full_cstr = fix_fname(Some(ffname_in))?;
+    let mut full_cstr = fix_fname(Some(ffname_in.to_bytes()))?;
     #[cfg_attr(not(windows), expect(unused_mut))]
     let mut sf_cstr = sfname_in.to_owned();
     if os_isdir(&full_cstr) {
         let mut name_vec: Vec<u8> = sf_cstr.as_bytes_with_nul().to_vec();
         let name_len = name_vec.len() - 1;
-        let name_cstr = crate::memory::bytes_as_cstr(&name_vec);
-        let past_head_off =
-            get_past_head(name_cstr).as_ptr() as usize - name_cstr.as_ptr() as usize;
+        let past_head_off = name_len - get_past_head(&name_vec[..name_len]).len();
         if name_len > 0 && after_pathsep(&name_vec[..name_len]) && name_len > past_head_off {
-            let tail_off =
-                path_tail_with_sep(name_cstr).as_ptr() as usize - name_cstr.as_ptr() as usize;
+            let tail_off = name_len - path_tail_with_sep(&name_vec[..name_len]).len();
             name_vec[tail_off] = 0;
         }
-        let full = fix_fname(Some(crate::memory::bytes_as_cstr(&name_vec)));
+        let full = fix_fname(Some(&name_vec));
         drop(name_vec);
         if let Some(dir_full) = full {
             full_cstr = dir_full;
         }
-        full_cstr = concat_fnames_cstr(&full_cstr, c"", true);
+        full_cstr = concat_fnames_cstr(full_cstr.to_bytes(), b"", true);
     }
 
     #[cfg(windows)]

@@ -56,7 +56,7 @@ use crate::r#match::{
     get_prevcol_hl_flag, get_search_match_hl, prepare_search_hl_line, update_search_hl,
 };
 use crate::mbyte::{
-    mb_charlen, mb_string2cells, utf_cluster_info, utf_ptr2_str_char_info, utf_ptr2cells,
+    mb_charlen, mb_string2cells, utf_cluster_info, utf_ptr2cells, utf_slice2_str_char_info,
     utfc_ptr2len,
 };
 use crate::memline::{gchar_pos, ml_get_buf, ml_get_buf_len};
@@ -522,7 +522,7 @@ fn draw_virt_text_item(
         while ci.is_empty() {
             if virt_pos >= vt.len() {
                 if eol_hl {
-                    ci = utf_ptr2_str_char_info(c" ");
+                    ci = utf_slice2_str_char_info(b" ");
                 } else {
                     break;
                 }
@@ -531,7 +531,7 @@ fn draw_virt_text_item(
                 let Some(next) = next_virt_text_chunk(vt, &mut virt_pos, &mut virt_attr) else {
                     break;
                 };
-                ci = utf_ptr2_str_char_info(next);
+                ci = utf_slice2_str_char_info(next.to_bytes());
             }
         }
         if ci.is_empty() {
@@ -623,50 +623,47 @@ fn draw_col_buf(
     mut fold_vcol: Option<&[Colnr]>,
     inc_vcol: bool,
 ) {
-    let text_cstr = crate::memory::bytes_as_cstr(text_buf);
-    {
-        let mut ci = utf_ptr2_str_char_info(text_cstr);
-        while ci.offset_from(text_cstr) < len && wlv.off < wp.w_view_width.get() {
-            let cli = utf_cluster_info(ci);
-            let maxcells = wp.w_view_width.get() - wlv.off;
-            debug_assert!(cli.cells <= 2 && ci.chr.value >= 0x20);
-            let mut cells = cli.cells;
-            if cli.cells > maxcells {
-                g_st().linebuf_char.borrow_mut()[wlv.off as usize] = schar_from_ascii(b' ');
-                cells = 1;
-            } else {
-                g_st().linebuf_char.borrow_mut()[wlv.off as usize] = schar_from_cluster(ci, cli);
-                if cells == 2 {
-                    g_st().linebuf_char.borrow_mut()[(wlv.off + 1) as usize] = 0;
-                }
+    let mut ci = utf_slice2_str_char_info(text_buf);
+    while ci.offset_from(text_buf) < len && wlv.off < wp.w_view_width.get() {
+        let cli = utf_cluster_info(ci);
+        let maxcells = wp.w_view_width.get() - wlv.off;
+        debug_assert!(cli.cells <= 2 && ci.chr.value >= 0x20);
+        let mut cells = cli.cells;
+        if cli.cells > maxcells {
+            g_st().linebuf_char.borrow_mut()[wlv.off as usize] = schar_from_ascii(b' ');
+            cells = 1;
+        } else {
+            g_st().linebuf_char.borrow_mut()[wlv.off as usize] = schar_from_cluster(ci, cli);
+            if cells == 2 {
+                g_st().linebuf_char.borrow_mut()[(wlv.off + 1) as usize] = 0;
             }
-
-            let mut myattr = attr;
-            if inc_vcol {
-                advance_color_col(wlv, wlv.vcol);
-                if wlv.color_cols.first().is_some_and(|&cc| cc == wlv.vcol) {
-                    myattr = hl_combine_attr(win_hl_attr(wp, HLF_MC), myattr);
-                }
-            }
-            for _ in 0..cells {
-                g_st().linebuf_attr.borrow_mut()[wlv.off as usize] = myattr;
-                g_st().linebuf_vcol.borrow_mut()[wlv.off as usize] = if inc_vcol {
-                    let v = wlv.vcol;
-                    wlv.vcol += 1;
-                    v
-                } else if let Some(fv) = fold_vcol.as_mut() {
-                    let v = fv.first().copied().unwrap_or(-1);
-                    if !fv.is_empty() {
-                        *fv = &fv[1..];
-                    }
-                    v
-                } else {
-                    -1
-                };
-                wlv.off += 1;
-            }
-            ci = cli.next;
         }
+
+        let mut myattr = attr;
+        if inc_vcol {
+            advance_color_col(wlv, wlv.vcol);
+            if wlv.color_cols.first().is_some_and(|&cc| cc == wlv.vcol) {
+                myattr = hl_combine_attr(win_hl_attr(wp, HLF_MC), myattr);
+            }
+        }
+        for _ in 0..cells {
+            g_st().linebuf_attr.borrow_mut()[wlv.off as usize] = myattr;
+            g_st().linebuf_vcol.borrow_mut()[wlv.off as usize] = if inc_vcol {
+                let v = wlv.vcol;
+                wlv.vcol += 1;
+                v
+            } else if let Some(fv) = fold_vcol.as_mut() {
+                let v = fv.first().copied().unwrap_or(-1);
+                if !fv.is_empty() {
+                    *fv = &fv[1..];
+                }
+                v
+            } else {
+                -1
+            };
+            wlv.off += 1;
+        }
+        ci = cli.next;
     }
 }
 
@@ -2520,7 +2517,7 @@ pub fn win_line(
                     wlv.n_extra -= 1;
                 } else {
                     debug_assert!(wlv.p_extra().is_some());
-                    let ci = utf_ptr2_str_char_info(wlv.p_extra().unwrap_or(c""));
+                    let ci = utf_slice2_str_char_info(wlv.p_extra().unwrap_or(c"").to_bytes());
                     let cli = utf_cluster_info(ci);
                     let mut mb_l = (ci.ptr.len() - cli.next.ptr.len()) as i32;
                     mb_schar = schar_from_cluster(ci, cli);

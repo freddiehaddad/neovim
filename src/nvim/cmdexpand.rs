@@ -2651,7 +2651,7 @@ fn expand_one_start(
                 {
                     non_suf_match = 0;
                     for i in 0..2 {
-                        if match_suffix(xp.xp_files.as_slice()[i].as_c_str()) {
+                        if match_suffix(xp.xp_files.as_slice()[i].as_bytes()) {
                             non_suf_match += 1;
                         }
                     }
@@ -2987,9 +2987,9 @@ pub fn showmatches(
             {
                 let mut name_buff = [0u8; MAXPATHL];
                 home_replace(None, Some(match_i.as_c_str()), &mut name_buff, true);
-                vim_strsize(crate::memory::bytes_as_cstr(&name_buff))
+                vim_strsize(crate::memory::bytes_until_nul(&name_buff))
             } else {
-                vim_strsize(show_match(matches, i, showtail))
+                vim_strsize(show_match(matches, i, showtail).to_bytes())
             };
             maxlen = maxlen.max(len);
         }
@@ -3074,14 +3074,12 @@ fn expand_showtail(xp: &mut ExpandCtx) -> bool {
         return false;
     }
 
-    let pat_cstr = xp.xp_pattern.as_cstr();
-    let end = path_tail(pat_cstr).as_ptr();
-    if end == pat_cstr.as_ptr() {
+    let pat_bytes = xp.xp_pattern.as_bytes();
+    let end_off = pat_bytes.len() - path_tail(pat_bytes).len();
+    if end_off == 0 {
         return false;
     }
 
-    let pat_bytes = pat_cstr.to_bytes();
-    let end_off = (end as usize).saturating_sub(pat_cstr.as_ptr() as usize);
     let mut idx = 0usize;
     while idx < end_off && idx < pat_bytes.len() {
         if rem_backslash(&pat_bytes[idx..]) {
@@ -3190,9 +3188,8 @@ pub fn addstar(fname_slice: &[u8], context: i32) -> CString {
             let mut len = len;
             let mut retval_vec = vec![0u8; len + 4];
             retval_vec[..len].copy_from_slice(fname_slice);
-            let retval_cstr = crate::memory::bytes_as_cstr(&retval_vec);
-            let tail_cstr = path_tail(retval_cstr);
-            let tail_is_start = tail_cstr.as_ptr() == retval_cstr.as_ptr();
+            let tail = path_tail(&retval_vec[..len]);
+            let tail_is_start = tail.len() == len;
             #[cfg(windows)]
             let ends_in_star = len > 0 && retval_vec[len - 1] == b'*';
             #[cfg(not(windows))]
@@ -3210,8 +3207,8 @@ pub fn addstar(fname_slice: &[u8], context: i32) -> CString {
             }
             if (retval_vec[0] != b'~' || !tail_is_start)
                 && !ends_in_star
-                && !crate::strings::vim_haschr(tail_cstr, b'$' as i32)
-                && !crate::strings::vim_haschr(retval_cstr, b'`' as i32)
+                && !tail.contains(&b'$')
+                && !retval_vec[..len].contains(&b'`')
             {
                 retval_vec[len] = b'*';
                 len += 1;
@@ -4447,7 +4444,7 @@ fn expand_files_and_dirs(
             if (options & WILD_ICASE) != 0 {
                 flags |= EW_ICASE;
             }
-            expand_wildcards_eval(pat_cstr, matches, flags)
+            expand_wildcards_eval(pat_cstr.to_bytes(), matches, flags)
         };
         drop(pat_owned);
         #[cfg(windows)]
@@ -5196,7 +5193,7 @@ fn expand_shellcmd_onedir(
     gap: &mut Vec<CString>,
 ) {
     let mut dir_matches: Vec<std::ffi::CString> = Vec::new();
-    if !expand_wildcards_vec(&[pathed_pattern], &mut dir_matches, flags) {
+    if !expand_wildcards_vec(&[pathed_pattern.to_bytes()], &mut dir_matches, flags) {
         return;
     }
 

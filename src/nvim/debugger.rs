@@ -548,7 +548,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             let q = expand_env_save(p);
             let p_exp = expand_env_save(&q);
             let raw_name = if p_exp.to_bytes().first().copied().unwrap_or(0) != b'*' {
-                fix_fname(Some(&p_exp))?
+                fix_fname(Some(p_exp.as_bytes()))?
             } else {
                 p_exp
             };

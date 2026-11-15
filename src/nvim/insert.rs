@@ -102,7 +102,7 @@ use crate::mark::{mark_view_make, reset_fmark};
 use crate::marktree::K_MTMETA_INLINE;
 use crate::mbyte::{
     mb_adjust_cursor, mb_get_class, ptr2cells, utf_char2bytes, utf_char2len, utf_cluster_info,
-    utf_composinglike, utf_ptr2_str_char_info, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
+    utf_composinglike, utf_ptr2char, utf_ptr2len, utf_slice2_str_char_info, utfc_ptr2len,
 };
 use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins_replaying};
 use crate::memline::{gchar_pos, ml_append, ml_get, ml_get_len, ml_replace, ml_replace_dirty_line};
@@ -3222,15 +3222,16 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
             let use_ts =
                 !curwin().w_onebuf_opt.wo_list.get() || curwin().w_p_lcs_chars.borrow().tab1 != 0;
             let line_cstr = get_cursor_line_ptr();
+            let line_bytes = line_cstr.to_bytes();
             let cursor_col = curwin().w_cursor.get().col as usize;
 
             let mut vcol: Colnr = 0;
             let mut space_vcol: Colnr = 0;
-            let mut sci = utf_ptr2_str_char_info(&line_cstr);
+            let mut sci = utf_slice2_str_char_info(line_bytes);
             let mut space_sci = sci;
             let mut prev_space = false;
 
-            while sci.offset_from(&line_cstr) < cursor_col {
+            while sci.offset_from(line_bytes) < cursor_col {
                 let cur_space = ascii_iswhite(sci.chr.value);
                 if !prev_space && cur_space {
                     space_sci = sci;
@@ -3268,7 +3269,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                 space_vcol += size;
                 space_sci = cli.next;
             }
-            let want_col = space_sci.offset_from(&line_cstr) as Colnr;
+            let want_col = space_sci.offset_from(line_bytes) as Colnr;
 
             while curwin().w_cursor.get().col > want_col {
                 dec_cursor();
@@ -3963,7 +3964,7 @@ pub fn ins_copychar(lnum: Linenr) -> i32 {
     let wp = curwin();
     let mut csarg = CharsizeArg::new();
     let cstype = init_charsize_arg(&mut csarg, &wp, lnum, &line_cstr);
-    let mut ci = utf_ptr2_str_char_info(&line_cstr);
+    let mut ci = utf_slice2_str_char_info(line_cstr.to_bytes());
     let mut vcol: i32 = 0;
     while vcol < end_vcol && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);

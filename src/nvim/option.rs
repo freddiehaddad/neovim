@@ -1119,8 +1119,7 @@ pub fn set_init_3() {
 
     let mut len: usize = 0;
     let p_sh = opt_vars().p_sh.to_owned();
-    let p = invocation_path_tail(&p_sh, Some(&mut len));
-    let p_bytes = p.to_bytes();
+    let p_bytes = invocation_path_tail(p_sh.to_bytes(), Some(&mut len));
     let name_slice = &p_bytes[..len.min(p_bytes.len())];
     for (i, rule) in SHELL_RULES.iter().enumerate() {
         let pat = rule.pat.to_bytes();
@@ -6147,7 +6146,7 @@ fn showoptions(all: bool, opt_flags: i32) {
                     1
                 } else {
                     let formatted = optval_fmt(opt_idx, opt_flags);
-                    (opt.fullname.to_bytes().len() as i32) + vim_strsize(&formatted) + 1
+                    (opt.fullname.to_bytes().len() as i32) + vim_strsize(formatted.as_bytes()) + 1
                 };
                 if (len <= INC - GAP && run == 1) || (len > INC - GAP && run == 2) {
                     items.push(opt);
@@ -8049,7 +8048,7 @@ pub fn shortmess(x: i32) -> bool {
 pub fn vimrc_found(fname: Option<&std::ffi::CStr>, envname: &std::ffi::CStr) {
     if let Some(fname) = fname
         && vim_getenv(envname).is_none()
-        && let Some(p) = FullName_save(Some(fname), false)
+        && let Some(p) = FullName_save(Some(fname.to_bytes()), false)
     {
         os_setenv(envname, p.as_c_str(), 1);
     }
@@ -8355,16 +8354,14 @@ pub fn option_next_keyval<'a>(p: &mut &'a [u8]) -> Option<(&'a [u8], Option<&'a 
 
 /// Return true when 'shell' has "csh" in the tail.
 pub fn csh_like_shell() -> bool {
-    path_tail(&opt_vars().p_sh.as_cstr())
-        .to_bytes()
+    path_tail(&opt_vars().p_sh.as_bytes())
         .windows(3)
         .any(|w| w == b"csh")
 }
 
 /// Return true when 'shell' has "fish" in the tail.
 pub fn fish_like_shell() -> bool {
-    path_tail(&opt_vars().p_sh.as_cstr())
-        .to_bytes()
+    path_tail(&opt_vars().p_sh.as_bytes())
         .windows(4)
         .any(|w| w == b"fish")
 }

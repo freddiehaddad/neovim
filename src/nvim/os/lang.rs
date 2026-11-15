@@ -500,9 +500,9 @@ fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<u8> {
         }
         return out;
     }
-    if let Ok(cs_cstr) = CString::new(cs) {
+    if !cs.contains(&0) {
         let mut vc = Vimconv::new();
-        if convert_setup(&mut vc, Some(&cs_cstr), Some(c"utf-8")) && vc.vc_type != 0 {
+        if convert_setup(&mut vc, Some(cs), Some(b"utf-8")) && vc.vc_type != 0 {
             let mut len = bytes.len();
             if let Some(mut slice) = string_convert(&vc, bytes, Some(&mut len)) {
                 slice.truncate(len);
@@ -788,15 +788,11 @@ pub fn init_locale() {
 
     let mut localepath = [0u8; MAXPATHL];
     crate::memory::copy_bytes_to_c_buf(&mut localepath, get_vim_var_str(VV_PROGPATH).to_bytes());
-    let tail_with_sep_len = path_tail_with_sep(crate::memory::bytes_as_cstr(&localepath))
-        .to_bytes()
-        .len();
-    let trim_idx = crate::memory::bytes_until_nul(&localepath).len() - tail_with_sep_len;
+    let lp_bytes = crate::memory::bytes_until_nul(&localepath);
+    let trim_idx = lp_bytes.len() - path_tail_with_sep(lp_bytes).len();
     localepath[trim_idx] = 0;
-    let tail_len = path_tail(crate::memory::bytes_as_cstr(&localepath))
-        .to_bytes()
-        .len();
-    let offset = crate::memory::bytes_until_nul(&localepath).len() - tail_len;
+    let lp_bytes = &localepath[..trim_idx];
+    let offset = lp_bytes.len() - path_tail(lp_bytes).len();
     crate::memory::copy_bytes_to_c_buf(&mut localepath[offset..], b"share/locale");
 
     if HAVE_LIBINTL {

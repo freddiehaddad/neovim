@@ -2256,7 +2256,7 @@ fn ins_compl_dictionaries(
             if !thesaurus && buf_cstr.to_bytes() == b"spell" {
                 count = -1;
             } else if crate::strings::vim_haschr(buf_cstr, b'`' as i32)
-                || !expand_wildcards_vec(&[buf_cstr], &mut files, EW_FILE | EW_SILENT)
+                || !expand_wildcards_vec(&[buf_cstr.to_bytes()], &mut files, EW_FILE | EW_SILENT)
             {
                 count = 0;
             } else {
@@ -4468,8 +4468,8 @@ fn get_next_filename_completion() {
         flags |= EW_PATH;
     }
     let pat = compl_pattern();
-    let pat_cstr = pat.as_deref().unwrap_or(c"");
-    if !expand_wildcards_vec(&[pat_cstr], &mut matches, flags) {
+    let pat_bytes = pat.as_deref().map_or(&b""[..], CStr::to_bytes);
+    if !expand_wildcards_vec(&[pat_bytes], &mut matches, flags) {
         return;
     }
 
@@ -5081,10 +5081,9 @@ fn get_next_bufname_token() {
     for b in for_all_buffers_ptr() {
         if b.b_p_bl.get() && b.b_sfname.get().is_some() {
             let sfname = b.sfname_cstr();
-            let tail = path_tail(&sfname);
+            let tail_b = path_tail(sfname.to_bytes());
             let orig_str = INSEXPAND.with(|s| s.compl_orig_text.get());
             let orig_bytes = orig_str.as_bytes();
-            let tail_b = tail.to_bytes();
             if &tail_b[..orig_bytes.len().min(tail_b.len())] == orig_bytes {
                 ins_compl_add(
                     tail_b,
@@ -5715,7 +5714,7 @@ fn ins_compl_show_filename() {
         g_st().columns_global.get()
     } else {
         g_st().sc_col.get()
-    }) - vim_strsize(lead)
+    }) - vim_strsize(lead.to_bytes())
         - 2;
     if space <= 0 {
         return;

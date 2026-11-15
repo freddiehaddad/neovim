@@ -55,7 +55,7 @@ use crate::mapping::{REMAP_NONE, REMAP_YES};
 use crate::mark::mark_adjust;
 use crate::mbyte::{
     mb_charlen, mb_string2cells_len, mb_tolower, ptr2cells, utf_cluster_info,
-    utf_ptr2_str_char_info, utfc_ptr2len,
+    utf_slice2_str_char_info, utfc_ptr2len,
 };
 use crate::mcursor::mc_ins_cascading;
 use crate::memline::{decl, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
@@ -1877,7 +1877,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                 let mut csarg = CharsizeArg::new();
                 let mut cstype: CSType =
                     init_charsize_arg(&mut csarg, &wp, wp.w_cursor.get().lnum, &oldp_cstr);
-                let mut ci = utf_ptr2_str_char_info(&oldp_cstr);
+                let mut ci = utf_slice2_str_char_info(oldp_bytes);
                 vcol = 0;
                 while vcol < col && !ci.ptr.is_empty() {
                     let cli = utf_cluster_info(ci);
@@ -1887,7 +1887,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     vcol += incr;
                     ci = cli.next;
                 }
-                let text_off = ci.offset_from(&oldp_cstr);
+                let text_off = ci.offset_from(oldp_bytes);
                 bd.textcol = text_off as Colnr;
 
                 let shortline = (vcol < col)
@@ -1915,7 +1915,7 @@ pub fn do_put(regname: i32, mut reg: Option<PutReg<'_>>, mut dir: i32, mut count
                     let y_data = y_item.as_cstr();
                     cstype = init_charsize_arg(&mut csarg, &wp, 0, y_data);
 
-                    ci = utf_ptr2_str_char_info(y_data);
+                    ci = utf_slice2_str_char_info(y_data.to_bytes());
 
                     while !ci.ptr.is_empty() {
                         let cli = utf_cluster_info(ci);
@@ -2770,7 +2770,7 @@ fn str_to_reg(
             let s = item.as_ref();
             y_ptr.y_array.push(cstr_to_string(Some(s)));
             if yank_type == MotionType::MtBlockWise {
-                let charlen = vim_strsize(s) as usize;
+                let charlen = vim_strsize(s.to_bytes()) as usize;
                 maxlen = maxlen.max(charlen);
             }
         }

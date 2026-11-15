@@ -472,8 +472,7 @@ pub fn spell_load_file(
         .map(|b| crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(b)));
     let mut new_lp = slang_alloc(lang_cstr.as_deref());
     new_lp.sl_fname = Some(fname_cstr.to_owned());
-    new_lp.sl_add = path_tail(fname_cstr)
-        .to_bytes()
+    new_lp.sl_add = path_tail(fname_cstr.to_bytes())
         .windows(SPL_FNAME_ADD.len())
         .any(|w| w == SPL_FNAME_ADD);
 
@@ -789,8 +788,8 @@ pub fn suggest_load_files() {
                 continue;
             };
             if !path_equal(
-                &fname_cstr.as_c_str()[prefix_len..],
-                c".spl",
+                &fname_cstr.as_bytes()[prefix_len..],
+                b".spl",
                 K_PATH_CMP_LITERAL,
             ) {
                 with_spell_ext(|ext| {
@@ -1590,10 +1589,9 @@ fn spell_reload_one(fname_cstr: &std::ffi::CStr, added_word: bool) {
     for i in (0..len).rev() {
         let matches = with_spell_ext(|ext| {
             ext.first_lang.borrow()[i].as_ref().is_some_and(|slang| {
-                slang
-                    .sl_fname
-                    .as_ref()
-                    .is_some_and(|f| path_equal(fname_cstr, f, K_PATH_CMP_EXPAND))
+                slang.sl_fname.as_ref().is_some_and(|f| {
+                    path_equal(fname_cstr.to_bytes(), f.as_bytes(), K_PATH_CMP_EXPAND)
+                })
             })
         });
         if matches {
@@ -1787,13 +1785,13 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
             let itemcnt_i = itemcnt as i32;
             let item0_bytes = items[0].to_bytes();
             if is_aff_rule(&items, itemcnt_i, c"SET", 2) && aff.af_enc.is_none() {
-                aff.af_enc = Some(enc_canonize(items[1]));
+                aff.af_enc = Some(enc_canonize(items[1].to_bytes()));
                 let af_enc_opt = aff.af_enc.as_deref();
                 if !spin.si_ascii
                     && !convert_setup(
                         &mut spin.si_conv,
-                        af_enc_opt,
-                        Some(&opt_vars().p_enc.as_cstr()),
+                        af_enc_opt.map(CStr::to_bytes),
+                        Some(&opt_vars().p_enc.as_bytes()),
                     )
                 {
                     smsg!(
@@ -3436,12 +3434,12 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                         );
                     } else {
                         let line_cstr = &after_slash_cstr[9..];
-                        let enc = enc_canonize(line_cstr);
+                        let enc = enc_canonize(line_cstr.to_bytes());
                         if !spin.si_ascii
                             && !convert_setup(
                                 &mut spin.si_conv,
-                                Some(enc.as_c_str()),
-                                Some(&opt_vars().p_enc.as_cstr()),
+                                Some(enc.as_bytes()),
+                                Some(&opt_vars().p_enc.as_bytes()),
                             )
                         {
                             smsg!(
@@ -4439,9 +4437,9 @@ fn spell_make_sugfile(spin: &mut Spellinfo, wfname_cstr: &std::ffi::CStr) {
             .rev()
             .find(|(_, s)| {
                 s.as_ref().is_some_and(|s| {
-                    s.sl_fname
-                        .as_ref()
-                        .is_some_and(|f| path_equal(wfname_cstr, f, K_PATH_CMP_EXPAND))
+                    s.sl_fname.as_ref().is_some_and(|f| {
+                        path_equal(wfname_cstr.to_bytes(), f.as_bytes(), K_PATH_CMP_EXPAND)
+                    })
                 })
             })
             .map(|(idx, _)| idx)
@@ -4453,8 +4451,7 @@ fn spell_make_sugfile(spin: &mut Spellinfo, wfname_cstr: &std::ffi::CStr) {
         spell_message(&*spin, gettext(c"Reading back spell file..."));
         let mut new_lp = slang_alloc(None::<&std::ffi::CStr>);
         new_lp.sl_fname = Some(wfname_cstr.to_owned());
-        new_lp.sl_add = path_tail(wfname_cstr)
-            .to_bytes()
+        new_lp.sl_add = path_tail(wfname_cstr.to_bytes())
             .windows(SPL_FNAME_ADD.len())
             .any(|w| w == SPL_FNAME_ADD);
         if !spell_load_file_into(wfname_cstr, &mut new_lp, false) {
@@ -4796,17 +4793,16 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
             );
         }
 
-        let wfname = crate::memory::bytes_as_cstr(&wfname_buf);
+        let wfname = crate::memory::bytes_until_nul(&wfname_buf);
+        let wfname_tail = path_tail(wfname);
 
-        if path_tail(wfname)
-            .to_bytes()
+        if wfname_tail
             .windows(SPL_FNAME_ASCII.len())
             .any(|w| w == SPL_FNAME_ASCII)
         {
             spin.si_ascii = true;
         }
-        if path_tail(wfname)
-            .to_bytes()
+        if wfname_tail
             .windows(SPL_FNAME_ADD.len())
             .any(|w| w == SPL_FNAME_ADD)
         {
@@ -4818,7 +4814,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
 
     if incount <= 0 {
         emsg(gettext(E_INVARG));
-    } else if vim_strchr(path_tail(wfname_cstr), b'_' as i32).is_some() {
+    } else if path_tail(wfname_cstr.to_bytes()).contains(&b'_') {
         emsg(gettext(c"E751: Output file name must not have region name"));
     } else if incount > MAXREGIONS as i32 {
         semsg!(
@@ -4838,7 +4834,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                 let in_cstr = &innames[i];
                 let in_bytes = in_cstr.as_bytes();
                 let len = in_bytes.len();
-                if path_tail(in_cstr).to_bytes().len() < 5 || in_bytes[len - 3] != b'_' {
+                if path_tail(in_bytes).len() < 5 || in_bytes[len - 3] != b'_' {
                     semsg!(gettext(c"E755: Invalid region in %s"), in_cstr);
                     region_ok = false;
                     break;
@@ -5095,11 +5091,11 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
 
     if !undo {
         let mut fd = CFile::open(fname_cstr, c"a");
-        if fd.is_none() && new_spf && !dir_of_file_exists(fname_cstr) {
-            let p = path_tail_with_sep(fname_cstr).as_ptr();
-            if p != fname_cstr.as_ptr() {
-                let dir_len = (p as usize) - (fname_cstr.as_ptr() as usize);
-                let dir_cstr = crate::memory::bytes_to_cstring(&fname_cstr.to_bytes()[..dir_len]);
+        if fd.is_none() && new_spf && !dir_of_file_exists(fname_cstr.to_bytes()) {
+            let fname_bytes = fname_cstr.to_bytes();
+            let dir_len = fname_bytes.len() - path_tail_with_sep(fname_bytes).len();
+            if dir_len > 0 {
+                let dir_cstr = crate::memory::bytes_to_cstring(&fname_bytes[..dir_len]);
                 os_mkdir(&dir_cstr, 0o755);
                 fd = CFile::open(fname_cstr, c"a");
             }
@@ -5201,7 +5197,7 @@ fn init_spellfile() {
     let fname_opt = slang0.sl_fname.as_deref();
     let sp_enc = spell_enc();
     let enc_suffix =
-        if fname_opt.is_some_and(|f| path_tail(f).to_bytes().windows(7).any(|w| w == b".ascii.")) {
+        if fname_opt.is_some_and(|f| path_tail(f.to_bytes()).windows(7).any(|w| w == b".ascii.")) {
             c"ascii"
         } else {
             &sp_enc

@@ -869,10 +869,11 @@ fn buf_write_make_backup(
         {
             *backup_copyp = true;
         } else {
-            let dirlen = (path_tail(fname_cstr).as_ptr() as usize) - (fname_cstr.as_ptr() as usize);
+            let fname_bytes = fname_cstr.to_bytes();
+            let dirlen = fname_bytes.len() - path_tail(fname_bytes).len();
             assert!(dirlen < MAXPATHL);
             let mut tmp_fname = [0u8; MAXPATHL];
-            tmp_fname[..dirlen].copy_from_slice(&fname_cstr.to_bytes()[..dirlen]);
+            tmp_fname[..dirlen].copy_from_slice(&fname_bytes[..dirlen]);
             let mut i: i32 = 4913;
             loop {
                 let suffix = format!(".{i}.swp\0");
@@ -1153,9 +1154,13 @@ pub fn buf_write(
         fname = sfname;
     }
 
-    let overwriting = buf
-        .ffname_opt()
-        .is_some_and(|bf| path_equal(ffname.unwrap_or(c""), &bf, K_PATH_CMP_LITERAL));
+    let overwriting = buf.ffname_opt().is_some_and(|bf| {
+        path_equal(
+            ffname.map_or(b"", CStr::to_bytes),
+            bf.to_bytes(),
+            K_PATH_CMP_LITERAL,
+        )
+    });
 
     g_st().no_wait_return.set(g_st().no_wait_return.get() + (1));
 
@@ -1365,7 +1370,7 @@ pub fn buf_write(
                     if let Some(eap) = eap
                         && eap.force_enc != 0
                     {
-                        enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize).as_cstr())
+                        enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize).as_bytes())
                     } else {
                         buf.b_p_fenc.as_cstr().to_owned().as_cstr().to_owned()
                     },
@@ -1389,7 +1394,7 @@ pub fn buf_write(
 
                 if converted && wb_flags == 0 {
                     write_info.bw_iconv_fd =
-                        my_iconv_open(fenc, c"utf-8").map_or(-1, |fd| fd as iconv_t);
+                        my_iconv_open(fenc.to_bytes(), b"utf-8").map_or(-1, |fd| fd as iconv_t);
                     if write_info.bw_iconv_fd != -1 {
                         write_info.bw_conv_buf = vec![0; (bufsize as usize) * ICONV_MULT];
                         write_info.bw_first = 1;

@@ -27,7 +27,7 @@ use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
 use crate::insert::{
     backspace_until_column, beginline, get_nolist_virtcol, replace_join, replace_push_nul,
 };
-use crate::mbyte::{utf_cluster_info, utf_ptr2_char_info, utf_ptr2_str_char_info, utfc_ptr2len};
+use crate::mbyte::{utf_cluster_info, utf_ptr2_char_info, utf_slice2_str_char_info, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_len, ml_replace};
 use crate::message::{emsg, msg_progress};
 use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
@@ -932,7 +932,7 @@ pub fn get_breakindent_win(wp: &WinInfoInfo, line: &[u8]) -> i32 {
     bri += off2;
 
     if wp.w_briopt_sbr.get() {
-        bri -= vim_strsize(&get_showbreak_value(wp));
+        bri -= vim_strsize(get_showbreak_value(wp).as_bytes());
     }
 
     if bri < 0 {
@@ -1230,7 +1230,8 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
             let wp = curwin();
             let mut csarg = CharsizeArg::new();
             let cstype: CSType = init_charsize_arg(&mut csarg, &wp, 0, &line_cstr);
-            let mut ci: StrCharInfo = utf_ptr2_str_char_info(&line_cstr);
+            let line_bytes = line_cstr.to_bytes();
+            let mut ci: StrCharInfo = utf_slice2_str_char_info(line_bytes);
             loop {
                 let cli: ClusterInfo = utf_cluster_info(ci);
                 let next_vcol = vcol
@@ -1245,7 +1246,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
                     break;
                 }
             }
-            new_cursor_col = ci.offset_from(&line_cstr) as i32;
+            new_cursor_col = ci.offset_from(line_bytes) as i32;
         }
 
         if vcol != curwin().w_virtcol.get() {
@@ -1735,7 +1736,7 @@ pub fn get_lisp_indent() -> i32 {
             let mut csarg = CharsizeArg::new();
             let cstype: CSType = init_charsize_arg(&mut csarg, &wp, pos.lnum, &line_cstr);
 
-            let mut sci: StrCharInfo = utf_ptr2_str_char_info(&line_cstr);
+            let mut sci: StrCharInfo = utf_slice2_str_char_info(line_cstr.to_bytes());
             amount = 0;
             while !sci.is_empty() && col > 0 {
                 let cli: ClusterInfo = utf_cluster_info(sci);

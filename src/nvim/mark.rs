@@ -873,7 +873,9 @@ fn fname2fnum(fm: &Xfmark) {
     let mut iobuff = [0u8; IOSIZE];
     os_dirname(&mut iobuff);
     let nb = crate::memory::bytes_as_cstr(&name_buff);
-    let p = path_shorten_fname(Some(nb), crate::memory::bytes_as_cstr(&iobuff));
+    let nb_bytes = nb.to_bytes();
+    let p = path_shorten_fname(Some(nb_bytes), crate::memory::bytes_until_nul(&iobuff))
+        .map(|pb| &nb[nb_bytes.len() - pb.len()..]);
 
     let _ = buflist_new(Some(nb), p, 1, 0);
 }
@@ -900,7 +902,7 @@ fn fmarks_check_one(fm: &mut Xfmark, name: &CStr, buf: &FileBuf) {
         && fm
             .fname
             .as_ref()
-            .is_some_and(|f| path_equal(name, f, K_PATH_CMP_LITERAL))
+            .is_some_and(|f| path_equal(name.to_bytes(), f.as_bytes(), K_PATH_CMP_LITERAL))
     {
         fm.fmark.fnum = buf.b_fnum.get();
         fm.fname = None;

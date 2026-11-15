@@ -4035,7 +4035,7 @@ pub fn ex_version(eap: &mut Exarg) {
 }
 
 fn version_msg_wrap(s: &CStr, wrap: bool) {
-    let len = vim_strsize(s) + if wrap { 2 } else { 0 };
+    let len = vim_strsize(s.to_bytes()) + if wrap { 2 } else { 0 };
     if !g_st().got_int.get()
         && len < g_st().columns_global.get()
         && g_st().msg_col.get() + len >= g_st().columns_global.get()
@@ -4064,7 +4064,7 @@ pub fn list_in_columns(items: &[&CStr], current: i32) {
     let mut width: i32 = 0;
 
     for (i, &item) in items.iter().enumerate() {
-        let l = vim_strsize(item) + if i as i32 == current { 2 } else { 0 };
+        let l = vim_strsize(item.to_bytes()) + if i as i32 == current { 2 } else { 0 };
         if l > width {
             width = l;
         }
@@ -4262,7 +4262,7 @@ pub fn intro_message(colon: bool) {
 fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
     let mesg_bytes = mesg_cstr.to_bytes();
     {
-        let mut col = (g_st().columns_global.get() - vim_strsize(mesg_cstr)) / 2;
+        let mut col = (g_st().columns_global.get() - vim_strsize(mesg_bytes)) / 2;
         if col < 0 {
             col = 0;
         }

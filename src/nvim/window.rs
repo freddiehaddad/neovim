@@ -5935,8 +5935,8 @@ pub fn update_cwd(cause: CdCause) {
                 .set(Some(crate::memory::cstring_until_nul(&cwd)));
         }
         let dir_differs = !path_equal(
-            new_dir_cstr,
-            crate::memory::bytes_as_cstr(&cwd),
+            new_dir_cstr.to_bytes(),
+            crate::memory::bytes_until_nul(&cwd),
             K_PATH_CMP_LITERAL,
         );
         if !opt_vars().p_acd.get() && dir_differs {
@@ -5949,8 +5949,8 @@ pub fn update_cwd(cause: CdCause) {
         shorten_fnames(true);
     } else if let Some(gdir) = g_st().globaldir.take() {
         let dir_differs = !path_equal(
-            &gdir,
-            crate::memory::bytes_as_cstr(&cwd),
+            gdir.as_bytes(),
+            crate::memory::bytes_until_nul(&cwd),
             K_PATH_CMP_LITERAL,
         );
         if !opt_vars().p_acd.get() && dir_differs {

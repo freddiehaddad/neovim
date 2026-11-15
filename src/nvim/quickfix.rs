@@ -1408,8 +1408,8 @@ fn qf_setup_state(
     if let Some(enc_cstr) = enc.filter(|s| !s.to_bytes().is_empty()) {
         convert_setup(
             &mut pstate.vc,
-            Some(enc_cstr),
-            Some(&opt_vars().p_enc.as_cstr()),
+            Some(enc_cstr.to_bytes()),
+            Some(&opt_vars().p_enc.as_bytes()),
         );
     }
 
@@ -2155,15 +2155,19 @@ fn qf_add_entry(
         qfp.qf_fnum = qf_get_fnum(qfl_rc, dir, fname);
         buflist_findnr_opt(qfp.qf_fnum)
     };
-    let fullname = fname.and_then(|f| fix_fname(Some(f)));
+    let fullname = fname.and_then(|f| fix_fname(Some(f.to_bytes())));
     qfp.qf_fname = None;
     if let Some(buf) = buf
         && buf.b_ffname.get().is_some()
         && let Some(ref full) = fullname
-        && !path_equal(full, &buf.ffname_cstr(), K_PATH_CMP_LITERAL)
-        && let Some(p) = path_try_shorten_fname(Some(full))
+        && !path_equal(
+            full.as_bytes(),
+            buf.ffname_cstr().to_bytes(),
+            K_PATH_CMP_LITERAL,
+        )
+        && let Some(p) = path_try_shorten_fname(Some(full.as_bytes()))
     {
-        qfp.qf_fname = Some(p.to_owned());
+        qfp.qf_fname = Some(crate::memory::bytes_to_cstring(p));
     }
     drop(fullname);
     qfp.qf_text = mesg.to_owned();
@@ -3354,7 +3358,8 @@ fn qf_list_entry(qfp: &Qfline, qf_idx: i32, cursel: bool) {
             if qfp.qf_type == 1
                 && let Some(f) = fname
             {
-                fname = Some(path_tail(f));
+                let fb = f.to_bytes();
+                fname = Some(&f[fb.len() - path_tail(fb).len()..]);
             }
         }
         if let Some(f) = fname {
@@ -4185,7 +4190,7 @@ fn qf_buf_add_line(
             && errbuf.fname_opt().is_some()
         {
             if qfp.qf_type == 1 {
-                qfga_concat(gap, path_tail(&errbuf.fname_cstr()).to_bytes());
+                qfga_concat(gap, path_tail(errbuf.fname_cstr().to_bytes()));
             } else {
                 if first_bufline
                     && (errbuf.b_sfname.get().is_none() || path_is_absolute(&errbuf.sfname_bytes()))
@@ -5498,7 +5503,9 @@ fn vgr_process_files(
     while fi < cmd_args.fnames.len() && !g_st().got_int.get() && cmd_args.tomatch > 0 {
         let fname_exp_cstr = cmd_args.fnames.as_slice()[fi].as_c_str();
         let fname_exp_opt = Some(fname_exp_cstr);
-        let fname = path_try_shorten_fname(fname_exp_opt);
+        let fname_exp_b = fname_exp_cstr.to_bytes();
+        let fname = path_try_shorten_fname(Some(fname_exp_b))
+            .map(|pb| &fname_exp_cstr[fname_exp_b.len() - pb.len()..]);
         let fname_cstr = fname.unwrap_or(c"");
         let now = os_time() as time_t;
         if now > seconds {
@@ -7228,11 +7235,7 @@ fn hgr_search_files_in_dir(
     let dir_len = crate::memory::bytes_until_nul(dirname).len();
     let pat_suffix = b"doc/*.\\(txt\\|??x\\)\0";
     dirname[dir_len..dir_len + pat_suffix.len()].copy_from_slice(pat_suffix);
-    if gen_expand_wildcards_vec(
-        &[crate::memory::bytes_as_cstr(dirname)],
-        &mut fnames,
-        EW_FILE | EW_SILENT,
-    ) && !fnames.is_empty()
+    if gen_expand_wildcards_vec(&[dirname], &mut fnames, EW_FILE | EW_SILENT) && !fnames.is_empty()
     {
         for f_cstr in &fnames {
             if g_st().got_int.get() {

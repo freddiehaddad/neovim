@@ -36,7 +36,7 @@ use crate::insexpand::{LSIZE, set_cpt_callbacks};
 use crate::lua::converter::Boolean;
 use crate::mark::{Fmark, Fmarkv};
 use crate::mbyte::{
-    enc_canonize, get_encoding_name, utf_cluster_info, utf_ptr2_str_char_info, utfc_ptr2len,
+    enc_canonize, get_encoding_name, utf_cluster_info, utf_slice2_str_char_info, utfc_ptr2len,
 };
 use crate::memline::ml_setflags;
 use crate::message::{K_OPT_MESSAGESOPT, msg_grid_validate, verbose_open, verbose_stop};
@@ -2093,7 +2093,7 @@ pub fn validate_encoding<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         }
     }
 
-    let value_cstr = enc_canonize(args.os_newval.data.string().as_cstr());
+    let value_cstr = enc_canonize(args.os_newval.data.string().as_bytes());
     let is_not_utf8 = value_cstr.as_bytes() != b"utf-8";
     args.os_prep = OptSetPrep::Encoding(value_cstr);
     if args.os_idx == K_OPT_ENCODING && is_not_utf8 {
@@ -3287,7 +3287,7 @@ fn get_encoded_char_adv(p: &mut &CStr) -> Schar {
         };
     }
 
-    let ci = utf_ptr2_str_char_info(s);
+    let ci = utf_slice2_str_char_info(s.to_bytes());
     let cli = utf_cluster_info(ci);
     let adv = (cli.next.ptr.as_ptr() as usize).saturating_sub(s.as_ptr() as usize);
     *p = crate::memory::CStrSubslice::advance(s, adv);

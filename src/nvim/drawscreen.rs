@@ -1018,13 +1018,13 @@ pub fn showmode() -> i32 {
                         - 3
                 };
                 if let Some(ref extra) = g_st().edit_submode_extra.get() {
-                    length -= vim_strsize(extra);
+                    length -= vim_strsize(extra.as_bytes());
                 }
                 if length > 0 {
                     if let Some(pre) = g_st().edit_submode_pre.get() {
-                        length -= vim_strsize(pre);
+                        length -= vim_strsize(pre.to_bytes());
                     }
-                    if length - vim_strsize(submode) > 0 {
+                    if length - vim_strsize(submode.to_bytes()) > 0 {
                         if let Some(pre) = g_st().edit_submode_pre.get() {
                             msg_puts_hl(pre, hl_id, false);
                         }

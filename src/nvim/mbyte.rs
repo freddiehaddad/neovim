@@ -56,12 +56,12 @@ impl<'a> StrCharInfo<'a> {
         self.ptr
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn is_empty(&self) -> bool {
         self.ptr.is_empty()
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn first_byte(&self) -> u8 {
         match self.ptr.first() {
             Some(&b) => b,
@@ -69,14 +69,23 @@ impl<'a> StrCharInfo<'a> {
         }
     }
 
-    #[inline]
-    pub const fn offset_from(&self, base: &CStr) -> usize {
-        base.to_bytes().len().saturating_sub(self.ptr.len())
+    #[inline(always)]
+    pub fn offset_from(&self, base: &[u8]) -> usize {
+        (self.ptr.as_ptr() as usize).saturating_sub(base.as_ptr() as usize)
     }
 
-    #[inline]
-    pub const fn offset_from_bytes(&self, base: &[u8]) -> usize {
-        base.len().saturating_sub(self.ptr.len())
+    #[inline(always)]
+    pub fn offset_from_bytes(&self, base: &[u8]) -> usize {
+        (self.ptr.as_ptr() as usize).saturating_sub(base.as_ptr() as usize)
+    }
+
+    #[inline(always)]
+    pub fn advance_bytes(self, n: usize) -> Self {
+        let ptr = &self.ptr[n..];
+        Self {
+            ptr,
+            chr: utf_ptr2_char_info(ptr),
+        }
     }
 }
 
@@ -1063,13 +1072,9 @@ pub fn utf_ptr2_char_info(bytes: impl AsMbyteSlice) -> CharInfo {
     })
 }
 
-#[inline]
-pub fn utf_ptr2_str_char_info(s: &CStr) -> StrCharInfo<'_> {
-    utf_slice2_str_char_info(s.to_bytes())
-}
-
-#[inline]
+#[inline(always)]
 pub fn utf_slice2_str_char_info(ptr: &[u8]) -> StrCharInfo<'_> {
+    let ptr = crate::memory::bytes_until_nul(ptr);
     StrCharInfo {
         ptr,
         chr: utf_ptr2_char_info(ptr),
@@ -2428,8 +2433,11 @@ pub fn mb_strnicmp(s1: &[u8], s2: &[u8], nn: usize) -> i32 {
     utf_strnicmp(s1, s2, nn, nn)
 }
 
-pub fn mb_stricmp(s1: &CStr, s2: &CStr) -> i32 {
-    utf_strnicmp_slice(s1.to_bytes(), s2.to_bytes())
+pub fn mb_stricmp(s1: &[u8], s2: &[u8]) -> i32 {
+    utf_strnicmp_slice(
+        crate::memory::bytes_until_nul(s1),
+        crate::memory::bytes_until_nul(s2),
+    )
 }
 
 pub fn show_utf8() {
@@ -2860,8 +2868,8 @@ pub fn utf_find_illegal() {
     if (enc_canon_props(&curbuf().b_p_fenc.as_bytes()) & ENC_8BIT) != 0 {
         convert_setup(
             &mut vimconv,
-            Some(&opt_vars().p_enc.as_cstr()),
-            Some(&curbuf().b_p_fenc.as_cstr()),
+            Some(&opt_vars().p_enc.as_bytes()),
+            Some(&curbuf().b_p_fenc.as_bytes()),
         );
     }
 
@@ -3016,13 +3024,12 @@ pub fn mb_unescape(s: &mut &[u8]) -> Option<crate::strings::InlineCStr<6>> {
     None
 }
 
-pub fn enc_skip(p: &CStr) -> &CStr {
-    let bytes = p.to_bytes_with_nul();
-    let skipped = bytes
+pub fn enc_skip(p: &[u8]) -> &[u8] {
+    let bytes = crate::memory::bytes_until_nul(p);
+    bytes
         .strip_prefix(b"2byte-")
         .or_else(|| bytes.strip_prefix(b"8bit-"))
-        .unwrap_or(bytes);
-    CStr::from_bytes_with_nul(skipped).unwrap_or(c"")
+        .unwrap_or(bytes)
 }
 
 fn enc_alias_search(bytes: &[u8]) -> Option<usize> {
@@ -3034,8 +3041,8 @@ fn enc_alias_search(bytes: &[u8]) -> Option<usize> {
     None
 }
 
-pub fn enc_canonize(enc: &CStr) -> std::ffi::CString {
-    let enc_bytes = enc.to_bytes();
+pub fn enc_canonize(enc: &[u8]) -> std::ffi::CString {
+    let enc_bytes = crate::memory::bytes_until_nul(enc);
     if enc_bytes == b"default" {
         return g_st().fenc_default.get().clone().unwrap_or_default();
     }
@@ -3112,7 +3119,7 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
                 0
             };
             buf[6] = 0;
-            return Some(enc_canonize(crate::memory::bytes_as_cstr(&buf)));
+            return Some(enc_canonize(&buf));
         }
         s_full = &s_full[dot_idx + 1..];
     }
@@ -3132,15 +3139,22 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
     }
     buf[i] = 0;
 
-    Some(enc_canonize(crate::memory::bytes_as_cstr(&buf)))
+    Some(enc_canonize(&buf[..i]))
 }
 
-pub fn my_iconv_open(to: &CStr, from: &CStr) -> Option<usize> {
+pub fn my_iconv_open(to: &[u8], from: &[u8]) -> Option<usize> {
     const ICONV_TESTLEN: usize = 400;
     if mbyte_st(|st| st.iconv_working.get()) == WorkingStatus::KBroken {
         return None;
     }
-    let fd = call_iconv_open(enc_skip(to), enc_skip(from));
+    let mut to_buf = [0u8; 64];
+    let mut from_buf = [0u8; 64];
+    crate::memory::copy_bytes_to_c_buf(&mut to_buf, enc_skip(to));
+    crate::memory::copy_bytes_to_c_buf(&mut from_buf, enc_skip(from));
+    let fd = call_iconv_open(
+        crate::memory::bytes_as_cstr(&to_buf),
+        crate::memory::bytes_as_cstr(&from_buf),
+    );
     if fd != -1 && mbyte_st(|st| st.iconv_working.get()) == WorkingStatus::KUnknown {
         let mut tobuf = [0u8; ICONV_TESTLEN];
         let mut to_rem: &mut [u8] = &mut tobuf;
@@ -3211,16 +3225,20 @@ pub fn f_iconv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
     let str_ = tv_get_string(&argvars[0]);
     let mut buf1 = [0u8; NUMBUFLEN];
-    let from = enc_canonize(enc_skip(tv_get_string_buf(&argvars[1], &mut buf1)));
+    let from = enc_canonize(enc_skip(
+        tv_get_string_buf(&argvars[1], &mut buf1).to_bytes(),
+    ));
     let mut buf2 = [0u8; NUMBUFLEN];
-    let to = enc_canonize(enc_skip(tv_get_string_buf(&argvars[2], &mut buf2)));
+    let to = enc_canonize(enc_skip(
+        tv_get_string_buf(&argvars[2], &mut buf2).to_bytes(),
+    ));
     let mut vimconv = Vimconv {
         vc_type: CONV_NONE,
         vc_factor: 1,
         vc_fd: None,
         vc_fail: false,
     };
-    convert_setup(&mut vimconv, Some(from.as_c_str()), Some(to.as_c_str()));
+    convert_setup(&mut vimconv, Some(from.as_bytes()), Some(to.as_bytes()));
 
     if vimconv.vc_type == CONV_NONE {
         crate::eval::typval::tv_set_string(rettv, Some(&str_));
@@ -3229,15 +3247,15 @@ pub fn f_iconv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     }
 }
 
-pub fn convert_setup(vcp: &mut Vimconv, from: Option<&CStr>, to: Option<&CStr>) -> bool {
+pub fn convert_setup(vcp: &mut Vimconv, from: Option<&[u8]>, to: Option<&[u8]>) -> bool {
     convert_setup_ext(vcp, from, true, to, true)
 }
 
 pub fn convert_setup_ext(
     vcp: &mut Vimconv,
-    from_opt: Option<&CStr>,
+    from_opt: Option<&[u8]>,
     from_unicode_is_utf8: bool,
-    to_opt: Option<&CStr>,
+    to_opt: Option<&[u8]>,
     to_unicode_is_utf8: bool,
 ) -> bool {
     *vcp = Vimconv {
@@ -3247,18 +3265,18 @@ pub fn convert_setup_ext(
         vc_fail: false,
     };
 
-    let Some(from) = from_opt else {
+    let Some(from) = from_opt.map(crate::memory::bytes_until_nul) else {
         return true;
     };
-    let Some(to) = to_opt else {
+    let Some(to) = to_opt.map(crate::memory::bytes_until_nul) else {
         return true;
     };
-    if from.to_bytes().is_empty() || to.to_bytes().is_empty() || from.to_bytes() == to.to_bytes() {
+    if from.is_empty() || to.is_empty() || from == to {
         return true;
     }
 
-    let from_prop = enc_canon_props(from.to_bytes());
-    let to_prop = enc_canon_props(to.to_bytes());
+    let from_prop = enc_canon_props(from);
+    let to_prop = enc_canon_props(to);
     let from_is_utf8 = if from_unicode_is_utf8 {
         (from_prop & ENC_UNICODE) != 0
     } else {
@@ -3281,8 +3299,8 @@ pub fn convert_setup_ext(
     } else if from_is_utf8 && (to_prop & ENC_LATIN9) != 0 {
         vcp.vc_type = CONV_TO_LATIN9;
     } else {
-        let to_arg = if to_is_utf8 { c"utf-8" } else { to };
-        let from_arg = if from_is_utf8 { c"utf-8" } else { from };
+        let to_arg: &[u8] = if to_is_utf8 { b"utf-8" } else { to };
+        let from_arg: &[u8] = if from_is_utf8 { b"utf-8" } else { from };
         vcp.vc_fd = my_iconv_open(to_arg, from_arg);
         if vcp.vc_fd.is_some() {
             vcp.vc_type = CONV_ICONV;
@@ -3560,11 +3578,11 @@ pub fn get_encoding_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
     Some(ENC_CANON_TABLE[idx as usize].name)
 }
 
-pub fn mb_strcmp_ic(ic: bool, s1: &CStr, s2: &CStr) -> i32 {
+pub fn mb_strcmp_ic(ic: bool, s1: &[u8], s2: &[u8]) -> i32 {
     if ic {
         mb_stricmp(s1, s2)
     } else {
-        match s1.to_bytes().cmp(s2.to_bytes()) {
+        match crate::memory::bytes_until_nul(s1).cmp(crate::memory::bytes_until_nul(s2)) {
             std::cmp::Ordering::Less => -1,
             std::cmp::Ordering::Equal => 0,
             std::cmp::Ordering::Greater => 1,
@@ -3662,6 +3680,17 @@ mod tests {
             let cp_str = c"iÀⱠ𐀀i";
             let b0 = utf_cp_bounds(&cp_str.to_bytes()[..11], 2);
             assert_eq!((b0.begin_off, b0.end_off), (1, 1));
+
+            let raw = b"2byte-UCS-2LE//TRANSLIT";
+            assert_eq!(enc_skip(&raw[..13]), b"UCS-2LE");
+            assert_eq!(enc_canonize(&raw[..13]).as_bytes(), b"ucs-2le");
+            assert_eq!(mb_stricmp(&b"FoObArBaz"[..6], b"foobar"), 0);
+            assert_eq!(mb_strcmp_ic(true, &b"FoObArBaz"[..6], b"foobar"), 0);
+            assert_ne!(mb_strcmp_ic(false, &b"FoObArBaz"[..6], b"foobar"), 0);
+
+            let ci = utf_slice2_str_char_info(cp_str.to_bytes());
+            let cli = utf_cluster_info(ci);
+            assert_eq!(cli.next.offset_from(cp_str.to_bytes()), 1);
         }
     }
 }

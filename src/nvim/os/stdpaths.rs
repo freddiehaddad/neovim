@@ -121,7 +121,7 @@ fn xdg_remove_duplicate(ret: CString, sep: u8) -> Option<CString> {
         };
         let is_dup = token_cstrs
             .iter()
-            .any(|existing| path_equal(existing, &cand, K_PATH_CMP_LITERAL));
+            .any(|existing| path_equal(existing.as_bytes(), cand.as_bytes(), K_PATH_CMP_LITERAL));
         if !is_dup {
             token_cstrs.push(cand);
         }
@@ -212,9 +212,8 @@ pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
     if matches!(idx, XDGVarType::XDGDataHome | XDGVarType::XDGStateHome) {
         suffix.extend_from_slice(b"-data");
     }
-    let suffix_cstr = bytes_to_cstring(&suffix);
 
-    Some(concat_fnames_cstr(&dir, &suffix_cstr, true))
+    Some(concat_fnames_cstr(dir.as_bytes(), &suffix, true))
 }
 
 /// Return `$XDG_CONFIG_HOME/$NVIM_APPNAME/{fname}` (`stdpaths_user_conf_subpath`).
@@ -223,7 +222,7 @@ pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
 /// `fname` must be a valid C string.
 pub fn stdpaths_user_conf_subpath(fname: &std::ffi::CStr) -> CString {
     let home = get_xdg_home(XDGVarType::XDGConfigHome).unwrap_or_default();
-    concat_fnames_cstr(&home, fname, true)
+    concat_fnames_cstr(home.as_bytes(), fname.to_bytes(), true)
 }
 
 /// Return `$XDG_STATE_HOME/$NVIM_APPNAME/{fname}` with optional trailing path separators and
@@ -237,7 +236,7 @@ pub fn stdpaths_user_state_subpath(
     escape_commas: bool,
 ) -> CString {
     let home = get_xdg_home(XDGVarType::XDGStateHome).unwrap_or_default();
-    let ret = concat_fnames_cstr(&home, fname, true);
+    let ret = concat_fnames_cstr(home.as_bytes(), fname.to_bytes(), true);
     let bytes = ret.as_bytes();
     let numcommas = if escape_commas {
         bytes.iter().filter(|&&b| b == b',').count()

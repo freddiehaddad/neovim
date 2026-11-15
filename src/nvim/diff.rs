@@ -1218,7 +1218,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         }
         #[cfg(unix)]
         {
-            fullname = crate::path::FullName_save(eap.arg.as_opt_cstr(), false);
+            fullname = crate::path::FullName_save(eap.arg.as_opt_bytes(), false);
             esc_name = Some(vim_strsave_shellescape(
                 fullname
                     .as_ref()
@@ -2134,9 +2134,10 @@ fn diff_cmp(s1: &[u8], s2: &[u8]) -> i32 {
         return s1.cmp(s2) as i32;
     }
     if (flags & DIFF_ICASE) != 0 && (flags & ALL_WHITE_DIFF) == 0 {
-        let s1_cstr = CString::new(crate::memory::bytes_until_nul(s1)).unwrap_or_default();
-        let s2_cstr = CString::new(crate::memory::bytes_until_nul(s2)).unwrap_or_default();
-        return mb_stricmp(s1_cstr.as_c_str(), s2_cstr.as_c_str());
+        return mb_stricmp(
+            crate::memory::bytes_until_nul(s1),
+            crate::memory::bytes_until_nul(s2),
+        );
     }
     let mut p1 = s1;
     let mut p2 = s2;

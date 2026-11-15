@@ -55,7 +55,7 @@ pub fn server_init(listen_addr: Option<&CStr>) -> Result<(), std::ffi::CString> 
         if os_env_exists(ENV_LISTEN, true) {
             user_arg = K_FALSE;
             let raw = os_getenv_cstr(ENV_LISTEN);
-            owned_addr = to_slash_save(raw.as_deref());
+            owned_addr = to_slash_save(raw.as_deref().map(CStr::to_bytes));
         } else {
             user_arg = K_NONE;
             owned_addr = Some(server_address_new(None));
@@ -175,7 +175,7 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
 }
 
 pub fn server_owns_pipe_address(address: &CStr) -> bool {
-    let path = fix_fname(Some(address));
+    let path = fix_fname(Some(address.to_bytes()));
     let addrs: Vec<std::ffi::CString> = SERVER_STATE.with(|st| {
         st.watchers
             .borrow()
@@ -184,7 +184,7 @@ pub fn server_owns_pipe_address(address: &CStr) -> bool {
             .collect()
     });
     for watcher_addr in addrs {
-        let addr = fix_fname(Some(&watcher_addr));
+        let addr = fix_fname(Some(watcher_addr.as_bytes()));
         if path == addr {
             return true;
         }

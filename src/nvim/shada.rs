@@ -759,7 +759,12 @@ struct PathKey(std::ffi::CString);
 
 impl PartialEq for PathKey {
     fn eq(&self, other: &Self) -> bool {
-        path_cmp(CASE_INSENSITIVE_FILENAME, &self.0, &other.0, MAXPATHL) == 0
+        path_cmp(
+            CASE_INSENSITIVE_FILENAME,
+            self.0.as_bytes(),
+            other.0.as_bytes(),
+            MAXPATHL,
+        ) == 0
     }
 }
 
@@ -1205,7 +1210,8 @@ fn find_buffer(
     }
 
     for buf in for_all_buffers_ptr() {
-        if buf.b_ffname.get().is_some() && path_equal(fname, &buf.ffname_cstr(), K_PATH_CMP_LITERAL)
+        if buf.b_ffname.get().is_some()
+            && path_equal(key, buf.ffname_cstr().to_bytes(), K_PATH_CMP_LITERAL)
         {
             fname_bufs.insert(key.to_vec(), buf.clone());
             return Some(buf);
@@ -1537,7 +1543,11 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
             ShadaEntryType::SDItemBufferList => {
                 for item in &mut cur_entry.data.buffer_list_mut().buffers {
                     let fname_opt = item.fname.as_deref();
-                    let sfname = path_try_shorten_fname(fname_opt);
+                    let sfname = fname_opt.and_then(|f| {
+                        let fb = f.to_bytes();
+                        let pb = path_try_shorten_fname(Some(fb))?;
+                        Some(&f[fb.len() - pb.len()..])
+                    });
                     if let Some(buf) = buflist_new(fname_opt, sfname, 0, BLN_LISTED) {
                         *buf.b_last_cursor.borrow_mut() = Fmark {
                             mark: item.pos,
@@ -1638,7 +1648,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
 fn shada_get_default_file() -> &'static CStr {
     DEFAULT_SHADA_FILE.get_or_init(|| {
         let shada_dir = stdpaths_user_state_subpath(c"shada", 0, false);
-        concat_fnames_cstr(&shada_dir, c"main.shada", true)
+        concat_fnames_cstr(shada_dir.as_bytes(), b"main.shada", true)
     })
 }
 
@@ -2204,8 +2214,8 @@ fn shada_read_when_writing(
                             for buf in for_all_buffers_ptr() {
                                 if buf.b_ffname.get().is_some()
                                     && path_equal(
-                                        fname_cstr,
-                                        &buf.ffname_cstr(),
+                                        fname_cstr.to_bytes(),
+                                        buf.ffname_cstr().to_bytes(),
                                         K_PATH_CMP_LITERAL,
                                     )
                                 {

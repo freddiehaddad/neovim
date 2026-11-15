@@ -1602,8 +1602,8 @@ pub fn get_c_indent() -> i32 {
                             if start_off != 0 {
                                 amount += start_off;
                             } else if start_align == i32::from(COM_RIGHT) {
-                                amount += vim_strsize(crate::memory::bytes_as_cstr(&lead_start))
-                                    - vim_strsize(crate::memory::bytes_as_cstr(&lead_middle));
+                                amount += vim_strsize(&lead_start[..lead_start_len])
+                                    - vim_strsize(&lead_middle[..lead_middle_len]);
                             }
                             break;
                         }
@@ -1614,8 +1614,8 @@ pub fn get_c_indent() -> i32 {
                             if off != 0 {
                                 amount += off;
                             } else if align == i32::from(COM_RIGHT) {
-                                amount += vim_strsize(crate::memory::bytes_as_cstr(&lead_start))
-                                    - vim_strsize(crate::memory::bytes_as_cstr(&lead_middle));
+                                amount += vim_strsize(&lead_start[..lead_start_len])
+                                    - vim_strsize(&lead_middle[..lead_middle_len]);
                             }
                             done = true;
                             break;

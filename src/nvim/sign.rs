@@ -451,7 +451,6 @@ pub fn init_sign_text(sp: Option<&Sign>, sign_text: &mut [Schar; SIGN_WIDTH], te
     } else {
         unescaped.extend_from_slice(text);
     }
-    unescaped.push(0);
 
     let mut cells: usize = 0;
     let mut ci = utf_slice2_str_char_info(&unescaped);
@@ -459,6 +458,7 @@ pub fn init_sign_text(sp: Option<&Sign>, sign_text: &mut [Schar; SIGN_WIDTH], te
         let cli = utf_cluster_info(ci);
         if !vim_isprintc(ci.chr.value) || cells + (cli.cells as usize) > SIGN_WIDTH {
             if sp.is_some() {
+                unescaped.push(0);
                 semsg!(gettext(c"E239: Invalid sign text: %s"), &unescaped);
             }
             return false;

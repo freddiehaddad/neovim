@@ -5,7 +5,7 @@ use crate::buffer::FileBuf;
 use crate::globals::*;
 use crate::mbyte::{
     UTF8LEN_TAB, mb_islower, mb_isupper, mb_tolower, utf_char2cells, utf_char2len, utf_char2slice,
-    utf_class_tab, utf_cluster_info, utf_printable, utf_ptr2_str_char_info, utf_slice2char,
+    utf_class_tab, utf_cluster_info, utf_printable, utf_slice2_str_char_info, utf_slice2char,
     utf_slice2len, utfc_slice2len,
 };
 use crate::memory::bytes_to_cstring;
@@ -646,8 +646,8 @@ pub fn char2cells(c: i32) -> i32 {
     ascii2cells(c)
 }
 
-pub fn vim_strsize(s: &CStr) -> i32 {
-    vim_strnsize(s.to_bytes(), MAXCOL)
+pub fn vim_strsize(s: &[u8]) -> i32 {
+    vim_strnsize(s, MAXCOL)
 }
 
 pub fn vim_strnsize(s: &[u8], mut len: i32) -> i32 {
@@ -657,9 +657,8 @@ pub fn vim_strnsize(s: &[u8], mut len: i32) -> i32 {
     if slice.is_empty() {
         return 0;
     }
-    let cstr = crate::memory::bytes_to_cstring(slice);
     let mut size: i32 = 0;
-    let mut ci = utf_ptr2_str_char_info(&cstr);
+    let mut ci = utf_slice2_str_char_info(slice);
     while !ci.ptr.is_empty() && len > 0 {
         let cli = utf_cluster_info(ci);
         size += cli.cells;
@@ -1455,5 +1454,17 @@ mod tests {
             Some(171),
             Some(b'x' as i32),
         );
+    }
+
+    #[test]
+    fn vim_strsize_and_strnsize_accept_byte_slices() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let buf = b"hello\x01world";
+        assert_eq!(vim_strsize(&buf[..5]), 5);
+        assert_eq!(vim_strsize(&buf[..6]), 7);
+        assert_eq!(vim_strnsize(buf, 5), 5);
+        assert_eq!(vim_strnsize(buf, 6), 7);
     }
 }

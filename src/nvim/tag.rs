@@ -1707,8 +1707,8 @@ fn findtags_hdr_parse(st: &mut FindtagsState) -> bool {
         }
         convert_setup(
             &mut st.vimconv,
-            Some(crate::memory::bytes_as_cstr(&st.lbuf[20..])),
-            Some(&opt_vars().p_enc.as_cstr()),
+            Some(crate::memory::bytes_until_nul(&st.lbuf[20..])),
+            Some(&opt_vars().p_enc.as_bytes()),
         );
     }
 
@@ -2420,8 +2420,8 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
                 &mut buf[..MAXPATHL - 4],
                 &opt_vars().p_hf.as_bytes(),
             );
-            let buf_cstr = crate::memory::bytes_as_cstr(buf);
-            let tail_off = path_tail(buf_cstr).as_ptr() as usize - buf_cstr.as_ptr() as usize;
+            let buf_bytes = crate::memory::bytes_until_nul(buf);
+            let tail_off = buf_bytes.len() - path_tail(buf_bytes).len();
             buf[tail_off..tail_off + 5].copy_from_slice(b"tags\0");
             simplify_filename(buf);
 
@@ -2479,8 +2479,8 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
             let stop_off = vim_findfile_stopdir(buf);
             let stopdirs_cstr =
                 stop_off.map(|off| crate::memory::bytes_as_cstr(&buf[off..]).to_owned());
-            let buf_cstr = crate::memory::bytes_as_cstr(buf);
-            let tail_off = path_tail(buf_cstr).as_ptr() as usize - buf_cstr.as_ptr() as usize;
+            let buf_bytes = crate::memory::bytes_until_nul(buf);
+            let tail_off = buf_bytes.len() - path_tail(buf_bytes).len();
             let filename_cstr = crate::memory::cstring_until_nul(&buf[tail_off..]);
             buf[tail_off] = 0;
 
@@ -2703,7 +2703,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
             curwin_save = curwin();
 
             if !curwin().w_onebuf_opt.wo_pvw.get() {
-                full_fname = FullName_save(fname_opt_ref, false);
+                full_fname = FullName_save(fname_opt_ref.map(CStr::to_bytes), false);
                 fname_opt_ref = full_fname.as_deref();
 
                 prepare_tagpreview(true, !opt_vars().p_pvp.is_empty());
@@ -2964,7 +2964,7 @@ fn expand_tag_fname(
     {
         let mut xpc: ExpandCtx = ExpandCtx::new();
 
-        let fname_arg_opt = Some(fname_arg);
+        let fname_arg_opt = Some(fname_arg.to_bytes());
         let mut fname = to_slash_save(fname_arg_opt).unwrap_or_default();
 
         if expand
@@ -2984,11 +2984,11 @@ fn expand_tag_fname(
         }
 
         if (opt_vars().p_tr.get() || curbuf().b_help.get()) && !vim_isAbsName(fname.to_bytes()) {
-            let p = path_tail(tag_fname).as_ptr();
-            if p != tag_fname.as_ptr() {
+            let tf_bytes = tag_fname.to_bytes();
+            let off = tf_bytes.len() - path_tail(tf_bytes).len();
+            if off > 0 {
                 let mut retval = [0u8; MAXPATHL];
-                let off = p as usize - tag_fname.as_ptr() as usize;
-                retval[..off].copy_from_slice(&tag_fname.to_bytes()[..off]);
+                retval[..off].copy_from_slice(&tf_bytes[..off]);
                 crate::memory::copy_bytes_to_c_buf(&mut retval[off..], fname.as_bytes());
                 simplify_filename(&mut retval);
                 return crate::memory::cstring_until_nul(&retval);
@@ -3010,8 +3010,8 @@ fn test_for_current(
             std::ffi::CString::new(crate::memory::bytes_until_nul(fname)).unwrap_or_default();
         let fullname = expand_tag_fname(&fname_cstr, tag_fname, true);
         retval = path_equal(
-            &fullname,
-            buf_ffname,
+            fullname.as_bytes(),
+            buf_ffname.to_bytes(),
             (K_PATH_CMP_EXPAND | K_PATH_CMP_FULL) as PathCmpFlags,
         );
     }
