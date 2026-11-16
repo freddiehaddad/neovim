@@ -4233,8 +4233,7 @@ describe('TUI FocusGained/FocusLost', function()
     ]])
     retry(2, 3 * screen.timeout, function()
       feed_data('\027[I')
-      screen:expect {
-        grid = [[
+      screen:expect([[
         msg2                                              |
         msg3                                              |
         msg4                                              |
@@ -4242,8 +4241,7 @@ describe('TUI FocusGained/FocusLost', function()
         gained                                            |
         {102:Press ENTER or type command to continue}^           |
         {5:-- TERMINAL --}                                    |
-      ]],
-      }
+      ]])
     end)
   end)
 end)
