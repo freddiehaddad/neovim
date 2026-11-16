@@ -53,27 +53,21 @@ pub fn decode_bytes(src: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
 
-    let mut out_len = (src.len() / 4) * 3;
-    if !src.is_empty() && src[src.len() - 1] == b'=' {
-        out_len -= 1;
+    let mut pad = 0usize; // Trailing "=" or "==".
+    while pad < 2 && pad < src.len() && src[src.len() - 1 - pad] == b'=' {
+        pad += 1;
     }
-    if src.len() >= 2 && src[src.len() - 2] == b'=' {
-        out_len -= 1;
-    }
+    let data_len = src.len() - pad;
+    let out_len = (src.len() / 4) * 3 - pad;
 
     let mut dest = Vec::with_capacity(out_len);
     let mut acc: u32 = 0;
     let mut acc_len: u32 = 0;
-    let mut leftover_i: Option<usize> = None;
 
-    for (src_i, &c) in src.iter().enumerate() {
+    for &c in &src[..data_len] {
         let d = CHAR_TO_INDEX[c as usize];
         if d == 0 {
-            if c == b'=' {
-                leftover_i = Some(src_i);
-                break;
-            }
-            return None;
+            return None; // Not in the alphabet, e.g. "=" before the padding.
         }
 
         acc = ((acc << 6) & 0xFFF) + u32::from(d - 1);
@@ -84,25 +78,13 @@ pub fn decode_bytes(src: &[u8]) -> Option<Vec<u8>> {
         }
     }
 
-    if acc_len > 4 || (acc & ((1 << acc_len) - 1)) != 0 {
+    // Each "=" pads 2 leftover bits, which must be zero.
+    assert_eq!(acc_len as usize, 2 * pad);
+    if (acc & ((1 << acc_len) - 1)) != 0 {
         return None;
     }
 
-    if let Some(start) = leftover_i {
-        let padding_len = (acc_len / 2) as usize;
-        let mut padding_chars = 0usize;
-        for &c in &src[start..] {
-            if c != b'=' {
-                return None;
-            }
-            padding_chars += 1;
-        }
-        if padding_chars != padding_len {
-            return None;
-        }
-    }
-
-    debug_assert_eq!(dest.len(), out_len);
+    assert_eq!(dest.len(), out_len);
     Some(dest)
 }
 
@@ -160,6 +142,7 @@ mod tests {
             "A/==",
             "A===",
             "====",
+            "AAAA=AAA",
             "Zm9vYmFyZm9vYmFyA..A",
             "Zm9vYmFyZm9vYmFyAA=A",
             "Zm9vYmFyZm9vYmFyAA/=",
