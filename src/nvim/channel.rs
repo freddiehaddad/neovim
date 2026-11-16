@@ -752,7 +752,13 @@ fn buffer_to_tv_list(buf: &[u8]) -> ListId {
 }
 
 pub fn on_channel_data(buf: &[u8], chan: &mut Channel, eof: bool) -> usize {
-    on_channel_output(chan, buf, eof, false)
+    let consumed = on_channel_output(chan, buf, eof, false);
+    if eof && chan.streamtype == K_CHANNEL_STREAM_SOCKET {
+        // Peer stopped sending (half-close not supported), close the channel (like receive_msgpack()).
+        // Other streams stay open on read-side EOF: a job may read stdin, stdio stdout is writable.
+        channel_close(chan.id, K_CHANNEL_PART_ALL, None);
+    }
+    consumed
 }
 
 pub fn on_job_stderr(buf: &[u8], chan: &mut Channel, eof: bool) -> usize {
