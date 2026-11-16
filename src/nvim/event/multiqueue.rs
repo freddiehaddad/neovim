@@ -222,7 +222,6 @@ struct MultiQueueInner {
     parent: MultiQueue,
     items: VecDeque<QueueEntry>,
     notify_main_loop: bool,
-    size: usize,
 }
 
 struct MultiQueueState {
@@ -250,7 +249,6 @@ fn multiqueue_new_inner(parent: MultiQueue, notify_main_loop: bool) -> MultiQueu
         parent,
         items: VecDeque::new(),
         notify_main_loop,
-        size: 0,
     };
     MQ_STATE.with(|cell| {
         let mut st = cell.borrow_mut();
@@ -273,10 +271,9 @@ pub fn multiqueue_new(notify_loop: Option<&mut crate::event::r#loop::Loop>) -> M
 /// Create a new child `MultiQueue` attached to `parent` (`multiqueue_new_child`).
 pub fn multiqueue_new_child(parent: MultiQueue) -> MultiQueue {
     MQ_STATE.with(|cell| {
-        let mut st = cell.borrow_mut();
-        let p = st.arena[(parent.0 - 1) as usize].as_mut().unwrap();
+        let st = cell.borrow();
+        let p = st.arena[(parent.0 - 1) as usize].as_ref().unwrap();
         assert!(p.parent.is_null());
-        p.size = p.size.wrapping_add(1);
     });
     multiqueue_new_inner(parent, false)
 }
@@ -313,7 +310,6 @@ fn multiqueue_remove(this: MultiQueue) -> Event {
         let (entry, parent) = {
             let q = st.arena[(this.0 - 1) as usize].as_mut().unwrap();
             let entry = q.items.pop_front().unwrap();
-            q.size = q.size.wrapping_sub(1);
             (entry, q.parent)
         };
         match entry {
@@ -353,7 +349,6 @@ fn multiqueue_push(this: MultiQueue, event: Event) -> bool {
                 return false;
             };
             q.items.push_back(QueueEntry::Event(event));
-            q.size = q.size.wrapping_add(1);
             q.parent
         };
         if !parent.is_null()
@@ -440,7 +435,7 @@ pub fn multiqueue_size(this: MultiQueue) -> usize {
             .arena
             .get((this.0 - 1) as usize)
             .and_then(Option::as_ref)
-            .map_or(0, |q| q.size)
+            .map_or(0, |q| q.items.len())
     })
 }
 
@@ -458,6 +453,7 @@ mod tests {
         let parent = multiqueue_new(None);
         let c1 = multiqueue_new_child(parent);
         let c2 = multiqueue_new_child(parent);
+        assert_eq!(multiqueue_size(parent), 0);
 
         let make_ev = Event::Test;
         let ev_val = |ev: Event| match ev {
@@ -470,25 +466,32 @@ mod tests {
         multiqueue_put_event(c1, make_ev(12));
         assert_eq!(multiqueue_size(c1), 2);
         assert_eq!(multiqueue_size(c2), 1);
+        assert_eq!(multiqueue_size(parent), 3);
 
         // Pop from c2 first; should also unlink from parent.
         assert_eq!(ev_val(multiqueue_get(c2)), 21);
         assert_eq!(multiqueue_size(c2), 0);
+        assert_eq!(multiqueue_size(parent), 2);
 
         // Remaining in parent should be 11 then 12.
         assert_eq!(ev_val(multiqueue_get(parent)), 11);
         assert_eq!(ev_val(multiqueue_get(parent)), 12);
         assert!(multiqueue_empty(parent));
+        assert_eq!(multiqueue_size(c1), 0);
+        assert_eq!(multiqueue_size(parent), 0);
 
         // Child free unlinks remaining events from parent.
         let c3 = multiqueue_new_child(parent);
         multiqueue_put_event(c1, make_ev(101));
         multiqueue_put_event(c2, make_ev(201));
         multiqueue_put_event(c3, make_ev(301));
+        assert_eq!(multiqueue_size(parent), 3);
         multiqueue_free(c2);
+        assert_eq!(multiqueue_size(parent), 2);
         assert_eq!(ev_val(multiqueue_get(parent)), 101);
         assert_eq!(ev_val(multiqueue_get(c3)), 301);
         assert!(multiqueue_empty(parent));
+        assert_eq!(multiqueue_size(parent), 0);
 
         multiqueue_free(c1);
         multiqueue_free(c3);
