@@ -599,6 +599,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     }
 
     if let Some(ref scriptin) = params.scriptin
+        && (has_stdin() || scriptin.to_bytes() != b"-")
         && !open_scriptin(scriptin)
     {
         os_exit(2);
@@ -1267,9 +1268,14 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
     }
 }
 
+/// Is stdin readable? Server (--embed) reads stdin only if the UI forwarded it. |ui-startup-stdin|
+fn has_stdin() -> bool {
+    !exc_state().embedded_mode.get() || exc_state().stdin_fd.get() > 0
+}
+
 fn edit_stdin(parmp: &mut Mparm) -> bool {
     let implicit = !exc_state().headless_mode.get()
-        && !(exc_state().embedded_mode.get() && exc_state().stdin_fd.get() <= 0)
+        && has_stdin()
         && (!parmp.exmode || parmp.input_istext)
         && !exc_state().stdin_isatty.get()
         && parmp.edit_type <= EDIT_STDIN
@@ -1911,7 +1917,9 @@ fn read_stdin() {
 
         let initial_buf_handle: ObjHandle = curbuf().b_fnum.get();
         set_curbuf(stdin_buf.borrow(), 0, false);
-        readfile(None, None, 0, 0, MAXLNUM, None, READ_NEW + READ_STDIN, true);
+        if has_stdin() {
+            readfile(None, None, 0, 0, MAXLNUM, None, READ_NEW + READ_STDIN, true);
+        }
 
         let stdin_buf_handle: ObjHandle = stdin_buf.b_fnum.get();
         let stdin_buf_empty = buf_is_empty(&curbuf());
@@ -1926,7 +1934,7 @@ fn read_stdin() {
         }
     } else {
         set_buflisted(1);
-        open_buffer(true, None, 0);
+        open_buffer(has_stdin(), None, 0);
         if buf_is_empty(&curbuf()) && !curbuf().b_next.get().is_null() {
             do_cmdline_cmd(b"silent! bnext");
             do_cmdline_cmd(b"silent! bwipeout 1");
