@@ -22,17 +22,18 @@ use crate::tui::termkey::driver_csi::{
 };
 use crate::tui::termkey::driver_ti::{
     TERMKEY_EVENT_PRESS, TERMKEY_EVENT_REPEAT, TERMKEY_KEYMOD_ALT, TERMKEY_KEYMOD_CTRL,
-    TERMKEY_KEYMOD_SHIFT, TERMKEY_RES_AGAIN, TERMKEY_RES_KEY, TERMKEY_SYM_SUSPEND,
-    TERMKEY_TYPE_APC, TERMKEY_TYPE_DCS, TERMKEY_TYPE_FUNCTION, TERMKEY_TYPE_KEYSYM,
-    TERMKEY_TYPE_MODEREPORT, TERMKEY_TYPE_MOUSE, TERMKEY_TYPE_OSC, TERMKEY_TYPE_UNICODE,
-    TERMKEY_TYPE_UNKNOWN_CSI, TermKey, TermKeyKey, TermKeyResult, TerminfoEntry,
+    TERMKEY_KEYMOD_SHIFT, TERMKEY_RES_KEY, TERMKEY_SYM_SUSPEND, TERMKEY_TYPE_APC, TERMKEY_TYPE_DCS,
+    TERMKEY_TYPE_FUNCTION, TERMKEY_TYPE_KEYSYM, TERMKEY_TYPE_MODEREPORT, TERMKEY_TYPE_MOUSE,
+    TERMKEY_TYPE_OSC, TERMKEY_TYPE_UNICODE, TERMKEY_TYPE_UNKNOWN_CSI, TermKey, TermKeyKey,
+    TermKeyResult, TerminfoEntry,
 };
 use crate::tui::termkey::termkey::{
     TERMKEY_CANON_DELBS, TERMKEY_FLAG_KEEPC0, TERMKEY_FLAG_NOSTART, TERMKEY_FLAG_UTF8,
     TERMKEY_FORMAT_ALTISMETA, TERMKEY_FORMAT_WRAPBRACKET, TermKeyFormat,
     termkey_get_buffer_remaining, termkey_get_buffer_size, termkey_get_canonflags, termkey_getkey,
     termkey_getkey_force, termkey_interpret_string, termkey_new_abstract, termkey_push_bytes,
-    termkey_set_buffer_size, termkey_set_canonflags, termkey_start, termkey_strfkey,
+    termkey_response_pending, termkey_set_buffer_size, termkey_set_canonflags, termkey_start,
+    termkey_strfkey,
 };
 use crate::tui::tui::{
     TUIData, tui_enable_extended_underline, tui_handle_primary_device_attr, tui_handle_term_mode,
@@ -467,14 +468,8 @@ fn tk_getkey(tk: &mut TermKey, key: &mut TermKeyKey, force: bool) -> TermKeyResu
 
 fn tk_getkeys(tui: &mut TUIData, force: bool) {
     let mut key = TermKeyKey::new();
-    let mut result: TermKeyResult;
 
-    loop {
-        result = tk_getkey(tui.input.tk_mut(), &mut key, force);
-        if result != TERMKEY_RES_KEY {
-            break;
-        }
-
+    while tk_getkey(tui.input.tk_mut(), &mut key, force) == TERMKEY_RES_KEY {
         if key.event != TERMKEY_EVENT_PRESS && key.event != TERMKEY_EVENT_REPEAT {
             continue;
         }
@@ -498,18 +493,6 @@ fn tk_getkeys(tui: &mut TUIData, force: bool) {
         {
             handle_term_response(tui, &key);
         }
-    }
-
-    if result != TERMKEY_RES_AGAIN {
-        return;
-    }
-
-    if tui.input.ttimeout && tui.input.ttimeoutlen >= 0 {
-        tui.input.timer_handle.stop();
-        let timeout = tui.input.ttimeoutlen as u64;
-        tui.input.timer_handle.start(tinput_timer_cb, timeout, 0);
-    } else {
-        tk_getkeys(tui, true);
     }
 }
 
@@ -821,13 +804,20 @@ pub(crate) fn tinput_read_cb(bytes: &[u8], tui: &mut TUIData, eof: bool) -> usiz
         return consumed;
     }
 
-    if consumed < count_ {
-        let ms = if tui.input.ttimeout {
+    // Wait for the rest of an incomplete sequence (in the raw buffer, or termkey). A response may
+    // arrive in fragments with pauses (e.g. over SSH), so wait longer for it than for keys.
+    tui.input.timer_handle.stop();
+    if consumed < count_
+        || termkey_get_buffer_remaining(tui.input.tk()) < termkey_get_buffer_size(tui.input.tk())
+    {
+        let mut ms = if tui.input.ttimeout {
             tui.input.ttimeoutlen.max(0)
         } else {
             0
         };
-        tui.input.timer_handle.stop();
+        if termkey_response_pending(tui.input.tk()) {
+            ms = ms.max(1000); // Like Vim 'osctimeoutlen'.
+        }
         tui.input
             .timer_handle
             .start(tinput_timer_cb, u64::from(ms as u32), 0);

@@ -443,6 +443,15 @@ pub fn termkey_get_buffer_remaining(tk: &TermKey) -> usize {
     tk.buffer.len() - tk.buffcount
 }
 
+/// True if `tk.buffer` starts with a DCS/OSC/APC string whose content starts with a digit, like
+/// a response to a query ("\x1b]52;c;…", "\x1bP1+r…"), not <M-P>, <M-]>, <M-_>.
+pub fn termkey_response_pending(tk: &TermKey) -> bool {
+    tk.buffcount > 2
+        && tk.buffer[tk.buffstart] == 0x1b
+        && matches!(tk.buffer[tk.buffstart + 1], b'P' | b']' | b'_')
+        && tk.buffer[tk.buffstart + 2].is_ascii_digit()
+}
+
 #[inline]
 fn eat_bytes(tk: &mut TermKey, count: usize) {
     if count >= tk.buffcount {
