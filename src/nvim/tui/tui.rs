@@ -1109,20 +1109,26 @@ pub(crate) fn sigwinch_cb(tui: &mut TUIData) {
     tui_guess_size(tui);
 }
 
+/// Gets the attributes of highlight `id`, or the default attributes if the server didn't define it.
+fn get_attrs(tui: &TUIData, id: i32) -> HlAttrs {
+    usize::try_from(id)
+        .ok()
+        .and_then(|idx| tui.attrs.get(idx).copied())
+        .unwrap_or(HLATTRS_INIT)
+}
+
 fn attrs_differ(tui: &TUIData, id1: i32, id2: i32, rgb: bool) -> bool {
     if id1 == id2 {
         return false;
     } else if id1 < 0 || id2 < 0 {
         return true;
     }
-    let attrs = &tui.attrs;
-    let a1 = attrs[id1 as usize];
-    let a2 = attrs[id2 as usize];
+    let a1 = get_attrs(tui, id1);
+    let a2 = get_attrs(tui, id2);
 
     if a1.url != a2.url {
         return true;
     }
-
     if rgb {
         a1.rgb_fg_color != a2.rgb_fg_color
             || a1.rgb_bg_color != a2.rgb_bg_color
@@ -1142,7 +1148,7 @@ fn update_attrs(tui: &mut TUIData, attr_id: i32) {
         return;
     }
     tui.print_attr_id = attr_id;
-    let attrs = tui.attrs.as_slice()[attr_id as usize];
+    let attrs = get_attrs(tui, attr_id);
     let attr = if tui.rgb {
         attrs.rgb_ae_attr
     } else {
@@ -1378,6 +1384,10 @@ fn print_cell(tui: &mut TUIData, bytes: &[u8], attr: Sattr) {
 }
 
 fn cheap_to_print(tui: &TUIData, row: i32, col: i32, mut next: i32) -> bool {
+    // Cursor may be outside the grid (the server's `grid_cursor_goto` is not validated).
+    if row < 0 || row >= tui.grid.height || col + next > tui.grid.width {
+        return false;
+    }
     let cells = &tui.grid.cells;
     let row_cells = &cells[row as usize];
     let mut idx = col as usize;
@@ -1648,7 +1658,9 @@ fn decode_cursor_entry(args: Dict) -> Cursorentry {
     for item in args.as_slice() {
         let value = &item.value;
         match item.key.cstr_bytes() {
-            b"cursor_shape" => r.shape = tui_cursor_decode_shape(value.data.string()),
+            b"cursor_shape" if value.obj_type == ObjectType::ObjectTypeString => {
+                r.shape = tui_cursor_decode_shape(value.data.string());
+            }
             b"blinkon" => r.blinkon = value.data.integer() as i32,
             b"blinkoff" => r.blinkoff = value.data.integer() as i32,
             b"attr_id" => r.id = value.data.integer() as i32,
@@ -1665,10 +1677,10 @@ pub fn tui_mode_info_set(tui: &mut TUIData, guicursor_enabled: bool, args: Array
         return;
     }
 
-    assert!(args.size != 0);
-
-    for (i, item) in args.as_slice().iter().enumerate() {
-        assert!(item.obj_type == ObjectType::ObjectTypeDict);
+    for (i, item) in args.as_slice().iter().enumerate().take(SHAPE_IDX_COUNT) {
+        if item.obj_type != ObjectType::ObjectTypeDict {
+            continue;
+        }
         let r = decode_cursor_entry(item.data.dict());
         tui.cursor_shapes[i] = r;
     }
@@ -1712,10 +1724,12 @@ fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
     if !TUI_MOD_STATE.with(|st| st.cursor_style_enabled.get()) {
         tui_cursor_reset_style(tui);
         return;
+    } else if (mode as usize) >= SHAPE_IDX_COUNT {
+        return;
     }
     let c = tui.cursor_shapes[mode as usize];
 
-    if c.id != 0 && (c.id as usize) < tui.attrs.len() && tui.rgb {
+    if c.id > 0 && (c.id as usize) < tui.attrs.len() && tui.rgb {
         let aep = tui.attrs.as_slice()[c.id as usize];
         tui.want_invisible = aep.hl_blend == 100;
         if !tui.want_invisible && (aep.rgb_ae_attr & HL_INVERSE) != 0 {
@@ -1794,6 +1808,25 @@ pub fn tui_grid_scroll(
     rows: Integer,
     _cols: Integer,
 ) {
+    if startrow < 0
+        || startrow > endrow
+        || endrow > Integer::from(tui.grid.height)
+        || startcol < 0
+        || startcol >= endcol
+        || endcol > Integer::from(tui.grid.width)
+        || rows < startrow - endrow
+        || rows > endrow - startrow
+    {
+        logmsg!(
+            LOGLVL_ERR,
+            None,
+            Some(c"tui_grid_scroll"),
+            1592,
+            true,
+            c"Invalid UI event: 'grid_scroll' out of range",
+        );
+        return;
+    }
     let top = startrow as i32;
     let bot = (endrow - 1) as i32;
     let left = startcol as i32;
@@ -1872,6 +1905,18 @@ pub fn tui_hl_attr_define(
     cterm_attrs: HlAttrs,
     _info: Array,
 ) {
+    // Bound `id` so its allocation size can't overflow (Vec::resize may double the capacity).
+    if id < 0 || (id as u64) >= (usize::MAX / std::mem::size_of::<HlAttrs>() / 2) as u64 {
+        logmsg!(
+            LOGLVL_ERR,
+            None,
+            Some(c"tui_hl_attr_define"),
+            1673,
+            true,
+            c"Invalid UI event: 'hl_attr_define' out of range",
+        );
+        return;
+    }
     attrs.cterm_ae_attr = cterm_attrs.cterm_ae_attr;
     attrs.cterm_fg_color = cterm_attrs.cterm_fg_color;
     attrs.cterm_bg_color = cterm_attrs.cterm_bg_color;
@@ -2187,8 +2232,24 @@ pub fn tui_raw_line(
     chunk: &[Schar],
     attrs: &[Sattr],
 ) {
+    if linerow < 0
+        || linerow >= Integer::from(tui.grid.height)
+        || startcol < 0
+        || startcol > endcol
+        || endcol > clearcol
+        || clearcol > Integer::from(tui.grid.width)
     {
-        let attr_count = tui.attrs.len();
+        logmsg!(
+            LOGLVL_ERR,
+            None,
+            Some(c"tui_raw_line"),
+            1964,
+            true,
+            c"Invalid UI event: 'grid_line' out of range",
+        );
+        return;
+    }
+    {
         let cells = &mut tui.grid.cells;
         let row_cells = &mut cells[linerow as usize];
         let count = (endcol - startcol).max(0) as usize;
@@ -2198,7 +2259,6 @@ pub fn tui_raw_line(
             let idx = (c - startcol) as usize;
             let cell = &mut row_cells[c as usize];
             cell.data = chunk_slice[idx];
-            assert!((attrs_slice[idx] as usize) < attr_count);
             cell.attr = attrs_slice[idx];
         }
     }

@@ -391,9 +391,9 @@ pub fn ui_client_event_grid_resize(args: Array) {
             LOGLVL_ERR,
             None,
             Some(c"ui_client_event_grid_resize"),
-            242,
+            266,
             true,
-            c"Error handling ui event 'grid_resize'",
+            c"Invalid UI event: 'grid_resize' wrong type",
         );
         return;
     }
@@ -401,6 +401,21 @@ pub fn ui_client_event_grid_resize(args: Array) {
     let grid = args[0].data.integer();
     let width = args[1].data.integer();
     let height = args[2].data.integer();
+    if width < 0
+        || width > Integer::from(i32::MAX)
+        || height < 0
+        || height > Integer::from(i32::MAX)
+    {
+        logmsg!(
+            LOGLVL_ERR,
+            None,
+            Some(c"ui_client_event_grid_resize"),
+            274,
+            true,
+            c"Invalid UI event: 'grid_resize' out of range",
+        );
+        return;
+    }
     with_tui_mut(|tui| tui_grid_resize(tui, grid, width, height));
 
     let cols = width as usize;
