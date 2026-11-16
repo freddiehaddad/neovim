@@ -712,6 +712,71 @@ describe('jobs', function()
     eq(expected, received)
   end)
 
+  it('drains both streams exactly once through nested waits before exit', function()
+    local session = n.get_session()
+    local previous_timeout = session.request_timeout
+    session.request_timeout = 10000
+    finally(function()
+      session.request_timeout = previous_timeout
+    end)
+
+    local count = 1024
+    local result = exec_lua(function(shell, lines)
+      local output = { stdout = {}, stderr = {} }
+      local eof = { stdout = 0, stderr = 0 }
+      local busy, nested, exited = false, false, false
+      local function on_data(id, data, event)
+        assert(not busy and not exited, 'output callback recurred or followed exit')
+        busy = true
+        if not nested then
+          nested = true
+          local child = vim.fn.jobstart({ shell, 'EXIT', '0' })
+          assert(vim.fn.jobwait({ child }, 5000)[1] == 0)
+          vim.fn.chanclose(id, 'stdin')
+        end
+        if #data == 1 and data[1] == '' then
+          eof[event] = eof[event] + 1
+        else
+          output[event][#output[event] + 1] = table.concat(data, '\n')
+        end
+        busy = false
+      end
+      local id = vim.fn.jobstart({ shell, 'DRAIN', tostring(lines) }, {
+        on_stdout = on_data,
+        on_stderr = on_data,
+        on_exit = function(_, status)
+          assert(not busy and not exited, 'exit callback recurred')
+          assert(eof.stdout == 1 and eof.stderr == 1, 'exit preceded stream EOF')
+          assert(status == 17)
+          exited = true
+        end,
+      })
+      local status = vim.fn.jobwait({ id }, 5000)[1]
+      return {
+        status,
+        nested,
+        exited,
+        table.concat(output.stdout),
+        table.concat(output.stderr),
+        eof,
+      }
+    end, testprg('shell-test'), count)
+
+    local stdout, stderr = {}, {}
+    for i = 0, count - 1 do
+      stdout[#stdout + 1] = ('stdout %04d abcdefghijklmnopqrstuvwxyz\n'):format(i)
+      stderr[#stderr + 1] = ('stderr %04d ABCDEFGHIJKLMNOPQRSTUVWXYZ\n'):format(i)
+    end
+    eq({
+      17,
+      true,
+      true,
+      table.concat(stdout),
+      table.concat(stderr),
+      { stdout = 1, stderr = 1 },
+    }, result)
+  end)
+
   it('jobstart() works with partial functions', function()
     source([[
     function PrintArgs(a1, a2, id, data, event)

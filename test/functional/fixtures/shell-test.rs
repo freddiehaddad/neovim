@@ -42,6 +42,8 @@ fn help() {
     println!("      96: foo bar");
     println!("  shell-test REPFAST N {{text}}");
     println!("    Like REP, but print as fast as possible and then exit immediately.");
+    println!("  shell-test DRAIN N");
+    println!("    Writes N numbered lines to both output streams and exits with status 17.");
     println!("  shell-test INTERACT");
     println!("    Prints \"interact $ \" to stderr, and waits for \"exit\" input.");
     println!("  shell-test HOLD");
@@ -135,6 +137,20 @@ fn run(args: &[String]) -> i32 {
                     }
                     flush_all();
                 }
+            }
+            "DRAIN" => {
+                let Some(count) = args.get(2).and_then(|s| s.parse::<usize>().ok()) else {
+                    return 4;
+                };
+                let mut out = io::BufWriter::new(io::stdout().lock());
+                let mut err = io::BufWriter::new(io::stderr().lock());
+                for i in 0..count {
+                    writeln!(out, "stdout {i:04} abcdefghijklmnopqrstuvwxyz").unwrap();
+                    writeln!(err, "stderr {i:04} ABCDEFGHIJKLMNOPQRSTUVWXYZ").unwrap();
+                }
+                out.flush().unwrap();
+                err.flush().unwrap();
+                return 17;
             }
             "UTF-8" => {
                 let mut out = io::stdout();

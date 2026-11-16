@@ -67,6 +67,7 @@ function Session.new(stream)
     _prepare = uv.new_prepare(),
     _timer = uv.new_timer(),
     _is_running = false,
+    request_timeout = 1000 * (tonumber(os.getenv('TEST_TIMEOUT')) or 600),
   }, Session)
 end
 
@@ -198,6 +199,8 @@ end
 --- Sends a request to the RPC endpoint, and blocks (polls event loop) until a response is received.
 function Session:_blocking_request(method, args)
   local err, result
+  local responded = false
+  local waiting = true
 
   -- Invoked when a request is received from the remote end.
   local function on_request(method_, args_, response)
@@ -210,13 +213,21 @@ function Session:_blocking_request(method, args)
   end
 
   self._rpc_stream:write(method, args, function(e, r)
+    if not waiting then
+      return
+    end
+    responded = true
     err = e
     result = r
     uv.stop()
   end)
 
   -- Poll for incoming requests/notifications received from the remote end.
-  self:_run(on_request, on_notification)
+  self:_run(on_request, on_notification, self.request_timeout)
+  waiting = false
+  if not responded and not self.eof_err then
+    return { 1, ('RPC request timed out after %d ms: %s'):format(self.request_timeout, method) }
+  end
   return (err or self.eof_err), result
 end
 

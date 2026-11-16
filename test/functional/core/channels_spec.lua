@@ -34,6 +34,29 @@ describe('channels', function()
     source(init)
   end)
 
+  it('test client bounds requests when the editor cannot poll', function()
+    local session = get_session()
+    local previous_timeout = session.request_timeout
+    finally(function()
+      session.request_timeout = previous_timeout
+    end)
+    session:notify(
+      'nvim_exec_lua',
+      [[
+      vim.rpcnotify(1, 'blocking')
+      vim.uv.sleep(500)
+    ]],
+      {}
+    )
+    eq({ 'notification', 'blocking', {} }, session:next_message(3000))
+    session.request_timeout = 20
+    local success, err = session:request('nvim_get_mode')
+    eq(false, success)
+    matches('RPC request timed out after 20 ms: nvim_get_mode', err[2])
+    session.request_timeout = previous_timeout
+    assert_alive()
+  end)
+
   it('sockconnect(bytes), closes on read-EOF', function()
     local server = n.new_session(true)
     set_session(server)
