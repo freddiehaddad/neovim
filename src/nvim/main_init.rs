@@ -1268,14 +1268,15 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
     }
 }
 
-/// Is stdin readable? Server (--embed) reads stdin only if the UI forwarded it. |ui-startup-stdin|
+/// Is stdin readable? Only if stdio is not RPC, or if the UI forwarded stdin. |ui-startup-stdin|
 fn has_stdin() -> bool {
-    !exc_state().embedded_mode.get() || exc_state().stdin_fd.get() > 0
+    exc_state().stdin_fd.get() > 0
+        || crate::msgpack_rpc::channel::find_channel(crate::api::ui::CHAN_STDIO).is_none()
 }
 
 fn edit_stdin(parmp: &mut Mparm) -> bool {
     let implicit = !exc_state().headless_mode.get()
-        && has_stdin()
+        && (!exc_state().embedded_mode.get() || exc_state().stdin_fd.get() > 0)
         && (!parmp.exmode || parmp.input_istext)
         && !exc_state().stdin_isatty.get()
         && parmp.edit_type <= EDIT_STDIN
