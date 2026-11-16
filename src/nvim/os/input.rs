@@ -672,7 +672,8 @@ fn inbuf_poll(ms: i32, events_opt: Option<MultiQueue>) -> bool {
     }
 
     if !input_state().got_int.get() && input_unanswerable() && !os_input_ready(events_opt) {
-        // Dismiss the prompt (CTRL-C) instead of waiting forever.
+        // Nvim is exiting: instead of waiting forever, dismiss the prompt and interrupt the code
+        // that prompted. Skips remaining exit autocmds.
         static DID_LOG: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
         if !DID_LOG.swap(true, std::sync::atomic::Ordering::Relaxed) {
             let mut mode = [0u8; MODE_MAX_LENGTH];
@@ -688,8 +689,6 @@ fn inbuf_poll(ms: i32, events_opt: Option<MultiQueue>) -> bool {
                 mode_cstr,
             );
         }
-        input_enqueue_raw(b"\x03");
-        // Also interrupt the code that prompted. Skips remaining exit autocmds.
         input_state().got_int.set(true);
     }
 
