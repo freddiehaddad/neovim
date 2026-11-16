@@ -4058,7 +4058,7 @@ fn regmatch_inner(
 
 fn regtry(
     re_s: &RegexpState,
-    prog: &mut BtRegprog,
+    prog: &BtRegprog,
     col: Colnr,
     cur_input: RegLineSlice,
     tm: Option<Proftime>,
@@ -4133,8 +4133,8 @@ fn regtry(
     }
 }
 
-fn bt_regexec_both(
-    prog: &mut BtRegprog,
+pub(super) fn bt_regexec_both(
+    prog: &BtRegprog,
     line_opt: Option<&[u8]>,
     startcol: Colnr,
     tm: Option<Proftime>,
@@ -4233,7 +4233,7 @@ fn bt_regexec_both(
             {
                 retval = regtry(
                     re_s,
-                    &mut *prog,
+                    prog,
                     col,
                     cur_input,
                     tm,
@@ -4283,7 +4283,7 @@ fn bt_regexec_both(
 
                 retval = regtry(
                     re_s,
-                    &mut *prog,
+                    prog,
                     col,
                     cur_input,
                     tm,
@@ -4368,61 +4368,6 @@ fn finish_bt_regexec(
     }
 
     retval
-}
-
-pub(super) fn bt_regexec_nl(
-    prog: &mut BtRegprog,
-    rmp: &mut Regmatch,
-    line: Option<&[u8]>,
-    col: Colnr,
-    line_lbr: bool,
-) -> i32 {
-    RE_STATE.with(|s| {
-        s.rex.init_match(rmp);
-        s.rex.reg_maxline.set(0);
-        s.rex.reg_line_lbr.set(line_lbr);
-        s.rex.set_buf(g_st().workspace.curbuf.get());
-        s.rex.reg_win.set(crate::globals::WinPtr::NULL);
-        s.rex.reg_win_cursor.set(None);
-        s.rex.reg_ic.set(rmp.rm_ic);
-        s.rex.reg_icombine.set(false);
-        s.rex
-            .reg_nobreak
-            .set((rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0);
-        s.rex.reg_maxcol.set(0);
-    });
-
-    let res = bt_regexec_both(prog, line, col, None, None);
-    RE_STATE.with(|s| {
-        if res > 0 {
-            s.rex.save_match(rmp);
-        } else {
-            rmp.rm_matchcol = s.rex.rm_matchcol.get();
-        }
-    });
-    res
-}
-
-pub(super) fn bt_regexec_multi(
-    prog: &mut BtRegprog,
-    rmp: &mut Regmmatch,
-    win: Option<&WinInfoInfo>,
-    buf: &FileBuf,
-    lnum: Linenr,
-    col: Colnr,
-    tm: Option<Proftime>,
-    timed_out: Option<&mut i32>,
-) -> i32 {
-    init_regexec_multi(rmp, win, buf, lnum);
-    let res = bt_regexec_both(prog, None, col, tm, timed_out);
-    RE_STATE.with(|s| {
-        if res > 0 {
-            s.rex.save_mmatch(rmp);
-        } else {
-            rmp.rmm_matchcol = s.rex.rmm_matchcol.get();
-        }
-    });
-    res
 }
 
 fn re_num_cmp(val: u32, prog: &[u8], scan: usize) -> bool {

@@ -4983,30 +4983,44 @@ pub fn ex_global(eap: &mut Exarg) {
             global_exe_one(cmd_cstr, lnum);
         }
     } else {
-        let mut ndone: i32 = 0;
-        lnum = eap.line1;
-        while lnum <= eap.line2 && !g_st().input.got_int.get() {
-            let matched = vim_regexec_multi(
-                &mut regmatch,
-                Some(&curwin()),
-                &curbuf(),
-                lnum,
-                0,
-                None,
-                None,
-            );
-            if regmatch.regprog.is_null() {
-                break;
+        let curwin_ref = curwin();
+        let curbuf_ref = curbuf();
+        let got_int = &g_st().input.got_int;
+        let ndone: i32 = if let Some(fast_ndone) = crate::memline::ml_try_mark_global_lines(
+            &curbuf_ref,
+            eap.line1,
+            eap.line2,
+            &regmatch,
+            type_char == b'v' as i32,
+        ) {
+            fast_ndone
+        } else {
+            let mut count = 0;
+            lnum = eap.line1;
+            while lnum <= eap.line2 && !got_int.get() {
+                let matched = vim_regexec_multi(
+                    &mut regmatch,
+                    Some(&curwin_ref),
+                    &curbuf_ref,
+                    lnum,
+                    0,
+                    None,
+                    None,
+                );
+                if regmatch.regprog.is_null() {
+                    break;
+                }
+                if (type_char == b'g' as i32 && matched != 0)
+                    || (type_char == b'v' as i32 && matched == 0)
+                {
+                    ml_setmarked(lnum);
+                    count += 1;
+                }
+                line_breakcheck();
+                lnum += 1;
             }
-            if (type_char == b'g' as i32 && matched != 0)
-                || (type_char == b'v' as i32 && matched == 0)
-            {
-                ml_setmarked(lnum);
-                ndone += 1;
-            }
-            line_breakcheck();
-            lnum += 1;
-        }
+            count
+        };
 
         if g_st().input.got_int.get() {
             msg(gettext(E_INTERR), 0);

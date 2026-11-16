@@ -658,6 +658,34 @@ fn reg_line_from_bytes_inner(
 }
 
 #[inline(always)]
+pub(super) fn reg_line_from_clean_bytes_with_nul(
+    re_s: &RegexpState,
+    bytes_with_nul: &[u8],
+) -> RegLineSlice {
+    let clean_len = bytes_with_nul.len().saturating_sub(1);
+    let mut b = [0u8; 8];
+    let copy_len = clean_len.min(8);
+    b[..copy_len].copy_from_slice(&bytes_with_nul[..copy_len]);
+    LINE_SLOTS.with(|cell| {
+        let mut st = cell.borrow_mut();
+        st.cur_gen = st.cur_gen.wrapping_add(1);
+        st.cur_line_slot = 0;
+        st.line_slot_gens[0] = st.cur_gen;
+        st.line_slot_addrs[0] = bytes_with_nul.as_ptr() as usize;
+        st.line_slot_fnums[0] = 0;
+        st.line_slots[0].clear();
+        st.line_slots[0].extend_from_slice(bytes_with_nul);
+    });
+    re_s.rex.chunk.set(RegLineChunk::new());
+    RegLineSlice {
+        slot: 0,
+        valid: 8,
+        off: 0,
+        b,
+    }
+}
+
+#[inline(always)]
 pub fn reg_line_from_bytes_with_nul(bytes: &[u8]) -> RegLineSlice {
     reg_line_from_bytes_inner(0, 0, 0, bytes, true)
 }
@@ -784,7 +812,6 @@ pub(super) struct NfaState {
     pub c: i32,
     pub out: Option<usize>,
     pub out1: Option<usize>,
-    pub lastlist: [i32; 2],
     pub val: i32,
 }
 
@@ -794,7 +821,6 @@ impl NfaState {
             c: 0,
             out: None,
             out1: None,
-            lastlist: [0; 2],
             val: 0,
         }
     }
@@ -820,14 +846,7 @@ pub(super) struct NfaRegprog {
     pub pattern: std::ffi::CString,
     pub nsubexp: i32,
     pub nstate: i32,
-    pub listbuf: [Vec<NfaThread>; 2],
     pub state: Vec<NfaState>,
-}
-
-impl Drop for NfaRegprog {
-    fn drop(&mut self) {
-        return_nfa_listbuf(&mut self.listbuf);
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -1901,7 +1920,21 @@ impl RegexecState {
         if !buf.is_null() {
             self.reg_chartab.set(buf.b_chartab.get());
         }
-        self.reg_buf.set(buf);
+        let same = self.reg_buf.with(|b| *b == buf);
+        if !same {
+            self.reg_buf.set(buf);
+        }
+        self.cached_lines.set([(Linenr::MIN, REG_LINE_NULL); 2]);
+    }
+    #[inline(always)]
+    pub fn set_buf_ref(&self, buf: &FileBuf) {
+        self.reg_chartab.set(buf.b_chartab.get());
+        let same = self
+            .reg_buf
+            .with(|b| b.opt().is_some_and(|b_ref| std::ptr::eq(b_ref, buf)));
+        if !same {
+            self.reg_buf.set(crate::globals::BufPtr::from(buf));
+        }
         self.cached_lines.set([(Linenr::MIN, REG_LINE_NULL); 2]);
     }
     #[inline(always)]
@@ -3517,7 +3550,12 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
 
 #[inline(always)]
 pub(super) fn cstrchr(s_bytes: &[u8], c: i32) -> Option<usize> {
-    if !RE_STATE.with(|s| s.rex.reg_ic.get()) {
+    cstrchr_ic(s_bytes, c, RE_STATE.with(|s| s.rex.reg_ic.get()))
+}
+
+#[inline(always)]
+pub(crate) fn cstrchr_ic(s_bytes: &[u8], c: i32, reg_ic: bool) -> Option<usize> {
+    if !reg_ic {
         return crate::strings::vim_strchr_pos(s_bytes, c);
     }
 
@@ -3535,18 +3573,39 @@ pub(super) fn cstrchr(s_bytes: &[u8], c: i32) -> Option<usize> {
     };
 
     let mut idx = 0usize;
+    if c < 0x80 {
+        let cu = c as u8;
+        let ccu = cc as u8;
+        while idx < s_bytes.len() {
+            let b0 = s_bytes[idx];
+            if b0 < 0x80 {
+                if b0 == cu || b0 == ccu {
+                    return Some(idx);
+                }
+                idx += 1;
+            } else {
+                let rem = &s_bytes[idx..];
+                let uc = crate::mbyte::utf_slice2char(rem);
+                if (uc < 0x80 || uc != i32::from(b0)) && utf_fold(uc) == lc {
+                    return Some(idx);
+                }
+                idx += crate::mbyte::utfc_slice2len(rem);
+            }
+        }
+        return None;
+    }
+
     while idx < s_bytes.len() {
         let rem = &s_bytes[idx..];
         let b0 = s_bytes[idx] as i32;
-        let uc = utf_ptr2char(rem);
-        if c > 0x80 || uc > 0x80 {
-            if (uc < 0x80 || uc != b0) && utf_fold(uc) == lc {
-                return Some(idx);
-            }
-        } else if b0 == c || b0 == cc {
+        let uc = crate::mbyte::utf_slice2char(rem);
+        if uc == c || uc == cc {
             return Some(idx);
         }
-        idx += utfc_ptr2len(rem) as usize;
+        if (uc < 0x80 || uc != b0) && utf_fold(uc) == lc {
+            return Some(idx);
+        }
+        idx += crate::mbyte::utfc_slice2len(rem);
     }
     None
 }
@@ -4256,13 +4315,21 @@ pub(super) fn init_regexec_multi(
     let rmm_ic = rmp.rmm_ic;
     let nobreak = (rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0;
     let maxcol = rmp.rmm_maxcol;
-    let buf_ptr = crate::globals::BufPtr::from(buf);
     let win_cursor = win.map(|wp| wp.w_cursor.get());
-    let win_ptr = win.map_or(crate::globals::WinPtr::NULL, crate::globals::WinPtr::from);
     RE_STATE.with(|s| {
         s.rex.init_mmatch(rmp);
-        s.rex.set_buf(buf_ptr);
-        s.rex.reg_win.set(win_ptr);
+        s.rex.set_buf_ref(buf);
+        let same_win = match win {
+            Some(wp) => s
+                .rex
+                .reg_win
+                .with(|w| w.opt().is_some_and(|w_ref| std::ptr::eq(w_ref, wp))),
+            None => s.rex.reg_win.with(|w| w.is_null()),
+        };
+        if !same_win {
+            let win_ptr = win.map_or(crate::globals::WinPtr::NULL, crate::globals::WinPtr::from);
+            s.rex.reg_win.set(win_ptr);
+        }
         s.rex.reg_win_cursor.set(win_cursor);
         s.rex.reg_firstlnum.set(lnum);
         s.rex.reg_maxline.set(maxline);
@@ -4609,11 +4676,36 @@ fn exec_regmatch_nl(rmp: &mut Regmatch, line: Option<&[u8]>, col: Colnr, nl: boo
         let mut st = cell.borrow_mut();
         st.cur_gen = st.cur_gen.wrapping_add(1);
     });
-    let prog = rmp.regprog.opt().unwrap().clone();
-    match &mut *prog.0.engine.borrow_mut() {
-        RegProgEngine::Bt(bt) => bt_regexec_nl(bt, rmp, line, col, nl),
-        RegProgEngine::Nfa(nfa) => nfa_regexec_nl(nfa, rmp, line, col, nl),
-    }
+    RE_STATE.with(|s| {
+        s.rex.init_match(rmp);
+        s.rex.reg_maxline.set(0);
+        s.rex.reg_line_lbr.set(nl);
+        s.rex.set_buf(g_st().workspace.curbuf.get());
+        s.rex.reg_win.set(crate::globals::WinPtr::NULL);
+        s.rex.reg_win_cursor.set(None);
+        s.rex.reg_ic.set(rmp.rm_ic);
+        s.rex.reg_icombine.set(false);
+        s.rex
+            .reg_nobreak
+            .set((rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0);
+        s.rex.reg_maxcol.set(0);
+    });
+    let res = {
+        let prog = rmp.regprog.opt().unwrap();
+        let eng = prog.0.engine.borrow();
+        match &*eng {
+            RegProgEngine::Bt(bt) => bt_regexec_both(bt, line, col, None, None),
+            RegProgEngine::Nfa(nfa) => nfa_regexec_both(nfa, line, col, None, None),
+        }
+    };
+    RE_STATE.with(|s| {
+        if res > 0 {
+            s.rex.save_match(rmp);
+        } else {
+            rmp.rm_matchcol = s.rex.rm_matchcol.get();
+        }
+    });
+    res
 }
 
 fn exec_regmmatch_multi(
@@ -4621,19 +4713,110 @@ fn exec_regmmatch_multi(
     win: Option<&WinInfoInfo>,
     buf: &FileBuf,
     lnum: Linenr,
-    col: Colnr,
+    mut col: Colnr,
     tm: Option<Proftime>,
     timed_out: Option<&mut i32>,
 ) -> i32 {
+    if lnum >= 1 && lnum <= buf.b_ml.ml_line_count.get() {
+        let pre_action = {
+            let prog = rmp.regprog.opt().unwrap();
+            let eng = prog.0.engine.borrow();
+            if let RegProgEngine::Nfa(nfa) = &*eng {
+                if nfa.reganch && col > 0 {
+                    Some(None)
+                } else if nfa.regstart != NUL as i32 {
+                    let reg_ic = if (nfa.regflags & RF_ICASE) != 0 {
+                        true
+                    } else if (nfa.regflags & RF_NOICASE) != 0 {
+                        false
+                    } else {
+                        rmp.rmm_ic
+                    };
+                    let reg_icombine = (nfa.regflags & RF_ICOMBINE) != 0;
+                    let pre = crate::memline::with_ml_buf_line(buf, lnum, |line_bytes| {
+                        let start_off = (col as usize).min(line_bytes.len());
+                        let off = cstrchr_ic(&line_bytes[start_off..], nfa.regstart, reg_ic)?;
+                        let mut mcol = col + off as Colnr;
+                        if let Some(ref mt) = nfa.match_text
+                            && !mt.as_bytes().is_empty()
+                            && !reg_icombine
+                        {
+                            let end_col = find_match_text_in_bytes(
+                                line_bytes,
+                                &mut mcol,
+                                nfa.regstart,
+                                mt.as_bytes(),
+                                reg_ic,
+                            );
+                            return Some((mcol, Some(end_col)));
+                        }
+                        Some((mcol, None))
+                    });
+                    match pre {
+                        None => Some(None),
+                        Some((mcol, Some(None))) => {
+                            rmp.rmm_matchcol = mcol;
+                            Some(None)
+                        }
+                        Some((mcol, Some(Some(end_col)))) => {
+                            Some(Some((mcol, end_col, nfa.nsubexp)))
+                        }
+                        Some((mcol, None)) => {
+                            col = mcol;
+                            None
+                        }
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
+        match pre_action {
+            Some(None) => return 0,
+            Some(Some((mcol, end_col, nsubexp))) => {
+                init_regexec_multi(rmp, win, buf, lnum);
+                RE_STATE.with(|s| {
+                    s.re_extmatch_out.set(None);
+                    s.rex.need_clear_subexpr.set(true);
+                    s.rex.nfa_nsubexpr.set(nsubexp);
+                    cleanup_subexpr();
+                    s.rex.rmm_startpos[0].set(Lpos { lnum: 0, col: mcol });
+                    s.rex.rmm_endpos[0].set(Lpos {
+                        lnum: 0,
+                        col: end_col,
+                    });
+                    s.rex.rmm_matchcol.set(mcol);
+                    s.rex.save_mmatch(rmp);
+                });
+                return 1;
+            }
+            None => {}
+        }
+    }
+
     LINE_SLOTS.with(|cell| {
         let mut st = cell.borrow_mut();
         st.cur_gen = st.cur_gen.wrapping_add(1);
     });
-    let prog = rmp.regprog.opt().unwrap().clone();
-    match &mut *prog.0.engine.borrow_mut() {
-        RegProgEngine::Bt(bt) => bt_regexec_multi(bt, rmp, win, buf, lnum, col, tm, timed_out),
-        RegProgEngine::Nfa(nfa) => nfa_regexec_multi(nfa, rmp, win, buf, lnum, col, tm, timed_out),
-    }
+    init_regexec_multi(rmp, win, buf, lnum);
+    let res = {
+        let prog = rmp.regprog.opt().unwrap();
+        let eng = prog.0.engine.borrow();
+        match &*eng {
+            RegProgEngine::Bt(bt) => bt_regexec_both(bt, None, col, tm, timed_out),
+            RegProgEngine::Nfa(nfa) => nfa_regexec_both(nfa, None, col, tm, timed_out),
+        }
+    };
+    RE_STATE.with(|s| {
+        if res > 0 {
+            s.rex.save_mmatch(rmp);
+        } else {
+            rmp.rmm_matchcol = s.rex.rmm_matchcol.get();
+        }
+    });
+    res
 }
 
 fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&[u8]>, col: Colnr, nl: bool) -> bool {
@@ -4707,16 +4890,17 @@ pub fn vim_regexec_multi(
     tm: Option<Proftime>,
     mut timed_out: Option<&mut i32>,
 ) -> i32 {
-    let rex_in_use_save = RE_STATE.with(|s| s.rex_in_use.get());
-
     if rmp.regprog.re_in_use() {
         emsg(tr(E_RECURSIVE));
         return 0;
     }
     rmp.regprog.set_re_in_use(true);
 
-    let rex_save = rex_in_use_save.then(|| RE_STATE.with(|s| s.rex.snapshot()));
-    RE_STATE.with(|s| s.rex_in_use.set(true));
+    let (rex_in_use_save, rex_save) = RE_STATE.with(|s| {
+        let save = s.rex_in_use.replace(true);
+        let snap = save.then(|| s.rex.snapshot());
+        (save, snap)
+    });
 
     let mut result = exec_regmmatch_multi(rmp, win, buf, lnum, col, tm, timed_out.as_deref_mut());
     rmp.regprog.set_re_in_use(false);
@@ -4744,12 +4928,58 @@ pub fn vim_regexec_multi(
         opt_vars().p_re.set(save_p_re);
     }
 
-    RE_STATE.with(|s| s.rex_in_use.set(rex_in_use_save));
-    if let Some(ref rex_save) = rex_save {
-        RE_STATE.with(|s| s.rex.restore(rex_save));
-    }
+    RE_STATE.with(|s| {
+        s.rex_in_use.set(rex_in_use_save);
+        if let Some(ref rex_save) = rex_save {
+            s.rex.restore(rex_save);
+        }
+        if result <= 0 {
+            s.re_extmatch_out.set(None);
+        }
+    });
 
     if result <= 0 { 0 } else { result }
+}
+
+pub(crate) use self::nfa::{find_match_text_in_bytes, nfa_match_line_slice};
+
+#[inline]
+pub(crate) fn rex_in_use() -> bool {
+    RE_STATE.with(|s| s.rex_in_use.get())
+}
+
+#[inline]
+pub(crate) fn init_main_regex_buf(buf: &FileBuf) {
+    RE_STATE.with(|s| {
+        s.rex.set_buf_ref(buf);
+    });
+}
+
+#[inline]
+pub(crate) fn init_worker_regex_env(
+    b_chartab: [u64; 4],
+    isf_chartab: [u64; 4],
+    isi_chartab: [u64; 4],
+    p_mmp: OptInt,
+) {
+    crate::charset::set_global_chartabs(isf_chartab, isi_chartab);
+    opt_vars().p_mmp.set(p_mmp);
+    RE_STATE.with(|s| {
+        s.rex.reg_chartab.set(b_chartab);
+    });
+}
+
+#[inline]
+pub(crate) fn with_pure_nfa_prog<R>(
+    regprog: &RegprogPtr,
+    f: impl FnOnce(&NfaRegprog) -> R,
+) -> Option<R> {
+    let prog = regprog.opt()?;
+    let eng = prog.0.engine.borrow();
+    match &*eng {
+        RegProgEngine::Nfa(nfa) if nfa.is_pure_single_line() => Some(f(nfa)),
+        _ => None,
+    }
 }
 
 impl RegexpState {
@@ -4879,5 +5109,56 @@ mod tests {
         assert_eq!(rm.end_offset(0, &line_buf[..5]), 5);
         assert!(!vim_regexec(&mut rm, &line_buf[..4], 0));
         rm.free_prog();
+    }
+
+    #[test]
+    fn nfa_regprog_is_send_sync_and_matches_concurrently_across_threads() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        crate::main_init::ensure_test_editor_init();
+
+        let prog = vim_regcomp(b"^\\s*fn\\s\\+\\(\\w\\+\\)_item_[0-9]\\+$", RE_MAGIC).unwrap();
+        let b_chartab = curbuf().b_chartab.get();
+        let (isf_chartab, isi_chartab) = crate::charset::get_global_chartabs();
+        let p_mmp = opt_vars().p_mmp.get();
+
+        with_pure_nfa_prog(&RegprogPtr::from_box(Some(prog)), |nfa| {
+            let results: Vec<Vec<(usize, Colnr, Colnr)>> = std::thread::scope(|s| {
+                let mut handles = Vec::new();
+                for t in 0..4usize {
+                    handles.push(s.spawn(move || {
+                        init_worker_regex_env(b_chartab, isf_chartab, isi_chartab, p_mmp);
+                        let mut matches = Vec::new();
+                        for i in 0..200usize {
+                            let line = if i % 10 == t {
+                                format!("  fn worker_{t}_item_{i}")
+                            } else {
+                                format!("  let non_matching_line = {i};")
+                            };
+                            if let Ok(Some((sc, ec))) =
+                                nfa_match_line_slice(nfa, line.as_bytes(), 0, false, 0)
+                            {
+                                matches.push((i, sc, ec));
+                            }
+                        }
+                        matches
+                    }));
+                }
+                handles.into_iter().map(|h| h.join().unwrap()).collect()
+            });
+
+            for (t, worker_matches) in results.into_iter().enumerate() {
+                assert_eq!(worker_matches.len(), 20);
+                for (k, (i, sc, ec)) in worker_matches.into_iter().enumerate() {
+                    let expected_i = k * 10 + t;
+                    let expected_len = format!("  fn worker_{t}_item_{expected_i}").len() as Colnr;
+                    assert_eq!(i, expected_i);
+                    assert_eq!(sc, 0);
+                    assert_eq!(ec, expected_len);
+                }
+            }
+        })
+        .expect("expected pure single-line NFA program");
     }
 }

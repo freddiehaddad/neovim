@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use crate::buffer::FileBuf;
-use crate::charset::{ascii_isalnum, ascii_iswhite, vim_iswordc, vim_iswordp};
+use crate::charset::{ascii_isalnum, ascii_iswhite, vim_iswordp};
 use crate::cursor::{CursorPos, equalpos};
 use crate::errors::{E_INVARG_NVAL, E_INVARG2, E_INVARGVAL, E_LISTARG};
 use crate::eval::callback_call;
@@ -70,6 +70,7 @@ struct FuzzyScratch {
     match_st: MatchStruct,
     d_table: Vec<f64>,
     m_table: Vec<f64>,
+    worker_chartab: Option<[u64; 4]>,
 }
 
 thread_local! {
@@ -83,7 +84,22 @@ thread_local! {
         },
         d_table: Vec::new(),
         m_table: Vec::new(),
+        worker_chartab: None,
     }));
+}
+
+#[inline]
+pub(crate) fn init_worker_fuzzy_chartab(chartab: [u64; 4]) {
+    FUZZY_SCRATCH.with(|cell| {
+        cell.borrow_mut().worker_chartab = Some(chartab);
+    });
+}
+
+#[inline]
+pub(crate) fn clear_worker_fuzzy_chartab() {
+    FUZZY_SCRATCH.with(|cell| {
+        cell.borrow_mut().worker_chartab = None;
+    });
 }
 
 fn has_match(needle: &[u8], haystack: &[u8]) -> bool {
@@ -150,8 +166,8 @@ fn has_match(needle: &[u8], haystack: &[u8]) -> bool {
 }
 
 #[inline]
-fn compute_bonus_codepoint(last_c: i32, c: i32) -> f64 {
-    if ascii_isalnum(c) || vim_iswordc(c) {
+fn compute_bonus_codepoint(last_c: i32, c: i32, chartab: &[u64; 4]) -> f64 {
+    if ascii_isalnum(c) || crate::charset::vim_iswordc_tab(c, chartab) {
         if last_c == (b'/' as i32) {
             return SCORE_MATCH_SLASH;
         }
@@ -168,7 +184,12 @@ fn compute_bonus_codepoint(last_c: i32, c: i32) -> f64 {
     0.0
 }
 
-fn setup_match_struct(match_st: &mut MatchStruct, needle: &[u8], haystack: &[u8]) {
+fn setup_match_struct(
+    match_st: &mut MatchStruct,
+    needle: &[u8],
+    haystack: &[u8],
+    chartab: &[u64; 4],
+) {
     let mut i = 0usize;
     let mut off = 0usize;
     while off < needle.len() && needle[off] != 0 && i < MATCH_MAX_LEN {
@@ -203,7 +224,7 @@ fn setup_match_struct(match_st: &mut MatchStruct, needle: &[u8], haystack: &[u8]
             match_st.lower_haystack[i] = mb_tolower(ch);
             ch
         };
-        match_st.match_bonus[i] = compute_bonus_codepoint(prev_c, c);
+        match_st.match_bonus[i] = compute_bonus_codepoint(prev_c, c, chartab);
         prev_c = c;
         i += 1;
     }
@@ -291,9 +312,17 @@ fn match_positions(needle: &[u8], haystack: &[u8], positions: &mut [u32]) -> f64
             match_st,
             d_table,
             m_table,
+            worker_chartab,
         } = &mut **scratch;
 
-        setup_match_struct(match_st, needle, haystack);
+        let chartab = worker_chartab.unwrap_or_else(|| {
+            g_st()
+                .workspace
+                .curbuf
+                .with(|b| b.opt().map_or([0; 4], |b_ref| b_ref.b_chartab.get()))
+        });
+
+        setup_match_struct(match_st, needle, haystack, &chartab);
 
         let n = match_st.needle_len;
         let m = match_st.haystack_len;
@@ -469,6 +498,38 @@ pub fn fuzzy_match(
     fuzzy_match_slice(str_bytes, pat_bytes, matchseq, out_score, matches)
 }
 
+fn fuzzy_has_all_words(str_bytes: &[u8], pat_bytes: &[u8], matchseq: bool) -> bool {
+    if matchseq {
+        return has_match(pat_bytes, str_bytes);
+    }
+    let mut p_idx = 0usize;
+    let mut any_word = false;
+    loop {
+        while p_idx < pat_bytes.len() && ascii_iswhite(i32::from(pat_bytes[p_idx])) {
+            p_idx += 1;
+        }
+        if p_idx >= pat_bytes.len() || pat_bytes[p_idx] == 0 {
+            break;
+        }
+        let start = p_idx;
+        while p_idx < pat_bytes.len()
+            && pat_bytes[p_idx] != 0
+            && !ascii_iswhite(utf_slice2char(&pat_bytes[p_idx..]))
+        {
+            p_idx += utf_slice2len(&pat_bytes[p_idx..]);
+        }
+        any_word = true;
+        if !has_match(&pat_bytes[start..p_idx], str_bytes) {
+            return false;
+        }
+        if p_idx >= pat_bytes.len() || pat_bytes[p_idx] == 0 {
+            break;
+        }
+        p_idx += 1;
+    }
+    any_word
+}
+
 fn fuzzy_match_item_compare(item1: &FuzzyItem, item2: &FuzzyItem) -> std::cmp::Ordering {
     item2
         .score
@@ -516,93 +577,218 @@ fn fuzzy_match_in_list(
         }
     }
 
-    for li in crate::eval::typval::list_iter_ptr(l.and_then(|l| l.first_opt())) {
-        if max_matches > 0 && match_count >= max_matches {
-            break;
+    if item_cb.cb_type() == K_CALLBACK_NONE && len >= 256 && max_matches == 0 {
+        let cur_chartab = g_st()
+            .workspace
+            .curbuf
+            .with(|b| b.opt().map_or([0; 4], |b_ref| b_ref.b_chartab.get()));
+        init_worker_fuzzy_chartab(cur_chartab);
+        let mut matched_candidates = Vec::new();
+        for li in crate::eval::typval::list_iter_ptr(l.and_then(|l| l.first_opt())) {
+            let v_type = li.tv().v_type;
+            let matched_bytes = if v_type == VarType::VarString {
+                let tv = li.tv();
+                tv.vval.v_string_cstr().and_then(|cstr| {
+                    let b = cstr.to_bytes();
+                    fuzzy_has_all_words(b, pat_bytes, matchseq).then(|| b.to_vec())
+                })
+            } else if v_type == VarType::VarDict
+                && let Some(k) = key
+            {
+                let d_id = li.tv().vval.v_dict();
+                d_id.opt()
+                    .and_then(|d| tv_dict_get_string(Some(d), k))
+                    .and_then(|cstr| {
+                        let b = cstr.to_bytes();
+                        fuzzy_has_all_words(b, pat_bytes, matchseq).then(|| b.to_vec())
+                    })
+            } else {
+                None
+            };
+            if let Some(b) = matched_bytes {
+                matched_candidates.push((li, b));
+            }
         }
 
-        let mut rettv = TypVal {
-            v_type: VarType::VarUnknown,
-            v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Number(0),
-        };
-        let itemstr_cow;
-        let d_id;
-        let mut li_tv_opt = None;
-        let mut itemstr: Option<&CStr> = None;
-
-        let v_type = li.tv().v_type;
-        if v_type == VarType::VarString {
-            li_tv_opt = Some(li.tv());
-            itemstr = li_tv_opt.as_ref().unwrap().vval.v_string_cstr();
-        } else if v_type == VarType::VarDict
-            && (key.is_some() || item_cb.cb_type() != K_CALLBACK_NONE)
-        {
-            d_id = li.tv().vval.v_dict();
-            if let Some(d) = d_id.opt() {
-                if let Some(k) = key {
-                    itemstr_cow = tv_dict_get_string(Some(d), k);
-                    itemstr = itemstr_cow.as_deref();
-                } else {
-                    d.dv_refcount.set(d.dv_refcount.get() + 1);
-                    let mut argv = [
-                        TypVal {
-                            v_type: VarType::VarDict,
-                            v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval::Dict(d_id.clone()),
-                        },
-                        TypVal {
-                            v_type: VarType::VarUnknown,
-                            v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval::Number(0),
-                        },
-                    ];
-                    if callback_call(item_cb, 1, &mut argv, &mut rettv)
-                        && rettv.v_type == VarType::VarString
-                    {
-                        itemstr = rettv.vval.v_string_cstr();
+        if matched_candidates.len() >= 2048 {
+            let texts: Vec<&[u8]> = matched_candidates
+                .iter()
+                .map(|(_, b)| b.as_slice())
+                .collect();
+            let nthreads = std::thread::available_parallelism()
+                .map_or(4, |n| n.get().min(8))
+                .min(texts.len());
+            let group_len = texts.len().div_ceil(nthreads).max(1);
+            let scored: Vec<Option<(i32, Vec<i64>, bool)>> = std::thread::scope(|s| {
+                let mut handles = Vec::with_capacity(nthreads);
+                for slice in texts.chunks(group_len) {
+                    handles.push(s.spawn(move || {
+                        init_worker_fuzzy_chartab(cur_chartab);
+                        let mut out = Vec::with_capacity(slice.len());
+                        let mut loc_matches = [0u32; FUZZY_MATCH_MAX_LEN];
+                        for &item_bytes in slice {
+                            let mut score: i32 = 0;
+                            if fuzzy_match_slice(
+                                item_bytes,
+                                pat_bytes,
+                                matchseq,
+                                &mut score,
+                                &mut loc_matches,
+                            ) {
+                                let exact_match = item_bytes
+                                    .get(loc_matches[0] as usize..)
+                                    .is_some_and(|s| s.starts_with(pat_bytes));
+                                let mut matchpos = Vec::new();
+                                if retmatchpos && pat_nonwhite_count > 0 {
+                                    matchpos.reserve_exact(pat_nonwhite_count);
+                                    for &m in &loc_matches[..pat_nonwhite_count] {
+                                        matchpos.push(i64::from(m));
+                                    }
+                                }
+                                out.push(Some((score, matchpos, exact_match)));
+                            } else {
+                                out.push(None);
+                            }
+                        }
+                        out
+                    }));
+                }
+                let mut all = Vec::with_capacity(texts.len());
+                for h in handles {
+                    if let Ok(mut part) = h.join() {
+                        all.append(&mut part);
                     }
-                    tv_dict_unref(d_id.opt());
                 }
-            }
-        }
-
-        let mut score: i32 = 0;
-        let matched = if let Some(item_cstr) = itemstr {
-            let item_bytes = item_cstr.to_bytes();
-            fuzzy_match_slice(item_bytes, pat_bytes, matchseq, &mut score, &mut matches).then(
-                || {
-                    item_bytes
-                        .get(matches[0] as usize..)
-                        .is_some_and(|s| s.starts_with(pat_bytes))
-                },
-            )
-        } else {
-            None
-        };
-        drop(li_tv_opt);
-
-        if let Some(exact_match) = matched {
-            let mut matchpos: Vec<i64> = Vec::new();
-            if retmatchpos && pat_nonwhite_count > 0 {
-                matchpos.reserve_exact(pat_nonwhite_count);
-                for &m in &matches[..pat_nonwhite_count] {
-                    matchpos.push(i64::from(m));
-                }
-            }
-
-            items.push(FuzzyItem {
-                idx: match_count,
-                item: li,
-                score,
-                matchpos,
-                exact_match,
+                all
             });
 
-            match_count += 1;
+            for ((li, _), res) in matched_candidates.into_iter().zip(scored) {
+                if let Some((score, matchpos, exact_match)) = res {
+                    items.push(FuzzyItem {
+                        idx: match_count,
+                        item: li,
+                        score,
+                        matchpos,
+                        exact_match,
+                    });
+                    match_count += 1;
+                }
+            }
+        } else {
+            for (li, item_bytes) in matched_candidates {
+                let mut score: i32 = 0;
+                if fuzzy_match_slice(&item_bytes, pat_bytes, matchseq, &mut score, &mut matches) {
+                    let exact_match = item_bytes
+                        .get(matches[0] as usize..)
+                        .is_some_and(|s| s.starts_with(pat_bytes));
+                    let mut matchpos: Vec<i64> = Vec::new();
+                    if retmatchpos && pat_nonwhite_count > 0 {
+                        matchpos.reserve_exact(pat_nonwhite_count);
+                        for &m in &matches[..pat_nonwhite_count] {
+                            matchpos.push(i64::from(m));
+                        }
+                    }
+                    items.push(FuzzyItem {
+                        idx: match_count,
+                        item: li,
+                        score,
+                        matchpos,
+                        exact_match,
+                    });
+                    match_count += 1;
+                }
+            }
         }
-        if rettv.v_type != VarType::VarUnknown {
-            tv_clear(&mut rettv);
+        clear_worker_fuzzy_chartab();
+    } else {
+        for li in crate::eval::typval::list_iter_ptr(l.and_then(|l| l.first_opt())) {
+            if max_matches > 0 && match_count >= max_matches {
+                break;
+            }
+
+            let mut rettv = TypVal {
+                v_type: VarType::VarUnknown,
+                v_lock: VAR_UNLOCKED,
+                vval: TypvalVval::Number(0),
+            };
+            let itemstr_cow;
+            let d_id;
+            let mut li_tv_opt = None;
+            let mut itemstr: Option<&CStr> = None;
+
+            let v_type = li.tv().v_type;
+            if v_type == VarType::VarString {
+                li_tv_opt = Some(li.tv());
+                itemstr = li_tv_opt.as_ref().unwrap().vval.v_string_cstr();
+            } else if v_type == VarType::VarDict
+                && (key.is_some() || item_cb.cb_type() != K_CALLBACK_NONE)
+            {
+                d_id = li.tv().vval.v_dict();
+                if let Some(d) = d_id.opt() {
+                    if let Some(k) = key {
+                        itemstr_cow = tv_dict_get_string(Some(d), k);
+                        itemstr = itemstr_cow.as_deref();
+                    } else {
+                        d.dv_refcount.set(d.dv_refcount.get() + 1);
+                        let mut argv = [
+                            TypVal {
+                                v_type: VarType::VarDict,
+                                v_lock: VAR_UNLOCKED,
+                                vval: TypvalVval::Dict(d_id.clone()),
+                            },
+                            TypVal {
+                                v_type: VarType::VarUnknown,
+                                v_lock: VAR_UNLOCKED,
+                                vval: TypvalVval::Number(0),
+                            },
+                        ];
+                        if callback_call(item_cb, 1, &mut argv, &mut rettv)
+                            && rettv.v_type == VarType::VarString
+                        {
+                            itemstr = rettv.vval.v_string_cstr();
+                        }
+                        tv_dict_unref(d_id.opt());
+                    }
+                }
+            }
+
+            let mut score: i32 = 0;
+            let matched = if let Some(item_cstr) = itemstr {
+                let item_bytes = item_cstr.to_bytes();
+                fuzzy_match_slice(item_bytes, pat_bytes, matchseq, &mut score, &mut matches).then(
+                    || {
+                        item_bytes
+                            .get(matches[0] as usize..)
+                            .is_some_and(|s| s.starts_with(pat_bytes))
+                    },
+                )
+            } else {
+                None
+            };
+            drop(li_tv_opt);
+
+            if let Some(exact_match) = matched {
+                let mut matchpos: Vec<i64> = Vec::new();
+                if retmatchpos && pat_nonwhite_count > 0 {
+                    matchpos.reserve_exact(pat_nonwhite_count);
+                    for &m in &matches[..pat_nonwhite_count] {
+                        matchpos.push(i64::from(m));
+                    }
+                }
+
+                items.push(FuzzyItem {
+                    idx: match_count,
+                    item: li,
+                    score,
+                    matchpos,
+                    exact_match,
+                });
+
+                match_count += 1;
+            }
+            if rettv.v_type != VarType::VarUnknown {
+                tv_clear(&mut rettv);
+            }
         }
     }
 
@@ -1044,5 +1230,113 @@ mod tests {
             &mut pos
         ));
         assert_eq!(&pos[..8], &[4, 5, 6, 7, 9, 10, 11, 12]);
+    }
+
+    #[test]
+    fn fuzzy_match_slice_parallel_threads_deterministic() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        crate::main_init::ensure_test_editor_init();
+
+        let candidates: Vec<String> = (0..400)
+            .map(|i| format!("src/nvim/module_{i:03}/drawline_helper_{i}.rs"))
+            .collect();
+        let pat = b"nvim draw";
+
+        let expected: Vec<(i32, [u32; 8])> = candidates
+            .iter()
+            .map(|c| {
+                let mut sc = 0;
+                let mut pos = [0u32; FUZZY_MATCH_MAX_LEN];
+                assert!(fuzzy_has_all_words(c.as_bytes(), pat, false));
+                assert!(fuzzy_match_slice(
+                    c.as_bytes(),
+                    pat,
+                    false,
+                    &mut sc,
+                    &mut pos
+                ));
+                let mut p8 = [0u32; 8];
+                p8.copy_from_slice(&pos[..8]);
+                (sc, p8)
+            })
+            .collect();
+
+        let cur_chartab = curbuf().b_chartab.get();
+        let parallel_res: Vec<(i32, [u32; 8])> = std::thread::scope(|s| {
+            let mut handles = Vec::new();
+            for chunk in candidates.chunks(100) {
+                handles.push(s.spawn(move || {
+                    init_worker_fuzzy_chartab(cur_chartab);
+                    chunk
+                        .iter()
+                        .map(|c| {
+                            let mut sc = 0;
+                            let mut pos = [0u32; FUZZY_MATCH_MAX_LEN];
+                            assert!(fuzzy_match_slice(
+                                c.as_bytes(),
+                                pat,
+                                false,
+                                &mut sc,
+                                &mut pos
+                            ));
+                            let mut p8 = [0u32; 8];
+                            p8.copy_from_slice(&pos[..8]);
+                            (sc, p8)
+                        })
+                        .collect::<Vec<_>>()
+                }));
+            }
+            handles
+                .into_iter()
+                .flat_map(|h| h.join().unwrap())
+                .collect()
+        });
+
+        assert_eq!(parallel_res, expected);
+    }
+
+    #[test]
+    fn fuzzy_match_in_list_parallel_over_2048_candidates_preserves_order() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        crate::main_init::ensure_test_editor_init();
+
+        let in_list = tv_list_alloc(2500);
+        for i in 0..2500 {
+            let s = format!("src/nvim/item_{i:04}/target_handler.rs");
+            crate::eval::typval::tv_list_append_bytes(&in_list, s.as_bytes());
+        }
+        let out_list = tv_list_alloc(K_LIST_LEN_UNKNOWN);
+        let mut cb = Callback::NONE;
+        // All 2,500 candidates match "nvim target", exercising matched_candidates.len() >= 2048
+        fuzzy_match_in_list(
+            Some(&in_list),
+            b"nvim target",
+            false,
+            None,
+            &mut cb,
+            true,
+            &out_list,
+            0,
+        );
+        assert_eq!(tv_list_len(Some(&out_list)), 3);
+        let matched_items = out_list.first_opt().unwrap().tv().vval.v_list();
+        assert_eq!(tv_list_len(matched_items.opt()), 2500);
+        // Tie-breaking must preserve original 0..2500 index order for equal-score items
+        let first_str = matched_items
+            .opt()
+            .unwrap()
+            .first_opt()
+            .unwrap()
+            .tv()
+            .vval
+            .v_string_owned();
+        assert_eq!(
+            first_str.as_bytes(),
+            b"src/nvim/item_0000/target_handler.rs"
+        );
     }
 }

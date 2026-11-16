@@ -2136,19 +2136,17 @@ fn go_deeper(stack: &mut [Trystate; MAXWLEN], depth: usize, score_add: i32) {
     stack[depth + 1].ts_curi = 1;
     stack[depth + 1].ts_flags = 0;
 }
-fn find_keepcap_word(slang: &Slang, fword: &[u8], kword: &mut [u8]) {
+fn find_keepcap_word_slices(byts: &[u8], idxs: &[Idx], fword: &[u8], kword: &mut [u8]) {
     let mut uword: [u8; MAXWLEN] = [0; MAXWLEN];
     let mut arridx: [Idx; MAXWLEN] = [0; MAXWLEN];
     let mut round: [i32; MAXWLEN] = [0; MAXWLEN];
     let mut fwordidx: [i32; MAXWLEN] = [0; MAXWLEN];
     let mut uwordidx: [i32; MAXWLEN] = [0; MAXWLEN];
     let mut kwordlen: [i32; MAXWLEN] = [0; MAXWLEN];
-    if slang.sl_kbyts.is_empty() {
+    if byts.is_empty() {
         kword[0] = 0;
         return;
     }
-    let byts = &slang.sl_kbyts;
-    let idxs = &slang.sl_kidxs;
     let fword_bytes = crate::memory::bytes_until_nul(fword);
     allcap_copy(fword_bytes, &mut uword);
     let mut depth: isize = 0;
@@ -2221,6 +2219,10 @@ fn find_keepcap_word(slang: &Slang, fword: &[u8], kword: &mut [u8]) {
         }
     }
     kword[0] = 0;
+}
+#[inline]
+fn find_keepcap_word(slang: &Slang, fword: &[u8], kword: &mut [u8]) {
+    find_keepcap_word_slices(&slang.sl_kbyts, &slang.sl_kidxs, fword, kword);
 }
 fn score_comp_sal(su: &mut Suginfo) {
     let mut badsound: [u8; MAXWLEN] = [0; MAXWLEN];
@@ -2417,15 +2419,192 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: &[u8], score: i32, lp: &Langp) 
         internal_error(c"add_sound_suggest()");
         return;
     };
-    let nrline_vec = {
+    let mut orgnrs: Vec<i32> = Vec::new();
+    {
         let sugbuf_borrow = slang.sl_sugbuf.borrow();
         let sugbuf = sugbuf_borrow.as_deref().unwrap();
-        crate::memline::ml_get_buf_slice(sugbuf, sfwordnr + 1).to_vec()
-    };
-    let mut nrline: &[u8] = &nrline_vec;
-    let mut orgnr: i32 = 0;
-    while !nrline.is_empty() {
-        orgnr += bytes2offset(&mut nrline);
+        crate::memline::with_ml_buf_line(sugbuf, sfwordnr + 1, |mut nrline| {
+            let mut orgnr: i32 = 0;
+            while !nrline.is_empty() {
+                orgnr += bytes2offset(&mut nrline);
+                orgnrs.push(orgnr);
+            }
+        });
+    }
+
+    let is_double = (sps_st(|st| st.sps_flags.get()) & SPS_DOUBLE) != 0;
+    if !is_double && orgnrs.len() >= 64 {
+        let byts = slang.sl_fbyts.as_slice();
+        let idxs = slang.sl_fidxs.as_slice();
+        let kbyts = slang.sl_kbyts.as_slice();
+        let kidxs = slang.sl_kidxs.as_slice();
+        let map_view = SlangMapView::from_slang(&slang);
+        let badword = &su.su_badword;
+        let badflags = su.su_badflags;
+        let lp_region = lp.lp_region as u32;
+        let init_sfmaxscore = su.su_sfmaxscore;
+        let spelltab = crate::spell::with_spell_priv(|s| s.spelltab.get());
+
+        struct ScoredCand {
+            word: [u8; MAXWLEN],
+            word_len: usize,
+            base_goodscore: i32,
+            init_limit: i32,
+            edit_score: i32,
+        }
+
+        let nthreads = std::thread::available_parallelism()
+            .map_or(4, |n| n.get().min(8))
+            .min(orgnrs.len());
+        let group_len = orgnrs.len().div_ceil(nthreads).max(1);
+        let scored_cands: Vec<ScoredCand> = std::thread::scope(|s| {
+            let mut handles = Vec::with_capacity(nthreads);
+            for slice in orgnrs.chunks(group_len) {
+                handles.push(s.spawn(move || {
+                    crate::spell::with_spell_priv(|st| st.spelltab.set(spelltab));
+                    let bc = utf_ptr2char(badword);
+                    let bc_isupper = spell_isupper(bc);
+                    let bc_fold = spell_tofold(bc);
+                    let mut out = Vec::new();
+                    let mut theword: [u8; MAXWLEN] = [0; MAXWLEN];
+                    for &orgnr in slice {
+                        let mut n: Idx = 0;
+                        let mut wordcount: i32 = 0;
+                        let mut wlen: usize = 0;
+                        let mut i: i32 = 1;
+                        'badword: {
+                            while wlen < MAXWLEN - 3 {
+                                i = 1;
+                                if wordcount == orgnr && byts[(n + 1) as usize] == 0 {
+                                    break;
+                                }
+                                if byts[(n + 1) as usize] == 0 {
+                                    wordcount += 1;
+                                }
+                                while byts[(n + i) as usize] == 0 {
+                                    if i > i32::from(byts[n as usize]) {
+                                        theword[wlen..wlen + 4].copy_from_slice(b"BAD\0");
+                                        wlen += 3;
+                                        break 'badword;
+                                    }
+                                    i += 1;
+                                }
+                                while i < i32::from(byts[n as usize]) {
+                                    let wc = idxs[idxs[(n + i) as usize] as usize];
+                                    if wordcount + wc > orgnr {
+                                        break;
+                                    }
+                                    wordcount += wc;
+                                    i += 1;
+                                }
+                                theword[wlen] = byts[(n + i) as usize];
+                                n = idxs[(n + i) as usize];
+                                wlen += 1;
+                            }
+                        }
+                        theword[wlen] = 0;
+                        while i <= i32::from(byts[n as usize]) && byts[(n + i) as usize] == 0 {
+                            let mut cword: [u8; MAXWLEN] = [0; MAXWLEN];
+                            let mut flags = idxs[(n + i) as usize];
+                            if (flags & WF_NOSUGGEST) != 0 {
+                                i += 1;
+                                continue;
+                            }
+                            let p_slice: &[u8] = if (flags & WF_KEEPCAP) != 0 {
+                                find_keepcap_word_slices(kbyts, kidxs, &theword, &mut cword);
+                                &cword
+                            } else {
+                                flags |= badflags;
+                                if (flags & WF_CAPMASK) != 0 {
+                                    make_case_word(&theword, &mut cword, flags);
+                                    &cword
+                                } else {
+                                    &theword
+                                }
+                            };
+                            let mut base_goodscore = if (flags & WF_REGION) != 0
+                                && (((flags as u32) >> 16) & lp_region) == 0
+                            {
+                                SCORE_REGION
+                            } else {
+                                0
+                            };
+                            let gc = utf_ptr2char(p_slice);
+                            if spell_isupper(gc) && !bc_isupper && bc_fold != spell_tofold(gc) {
+                                base_goodscore += SCORE_ICASE / 2;
+                            }
+                            let init_limit = maxscore(init_sfmaxscore - base_goodscore, score);
+                            let edit_score = if init_limit > SCORE_LIMITMAX {
+                                spell_edit_score_map(Some(map_view), badword, p_slice)
+                            } else {
+                                spell_edit_score_limit_w(
+                                    Some(map_view),
+                                    badword,
+                                    p_slice,
+                                    init_limit,
+                                )
+                            };
+                            if base_goodscore + edit_score < SCORE_MAXMAX {
+                                let clean = crate::memory::bytes_until_nul(p_slice);
+                                let mut word = [0u8; MAXWLEN];
+                                let clen = clean.len().min(MAXWLEN - 1);
+                                word[..clen].copy_from_slice(&clean[..clen]);
+                                out.push(ScoredCand {
+                                    word,
+                                    word_len: clen,
+                                    base_goodscore,
+                                    init_limit,
+                                    edit_score,
+                                });
+                            }
+                            i += 1;
+                        }
+                    }
+                    out
+                }));
+            }
+            let mut all = Vec::new();
+            for h in handles {
+                if let Ok(mut part) = h.join() {
+                    all.append(&mut part);
+                }
+            }
+            all
+        });
+
+        for cand in scored_cands {
+            let p_slice = &cand.word[..=cand.word_len];
+            let limit = maxscore(su.su_sfmaxscore - cand.base_goodscore, score);
+            let edit_score = if limit <= SCORE_LIMITMAX && cand.init_limit > SCORE_LIMITMAX {
+                spell_edit_score_limit(Some(&slang), &su.su_badword, p_slice, limit)
+            } else if limit <= SCORE_LIMITMAX && cand.edit_score > limit {
+                SCORE_MAXMAX
+            } else {
+                cand.edit_score
+            };
+            let mut goodscore = cand.base_goodscore + edit_score;
+            if goodscore < SCORE_MAXMAX {
+                goodscore = score_wordcount_adj(&slang, goodscore, p_slice, false);
+                goodscore = rescore(goodscore, score);
+                if goodscore <= su.su_sfmaxscore {
+                    add_suggestion(
+                        su,
+                        false,
+                        p_slice,
+                        su.su_badlen,
+                        goodscore,
+                        score,
+                        true,
+                        lp.lp_slang,
+                        true,
+                    );
+                }
+            }
+        }
+        return;
+    }
+
+    for orgnr in orgnrs {
         let byts = &slang.sl_fbyts;
         let idxs = &slang.sl_fidxs;
         let mut n: Idx = 0;
@@ -2591,11 +2770,29 @@ fn soundfold_find(slang: &Slang, word: &[u8]) -> Option<i32> {
     }
     Some(wordnr)
 }
-fn similar_chars(slang: &Slang, c1: i32, c2: i32) -> bool {
+#[derive(Clone, Copy)]
+struct SlangMapView<'a> {
+    has_map: bool,
+    map_array: &'a [i32; 256],
+    map_hash: &'a crate::memory::FxHashMap<i32, i32>,
+}
+
+impl<'a> SlangMapView<'a> {
+    #[inline]
+    fn from_slang(slang: &'a Slang) -> Self {
+        Self {
+            has_map: slang.sl_has_map,
+            map_array: &slang.sl_map_array,
+            map_hash: &slang.sl_map_hash,
+        }
+    }
+}
+
+fn similar_chars_map(map: SlangMapView<'_>, c1: i32, c2: i32) -> bool {
     let m1 = if c1 >= 256 {
-        slang.sl_map_hash.get(&c1).copied().unwrap_or(0)
+        map.map_hash.get(&c1).copied().unwrap_or(0)
     } else if c1 >= 0 {
-        slang.sl_map_array[c1 as usize]
+        map.map_array[c1 as usize]
     } else {
         0
     };
@@ -2603,13 +2800,18 @@ fn similar_chars(slang: &Slang, c1: i32, c2: i32) -> bool {
         return false;
     }
     let m2 = if c2 >= 256 {
-        slang.sl_map_hash.get(&c2).copied().unwrap_or(0)
+        map.map_hash.get(&c2).copied().unwrap_or(0)
     } else if c2 >= 0 {
-        slang.sl_map_array[c2 as usize]
+        map.map_array[c2 as usize]
     } else {
         0
     };
     m1 == m2
+}
+
+#[inline]
+fn similar_chars(slang: &Slang, c1: i32, c2: i32) -> bool {
+    similar_chars_map(SlangMapView::from_slang(slang), c1, c2)
 }
 fn add_suggestion(
     su: &mut Suginfo,
@@ -2949,7 +3151,7 @@ fn soundalike_score(goodstart: &[u8], badstart: &[u8]) -> i32 {
     }
     SCORE_MAXMAX
 }
-fn spell_edit_score(slang: Option<&Slang>, badword: &[u8], goodword: &[u8]) -> i32 {
+fn spell_edit_score_map(map: Option<SlangMapView<'_>>, badword: &[u8], goodword: &[u8]) -> i32 {
     let mut wbadword: [i32; MAXWLEN] = [0; MAXWLEN];
     let mut wgoodword: [i32; MAXWLEN] = [0; MAXWLEN];
     let mut badlen: usize = 0;
@@ -2968,26 +3170,27 @@ fn spell_edit_score(slang: Option<&Slang>, badword: &[u8], goodword: &[u8]) -> i
     }
     wgoodword[goodlen] = 0;
     goodlen += 1;
-    let stride = badlen + 1;
-    let mut cnt = vec![0; stride * (goodlen + 1)];
+    let mut cols = [[0i32; MAXWLEN + 2]; 3];
     for j in 1..=goodlen {
-        cnt[j * stride] = cnt[(j - 1) * stride] + SCORE_INS;
+        cols[0][j] = cols[0][j - 1] + SCORE_INS;
     }
     for i in 1..=badlen {
-        cnt[i] = cnt[i - 1] + SCORE_DEL;
+        let c_cur = i % 3;
+        let c_prev1 = (i - 1) % 3;
+        let c_prev2 = (i + 1) % 3;
+        cols[c_cur][0] = cols[c_prev1][0] + SCORE_DEL;
         for j in 1..=goodlen {
             let bc = wbadword[i - 1];
             let gc = wgoodword[j - 1];
-            let idx_ij = i + j * stride;
             if bc == gc {
-                cnt[idx_ij] = cnt[(i - 1) + (j - 1) * stride];
+                cols[c_cur][j] = cols[c_prev1][j - 1];
             } else {
-                let prev_diag = cnt[(i - 1) + (j - 1) * stride];
+                let prev_diag = cols[c_prev1][j - 1];
                 let mut val = if spell_tofold(bc) == spell_tofold(gc) {
                     SCORE_ICASE + prev_diag
-                } else if let Some(slang) = slang
-                    && slang.sl_has_map
-                    && similar_chars(slang, gc, bc)
+                } else if let Some(m) = map
+                    && m.has_map
+                    && similar_chars_map(m, gc, bc)
                 {
                     SCORE_SIMILAR + prev_diag
                 } else {
@@ -2997,19 +3200,23 @@ fn spell_edit_score(slang: Option<&Slang>, badword: &[u8], goodword: &[u8]) -> i
                     let pbc = wbadword[i - 2];
                     let pgc = wgoodword[j - 2];
                     if bc == pgc && pbc == gc {
-                        let t = SCORE_SWAP + cnt[(i - 2) + (j - 2) * stride];
+                        let t = SCORE_SWAP + cols[c_prev2][j - 2];
                         val = val.min(t);
                     }
                 }
-                let t_del = SCORE_DEL + cnt[(i - 1) + j * stride];
+                let t_del = SCORE_DEL + cols[c_prev1][j];
                 val = val.min(t_del);
-                let t_ins = SCORE_INS + cnt[i + (j - 1) * stride];
+                let t_ins = SCORE_INS + cols[c_cur][j - 1];
                 val = val.min(t_ins);
-                cnt[idx_ij] = val;
+                cols[c_cur][j] = val;
             }
         }
     }
-    cnt[(badlen - 1) + (goodlen - 1) * stride]
+    cols[(badlen - 1) % 3][goodlen - 1]
+}
+#[inline]
+fn spell_edit_score(slang: Option<&Slang>, badword: &[u8], goodword: &[u8]) -> i32 {
+    spell_edit_score_map(slang.map(SlangMapView::from_slang), badword, goodword)
 }
 fn spell_edit_score_limit(
     slang: Option<&Slang>,
@@ -3017,10 +3224,15 @@ fn spell_edit_score_limit(
     goodword: &[u8],
     limit: i32,
 ) -> i32 {
-    spell_edit_score_limit_w(slang, badword, goodword, limit)
+    spell_edit_score_limit_w(
+        slang.map(SlangMapView::from_slang),
+        badword,
+        goodword,
+        limit,
+    )
 }
 fn spell_edit_score_limit_w(
-    slang: Option<&Slang>,
+    map: Option<SlangMapView<'_>>,
     badword: &[u8],
     goodword: &[u8],
     limit: i32,
@@ -3132,9 +3344,9 @@ fn spell_edit_score_limit_w(
                 }
                 if spell_tofold(bc) == spell_tofold(gc) {
                     score += SCORE_ICASE;
-                } else if let Some(slang) = slang
-                    && slang.sl_has_map
-                    && similar_chars(slang, gc, bc)
+                } else if let Some(m) = map
+                    && m.has_map
+                    && similar_chars_map(m, gc, bc)
                 {
                     score += SCORE_SIMILAR;
                 } else {
@@ -3170,5 +3382,45 @@ mod tests {
         assert_eq!(bytes2offset(&mut p), 4);
         assert_eq!(soundalike_score(b"tht", b"tht"), 0);
         assert_eq!(soundalike_score(b"tht", b"ht"), SCORE_DEL);
+    }
+
+    #[test]
+    fn spell_edit_score_3col_stack_dp_handles_all_edit_operations() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        crate::main_init::ensure_test_editor_init();
+
+        // Exact match, insertion, deletion, substitution, case-fold, and adjacent swap (cols[c_prev2])
+        assert_eq!(spell_edit_score_map(None, b"hello", b"hello"), 0);
+        assert_eq!(spell_edit_score_map(None, b"hell", b"hello"), SCORE_INS);
+        assert_eq!(spell_edit_score_map(None, b"hello", b"hell"), SCORE_DEL);
+        assert_eq!(spell_edit_score_map(None, b"hello", b"hxllo"), SCORE_SUBST);
+        assert_eq!(spell_edit_score_map(None, b"hello", b"Hello"), SCORE_ICASE);
+        assert_eq!(spell_edit_score_map(None, b"ab", b"ba"), SCORE_SWAP);
+        assert_eq!(spell_edit_score_map(None, b"teh", b"the"), SCORE_SWAP);
+
+        // Similar chars via SlangMapView
+        let mut map_array = [0i32; 256];
+        map_array[b'c' as usize] = b'k' as i32;
+        map_array[b'k' as usize] = b'k' as i32;
+        let map_hash = crate::memory::fx_hashmap();
+        let view = SlangMapView {
+            has_map: true,
+            map_array: &map_array,
+            map_hash: &map_hash,
+        };
+        assert_eq!(
+            spell_edit_score_map(Some(view), b"cat", b"kat"),
+            SCORE_SIMILAR
+        );
+        assert_eq!(
+            spell_edit_score_limit_w(Some(view), b"cat", b"kat", SCORE_SIMILAR),
+            SCORE_SIMILAR
+        );
+        assert_eq!(
+            spell_edit_score_limit_w(Some(view), b"cat", b"dog", SCORE_SIMILAR),
+            SCORE_MAXMAX
+        );
     }
 }

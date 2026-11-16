@@ -189,6 +189,19 @@ fn charset_st<R>(f: impl FnOnce(&CharsetModuleState) -> R) -> R {
 }
 
 #[inline]
+pub(crate) fn get_global_chartabs() -> ([u64; 4], [u64; 4]) {
+    charset_st(|st| (st.isf_chartab.get(), st.isi_chartab.get()))
+}
+
+#[inline]
+pub(crate) fn set_global_chartabs(isf: [u64; 4], isi: [u64; 4]) {
+    charset_st(|st| {
+        st.isf_chartab.set(isf);
+        st.isi_chartab.set(isi);
+    });
+}
+
+#[inline]
 fn set_chartab(chartab: &mut [u64; 4], c: i32) {
     let idx = ((c as u32) >> 6) as usize;
     chartab[idx] |= 1u64 << (c & 0x3f);

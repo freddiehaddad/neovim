@@ -239,9 +239,9 @@ pub fn mf_new_page_size(mfp: &mut Memfile, new_size: u32) {
     mfp.mf_page_size = new_size;
 }
 
-/// Get a new block.
-pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: u32) -> BhdrId {
-    let bnum: Blocknr = if !negative
+/// Allocate a block number for `page_count` pages.
+fn mf_alloc_bnum(mfp: &mut Memfile, negative: bool, page_count: u32) -> Blocknr {
+    if !negative
         && let Some(freep) = mfp.mf_free_list.last_mut()
         && freep.bh_page_count >= page_count
     {
@@ -263,11 +263,26 @@ pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: u32) -> BhdrId {
         let b = mfp.mf_blocknr_max;
         mfp.mf_blocknr_max += i64::from(page_count);
         b
-    };
+    }
+}
 
+/// Get a new block.
+pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: u32) -> BhdrId {
+    let bnum = mf_alloc_bnum(mfp, negative, page_count);
     let bhdr = mf_alloc_bhdr(mfp, bnum, page_count, BH_LOCKED | BH_DIRTY);
     mfp.mf_dirty = MF_DIRTY_YES;
     mfp.insert_bhdr(bhdr)
+}
+
+/// Insert a pre-serialized dirty data block into `mfp`.
+pub fn mf_insert_new_bhdr(mfp: &mut Memfile, mut bhdr: Bhdr) -> (BhdrId, Blocknr) {
+    let bnum = mf_alloc_bnum(mfp, false, bhdr.bh_page_count);
+    bhdr.bh_bnum = bnum;
+    bhdr.bh_flags = BH_DIRTY;
+    if mfp.mf_dirty != MF_DIRTY_YES_NOSYNC {
+        mfp.mf_dirty = MF_DIRTY_YES;
+    }
+    (mfp.insert_bhdr(bhdr), bnum)
 }
 
 /// Get existing block `nr` with `page_count` pages.
@@ -346,6 +361,7 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
 
     let mut status = true;
     let mut completed_all = true;
+    let mut cur_file_offset: Option<i64> = None;
     let block_len = mfp.mf_blocks.len();
 
     for idx in 0..block_len {
@@ -363,7 +379,7 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
                 completed_all = false;
                 continue;
             }
-            if !mf_write(mfp, hp_id) {
+            if !mf_write_tracked(mfp, hp_id, &mut cur_file_offset) {
                 if !status {
                     completed_all = false;
                     break;
@@ -473,6 +489,11 @@ fn mf_read(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
 }
 
 fn mf_write(mfp: &mut Memfile, hp_id: BhdrId) -> bool {
+    let mut cur_file_offset = None;
+    mf_write_tracked(mfp, hp_id, &mut cur_file_offset)
+}
+
+fn mf_write_tracked(mfp: &mut Memfile, hp_id: BhdrId, cur_file_offset: &mut Option<i64>) -> bool {
     if mfp.mf_fd < 0 && !mfp.mf_reopen {
         return false;
     }
@@ -498,22 +519,29 @@ fn mf_write(mfp: &mut Memfile, hp_id: BhdrId) -> bool {
 
         for attempt in 1..=2 {
             if mfp.mf_fd >= 0 {
-                if vim_lseek(mfp.mf_fd, offset, SEEK_SET) != offset {
-                    perror_msg(c"E296: Seek error in swap file write");
-                    return false;
+                if *cur_file_offset != Some(offset) {
+                    if vim_lseek(mfp.mf_fd, offset, SEEK_SET) != offset {
+                        *cur_file_offset = None;
+                        perror_msg(c"E296: Seek error in swap file write");
+                        return false;
+                    }
+                    *cur_file_offset = Some(offset);
                 }
                 let data_id = hp2_id.unwrap_or(hp_id);
                 let data = &mfp.bhdr(data_id).bh_data[..size];
                 let nwritten = write_eintr(mfp.mf_fd, data);
                 if (nwritten as usize) == size {
+                    *cur_file_offset = Some(offset + size as i64);
                     break;
                 }
+                *cur_file_offset = None;
             }
 
             if attempt == 1 {
                 if mfp.mf_fd >= 0 {
                     let _ = close(mfp.mf_fd);
                 }
+                *cur_file_offset = None;
                 {
                     mfp.mf_fd = os_open(
                         mfp.mf_fname.as_ref().unwrap(),

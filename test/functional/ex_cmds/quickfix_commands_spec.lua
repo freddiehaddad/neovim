@@ -166,6 +166,52 @@ describe('quickfix', function()
       (1 of 1): foobar                        |
     ]])
   end)
+
+  it(
+    'parallel :vimgrep, :global, and matchfuzzypos preserve exact ordering on large buffers',
+    function()
+      n.exec_lua(function()
+        vim.cmd(
+          'enew! | file Xtest_parallel_vgr | setlocal buftype=nofile noswapfile undolevels=-1'
+        )
+        local lines = {}
+        for i = 1, 9000 do
+          if i % 150 == 0 then
+            lines[i] = string.format('line %05d: [MARKER] alpha_%d beta_%d', i, i, i * 2)
+          else
+            lines[i] = string.format('line %05d: ordinary payload %d', i, i)
+          end
+        end
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+
+        vim.cmd('silent vimgrep /alpha_[0-9]\\+ beta_[0-9]\\+$/gj %')
+        local qf = vim.fn.getqflist()
+        assert(#qf == 60, 'expected 60 regex vimgrep matches, got ' .. #qf)
+        assert(qf[1].lnum == 150 and qf[1].col == 22)
+        assert(qf[60].lnum == 9000 and qf[60].col == 22)
+
+        vim.cmd('silent vimgrep /MARKER beta/fj %')
+        local qf_fuz = vim.fn.getqflist()
+        assert(#qf_fuz == 60, 'expected 60 fuzzy vimgrep matches, got ' .. #qf_fuz)
+        assert(qf_fuz[1].lnum == 150 and qf_fuz[60].lnum == 9000)
+
+        local fuz_res = vim.fn.matchfuzzypos(lines, 'MARKER alpha')
+        assert(#fuz_res[1] == 60, 'expected 60 matchfuzzypos results, got ' .. #fuz_res[1])
+
+        vim.cmd('silent global/\\[MARKER\\]/d _')
+        assert(vim.api.nvim_buf_line_count(0) == 8940)
+
+        -- Nested :vimgrep inside \= substitute expression must not clobber outer submatch(1)/submatch(2)
+        vim.cmd(
+          [[1s#\(line \)\([0-9]\+\)#\=[execute('silent 5vimgrep /ordinary/gj %'), submatch(2) .. '-' .. submatch(1)][1]#]]
+        )
+        assert(
+          vim.api.nvim_buf_get_lines(0, 0, 1, false)[1] == '00001-line : ordinary payload 1',
+          'nested vimgrep clobbered outer substitute submatches'
+        )
+      end)
+    end
+  )
 end)
 
 it(':vimgrep can specify Unicode pattern without delimiters', function()

@@ -5295,6 +5295,57 @@ fn vgr_match_buflines(
     let spat_bytes = spat.map_or(&[][..], CStr::to_bytes);
     let pat_len = spat_bytes.len().min(FUZZY_MATCH_MAX_LEN);
 
+    if *tomatch > 0
+        && let Some(fast_matches) = crate::memline::ml_try_vimgrep_lines(
+            buf,
+            regmatch,
+            spat_bytes,
+            (flags & VGR_FUZZY) != 0,
+            (flags & VGR_GLOBAL) != 0,
+            *tomatch as usize,
+        )
+    {
+        let entry_fnum = if duplicate_name != 0 {
+            0
+        } else {
+            buf.b_fnum.get()
+        };
+        for m in fast_matches {
+            if qf_add_entry(
+                qfl_rc,
+                None,
+                fname,
+                None,
+                entry_fnum,
+                m.text.as_cstr(),
+                m.lnum,
+                m.end_lnum,
+                m.col,
+                m.end_col,
+                false,
+                None,
+                0,
+                0,
+                None,
+                true,
+            ) == QfStatus::Fail
+            {
+                g_st().input.got_int.set(true);
+                break;
+            }
+            found_match = true;
+            *tomatch -= 1;
+            if *tomatch == 0 {
+                break;
+            }
+            line_breakcheck();
+            if g_st().input.got_int.get() {
+                break;
+            }
+        }
+        return found_match;
+    }
+
     let mut lnum: Linenr = 1;
     while lnum <= buf.b_ml.ml_line_count.get() && *tomatch > 0 {
         let mut col: Colnr = 0;

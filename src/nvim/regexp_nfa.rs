@@ -180,6 +180,7 @@ struct RegexpNfaState {
     nfa_timed_out: std::cell::Cell<bool>,
     nfa_time_count: std::cell::Cell<i32>,
     rec_listbuf: std::cell::RefCell<Vec<[Vec<NfaThread>; 2]>>,
+    lastlist_buf: std::cell::RefCell<Vec<[i32; 2]>>,
 }
 
 impl RegexpNfaState {
@@ -190,6 +191,7 @@ impl RegexpNfaState {
             nfa_timed_out: std::cell::Cell::new(false),
             nfa_time_count: std::cell::Cell::new(0),
             rec_listbuf: std::cell::RefCell::new(Vec::new()),
+            lastlist_buf: std::cell::RefCell::new(Vec::new()),
         }
     }
 }
@@ -201,17 +203,6 @@ std::thread_local! {
 #[inline(always)]
 fn nfa_st<R>(f: impl FnOnce(&RegexpNfaState) -> R) -> R {
     NFA_STATE.with(f)
-}
-
-pub(super) fn return_nfa_listbuf(bufs: &mut [Vec<NfaThread>; 2]) {
-    if bufs[0].capacity() > 0 && bufs[1].capacity() > 0 {
-        let _ = NFA_STATE.try_with(|st| {
-            let mut rec = st.rec_listbuf.borrow_mut();
-            if rec.len() < 8 {
-                rec.push([std::mem::take(&mut bufs[0]), std::mem::take(&mut bufs[1])]);
-            }
-        });
-    }
 }
 
 #[inline(always)]
@@ -1908,7 +1899,6 @@ fn alloc_state(
             out,
             out1,
             val: 0,
-            lastlist: [0; 2],
         };
         Some(idx)
     })
@@ -2568,7 +2558,7 @@ fn match_follows(states: &[NfaState], startstate: Option<usize>, depth: i32) -> 
 
 fn state_in_list(
     re_s: &RegexpState,
-    states: &[NfaState],
+    lastlist: &[[i32; 2]],
     l: &NfaList,
     state: Option<usize>,
     subs: &Regsubs,
@@ -2576,7 +2566,7 @@ fn state_in_list(
     let Some(state_idx) = state else {
         return false;
     };
-    if states[state_idx].lastlist[re_s.nfa_ll_index.get()] == l.id
+    if lastlist[state_idx][re_s.nfa_ll_index.get()] == l.id
         && !(re_s.rex.nfa_has_backref.get() || has_state_with_pos(re_s, l, state_idx, subs, None))
     {
         return true;
@@ -2585,9 +2575,11 @@ fn state_in_list(
 }
 
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 fn addstate(
     re_s: &RegexpState,
-    states: &mut [NfaState],
+    states: &[NfaState],
+    lastlist: &mut [[i32; 2]],
     l: &mut NfaList,
     state: Option<usize>,
     subs: &mut Regsubs,
@@ -2598,13 +2590,17 @@ fn addstate(
     let Some(state_idx) = state else {
         return depth < 5000;
     };
-    addstate_idx(re_s, states, l, state_idx, subs, pim, off_arg, depth)
+    addstate_idx(
+        re_s, states, lastlist, l, state_idx, subs, pim, off_arg, depth,
+    )
 }
 
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 fn addstate_idx(
     re_s: &RegexpState,
-    states_slice: &mut [NfaState],
+    states_slice: &[NfaState],
+    lastlist: &mut [[i32; 2]],
     l: &mut NfaList,
     state_idx: usize,
     subs: &mut Regsubs,
@@ -2621,6 +2617,7 @@ fn addstate_idx(
         NFA_NCLOSE | NFA_MOPEN | NFA_ZEND | NFA_SPLIT | NFA_EMPTY => addstate_eps(
             re_s,
             states_slice,
+            lastlist,
             l,
             state_idx,
             st_c,
@@ -2635,6 +2632,7 @@ fn addstate_idx(
             addstate_eps(
                 re_s,
                 states_slice,
+                lastlist,
                 l,
                 state_idx,
                 st_c,
@@ -2656,7 +2654,7 @@ fn addstate_idx(
             }
 
             let ll_idx = re_s.nfa_ll_index.get();
-            if states_slice[state_idx].lastlist[ll_idx] == l.id && st_c != NFA_SKIP {
+            if lastlist[state_idx][ll_idx] == l.id && st_c != NFA_SKIP {
                 if !re_s.rex.nfa_has_backref.get()
                     && pim.is_none()
                     && !l.has_pim
@@ -2687,7 +2685,7 @@ fn addstate_idx(
                 l.t.reserve(newlen - l.t.len());
             }
 
-            states_slice[state_idx].lastlist[ll_idx] = l.id;
+            lastlist[state_idx][ll_idx] = l.id;
             let thread_idx = l.n as usize;
             l.n += 1;
             if thread_idx == l.t.len() {
@@ -2717,6 +2715,7 @@ fn addstate_idx(
                 return addstate_eps(
                     re_s,
                     states_slice,
+                    lastlist,
                     l,
                     state_idx,
                     st_c,
@@ -2731,9 +2730,11 @@ fn addstate_idx(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn addstate_eps(
     re_s: &RegexpState,
-    states_slice: &mut [NfaState],
+    states_slice: &[NfaState],
+    lastlist: &mut [[i32; 2]],
     l: &mut NfaList,
     state_idx: usize,
     st_c: i32,
@@ -2756,6 +2757,7 @@ fn addstate_eps(
                 && !addstate_idx(
                     re_s,
                     states_slice,
+                    lastlist,
                     l,
                     o,
                     subs,
@@ -2767,14 +2769,34 @@ fn addstate_eps(
                 return false;
             }
             if let Some(o1) = st_out1
-                && !addstate_idx(re_s, states_slice, l, o1, subs, pim, off_arg, depth + 1)
+                && !addstate_idx(
+                    re_s,
+                    states_slice,
+                    lastlist,
+                    l,
+                    o1,
+                    subs,
+                    pim,
+                    off_arg,
+                    depth + 1,
+                )
             {
                 return false;
             }
         }
         NFA_EMPTY | NFA_NOPEN | NFA_NCLOSE => {
             if let Some(o) = st_out {
-                return addstate_idx(re_s, states_slice, l, o, subs, pim, off_arg, depth + 1);
+                return addstate_idx(
+                    re_s,
+                    states_slice,
+                    lastlist,
+                    l,
+                    o,
+                    subs,
+                    pim,
+                    off_arg,
+                    depth + 1,
+                );
             }
         }
         c if (NFA_MOPEN..=NFA_MOPEN9).contains(&c)
@@ -2828,7 +2850,17 @@ fn addstate_eps(
             }
 
             let ok = if let Some(o) = st_out {
-                addstate_idx(re_s, states_slice, l, o, subs, pim, off_arg, depth + 1)
+                addstate_idx(
+                    re_s,
+                    states_slice,
+                    lastlist,
+                    l,
+                    o,
+                    subs,
+                    pim,
+                    off_arg,
+                    depth + 1,
+                )
             } else {
                 true
             };
@@ -2852,7 +2884,17 @@ fn addstate_eps(
         {
             if c == NFA_MCLOSE && re_s.rex.nfa_has_zend.get() && subs.norm.list[0].end_lnum >= 0 {
                 if let Some(o) = st_out {
-                    return addstate_idx(re_s, states_slice, l, o, subs, pim, off_arg, depth + 1);
+                    return addstate_idx(
+                        re_s,
+                        states_slice,
+                        lastlist,
+                        l,
+                        o,
+                        subs,
+                        pim,
+                        off_arg,
+                        depth + 1,
+                    );
                 }
             } else {
                 let subidx = if c == NFA_ZEND {
@@ -2892,7 +2934,17 @@ fn addstate_eps(
                 }
 
                 let ok = if let Some(o) = st_out {
-                    addstate_idx(re_s, states_slice, l, o, subs, pim, off_arg, depth + 1)
+                    addstate_idx(
+                        re_s,
+                        states_slice,
+                        lastlist,
+                        l,
+                        o,
+                        subs,
+                        pim,
+                        off_arg,
+                        depth + 1,
+                    )
                 } else {
                     true
                 };
@@ -2928,9 +2980,11 @@ fn copy_thread(re_s: &RegexpState, dst: &mut NfaThread, src: &mut NfaThread) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn addstate_here(
     re_s: &RegexpState,
-    states: &mut [NfaState],
+    states: &[NfaState],
+    lastlist: &mut [[i32; 2]],
     l: &mut NfaList,
     state: Option<usize>,
     pim: Option<&mut NfaPim>,
@@ -2955,6 +3009,7 @@ fn addstate_here(
     if !addstate(
         re_s,
         states,
+        lastlist,
         l,
         state,
         temp_subs,
@@ -3166,16 +3221,16 @@ fn match_zref(subidx: i32, bytelen: &mut i32) -> bool {
     false
 }
 
-fn nfa_save_listids(prog: &mut NfaRegprog, list: &mut [i32]) {
-    for (dst, st) in list.iter_mut().zip(&mut prog.state[..prog.nstate as usize]) {
-        *dst = st.lastlist[1];
-        st.lastlist[1] = 0;
+fn nfa_save_listids(lastlist: &mut [[i32; 2]], list: &mut [i32]) {
+    for (dst, st) in list.iter_mut().zip(lastlist.iter_mut()) {
+        *dst = st[1];
+        st[1] = 0;
     }
 }
 
-fn nfa_restore_listids(prog: &mut NfaRegprog, list: &[i32]) {
-    for (st, &src) in prog.state[..prog.nstate as usize].iter_mut().zip(list) {
-        st.lastlist[1] = src;
+fn nfa_restore_listids(lastlist: &mut [[i32; 2]], list: &[i32]) {
+    for (st, &src) in lastlist.iter_mut().zip(list) {
+        st[1] = src;
     }
 }
 
@@ -3196,7 +3251,8 @@ fn recursive_regmatch(
     nfa_s: &RegexpNfaState,
     state: usize,
     pim: Option<&NfaPim>,
-    prog: &mut NfaRegprog,
+    prog: &NfaRegprog,
+    lastlist: &mut [[i32; 2]],
     submatch: &mut Regsubs,
     m: &mut Regsubs,
     listids: &mut Vec<i32>,
@@ -3295,7 +3351,7 @@ fn recursive_regmatch(
         if listids.len() < nstate_len {
             listids.resize(nstate_len, 0);
         }
-        nfa_save_listids(&mut *prog, listids);
+        nfa_save_listids(&mut lastlist[..nstate_len], listids);
         need_restore = true;
     } else {
         re_s.nfa_ll_index.set(re_s.nfa_ll_index.get() + (1));
@@ -3305,10 +3361,10 @@ fn recursive_regmatch(
     }
 
     re_s.nfa_endp.set(endposp);
-    let result = nfa_regmatch_ctx(re_s, nfa_s, &mut *prog, st.out, &mut *submatch, &mut *m);
+    let result = nfa_regmatch_ctx(re_s, nfa_s, prog, lastlist, st.out, &mut *submatch, &mut *m);
 
     if need_restore {
-        nfa_restore_listids(&mut *prog, listids);
+        nfa_restore_listids(&mut lastlist[..prog.nstate as usize], listids);
     } else {
         re_s.nfa_ll_index.set(re_s.nfa_ll_index.get() - (1));
         re_s.rex.nfa_alt_listid.set(re_s.rex.nfa_listid.get());
@@ -3387,58 +3443,68 @@ fn skip_to_start(c: i32, colp: &mut Colnr) -> bool {
     true
 }
 
+pub(crate) fn find_match_text_in_bytes(
+    line_bytes: &[u8],
+    col: &mut Colnr,
+    regstart: i32,
+    match_text: &[u8],
+    reg_ic: bool,
+) -> Option<Colnr> {
+    loop {
+        let mut matched = true;
+        let mut s1 = match_text;
+        let cur_off = (*col as usize).min(line_bytes.len());
+        let regstart_len2 = crate::mbyte::utf_slice2len(&line_bytes[cur_off..]);
+        let mut s2_off = (cur_off + regstart_len2).min(line_bytes.len());
+        if !reg_ic {
+            if let Some(rest) = line_bytes.get(s2_off..)
+                && rest.starts_with(match_text)
+            {
+                s2_off += match_text.len();
+            } else {
+                matched = false;
+            }
+        } else {
+            while !s1.is_empty() {
+                let c1_len = crate::mbyte::utf_slice2len(s1);
+                let c1 = crate::mbyte::utf_slice2char(s1);
+                let rem = &line_bytes[s2_off..];
+                if rem.is_empty() {
+                    matched = false;
+                    break;
+                }
+                let c2_len = crate::mbyte::utf_slice2len(rem);
+                let c2 = crate::mbyte::utf_slice2char(rem);
+                if c1 != c2 && utf_fold(c1) != utf_fold(c2) {
+                    matched = false;
+                    break;
+                }
+                s1 = &s1[c1_len..];
+                s2_off += c2_len;
+            }
+        }
+        if matched {
+            let next_c = line_bytes
+                .get(s2_off..)
+                .filter(|s| !s.is_empty())
+                .map_or(0, crate::mbyte::utf_slice2char);
+            if !utf_iscomposing_legacy(next_c) {
+                return Some(s2_off as Colnr);
+            }
+        }
+
+        *col += regstart_len2 as Colnr;
+        let next_off = (*col as usize).min(line_bytes.len());
+        let off = crate::regexp::cstrchr_ic(&line_bytes[next_off..], regstart, reg_ic)?;
+        *col += off as Colnr;
+    }
+}
+
 fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: &[u8]) -> i32 {
     let mut col = *startcol;
     let (line_slice, reg_ic) = RE_STATE.with(|s| (s.rex.line.get(), s.rex.reg_ic.get()));
     let found_end_col = line_slice.with_bytes(|line_bytes| {
-        loop {
-            let mut matched = true;
-            let mut s1 = match_text;
-            let cur_off = (col as usize).min(line_bytes.len());
-            let regstart_len2 = crate::mbyte::utf_slice2len(&line_bytes[cur_off..]);
-            let mut s2_off = (cur_off + regstart_len2).min(line_bytes.len());
-            if !reg_ic {
-                if let Some(rest) = line_bytes.get(s2_off..)
-                    && rest.starts_with(match_text)
-                {
-                    s2_off += match_text.len();
-                } else {
-                    matched = false;
-                }
-            } else {
-                while !s1.is_empty() {
-                    let c1_len = crate::mbyte::utf_slice2len(s1);
-                    let c1 = crate::mbyte::utf_slice2char(s1);
-                    let rem = &line_bytes[s2_off..];
-                    if rem.is_empty() {
-                        matched = false;
-                        break;
-                    }
-                    let c2_len = crate::mbyte::utf_slice2len(rem);
-                    let c2 = crate::mbyte::utf_slice2char(rem);
-                    if c1 != c2 && utf_fold(c1) != utf_fold(c2) {
-                        matched = false;
-                        break;
-                    }
-                    s1 = &s1[c1_len..];
-                    s2_off += c2_len;
-                }
-            }
-            if matched {
-                let next_c = line_bytes
-                    .get(s2_off..)
-                    .filter(|s| !s.is_empty())
-                    .map_or(0, crate::mbyte::utf_slice2char);
-                if !utf_iscomposing_legacy(next_c) {
-                    return Some(s2_off as Colnr);
-                }
-            }
-
-            col += regstart_len2 as Colnr;
-            let next_off = (col as usize).min(line_bytes.len());
-            let off = cstrchr(&line_bytes[next_off..], regstart)?;
-            col += off as Colnr;
-        }
+        find_match_text_in_bytes(line_bytes, &mut col, regstart, match_text, reg_ic)
     });
     if let Some(end_col) = found_end_col {
         cleanup_subexpr();
@@ -3528,20 +3594,22 @@ fn nfa_did_time_out() -> bool {
 }
 
 fn nfa_regmatch(
-    prog: &mut NfaRegprog,
+    prog: &NfaRegprog,
+    lastlist: &mut [[i32; 2]],
     start: Option<usize>,
     submatch: &mut Regsubs,
     m: &mut Regsubs,
 ) -> i32 {
     RE_STATE.with(|re_s| {
-        NFA_STATE.with(|nfa_s| nfa_regmatch_ctx(re_s, nfa_s, prog, start, submatch, m))
+        NFA_STATE.with(|nfa_s| nfa_regmatch_ctx(re_s, nfa_s, prog, lastlist, start, submatch, m))
     })
 }
 
 fn nfa_regmatch_ctx(
     re_s: &RegexpState,
     nfa_s: &RegexpNfaState,
-    prog: &mut NfaRegprog,
+    prog: &NfaRegprog,
+    lastlist: &mut [[i32; 2]],
     start: Option<usize>,
     submatch: &mut Regsubs,
     m: &mut Regsubs,
@@ -3567,12 +3635,7 @@ fn nfa_regmatch_ctx(
     nfa_s.nfa_match.set(0);
 
     let init_len = prog.nstate as usize + 1;
-    let (mut t0, mut t1) = if toplevel && prog.listbuf[0].capacity() > 0 {
-        (
-            std::mem::take(&mut prog.listbuf[0]),
-            std::mem::take(&mut prog.listbuf[1]),
-        )
-    } else if let Some([b0, b1]) = nfa_s.rec_listbuf.borrow_mut().pop() {
+    let (mut t0, mut t1) = if let Some([b0, b1]) = nfa_s.rec_listbuf.borrow_mut().pop() {
         (b0, b1)
     } else {
         (Vec::with_capacity(init_len), Vec::with_capacity(init_len))
@@ -3607,7 +3670,8 @@ fn nfa_regmatch_ctx(
         let start_out = (&prog.state)[start_idx].out;
         addstate(
             re_s,
-            &mut prog.state,
+            &prog.state,
+            lastlist,
             &mut list[0],
             start_out,
             m,
@@ -3616,11 +3680,21 @@ fn nfa_regmatch_ctx(
             0,
         )
     } else {
-        addstate(re_s, &mut prog.state, &mut list[0], start, m, None, 0, 0)
+        addstate(
+            re_s,
+            &prog.state,
+            lastlist,
+            &mut list[0],
+            start,
+            m,
+            None,
+            0,
+            0,
+        )
     };
     if !r {
         nfa_s.nfa_match.set(NFA_TOO_EXPENSIVE);
-        return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
+        return finish_nfa_regmatch(nfa_s, &mut list);
     }
 
     loop {
@@ -3649,7 +3723,7 @@ fn nfa_regmatch_ctx(
         if prog.re_engine == AUTOMATIC_ENGINE as u32 && re_s.rex.nfa_listid.get() >= NFA_MAX_STATES
         {
             nfa_s.nfa_match.set(NFA_TOO_EXPENSIVE);
-            return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
+            return finish_nfa_regmatch(nfa_s, &mut list);
         }
 
         let [ref mut l0, ref mut l1] = list;
@@ -3774,14 +3848,15 @@ fn nfa_regmatch_ctx(
                             nfa_s,
                             t_state_idx,
                             None,
-                            &mut *prog,
+                            prog,
+                            lastlist,
                             &mut *submatch,
                             m,
                             &mut listids,
                         );
                         if res == NFA_TOO_EXPENSIVE {
                             nfa_s.nfa_match.set(res);
-                            return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
+                            return finish_nfa_regmatch(nfa_s, &mut list);
                         }
                         let is_neg = st_c == NFA_START_INVISIBLE_NEG
                             || st_c == NFA_START_INVISIBLE_NEG_FIRST
@@ -3814,7 +3889,8 @@ fn nfa_regmatch_ctx(
                         }
                         if !addstate_here(
                             re_s,
-                            &mut prog.state,
+                            &prog.state,
+                            lastlist,
                             &mut *thislist,
                             out1_out,
                             Some(&mut scratch_pim),
@@ -3822,7 +3898,7 @@ fn nfa_regmatch_ctx(
                             &mut listidx,
                         ) {
                             nfa_s.nfa_match.set(NFA_TOO_EXPENSIVE);
-                            return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
+                            return finish_nfa_regmatch(nfa_s, &mut list);
                         }
                     }
                 }
@@ -3831,7 +3907,7 @@ fn nfa_regmatch_ctx(
                     let out1_out_out = out1_out.and_then(|oo| (&prog.state)[oo].out);
                     let skip = if state_in_list(
                         re_s,
-                        &prog.state,
+                        lastlist,
                         nextlist,
                         out1_out,
                         &thislist.t[t_idx].subs,
@@ -3839,13 +3915,13 @@ fn nfa_regmatch_ctx(
                         out1_out
                     } else if state_in_list(
                         re_s,
-                        &prog.state,
+                        lastlist,
                         nextlist,
                         out1_out_out,
                         &thislist.t[t_idx].subs,
                     ) || state_in_list(
                         re_s,
-                        &prog.state,
+                        lastlist,
                         thislist,
                         out1_out_out,
                         &thislist.t[t_idx].subs,
@@ -3864,14 +3940,15 @@ fn nfa_regmatch_ctx(
                             nfa_s,
                             t_state_idx,
                             None,
-                            &mut *prog,
+                            prog,
+                            lastlist,
                             &mut *submatch,
                             m,
                             &mut listids,
                         );
                         if res == NFA_TOO_EXPENSIVE {
                             nfa_s.nfa_match.set(res);
-                            return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
+                            return finish_nfa_regmatch(nfa_s, &mut list);
                         }
                         if res != 0 {
                             copy_sub_off(re_s, &mut thislist.t[t_idx].subs.norm, &mut m.norm);
@@ -4428,7 +4505,8 @@ fn nfa_regmatch_ctx(
                             nfa_s,
                             pim_state_idx,
                             Some(&thislist.t[t_idx].pim),
-                            &mut *prog,
+                            prog,
+                            lastlist,
                             &mut *submatch,
                             m,
                             &mut listids,
@@ -4483,7 +4561,8 @@ fn nfa_regmatch_ctx(
                     let mut temp_subs = Regsubs::new();
                     addstate_here(
                         re_s,
-                        &mut prog.state,
+                        &prog.state,
+                        lastlist,
                         &mut *thislist,
                         add_state,
                         pim_arg,
@@ -4493,7 +4572,8 @@ fn nfa_regmatch_ctx(
                 } else {
                     let r = addstate_idx(
                         re_s,
-                        &mut prog.state,
+                        &prog.state,
+                        lastlist,
                         &mut *nextlist,
                         add_state_idx,
                         &mut thislist.t[t_idx].subs,
@@ -4509,7 +4589,7 @@ fn nfa_regmatch_ctx(
                 };
                 if !r {
                     nfa_s.nfa_match.set(NFA_TOO_EXPENSIVE);
-                    return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
+                    return finish_nfa_regmatch(nfa_s, &mut list);
                 }
             }
 
@@ -4561,7 +4641,8 @@ fn nfa_regmatch_ctx(
                     let start_out = (&prog.state)[start_idx].out;
                     if !addstate(
                         re_s,
-                        &mut prog.state,
+                        &prog.state,
+                        lastlist,
                         &mut *nextlist,
                         start_out,
                         m,
@@ -4570,7 +4651,7 @@ fn nfa_regmatch_ctx(
                         0,
                     ) {
                         nfa_s.nfa_match.set(NFA_TOO_EXPENSIVE);
-                        return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
+                        return finish_nfa_regmatch(nfa_s, &mut list);
                     }
                 }
             } else {
@@ -4597,7 +4678,8 @@ fn nfa_regmatch_ctx(
 
                 let r = addstate_idx(
                     re_s,
-                    &mut prog.state,
+                    &prog.state,
+                    lastlist,
                     &mut *nextlist,
                     start_idx,
                     m,
@@ -4614,7 +4696,7 @@ fn nfa_regmatch_ctx(
 
                 if !r {
                     nfa_s.nfa_match.set(NFA_TOO_EXPENSIVE);
-                    return finish_nfa_regmatch(&mut *prog, toplevel, &mut list);
+                    return finish_nfa_regmatch(nfa_s, &mut list);
                 }
             }
         }
@@ -4660,29 +4742,26 @@ fn nfa_regmatch_ctx(
         }
     }
 
-    finish_nfa_regmatch(&mut *prog, toplevel, &mut list)
+    finish_nfa_regmatch(nfa_s, &mut list)
 }
 
-fn finish_nfa_regmatch(prog: &mut NfaRegprog, toplevel: bool, list: &mut [NfaList; 2]) -> i32 {
-    if toplevel
-        && prog.listbuf[0].capacity() == 0
-        && list[0].t.capacity() > 0
-        && list[1].t.capacity() > 0
-    {
-        prog.listbuf[0] = std::mem::take(&mut list[0].t);
-        prog.listbuf[1] = std::mem::take(&mut list[1].t);
-    } else if !toplevel && nfa_st(|st| st.rec_listbuf.borrow().len()) < 8 {
-        let pair = [
-            std::mem::take(&mut list[0].t),
-            std::mem::take(&mut list[1].t),
-        ];
-        nfa_st(|st| st.rec_listbuf.borrow_mut().push(pair));
+fn finish_nfa_regmatch(nfa_s: &RegexpNfaState, list: &mut [NfaList; 2]) -> i32 {
+    if list[0].t.capacity() > 0 && list[1].t.capacity() > 0 {
+        let mut rec = nfa_s.rec_listbuf.borrow_mut();
+        if rec.len() < 16 {
+            let pair = [
+                std::mem::take(&mut list[0].t),
+                std::mem::take(&mut list[1].t),
+            ];
+            rec.push(pair);
+        }
     }
-    nfa_st(|st| st.nfa_match.get())
+    nfa_s.nfa_match.get()
 }
 
 fn nfa_regtry(
-    prog: &mut NfaRegprog,
+    prog: &NfaRegprog,
+    lastlist: &mut [[i32; 2]],
     col: Colnr,
     tm: Option<Proftime>,
     timed_out: Option<&mut i32>,
@@ -4708,7 +4787,7 @@ fn nfa_regtry(
             clear_sub(re_s, &mut m.synt);
         }
 
-        let result = nfa_regmatch(&mut *prog, start, &mut subs, &mut m);
+        let result = nfa_regmatch(prog, lastlist, start, &mut subs, &mut m);
         if nfa_st(|st| st.nfa_timed_out.get())
             && let Some(timed_out) = timed_out
         {
@@ -4806,25 +4885,16 @@ fn nfa_regtry(
     })
 }
 
-fn nfa_regexec_both(
-    prog: &mut NfaRegprog,
+pub(super) fn nfa_regexec_both(
+    prog: &NfaRegprog,
     line_in: Option<&[u8]>,
     startcol: Colnr,
     tm: Option<Proftime>,
     timed_out: Option<&mut i32>,
 ) -> i32 {
     RE_STATE.with(|re_s| {
-        let mut line = crate::regexp::reg_line_from_opt_bytes(line_in);
         let mut retval: i32 = 0;
         let mut col = startcol;
-
-        if !re_s.rex.has_match.get() {
-            line = crate::regexp::reg_load_line_slice(0);
-        }
-        if line.is_null() {
-            iemsg(tr(E_NULL));
-            return finish_nfa_regexec(re_s, retval, col);
-        }
 
         if (prog.regflags & RF_ICASE) != 0 {
             re_s.rex.reg_ic.set(true);
@@ -4836,18 +4906,16 @@ fn nfa_regexec_both(
             re_s.rex.reg_icombine.set(true);
         }
 
-        re_s.rex.set_line(line);
-        re_s.rex.lnum.set(0);
+        if prog.reganch && col > 0 {
+            return 0;
+        }
 
+        re_s.rex.lnum.set(0);
         re_s.rex.nfa_has_zend.set(prog.has_zend);
         re_s.rex.nfa_has_backref.set(prog.has_backref);
         re_s.rex.nfa_nsubexpr.set(prog.nsubexp);
         re_s.rex.nfa_listid.set(1);
         re_s.rex.nfa_alt_listid.set(2);
-
-        if prog.reganch && col > 0 {
-            return 0;
-        }
 
         re_s.rex.need_clear_subexpr.set(true);
         if prog.reghasz == REX_SET {
@@ -4857,6 +4925,17 @@ fn nfa_regexec_both(
             re_s.rex.nfa_has_zsubexpr.set(false);
             re_s.rex.need_clear_zsubexpr.set(false);
         }
+
+        let mut line = crate::regexp::reg_line_from_opt_bytes(line_in);
+        if !re_s.rex.has_match.get() {
+            line = crate::regexp::reg_load_line_slice(0);
+        }
+        if line.is_null() {
+            iemsg(tr(E_NULL));
+            return finish_nfa_regexec(re_s, retval, col);
+        }
+
+        re_s.rex.set_line(line);
 
         if prog.regstart != NUL as i32 {
             if !skip_to_start(prog.regstart, &mut col) {
@@ -4881,17 +4960,26 @@ fn nfa_regexec_both(
         }
 
         re_s.nstate.set(0);
-        for st in &mut (&mut prog.state)[..prog.nstate as usize] {
-            st.lastlist[0] = 0;
-            st.lastlist[1] = 0;
+        let nstate_len = prog.nstate as usize;
+        let mut lastlist = nfa_st(|st| std::mem::take(&mut *st.lastlist_buf.borrow_mut()));
+        if lastlist.len() < nstate_len {
+            lastlist.resize(nstate_len, [0; 2]);
         }
+        lastlist[..nstate_len].fill([0; 2]);
 
         retval = nfa_regtry(
-            &mut *prog,
+            prog,
+            &mut lastlist[..nstate_len],
             col,
             tm,
             (timed_out.is_some()).then(|| &mut *timed_out.unwrap()),
         );
+        nfa_st(|st| {
+            let mut b = st.lastlist_buf.borrow_mut();
+            if b.capacity() < lastlist.capacity() {
+                *b = lastlist;
+            }
+        });
         finish_nfa_regexec(re_s, retval, col)
     })
 }
@@ -4941,7 +5029,6 @@ pub(super) fn nfa_regcomp(expr: &[u8], re_flags: i32) -> Option<NfaRegprog> {
             pattern: std::ffi::CString::default(),
             nsubexp: 0,
             nstate: 0,
-            listbuf: [Vec::new(), Vec::new()],
             state: vec![NfaState::new(); re_s.nstate.get() as usize],
         };
 
@@ -4968,6 +5055,191 @@ pub(super) fn nfa_regcomp(expr: &[u8], re_flags: i32) -> Option<NfaRegprog> {
     })
 }
 
+impl NfaRegprog {
+    #[inline]
+    pub(crate) fn is_pure_single_line(&self) -> bool {
+        (self.regflags & RF_HASNL) == 0
+            && self.reghasz != REX_SET
+            && !self.state[..self.nstate as usize].iter().any(|st| {
+                let c = st.c;
+                matches!(c, NFA_BOF | NFA_EOF | NFA_NEWL)
+                    || (NFA_START_INVISIBLE..=NFA_END_PATTERN).contains(&c)
+                    || (NFA_ZREF1..=NFA_ZREF9).contains(&c)
+                    || (NFA_FIRST_NL..=NFA_VISUAL).contains(&c)
+            })
+    }
+
+    #[inline]
+    pub(crate) fn fast_literal_params(&self, default_ic: bool) -> Option<(i32, &[u8], bool)> {
+        if self.reganch || self.regstart == NUL as i32 || (self.regflags & RF_ICOMBINE) != 0 {
+            return None;
+        }
+        let mt = self.match_text.as_ref()?.as_bytes();
+        if mt.is_empty() {
+            return None;
+        }
+        let reg_ic = if (self.regflags & RF_ICASE) != 0 {
+            true
+        } else if (self.regflags & RF_NOICASE) != 0 {
+            false
+        } else {
+            default_ic
+        };
+        Some((self.regstart, mt, reg_ic))
+    }
+}
+
+pub(crate) fn nfa_match_line_slice(
+    prog: &NfaRegprog,
+    line_bytes_with_nul: &[u8],
+    mut col: Colnr,
+    default_ic: bool,
+    maxcol: Colnr,
+) -> Result<Option<(Colnr, Colnr)>, ()> {
+    if prog.reganch && col > 0 {
+        return Ok(None);
+    }
+    let reg_ic = if (prog.regflags & RF_ICASE) != 0 {
+        true
+    } else if (prog.regflags & RF_NOICASE) != 0 {
+        false
+    } else {
+        default_ic
+    };
+    let reg_icombine = (prog.regflags & RF_ICOMBINE) != 0;
+    let line_bytes = if line_bytes_with_nul.last() == Some(&0) {
+        &line_bytes_with_nul[..line_bytes_with_nul.len() - 1]
+    } else {
+        line_bytes_with_nul
+    };
+
+    if prog.regstart != NUL as i32 {
+        let start_off = (col as usize).min(line_bytes.len());
+        let Some(off) = crate::regexp::cstrchr_ic(&line_bytes[start_off..], prog.regstart, reg_ic)
+        else {
+            return Ok(None);
+        };
+        col += off as Colnr;
+        if let Some(ref mt) = prog.match_text
+            && !mt.as_bytes().is_empty()
+            && !reg_icombine
+        {
+            return Ok(find_match_text_in_bytes(
+                line_bytes,
+                &mut col,
+                prog.regstart,
+                mt.as_bytes(),
+                reg_ic,
+            )
+            .map(|end_col| (col, end_col)));
+        }
+    }
+
+    if maxcol > 0 && col >= maxcol {
+        return Ok(None);
+    }
+
+    RE_STATE.with(|re_s| {
+        NFA_STATE.with(|nfa_s| {
+            let line = if line_bytes_with_nul.last() == Some(&0) {
+                crate::regexp::reg_line_from_clean_bytes_with_nul(re_s, line_bytes_with_nul)
+            } else {
+                crate::regexp::reg_line_from_bytes(line_bytes)
+            };
+            re_s.rex.has_match.set(false);
+            re_s.rex.has_mmatch.set(true);
+            re_s.rex.reg_line_lbr.set(false);
+            re_s.rex.reg_maxline.set(0);
+            re_s.rex.reg_nobreak.set(true);
+            re_s.rex.reg_maxcol.set(maxcol);
+            re_s.rex.reg_ic.set(reg_ic);
+            re_s.rex.reg_icombine.set(reg_icombine);
+            re_s.rex.set_line(line);
+            re_s.rex.lnum.set(0);
+            re_s.rex.nfa_has_zend.set(prog.has_zend);
+            re_s.rex.nfa_has_backref.set(prog.has_backref);
+            re_s.rex.nfa_nsubexpr.set(prog.nsubexp);
+            re_s.rex.nfa_listid.set(1);
+            re_s.rex.nfa_alt_listid.set(2);
+            re_s.rex.need_clear_subexpr.set(true);
+            re_s.rex.nfa_has_zsubexpr.set(false);
+            re_s.rex.need_clear_zsubexpr.set(false);
+            re_s.nstate.set(0);
+
+            let nstate_len = prog.nstate as usize;
+            let mut lastlist = std::mem::take(&mut *nfa_s.lastlist_buf.borrow_mut());
+            if lastlist.len() < nstate_len {
+                lastlist.resize(nstate_len, [0; 2]);
+            }
+            lastlist[..nstate_len].fill([0; 2]);
+
+            re_s.rex.input.set(line.wrapping_add(col as usize));
+            nfa_s.nfa_time_limit.set(None);
+            nfa_s.nfa_timed_out.set(false);
+            nfa_s.nfa_time_count.set(0);
+
+            let mut subs = Regsubs::new();
+            let mut m = Regsubs::new();
+            clear_sub(re_s, &mut subs.norm);
+            clear_sub(re_s, &mut m.norm);
+
+            let result = nfa_regmatch_ctx(
+                re_s,
+                nfa_s,
+                prog,
+                &mut lastlist[..nstate_len],
+                prog.start,
+                &mut subs,
+                &mut m,
+            );
+            {
+                let mut b = nfa_s.lastlist_buf.borrow_mut();
+                if b.capacity() < lastlist.capacity() {
+                    *b = lastlist;
+                }
+            }
+            if result == NFA_TOO_EXPENSIVE && prog.re_engine == AUTOMATIC_ENGINE as u32 {
+                return Err(());
+            }
+            if result <= 0 {
+                return Ok(None);
+            }
+
+            cleanup_subexpr();
+            for i in 0..(subs.norm.in_use as usize) {
+                let item = &subs.norm.list[i];
+                re_s.rex.rmm_startpos[i].set(Lpos {
+                    lnum: item.start_lnum,
+                    col: item.start_col,
+                });
+                re_s.rex.rmm_endpos[i].set(Lpos {
+                    lnum: item.end_lnum,
+                    col: item.end_col,
+                });
+            }
+            if re_s.rex.rmm_startpos[0].get().lnum < 0 {
+                re_s.rex.rmm_startpos[0].set(Lpos { lnum: 0, col });
+            }
+            let end0 = re_s.rex.rmm_endpos[0].get();
+            if end0.lnum < 0 {
+                re_s.rex.rmm_endpos[0].set(Lpos {
+                    lnum: re_s.rex.lnum.get(),
+                    col: re_s.rex.input_col(),
+                });
+            }
+            let start = re_s.rex.rmm_startpos[0].get();
+            let end = re_s.rex.rmm_endpos[0].get();
+            let end_col =
+                if end.lnum < start.lnum || (end.lnum == start.lnum && end.col < start.col) {
+                    start.col
+                } else {
+                    end.col
+                };
+            Ok(Some((start.col, end_col)))
+        })
+    })
+}
+
 fn cleanup_nfa_regcomp(prog: Option<NfaRegprog>) -> Option<NfaRegprog> {
     POST_VEC.with(|cell| {
         let mut pv = cell.borrow_mut();
@@ -4978,56 +5250,4 @@ fn cleanup_nfa_regcomp(prog: Option<NfaRegprog>) -> Option<NfaRegprog> {
         }
     });
     prog
-}
-
-pub(super) fn nfa_regexec_nl(
-    prog: &mut NfaRegprog,
-    rmp: &mut Regmatch,
-    line: Option<&[u8]>,
-    col: Colnr,
-    line_lbr: bool,
-) -> i32 {
-    RE_STATE.with(|re_s| {
-        re_s.rex.init_match(rmp);
-        re_s.rex.reg_maxline.set(0);
-        re_s.rex.reg_line_lbr.set(line_lbr);
-        re_s.rex.set_buf(g_st().workspace.curbuf.get());
-        re_s.rex.reg_win.set(crate::globals::WinPtr::NULL);
-        re_s.rex.reg_win_cursor.set(None);
-        re_s.rex.reg_ic.set(rmp.rm_ic);
-        re_s.rex.reg_icombine.set(false);
-        re_s.rex
-            .reg_nobreak
-            .set((rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0);
-        re_s.rex.reg_maxcol.set(0);
-        let res = nfa_regexec_both(prog, line, col, None, None);
-        if res > 0 {
-            re_s.rex.save_match(rmp);
-        } else {
-            rmp.rm_matchcol = re_s.rex.rm_matchcol.get();
-        }
-        res
-    })
-}
-
-pub(super) fn nfa_regexec_multi(
-    prog: &mut NfaRegprog,
-    rmp: &mut Regmmatch,
-    win: Option<&WinInfoInfo>,
-    buf: &FileBuf,
-    lnum: Linenr,
-    col: Colnr,
-    tm: Option<Proftime>,
-    timed_out: Option<&mut i32>,
-) -> i32 {
-    init_regexec_multi(rmp, win, buf, lnum);
-    let res = nfa_regexec_both(prog, None, col, tm, timed_out);
-    RE_STATE.with(|s| {
-        if res > 0 {
-            s.rex.save_mmatch(rmp);
-        } else {
-            rmp.rmm_matchcol = s.rex.rmm_matchcol.get();
-        }
-    });
-    res
 }

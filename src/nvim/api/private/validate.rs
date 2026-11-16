@@ -72,7 +72,7 @@ pub enum NvimStringData {
     Null,
     Static(&'static [u8]),
     Inline([u8; NVIM_STRING_INLINE_CAP + 1]),
-    SharedCStr(Rc<std::ffi::CStr>),
+    SharedCStr(std::sync::Arc<std::ffi::CStr>),
     Owned(Rc<Vec<u8>>),
 }
 
@@ -137,7 +137,7 @@ impl NvimString {
             }
         } else {
             Self {
-                data: NvimStringData::SharedCStr(Rc::from(s)),
+                data: NvimStringData::SharedCStr(std::sync::Arc::from(s)),
                 size,
             }
         }
@@ -159,7 +159,7 @@ impl NvimString {
         }
         if let Ok(cstr) = std::ffi::CStr::from_bytes_with_nul(&bytes_with_nul[..=size]) {
             Self {
-                data: NvimStringData::SharedCStr(Rc::from(cstr)),
+                data: NvimStringData::SharedCStr(std::sync::Arc::from(cstr)),
                 size,
             }
         } else {

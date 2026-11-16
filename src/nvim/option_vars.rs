@@ -9,28 +9,28 @@ use crate::syntax::{IdlCache, Keyentry, SynCluster, SynTime, Synpat, Synstate};
 use crate::window::K_WIN_OPT_COUNT;
 
 #[inline]
-pub(crate) fn rc_cstr_from_clean_bytes(clean: &[u8]) -> std::rc::Rc<std::ffi::CStr> {
+pub(crate) fn rc_cstr_from_clean_bytes(clean: &[u8]) -> std::sync::Arc<std::ffi::CStr> {
     if clean.len() < 128 {
         let mut stack = [0u8; 128];
         stack[..clean.len()].copy_from_slice(clean);
         let cstr = std::ffi::CStr::from_bytes_with_nul(&stack[..=clean.len()])
             .expect("stack buffer is NUL-terminated without interior NULs");
-        std::rc::Rc::from(cstr)
+        std::sync::Arc::from(cstr)
     } else if clean.len() < 512 {
         let mut stack = [0u8; 512];
         stack[..clean.len()].copy_from_slice(clean);
         let cstr = std::ffi::CStr::from_bytes_with_nul(&stack[..=clean.len()])
             .expect("stack buffer is NUL-terminated without interior NULs");
-        std::rc::Rc::from(cstr)
+        std::sync::Arc::from(cstr)
     } else {
-        std::rc::Rc::from(crate::memory::bytes_to_cstring(clean))
+        std::sync::Arc::from(crate::memory::bytes_to_cstring(clean))
     }
 }
 
 #[derive(Clone)]
 pub enum RcCStr {
     Static(&'static std::ffi::CStr),
-    Shared(std::rc::Rc<std::ffi::CStr>, usize),
+    Shared(std::sync::Arc<std::ffi::CStr>, usize),
 }
 
 impl RcCStr {
@@ -46,7 +46,7 @@ impl RcCStr {
         if s.is_empty() {
             Self::EMPTY
         } else {
-            Self::Shared(std::rc::Rc::from(s), 0)
+            Self::Shared(std::sync::Arc::from(s), 0)
         }
     }
 
@@ -64,7 +64,7 @@ impl RcCStr {
         if s.is_empty() {
             Self::EMPTY
         } else {
-            Self::Shared(std::rc::Rc::from(s), 0)
+            Self::Shared(std::sync::Arc::from(s), 0)
         }
     }
 
@@ -96,12 +96,26 @@ impl RcCStr {
 
     #[inline(always)]
     pub fn to_bytes(&self) -> &[u8] {
-        self.as_cstr().to_bytes()
+        match self {
+            Self::Static(s) => s.to_bytes(),
+            Self::Shared(s, 0) => s.to_bytes(),
+            Self::Shared(s, start) => {
+                let b = s.to_bytes();
+                &b[(*start).min(b.len())..]
+            }
+        }
     }
 
     #[inline(always)]
     pub fn to_bytes_with_nul(&self) -> &[u8] {
-        self.as_cstr().to_bytes_with_nul()
+        match self {
+            Self::Static(s) => s.to_bytes_with_nul(),
+            Self::Shared(s, 0) => s.to_bytes_with_nul(),
+            Self::Shared(s, start) => {
+                let b = s.to_bytes_with_nul();
+                &b[(*start).min(b.len().saturating_sub(1))..]
+            }
+        }
     }
 
     #[inline(always)]
@@ -265,7 +279,7 @@ impl std::fmt::Debug for RcCStr {
 enum RcSliceBuf {
     Null,
     Static(&'static std::ffi::CStr),
-    SharedCStr(std::rc::Rc<std::ffi::CStr>),
+    SharedCStr(std::sync::Arc<std::ffi::CStr>),
     SharedBytes(std::rc::Rc<[u8]>),
 }
 
@@ -300,7 +314,7 @@ impl RcSlice {
             Self::default()
         } else {
             Self {
-                buf: RcSliceBuf::SharedCStr(std::rc::Rc::from(s)),
+                buf: RcSliceBuf::SharedCStr(std::sync::Arc::from(s)),
                 start: 0,
                 with_nul: false,
             }
@@ -354,7 +368,7 @@ impl RcSlice {
                 std::ptr::eq(a.as_ptr(), b.as_ptr())
                     && a.to_bytes_with_nul().len() == b.to_bytes_with_nul().len()
             }
-            (RcSliceBuf::SharedCStr(a), RcSliceBuf::SharedCStr(b)) => std::rc::Rc::ptr_eq(a, b),
+            (RcSliceBuf::SharedCStr(a), RcSliceBuf::SharedCStr(b)) => std::sync::Arc::ptr_eq(a, b),
             (RcSliceBuf::SharedBytes(a), RcSliceBuf::SharedBytes(b)) => std::rc::Rc::ptr_eq(a, b),
             _ => false,
         }

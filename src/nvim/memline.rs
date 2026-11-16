@@ -2160,7 +2160,119 @@ fn ml_sync_swap_blocks(buf: &FileBuf) {
             pe_line_count: 1,
         });
     } else {
-        for ch in chunks.iter_mut() {
+        fn serialize_chunk_blocks(
+            ch: &LineChunk,
+            page_size: u32,
+        ) -> Vec<(crate::memfile::Bhdr, PointerEntry)> {
+            let mut blocks = Vec::with_capacity(8);
+            let mut line_iter = ch.lines.iter().peekable();
+            let mut cur_lnum = ch.start_lnum;
+            loop {
+                let first_entry = line_iter.peek().copied().unwrap_or(&LineEntry::EMPTY);
+                let first_len = first_entry.text.to_bytes().len() + 1;
+                let first_needed = HEADER_SIZE + INDEX_SIZE + first_len;
+                let page_count = first_needed.div_ceil(page_size as usize).max(1) as u32;
+                let txt_end = page_count.wrapping_mul(page_size);
+                let mut hp = crate::memfile::Bhdr {
+                    bh_bnum: 0,
+                    bh_data: vec![0u8; txt_end as usize],
+                    bh_page_count: page_count,
+                    bh_flags: BH_DIRTY,
+                };
+                hp.set_db_id(DATA_ID);
+                hp.set_db_txt_end(txt_end);
+                hp.set_db_txt_start(txt_end);
+                let mut free = txt_end - (HEADER_SIZE as u32);
+                hp.set_db_free(free);
+                hp.set_db_line_count(0);
+
+                let start_lnum = cur_lnum;
+                let mut db_line_count: i32 = 0;
+
+                while let Some(&entry) = line_iter.peek() {
+                    let text_bytes = entry.text.to_bytes();
+                    let len = text_bytes.len() + 1;
+                    let needed = (len + INDEX_SIZE) as u32;
+
+                    if db_line_count > 0 && free < needed {
+                        break;
+                    }
+                    let _ = line_iter.next();
+
+                    let new_txt_start = hp.db_txt_start() - (len as u32);
+                    hp.set_db_txt_start(new_txt_start);
+                    let idx_val = new_txt_start | if entry.marked { DB_MARKED } else { 0 };
+                    hp.set_db_idx(db_line_count as usize, idx_val);
+                    free -= needed;
+                    hp.set_db_free(free);
+                    hp.set_db_line_count(i64::from(db_line_count + 1));
+                    bh_write_bytes(&mut hp, new_txt_start as usize, text_bytes, len);
+
+                    db_line_count += 1;
+                    cur_lnum += 1;
+                }
+
+                if db_line_count == 0 {
+                    let new_txt_start = hp.db_txt_start() - 1;
+                    hp.set_db_txt_start(new_txt_start);
+                    hp.set_db_idx(0, new_txt_start);
+                    let free2 = hp.db_free() - (1 + INDEX_SIZE as u32);
+                    hp.set_db_free(free2);
+                    hp.set_db_line_count(1);
+                    bh_write_bytes(&mut hp, new_txt_start as usize, b"", 1);
+                    db_line_count = 1;
+                }
+
+                let pe = PointerEntry {
+                    pe_bnum: 0,
+                    pe_page_count: page_count as i32,
+                    pe_old_lnum: start_lnum,
+                    pe_line_count: db_line_count,
+                };
+                blocks.push((hp, pe));
+
+                if line_iter.peek().is_none() {
+                    break;
+                }
+            }
+            blocks
+        }
+
+        let dirty_count = chunks.iter().filter(|ch| ch.swap_blocks.is_empty()).count();
+        let mut prebuilt: Vec<Option<Vec<(crate::memfile::Bhdr, PointerEntry)>>> =
+            if dirty_count >= 8 {
+                let chunk_refs: &[LineChunk] = &chunks;
+                let nthreads = std::thread::available_parallelism()
+                    .map_or(4, |n| n.get().min(8))
+                    .min(chunk_refs.len());
+                let group_len = chunk_refs.len().div_ceil(nthreads).max(1);
+                std::thread::scope(|s| {
+                    let mut handles = Vec::with_capacity(nthreads);
+                    for slice in chunk_refs.chunks(group_len) {
+                        handles.push(s.spawn(move || {
+                            slice
+                                .iter()
+                                .map(|ch| {
+                                    ch.swap_blocks
+                                        .is_empty()
+                                        .then(|| serialize_chunk_blocks(ch, page_size))
+                                })
+                                .collect::<Vec<_>>()
+                        }));
+                    }
+                    let mut all = Vec::with_capacity(chunk_refs.len());
+                    for h in handles {
+                        if let Ok(mut part) = h.join() {
+                            all.append(&mut part);
+                        }
+                    }
+                    all
+                })
+            } else {
+                Vec::new()
+            };
+
+        for (c_idx, ch) in chunks.iter_mut().enumerate() {
             if !ch.swap_blocks.is_empty() {
                 let mut cur_lnum = ch.start_lnum;
                 for &mut (ref mut pe, _) in &mut ch.swap_blocks {
@@ -2171,69 +2283,16 @@ fn ml_sync_swap_blocks(buf: &FileBuf) {
                 continue;
             }
 
-            let mut line_iter = ch.lines.iter().peekable();
-            let mut cur_lnum = ch.start_lnum;
-            loop {
-                let first_entry = line_iter.peek().copied().unwrap_or(&LineEntry::EMPTY);
-                let first_len = first_entry.text.to_bytes().len() + 1;
-                let first_needed = HEADER_SIZE + INDEX_SIZE + first_len;
-                let page_count = first_needed.div_ceil(page_size as usize).max(1) as i64;
-                let db_id = ml_new_data(&mut mfp, false, page_count);
-                let db_bnum = mfp.bhdr(db_id).bh_bnum;
-                let start_lnum = cur_lnum;
-                let mut db_line_count: i32 = 0;
+            let blocks = prebuilt
+                .get_mut(c_idx)
+                .and_then(Option::take)
+                .unwrap_or_else(|| serialize_chunk_blocks(ch, page_size));
 
-                while let Some(&entry) = line_iter.peek() {
-                    let text_bytes = entry.text.to_bytes();
-                    let len = text_bytes.len() + 1;
-                    let needed = (len + INDEX_SIZE) as u32;
-
-                    let free = mfp.bhdr(db_id).db_free();
-                    if db_line_count > 0 && free < needed {
-                        break;
-                    }
-                    let _ = line_iter.next();
-
-                    {
-                        let hp_ref = mfp.bhdr_mut(db_id);
-                        let new_txt_start = hp_ref.db_txt_start() - (len as u32);
-                        hp_ref.set_db_txt_start(new_txt_start);
-                        let idx_val = new_txt_start | if entry.marked { DB_MARKED } else { 0 };
-                        hp_ref.set_db_idx(db_line_count as usize, idx_val);
-                        hp_ref.set_db_free(free - needed);
-                        hp_ref.set_db_line_count(i64::from(db_line_count + 1));
-                        bh_write_bytes(hp_ref, new_txt_start as usize, text_bytes, len);
-                    }
-
-                    db_line_count += 1;
-                    cur_lnum += 1;
-                }
-
-                if db_line_count == 0 {
-                    let hp_ref = mfp.bhdr_mut(db_id);
-                    let new_txt_start = hp_ref.db_txt_start() - 1;
-                    hp_ref.set_db_txt_start(new_txt_start);
-                    hp_ref.set_db_idx(0, new_txt_start);
-                    let free = hp_ref.db_free() - (1 + INDEX_SIZE as u32);
-                    hp_ref.set_db_free(free);
-                    hp_ref.set_db_line_count(1);
-                    bh_write_bytes(hp_ref, new_txt_start as usize, b"", 1);
-                    db_line_count = 1;
-                }
-
-                mf_put(&mut mfp, db_id, true, false);
-                let pe = PointerEntry {
-                    pe_bnum: db_bnum,
-                    pe_page_count: page_count as i32,
-                    pe_old_lnum: start_lnum,
-                    pe_line_count: db_line_count,
-                };
+            for (bhdr, mut pe) in blocks {
+                let (db_id, db_bnum) = crate::memfile::mf_insert_new_bhdr(&mut mfp, bhdr);
+                pe.pe_bnum = db_bnum;
                 ch.swap_blocks.push((pe, db_id));
                 data_entries.push(pe);
-
-                if line_iter.peek().is_none() {
-                    break;
-                }
             }
         }
     }
@@ -3161,11 +3220,9 @@ pub fn ml_setmarked(lnum: Linenr) {
             let ch = &mut chunks[c];
             if let Some(entry) = ch.lines.get_mut((lnum - ch.start_lnum) as usize) {
                 entry.marked = true;
-                ch.swap_blocks.clear();
             }
         }
     }
-    cb.b_ml.mark_swap_dirty();
 }
 
 /// Find the first line with its `DB_MARKED` flag set.
@@ -3196,7 +3253,6 @@ pub fn ml_firstmarked() -> Linenr {
                 if entry.marked {
                     entry.marked = false;
                     found = ch.start_lnum + ((line_start_idx + idx) as Linenr);
-                    ch.swap_blocks.clear();
                     cb.b_ml.ml_cur_chunk.set(start_c + c_off);
                     break 'outer;
                 }
@@ -3206,7 +3262,6 @@ pub fn ml_firstmarked() -> Linenr {
     };
 
     if found_lnum != 0 {
-        cb.b_ml.mark_swap_dirty();
         ml_st(|st| st.lowest_marked.set(found_lnum + 1));
         found_lnum
     } else {
@@ -3223,28 +3278,461 @@ pub fn ml_clearmarked() {
         return;
     }
 
-    let mut any_cleared = false;
     {
         let mut chunks = cb.b_ml.ml_chunks.borrow_mut();
         let start_c = cb.b_ml.find_chunk_idx(&chunks, lnum).unwrap_or(0);
         for ch in chunks.get_mut(start_c..).into_iter().flatten() {
-            let mut ch_cleared = false;
             for entry in &mut ch.lines {
-                if entry.marked {
-                    entry.marked = false;
-                    any_cleared = true;
-                    ch_cleared = true;
-                }
-            }
-            if ch_cleared {
-                ch.swap_blocks.clear();
+                entry.marked = false;
             }
         }
     }
-    if any_cleared {
-        cb.b_ml.mark_swap_dirty();
-    }
     ml_st(|st| st.lowest_marked.set(0));
+}
+
+pub fn ml_try_mark_global_lines(
+    buf: &FileBuf,
+    line1: Linenr,
+    line2: Linenr,
+    regmatch: &crate::regexp::Regmmatch,
+    invert: bool,
+) -> Option<i32> {
+    if line1 > line2 || line1 < 1 || g_st().input.got_int.get() {
+        return Some(0);
+    }
+    if regmatch.regprog.re_in_use() || crate::regexp::rex_in_use() {
+        return None;
+    }
+    if (buf.b_ml.ml_flags.get() & ML_LINE_DIRTY) != 0 {
+        ml_flush_line(buf, false);
+    }
+    if buf.b_ml.ml_mfp.borrow().is_none() {
+        return Some(0);
+    }
+    let rmm_ic = regmatch.rmm_ic;
+    let rmm_maxcol = regmatch.rmm_maxcol;
+
+    crate::regexp::with_pure_nfa_prog(&regmatch.regprog, |nfa| {
+        let mut chunks = buf.b_ml.ml_chunks.borrow_mut();
+        let Some(start_c) = buf.b_ml.find_chunk_idx(&chunks, line1) else {
+            return Some(0);
+        };
+        let Some(end_c) = buf.b_ml.find_chunk_idx(&chunks, line2) else {
+            return Some(0);
+        };
+        let active_chunks = &mut chunks[start_c..=end_c];
+        let total_lines = (line2 - line1 + 1) as usize;
+
+        fn scan_slice(
+            slice: &mut [LineChunk],
+            nfa: &crate::regexp::NfaRegprog,
+            line1: Linenr,
+            line2: Linenr,
+            rmm_ic: bool,
+            rmm_maxcol: Colnr,
+            invert: bool,
+        ) -> Result<(i32, Linenr), ()> {
+            let mut ndone: i32 = 0;
+            let mut lowest: Linenr = 0;
+            if rmm_maxcol == 0
+                && let Some((regstart, mt, reg_ic)) = nfa.fast_literal_params(rmm_ic)
+            {
+                for ch in slice {
+                    let ch_start = ch.start_lnum;
+                    for (idx, entry) in ch.lines.iter_mut().enumerate() {
+                        let lnum = ch_start + idx as Linenr;
+                        if lnum < line1 || lnum > line2 {
+                            continue;
+                        }
+                        let line_bytes = entry.text.to_bytes();
+                        let matched = if let Some(off) =
+                            crate::regexp::cstrchr_ic(line_bytes, regstart, reg_ic)
+                        {
+                            let mut mcol = off as Colnr;
+                            crate::regexp::find_match_text_in_bytes(
+                                line_bytes, &mut mcol, regstart, mt, reg_ic,
+                            )
+                            .is_some()
+                        } else {
+                            false
+                        };
+                        if matched != invert {
+                            entry.marked = true;
+                            ndone += 1;
+                            if lowest == 0 {
+                                lowest = lnum;
+                            }
+                        }
+                    }
+                }
+                return Ok((ndone, lowest));
+            }
+            for ch in slice {
+                let ch_start = ch.start_lnum;
+                for (idx, entry) in ch.lines.iter_mut().enumerate() {
+                    let lnum = ch_start + idx as Linenr;
+                    if lnum < line1 || lnum > line2 {
+                        continue;
+                    }
+                    let matched = crate::regexp::nfa_match_line_slice(
+                        nfa,
+                        entry.text.to_bytes_with_nul(),
+                        0,
+                        rmm_ic,
+                        rmm_maxcol,
+                    )?
+                    .is_some();
+                    if matched != invert {
+                        entry.marked = true;
+                        ndone += 1;
+                        if lowest == 0 {
+                            lowest = lnum;
+                        }
+                    }
+                }
+            }
+            Ok((ndone, lowest))
+        }
+
+        let use_parallel = active_chunks.len() >= 4
+            && if rmm_maxcol == 0 && nfa.fast_literal_params(rmm_ic).is_some() {
+                total_lines >= 65536
+            } else {
+                total_lines >= 8192
+            };
+
+        let res = if use_parallel {
+            let b_chartab = buf.b_chartab.get();
+            let (isf_chartab, isi_chartab) = crate::charset::get_global_chartabs();
+            let p_mmp = opt_vars().p_mmp.get();
+            let nthreads = std::thread::available_parallelism()
+                .map_or(4, |n| n.get().min(8))
+                .min(active_chunks.len());
+            let group_len = active_chunks.len().div_ceil(nthreads).max(1);
+            std::thread::scope(|s| {
+                let mut handles = Vec::with_capacity(nthreads);
+                for worker_slice in active_chunks.chunks_mut(group_len) {
+                    handles.push(s.spawn(move || {
+                        crate::regexp::init_worker_regex_env(
+                            b_chartab,
+                            isf_chartab,
+                            isi_chartab,
+                            p_mmp,
+                        );
+                        scan_slice(worker_slice, nfa, line1, line2, rmm_ic, rmm_maxcol, invert)
+                    }));
+                }
+                let mut total_ndone = 0i32;
+                let mut min_lowest = 0;
+                let mut any_err = false;
+                for h in handles {
+                    match h.join() {
+                        Ok(Ok((n, l))) => {
+                            total_ndone += n;
+                            if l != 0 && (min_lowest == 0 || l < min_lowest) {
+                                min_lowest = l;
+                            }
+                        }
+                        _ => any_err = true,
+                    }
+                }
+                if any_err {
+                    Err(())
+                } else {
+                    Ok((total_ndone, min_lowest))
+                }
+            })
+        } else {
+            crate::regexp::init_main_regex_buf(buf);
+            scan_slice(active_chunks, nfa, line1, line2, rmm_ic, rmm_maxcol, invert)
+        };
+
+        match res {
+            Ok((ndone, lowest)) => {
+                if lowest != 0 {
+                    ml_st(|st| {
+                        let low = st.lowest_marked.get();
+                        if low == 0 || low > lowest {
+                            st.lowest_marked.set(lowest);
+                        }
+                    });
+                }
+                Some(ndone)
+            }
+            Err(()) => {
+                for ch in active_chunks {
+                    for entry in &mut ch.lines {
+                        entry.marked = false;
+                    }
+                }
+                None
+            }
+        }
+    })
+    .flatten()
+}
+
+pub struct VgrFastMatch {
+    pub lnum: Linenr,
+    pub end_lnum: Linenr,
+    pub col: Colnr,
+    pub end_col: Colnr,
+    pub text: RcCStr,
+}
+
+pub fn ml_try_vimgrep_lines(
+    buf: &FileBuf,
+    regmatch: &crate::regexp::Regmmatch,
+    spat_bytes: &[u8],
+    is_fuzzy: bool,
+    is_global: bool,
+    tomatch: usize,
+) -> Option<Vec<VgrFastMatch>> {
+    if tomatch == 0 || g_st().input.got_int.get() {
+        return Some(Vec::new());
+    }
+    if !is_fuzzy && (regmatch.regprog.re_in_use() || crate::regexp::rex_in_use()) {
+        return None;
+    }
+    if (buf.b_ml.ml_flags.get() & ML_LINE_DIRTY) != 0 {
+        ml_flush_line(buf, false);
+    }
+    let total_lines = buf.b_ml.ml_line_count.get() as usize;
+    if total_lines == 0 {
+        return Some(Vec::new());
+    }
+    let b_chartab = buf.b_chartab.get();
+
+    if is_fuzzy {
+        let chunks = buf.b_ml.ml_chunks.borrow();
+        let pat_len = spat_bytes.len().min(crate::fuzzy::FUZZY_MATCH_MAX_LEN);
+        if pat_len == 0 {
+            return None;
+        }
+        let scan_fuzzy = |slice: &[LineChunk], limit: usize| -> Vec<VgrFastMatch> {
+            let mut out = Vec::new();
+            let mut score: i32 = 0;
+            let mut matches = [0u32; crate::fuzzy::FUZZY_MATCH_MAX_LEN];
+            'outer: for ch in slice {
+                let ch_start = ch.start_lnum;
+                for (idx, entry) in ch.lines.iter().enumerate() {
+                    let lnum = ch_start + idx as Linenr;
+                    let str_bytes = entry.text.to_bytes();
+                    let linelen = str_bytes.len() as Colnr;
+                    let mut col: Colnr = 0;
+                    while crate::fuzzy::fuzzy_match(
+                        &str_bytes[(col as usize).min(str_bytes.len())..],
+                        spat_bytes,
+                        false,
+                        &mut score,
+                        &mut matches,
+                    ) {
+                        out.push(VgrFastMatch {
+                            lnum,
+                            end_lnum: 0,
+                            col: matches[0] as Colnr + col + 1,
+                            end_col: 0,
+                            text: entry.text.clone(),
+                        });
+                        if out.len() >= limit {
+                            break 'outer;
+                        }
+                        if !is_global {
+                            break;
+                        }
+                        col += matches[pat_len - 1] as Colnr + 1;
+                        if col >= linelen {
+                            break;
+                        }
+                    }
+                }
+            }
+            out
+        };
+
+        if chunks.len() >= 4 && total_lines >= 4096 && tomatch >= 512 {
+            let nthreads = std::thread::available_parallelism()
+                .map_or(4, |n| n.get().min(8))
+                .min(chunks.len());
+            let group_len = chunks.len().div_ceil(nthreads).max(1);
+            let mut all = std::thread::scope(|s| {
+                let mut handles = Vec::with_capacity(nthreads);
+                for worker_slice in chunks.chunks(group_len) {
+                    handles.push(s.spawn(move || {
+                        crate::fuzzy::init_worker_fuzzy_chartab(b_chartab);
+                        scan_fuzzy(worker_slice, tomatch)
+                    }));
+                }
+                let mut combined = Vec::new();
+                for h in handles {
+                    if let Ok(mut part) = h.join() {
+                        let rem = tomatch.saturating_sub(combined.len());
+                        if part.len() > rem {
+                            part.truncate(rem);
+                        }
+                        combined.append(&mut part);
+                        if combined.len() >= tomatch {
+                            break;
+                        }
+                    }
+                }
+                combined
+            });
+            all.truncate(tomatch);
+            return Some(all);
+        }
+        crate::fuzzy::init_worker_fuzzy_chartab(b_chartab);
+        let res = scan_fuzzy(&chunks, tomatch);
+        crate::fuzzy::clear_worker_fuzzy_chartab();
+        return Some(res);
+    }
+
+    let rmm_ic = regmatch.rmm_ic;
+    let rmm_maxcol = regmatch.rmm_maxcol;
+
+    crate::regexp::with_pure_nfa_prog(&regmatch.regprog, |nfa| {
+        let chunks = buf.b_ml.ml_chunks.borrow();
+        let scan_nfa = |slice: &[LineChunk], limit: usize| -> Result<Vec<VgrFastMatch>, ()> {
+            let mut out = Vec::new();
+            if rmm_maxcol == 0
+                && let Some((regstart, mt, reg_ic)) = nfa.fast_literal_params(rmm_ic)
+            {
+                'outer_lit: for ch in slice {
+                    let ch_start = ch.start_lnum;
+                    for (idx, entry) in ch.lines.iter().enumerate() {
+                        let lnum = ch_start + idx as Linenr;
+                        let line_bytes = entry.text.to_bytes();
+                        let linelen = line_bytes.len() as Colnr;
+                        let mut col: Colnr = 0;
+                        loop {
+                            let start_off = (col as usize).min(line_bytes.len());
+                            let Some(off) = crate::regexp::cstrchr_ic(
+                                &line_bytes[start_off..],
+                                regstart,
+                                reg_ic,
+                            ) else {
+                                break;
+                            };
+                            let mut mcol = col + off as Colnr;
+                            let Some(e_col) = crate::regexp::find_match_text_in_bytes(
+                                line_bytes, &mut mcol, regstart, mt, reg_ic,
+                            ) else {
+                                break;
+                            };
+                            out.push(VgrFastMatch {
+                                lnum,
+                                end_lnum: lnum,
+                                col: mcol + 1,
+                                end_col: e_col + 1,
+                                text: entry.text.clone(),
+                            });
+                            if out.len() >= limit {
+                                break 'outer_lit;
+                            }
+                            if !is_global {
+                                break;
+                            }
+                            col = e_col + Colnr::from(col == e_col);
+                            if col > linelen {
+                                break;
+                            }
+                        }
+                    }
+                }
+                return Ok(out);
+            }
+            'outer: for ch in slice {
+                let ch_start = ch.start_lnum;
+                for (idx, entry) in ch.lines.iter().enumerate() {
+                    let lnum = ch_start + idx as Linenr;
+                    let str_bytes_with_nul = entry.text.to_bytes_with_nul();
+                    let linelen = str_bytes_with_nul.len().saturating_sub(1) as Colnr;
+                    let mut col: Colnr = 0;
+                    while let Some((s_col, e_col)) = crate::regexp::nfa_match_line_slice(
+                        nfa,
+                        str_bytes_with_nul,
+                        col,
+                        rmm_ic,
+                        rmm_maxcol,
+                    )? {
+                        out.push(VgrFastMatch {
+                            lnum,
+                            end_lnum: lnum,
+                            col: s_col + 1,
+                            end_col: e_col + 1,
+                            text: entry.text.clone(),
+                        });
+                        if out.len() >= limit {
+                            break 'outer;
+                        }
+                        if !is_global {
+                            break;
+                        }
+                        col = e_col + Colnr::from(col == e_col);
+                        if col > linelen {
+                            break;
+                        }
+                    }
+                }
+            }
+            Ok(out)
+        };
+
+        let use_parallel = chunks.len() >= 4
+            && tomatch >= 512
+            && if rmm_maxcol == 0 && nfa.fast_literal_params(rmm_ic).is_some() {
+                total_lines >= 65536
+            } else {
+                total_lines >= 8192
+            };
+
+        if use_parallel {
+            let (isf_chartab, isi_chartab) = crate::charset::get_global_chartabs();
+            let p_mmp = opt_vars().p_mmp.get();
+            let nthreads = std::thread::available_parallelism()
+                .map_or(4, |n| n.get().min(8))
+                .min(chunks.len());
+            let group_len = chunks.len().div_ceil(nthreads).max(1);
+            std::thread::scope(|s| {
+                let mut handles = Vec::with_capacity(nthreads);
+                for worker_slice in chunks.chunks(group_len) {
+                    handles.push(s.spawn(move || {
+                        crate::regexp::init_worker_regex_env(
+                            b_chartab,
+                            isf_chartab,
+                            isi_chartab,
+                            p_mmp,
+                        );
+                        scan_nfa(worker_slice, tomatch)
+                    }));
+                }
+                let mut combined = Vec::new();
+                let mut any_err = false;
+                for h in handles {
+                    match h.join() {
+                        Ok(Ok(mut part)) => {
+                            let rem = tomatch.saturating_sub(combined.len());
+                            if part.len() > rem {
+                                part.truncate(rem);
+                            }
+                            combined.append(&mut part);
+                        }
+                        _ => any_err = true,
+                    }
+                }
+                if any_err {
+                    None
+                } else {
+                    combined.truncate(tomatch);
+                    Some(combined)
+                }
+            })
+        } else {
+            crate::regexp::init_main_regex_buf(buf);
+            scan_nfa(&chunks, tomatch).ok()
+        }
+    })
+    .flatten()
 }
 
 pub fn ml_flush_deleted_bytes(
@@ -4350,6 +4838,97 @@ mod tests {
             for &(_, id) in &buf.b_ml.ml_chunks.borrow()[0].swap_blocks {
                 assert_ne!(mfp.bhdr(id).bh_flags & BH_DIRTY, 0);
             }
+        }
+
+        ml_close(&buf, 1);
+        g_st().workspace.curbuf.set(saved_curbuf);
+    }
+
+    #[test]
+    fn ml_try_mark_global_and_vimgrep_parallel_deterministic() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        crate::main_init::ensure_test_editor_init();
+        let saved_curbuf = g_st().workspace.curbuf.get();
+        let buf = FileBuf::new_rc();
+        buf.b_p_swf.set(false);
+        g_st()
+            .workspace
+            .curbuf
+            .set(crate::globals::BufPtr::from(buf.clone()));
+
+        assert!(ml_open(&buf));
+        let total = 9000;
+        for i in 1..=total {
+            let line = if i % 150 == 0 {
+                format!("line {i:05}: [TAG] special entry {i}")
+            } else {
+                format!("line {i:05}: ordinary entry {i}")
+            };
+            let rc = crate::option_vars::RcCStr::from_bytes(line.as_bytes());
+            if i == 1 {
+                assert!(ml_replace_buf_cstr(&buf, 1, rc));
+            } else {
+                assert!(ml_append_buf_cstr(&buf, i - 1, rc, false));
+            }
+        }
+
+        // 1. Test general NFA regex across >= 8,192 lines (parallel worker path)
+        let mut rmm = crate::regexp::Regmmatch::new();
+        rmm.set_prog(crate::regexp::vim_regcomp(
+            b"special entry [0-9]\\+$",
+            crate::regexp::RE_MAGIC,
+        ));
+        let ndone = ml_try_mark_global_lines(&buf, 1, total, &rmm, false)
+            .expect("general single-line NFA should use fast path");
+        assert_eq!(ndone, 60);
+        for k in 1..=60 {
+            assert_eq!(ml_firstmarked(), k * 150);
+        }
+        assert_eq!(ml_firstmarked(), 0);
+
+        let vgr = ml_try_vimgrep_lines(&buf, &rmm, b"", false, true, 1000)
+            .expect("vimgrep NFA should use parallel fast path");
+        assert_eq!(vgr.len(), 60);
+        assert_eq!(vgr[0].lnum, 150);
+        assert_eq!(vgr[59].lnum, 9000);
+        rmm.free_prog();
+
+        // 2. Test fuzzy vimgrep across >= 4,096 lines (parallel worker path)
+        let vgr_fuzzy =
+            ml_try_vimgrep_lines(&buf, &rmm, b"TAG special", true, false, 1000).unwrap();
+        assert_eq!(vgr_fuzzy.len(), 60);
+        assert_eq!(vgr_fuzzy[0].lnum, 150);
+        assert_eq!(vgr_fuzzy[59].lnum, 9000);
+
+        // 3. Test fast_literal_params with sub-range, invert (:vglobal), and multi-match /g
+        rmm.set_prog(crate::regexp::vim_regcomp(
+            b"entry",
+            crate::regexp::RE_MAGIC,
+        ));
+        let inv_ndone = ml_try_mark_global_lines(&buf, 100, 500, &rmm, true).unwrap();
+        assert_eq!(inv_ndone, 0);
+        let vgr_lit = ml_try_vimgrep_lines(&buf, &rmm, b"", false, true, 10).unwrap();
+        assert_eq!(vgr_lit.len(), 10);
+        assert_eq!(vgr_lit[0].lnum, 1);
+        rmm.free_prog();
+
+        // 4. Test parallel ml_sync_swap_blocks (dirty_count = 23 chunks >= 8)
+        assert!(buf.b_ml.ml_chunks.borrow().len() >= 8);
+        ml_sync_swap_blocks(&buf);
+        assert!(!buf.b_ml.ml_swap_dirty.get());
+        {
+            let chunks = buf.b_ml.ml_chunks.borrow();
+            let mut expected_lnum = 1;
+            for ch in chunks.iter() {
+                assert!(!ch.swap_blocks.is_empty());
+                for &(pe, _) in &ch.swap_blocks {
+                    assert_eq!(pe.pe_old_lnum, expected_lnum);
+                    expected_lnum += pe.pe_line_count;
+                }
+            }
+            assert_eq!(expected_lnum - 1, total);
         }
 
         ml_close(&buf, 1);

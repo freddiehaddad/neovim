@@ -54,8 +54,10 @@ Follow these rules strictly when modifying `src/nvim/`:
    - In `src/nvim/event/`, `libuv` callbacks mutate `Proc` and `Stream` fields through raw C pointers (`handle.data`). Polling loops must take `*mut Proc` and read shared state via `VolatileCell` / `std::ptr::read_volatile`, never holding `&mut Proc` across `uv_run`.
 5. **Preserve NUL-termination invariants on C-string buffers and use `Memline` chunk APIs**:
    - Use `RcCStr`, `RcSlice`, `CString`, or `c"..."` literals for NUL-terminated strings; never pass `Vec::new().as_ptr()` to C functions expecting a valid NUL-terminated `*const c_char`.
-   - `Memline` (`src/nvim/memline.rs`) stores in-memory buffer lines in `Vec<LineChunk>` (400–800 `RcCStr` lines per chunk with `start_lnum`, `totalsize`, and cached `swap_blocks`) and serializes dirty chunks into 4KB `PointerBlock`/`DataBlock` pages on demand when syncing `.swp` files (`ml_sync_swap_blocks`). Use `with_ml_buf_line` and `with_ml_buf_bytes_with_nul` for borrowed line slice access.
-6. **Always validate nontrivial core changes in `--release` mode**:
+   - `Memline` (`src/nvim/memline.rs`) stores in-memory buffer lines in `Vec<LineChunk>` (400–800 `RcCStr` lines per chunk with `start_lnum`, `totalsize`, and cached `swap_blocks`, where `RcCStr` is backed by `Arc<CStr>` so `LineChunk` is `Send + Sync`) and serializes dirty chunks into 4KB `PointerBlock`/`DataBlock` pages on demand when syncing `.swp` files (`ml_sync_swap_blocks`). Use `with_ml_buf_line` and `with_ml_buf_bytes_with_nul` for borrowed line slice access.
+6. **Keep pure compute engines stateless (`Send + Sync`) for `std::thread::scope` parallelism**:
+   - Compiled regex programs (`NfaRegprog`, `BtRegprog` in `src/nvim/regexp.rs`) are immutable (`Send + Sync`), storing per-run NFA state (`lastlist_buf`, `rec_listbuf`) in thread-local scratch buffers so pure single-line patterns (`ml_try_mark_global_lines`, `ml_try_vimgrep_lines`), fuzzy candidate scoring (`src/nvim/fuzzy.rs`), diff `linematch` (`src/nvim/linematch.rs`), and spell soundalike scoring (`src/nvim/spellsuggest.rs`) can execute across worker threads via `std::thread::scope` while keeping autocommands, Lua callbacks, and UI updates on the main thread.
+7. **Always validate nontrivial core changes in `--release` mode**:
    - Test core changes with `cargo xtask functionaltest --release` to validate both optimized codegen and runtime `RefCell` invariants.
 
 ## Syncing Upstream `neovim/neovim` Commits
