@@ -62,7 +62,6 @@ use crate::hashtab::{hash_find_idx, hash_remove};
 use crate::help::get_local_additions;
 use crate::indent::inindent;
 use crate::indent_c::parse_cino;
-use crate::input::vgetc;
 use crate::insexpand::clear_cpt_callbacks;
 use crate::main_init::getout;
 use crate::mapping::map_clear_mode;
@@ -463,7 +462,6 @@ pub struct FileBuf {
     pub b_signcols: BufSigncols,
     pub terminal: std::cell::Cell<TermId>,
     additional_data: crate::globals::CloneCell<Option<crate::search::AdditionalData>>,
-    pub b_mapped_ctrl_c: std::cell::Cell<i32>,
     b_marktree: std::cell::RefCell<crate::marktree::MarkTree>,
     b_extmark_ns: std::cell::RefCell<crate::memory::FxHashMap<u32, u32>>,
     pub b_conceal_providers: std::cell::Cell<i32>,
@@ -1129,7 +1127,6 @@ impl FileBuf {
             },
             terminal: std::cell::Cell::new(TermId::NULL),
             additional_data: crate::globals::CloneCell::new(None),
-            b_mapped_ctrl_c: std::cell::Cell::new(0),
             b_marktree: std::cell::RefCell::new(crate::marktree::MarkTree::new()),
             b_extmark_ns: std::cell::RefCell::new(crate::memory::fx_hashmap()),
             b_conceal_providers: std::cell::Cell::new(0),
@@ -5051,7 +5048,6 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
 
         os_breakcheck();
         if input_state().got_int.get() {
-            let _ = vgetc();
             break;
         }
         if aborting() {

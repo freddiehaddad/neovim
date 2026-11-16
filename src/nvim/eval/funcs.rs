@@ -112,7 +112,7 @@ use crate::highlight_group::{
     syn_get_final_id, syn_name2id,
 };
 use crate::indent::{get_sw_value, get_sw_value_col};
-use crate::input::{Tasave, restore_typeahead, save_typeahead, stuff_empty, using_script, vgetc};
+use crate::input::{Tasave, restore_typeahead, save_typeahead, stuff_empty, using_script};
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::vim_strsave_escape_ks;
 use crate::lua::executor::{
@@ -3451,7 +3451,6 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-3);
     } else if input_state().got_int.get() {
         input_state().got_int.set(false);
-        vgetc();
         rettv.vval = crate::eval::typval::TypvalVval::Number(-2);
     } else if tv_get_number_chk(&exprval, Some(&mut error)) != 0 {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);

@@ -14,7 +14,7 @@ use crate::eval::typval::{
 use crate::eval::vars::{eval_spell_expr, get_spellword};
 use crate::fileio::vim_fgets;
 use crate::globals::*;
-use crate::input::{beep_flush, prep_redo, redo_append_char, redo_append_lit, vgetc};
+use crate::input::{beep_flush, prep_redo, redo_append_char, redo_append_lit};
 use crate::input_cmdatom::CmdSpec;
 use crate::lua::executor::nlua_call_typval;
 use crate::mbyte::{
@@ -1045,8 +1045,7 @@ fn spell_suggest_intern(su: &mut Suginfo, interactive: bool) {
         suggest_try_soundalike_finish();
     }
     os_breakcheck();
-    if interactive && input_state().got_int.get() {
-        let _ = vgetc();
+    if interactive {
         input_state().got_int.set(false);
     }
     let flags = sps_st(|st| st.sps_flags.get());

@@ -912,7 +912,6 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
         }
         CTRL_C_CONST => {
             if bt_cmdwin(workspace_state().curbuf.get().opt()) {
-                input_state().got_int.set(false);
                 cmdwin_do_action(c"cancel");
                 return 0;
             }
@@ -1068,7 +1067,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             if s.c == K_PASTE_START {
                 paste_repeat(1);
             } else if s.c == K_EVENT {
-                state_handle_k_event();
+                state_handle_k_event(false);
                 if edit_state().ins_global.dont_sync_undo.get() == K_TRUE {
                     edit_state().ins_global.dont_sync_undo.set(K_NONE);
                 }

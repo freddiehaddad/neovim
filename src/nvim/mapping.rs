@@ -26,7 +26,7 @@ use crate::eval::userfunc::{FC_LUAREF, find_func};
 use crate::eval::vars::{Scid, set_vim_var_char};
 use crate::eval::{K_LIST_LEN_UNKNOWN_CONST, eval_to_string, last_set_msg};
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::{CTRL_C_CONST, Exarg};
+use crate::ex_docmd::Exarg;
 use crate::ex_session::put_eol;
 use crate::fuzzy::{
     FUZZY_SCORE_NONE, FuzmatchStr, fuzzy_match_str, fuzzymatches_slice_to_strmatches,
@@ -773,16 +773,6 @@ fn map_add(
     alt: Option<std::rc::Rc<MapAltLink>>,
 ) {
     {
-        if keys.to_bytes().first().copied().unwrap_or(0) == CTRL_C_CONST {
-            if local {
-                buf.b_mapped_ctrl_c.set(buf.b_mapped_ctrl_c.get() | (mode));
-            } else {
-                input_state()
-                    .mapped_ctrl_c
-                    .set(input_state().mapped_ctrl_c.get() | (mode));
-            }
-        }
-
         let m_keys = keys.to_owned();
         if let Some(ref alt_rc) = alt {
             alt_rc.keys[usize::from(simplified)].set(Some(m_keys.clone()));
@@ -1177,18 +1167,8 @@ fn buf_do_map(
             }
 
             if maptype == MAPTYPE_UNMAP {
-                if !did_it {
-                    if !keyround1_simplified {
-                        retval = 2;
-                    }
-                } else if lhs_arr[0] == CTRL_C_CONST {
-                    if local {
-                        buf.b_mapped_ctrl_c.set(buf.b_mapped_ctrl_c.get() & (!mode));
-                    } else {
-                        input_state()
-                            .mapped_ctrl_c
-                            .set(input_state().mapped_ctrl_c.get() & (!mode));
-                    }
+                if !did_it && !keyround1_simplified {
+                    retval = 2;
                 }
                 continue;
             }

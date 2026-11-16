@@ -49,11 +49,19 @@ const CTRL_C_CONST_CONST_CONST: u8 = 3;
 
 const BREAKCHECK_SKIP: i32 = 1000;
 
+/// What `inbuf_poll()` is doing.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PollState {
+    None,
+    Input,    // Polling input; the caller processes `main_loop.events`.
+    Blocking, // Waiting for input; nobody processes `main_loop.events`.
+}
+
 struct OsInputState {
     input_buffer: std::cell::RefCell<[u8; INPUT_BUFFER_SIZE]>,
     input_read_pos: std::cell::Cell<usize>,
     input_write_pos: std::cell::Cell<usize>,
-    blocking: std::cell::Cell<bool>,
+    polling: std::cell::Cell<PollState>,
     cursorhold_time: std::cell::Cell<u64>,
     cursorhold_tb_change_cnt: std::cell::Cell<i32>,
     breakcheck_count: std::cell::Cell<i32>,
@@ -72,7 +80,7 @@ impl OsInputState {
             input_buffer: std::cell::RefCell::new([0; INPUT_BUFFER_SIZE]),
             input_read_pos: std::cell::Cell::new(0),
             input_write_pos: std::cell::Cell::new(0),
-            blocking: std::cell::Cell::new(false),
+            polling: std::cell::Cell::new(PollState::None),
             cursorhold_time: std::cell::Cell::new(0),
             cursorhold_tb_change_cnt: std::cell::Cell::new(0),
             breakcheck_count: std::cell::Cell::new(0),
@@ -193,13 +201,6 @@ pub fn input_get(
         return to_read as i32;
     }
 
-    // No risk of a UI flood, so disable CTRL-C "interrupt" behavior if it's mapped.
-    if ((input_state().mapped_ctrl_c.get() | curbuf().b_mapped_ctrl_c.get()) & get_real_state())
-        != 0
-    {
-        input_state().ctrl_c_interrupts.set(false);
-    }
-
     if ms >= 0 {
         if !inbuf_poll(ms, events) {
             return 0;
@@ -225,6 +226,9 @@ pub fn input_get(
             wait_time = delay_left.max(0).min(wait_time);
         }
         if !inbuf_poll(wait_time as i32, events) {
+            if input_state().got_int.get() {
+                return 0;
+            }
             if cmdline_state().silent_mode.get() {
                 // Ran out of input: exit silent/batch-mode (-es/-Es).
                 getout(0);
@@ -254,8 +258,6 @@ pub fn input_get(
             osi_st(|st| st.cursorhold_time.set(st.cursorhold_time.get() + elapsed));
         }
     }
-
-    input_state().ctrl_c_interrupts.set(true);
 
     // If input was put directly in typeahead buffer bail out here.
     if typebuf_changed(tb_change_cnt) {
@@ -399,6 +401,7 @@ pub fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
             st.input_write_pos.set(0);
         }
     });
+    let old_available = input_available();
 
     let key_bytes = keys.as_bytes();
     if !key_bytes.is_empty() {
@@ -446,7 +449,7 @@ pub fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
         pos += 1;
     }
 
-    process_ctrl_c();
+    process_ctrl_c(old_available);
     pos
 }
 
@@ -609,17 +612,25 @@ pub fn input_enqueue_mouse(code: i32, mut modifier: u8, grid: i32, row: i32, col
 
 /// @return true if the main loop is blocked and waiting for input.
 pub fn input_blocking() -> bool {
-    osi_st(|st| st.blocking.get())
+    osi_st(|st| st.polling.get() == PollState::Blocking)
+}
+
+/// Whether Nvim is waiting for user input.
+pub fn input_waiting() -> bool {
+    input_state().state_waiting.get() && osi_st(|st| st.polling.get() != PollState::None)
 }
 
 /// Checks for (but does not read) available input, and consumes `main_loop.events` while waiting.
+/// Stops waiting on interrupt (`got_int`).
 fn inbuf_poll(ms: i32, events_opt: Option<MultiQueue>) -> bool {
     if os_input_ready(events_opt) {
         return true;
     }
 
     if ms == 0 {
+        osi_st(|st| st.polling.set(PollState::Input));
         loop_poll_events(&mut *main_loop_ptr(), 0);
+        osi_st(|st| st.polling.set(PollState::None));
         return os_input_ready(events_opt);
     }
 
@@ -627,18 +638,26 @@ fn inbuf_poll(ms: i32, events_opt: Option<MultiQueue>) -> bool {
         prof_input_start();
     }
 
-    if events_opt != Some(main_loop_events()) {
-        // The pending input provoked a osi_st().blocking wait. Do special events now. #6247
-        osi_st(|st| st.blocking.set(true));
+    let poll_state = if events_opt == Some(main_loop_events()) {
+        PollState::Input
+    } else {
+        PollState::Blocking
+    };
+    osi_st(|st| st.polling.set(poll_state));
+    if poll_state == PollState::Blocking {
+        // The pending input provoked a blocking wait. Do special events now. #6247
         multiqueue_process_events(input_state().ch_before_blocking_events.get());
     }
 
-    // LOOP_PROCESS_EVENTS_UNTIL(&main_loop, NULL, ms, os_input_ready(events) || input_unanswerable());
+    // LOOP_PROCESS_EVENTS_UNTIL(&main_loop, NULL, ms,
+    //                           os_input_ready(events) || got_int || input_unanswerable());
     let timeout_ms = i64::from(ms);
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
     let mut expired = false;
-    while !(os_input_ready(events_opt) || input_unanswerable()) && !expired {
+    while !(os_input_ready(events_opt) || input_state().got_int.get() || input_unanswerable())
+        && !expired
+    {
         loop_poll_events(&mut *main_loop_ptr(), remaining);
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
@@ -646,13 +665,13 @@ fn inbuf_poll(ms: i32, events_opt: Option<MultiQueue>) -> bool {
         }
     }
 
-    osi_st(|st| st.blocking.set(false));
+    osi_st(|st| st.polling.set(PollState::None));
 
     if exc_state().do_profiling.get() == PROF_YES {
         prof_input_end();
     }
 
-    if input_unanswerable() && !os_input_ready(events_opt) {
+    if !input_state().got_int.get() && input_unanswerable() && !os_input_ready(events_opt) {
         // Dismiss the prompt (CTRL-C) instead of waiting forever.
         static DID_LOG: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
         if !DID_LOG.swap(true, std::sync::atomic::Ordering::Relaxed) {
@@ -677,19 +696,22 @@ fn inbuf_poll(ms: i32, events_opt: Option<MultiQueue>) -> bool {
     os_input_ready(events_opt)
 }
 
-fn process_ctrl_c() {
-    if !input_state().ctrl_c_interrupts.get() {
+/// Converts the last CTRL-C in the input enqueued after `start` into an interrupt: consumes it and
+/// all input before it (typeahead), and sets `got_int`. Unless `input_waiting()`: then it's a key.
+fn process_ctrl_c(start: usize) {
+    if input_waiting() {
         return;
     }
 
     osi_st(|st| {
-        let mut buf = st.input_buffer.borrow_mut();
+        let buf = st.input_buffer.borrow();
         let rpos = st.input_read_pos.get();
         let wpos = st.input_write_pos.get();
         let available = wpos.saturating_sub(rpos);
-        let mut i = available as isize - 1;
-        while i >= 0 {
-            let idx = rpos + (i as usize);
+        let mut i = available;
+        while i > start {
+            i -= 1;
+            let idx = rpos + i;
             let c = buf[idx];
             if c == CTRL_C_CONST_CONST_CONST
                 || (c == b'C'
@@ -698,16 +720,10 @@ fn process_ctrl_c() {
                     && buf[idx - 2] == KS_MODIFIER
                     && buf[idx - 1] == MOD_MASK_CTRL)
             {
-                buf[idx] = CTRL_C_CONST_CONST_CONST;
+                st.input_read_pos.set(rpos + i + 1);
                 input_state().got_int.set(true);
-                break;
+                return;
             }
-            i -= 1;
-        }
-
-        if input_state().got_int.get() && i > 0 {
-            // Remove all unprocessed input (typeahead) before the CTRL-C.
-            st.input_read_pos.set(rpos + (i as usize));
         }
     });
 }

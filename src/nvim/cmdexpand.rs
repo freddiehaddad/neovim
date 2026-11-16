@@ -47,7 +47,7 @@ use crate::grid::{grid_line_fill, grid_line_flush, grid_line_puts, grid_line_sta
 use crate::help::{cleanup_help_tags, find_help_tags};
 use crate::highlight::{hl_attr, win_hl_attr};
 use crate::highlight_group::{get_highlight_name, set_context_in_highlight_cmd};
-use crate::input::{beep_flush, char_avail, vpeekc};
+use crate::input::{beep_flush, char_avail};
 use crate::insexpand::find_word_end;
 use crate::keycodes::{K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
 use crate::lua::executor::{
@@ -6229,10 +6229,7 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
         prev_match_pos = cur_match_pos;
 
         if char_avail() || input_state().got_int.get() {
-            if input_state().got_int.get() {
-                let _ = vpeekc();
-                input_state().got_int.set(false);
-            }
+            input_state().got_int.set(false);
             matches.clear();
             return false;
         }

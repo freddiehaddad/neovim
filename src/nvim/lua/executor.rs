@@ -33,7 +33,6 @@ use crate::ex_getln::{
 };
 use crate::fileio::fprintf;
 use crate::globals::*;
-use crate::input::vgetc;
 use crate::keycodes::{special_to_buf, vim_unescape_ks};
 use crate::log::log_get_stderr;
 use crate::lua::converter::{
@@ -622,10 +621,7 @@ extern "C-unwind" fn nlua_ui_flush(_lstate: *mut lua_State) -> i32 {
 
 extern "C-unwind" fn nlua_check_interrupt(lstate: *mut lua_State) -> i32 {
     let interrupted = input_state().got_int.get();
-    if input_state().got_int.get() {
-        input_state().got_int.set(false);
-        vgetc();
-    }
+    input_state().got_int.set(false);
     lua_pushboolean_safe(lstate, interrupted);
     1
 }

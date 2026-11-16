@@ -140,7 +140,6 @@ use crate::eval::funcs::{
     HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_UNDERCURL, HL_UNDERDOUBLE,
     HL_UNDERLINE,
 };
-use crate::ex_cmds::CTRL_C_CONST;
 use crate::ex_getln::{CTRL_BSL, CTRL_O, K_EVENT, K_LUA};
 use crate::extmark::K_EXTMARK_UNDO;
 use crate::search::FORWARD;
@@ -1241,9 +1240,6 @@ pub fn terminal_enter() -> bool {
     let save_state = edit_state().state_global.get();
     s.save_rd = screen_state().redrawing_disabled.get();
     edit_state().state_global.set(MODE_TERMINAL);
-    input_state()
-        .mapped_ctrl_c
-        .set(input_state().mapped_ctrl_c.get() | (MODE_TERMINAL));
     screen_state().redrawing_disabled.set(0);
 
     set_terminal_winopts(&mut s);
@@ -1468,7 +1464,7 @@ fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
         }
         K_EVENT => {
             with_term_mut(s.term, |t| t.refcount += 1);
-            state_handle_k_event();
+            state_handle_k_event(false);
             let buf_handle = with_term_mut(s.term, |t| {
                 t.refcount -= 1;
                 t.buf_handle
@@ -1492,9 +1488,6 @@ fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
                 s.got_bsl_o = true;
                 edit_state().restart_edit.set(b'I' as i32);
                 return 0;
-            }
-            if mod_key == CTRL_C_CONST {
-                input_state().got_int.set(false);
             }
             if mod_key == CTRL_BSL && !s.got_bsl {
                 s.got_bsl = true;

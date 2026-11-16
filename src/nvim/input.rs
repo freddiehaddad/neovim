@@ -72,8 +72,7 @@ pub struct InputGlobalState {
     pub no_mapping: std::cell::Cell<i32>,
     pub no_zero_mapping: std::cell::Cell<i32>,
     pub allow_keys: std::cell::Cell<i32>,
-    pub mapped_ctrl_c: std::cell::Cell<i32>,
-    pub ctrl_c_interrupts: std::cell::Cell<bool>,
+    pub state_waiting: std::cell::Cell<bool>,
     pub got_int: std::cell::Cell<bool>,
     pub typebuf: Typebuf,
     pub typebuf_was_filled: std::cell::Cell<bool>,
@@ -112,8 +111,7 @@ impl InputGlobalState {
             no_mapping: std::cell::Cell::new(0),
             no_zero_mapping: std::cell::Cell::new(0),
             allow_keys: std::cell::Cell::new(0),
-            mapped_ctrl_c: std::cell::Cell::new(0),
-            ctrl_c_interrupts: std::cell::Cell::new(true),
+            state_waiting: std::cell::Cell::new(false),
             got_int: std::cell::Cell::new(false),
             typebuf: Typebuf::ZERO,
             typebuf_was_filled: std::cell::Cell::new(false),
@@ -197,7 +195,7 @@ use crate::os::fileio::{
     FileDescriptor, K_FILE_NON_BLOCKING, K_FILE_READ_ONLY, file_close, file_open, file_open_stdin,
     file_read,
 };
-use crate::os::input::{input_get, line_breakcheck, os_breakcheck};
+use crate::os::input::{input_get, line_breakcheck, os_char_avail};
 use crate::plines::{
     CSType, CharsizeArg, ClusterInfo, StrCharInfo, init_charsize_arg, win_charsize,
 };
@@ -2775,14 +2773,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                 if input_state().typebuf.tb_maplen.get() != 0 {
                     line_breakcheck();
                 } else {
-                    if ((input_state().mapped_ctrl_c.get() | curbuf().b_mapped_ctrl_c.get())
-                        & get_real_state())
-                        != 0
-                    {
-                        input_state().ctrl_c_interrupts.set(false);
-                    }
-                    os_breakcheck();
-                    input_state().ctrl_c_interrupts.set(true);
+                    os_char_avail();
                 }
                 let mut keylen: i32 = 0;
                 if input_state().got_int.get() {
@@ -3304,10 +3295,8 @@ pub fn get_keystroke(events: Option<MultiQueue>) -> i32 {
     let mut buflen: i32 = 150;
     let mut len: i32 = 0;
     let mut n: i32;
-    let save_mapped_ctrl_c = input_state().mapped_ctrl_c.get();
 
     input_state().mod_mask.set(0);
-    input_state().mapped_ctrl_c.set(0);
     loop {
         ui_flush();
         let mut maxlen = (buflen - 6 - len) / 3;
@@ -3332,6 +3321,10 @@ pub fn get_keystroke(events: Option<MultiQueue>) -> i32 {
             len = n;
         }
         if len == 0 {
+            if input_state().got_int.get() {
+                n = CTRL_C_CONST;
+                break;
+            }
             continue;
         }
 
@@ -3359,7 +3352,6 @@ pub fn get_keystroke(events: Option<MultiQueue>) -> i32 {
         break;
     }
 
-    input_state().mapped_ctrl_c.set(save_mapped_ctrl_c);
     let mut mm = input_state().mod_mask.get();
     let res = merge_modifiers(n, &mut mm);
     input_state().mod_mask.set(mm);

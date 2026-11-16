@@ -18,7 +18,7 @@ use crate::insexpand::{ctrl_x_mode_not_defined_yet, ins_compl_active};
 use crate::keycodes::get_special_key_name;
 use crate::log::{LOGLVL_DBG, logmsg, min_log_level};
 use crate::option::get_ve_flags;
-use crate::os::input::{input_available, input_get, os_breakcheck};
+use crate::os::input::{input_available, input_get, os_char_avail};
 use crate::strings::format_to_buf;
 use crate::ui::ui_flush;
 use crate::window::WinInfoInfo;
@@ -52,6 +52,9 @@ const K_OPT_VE_FLAG_INSERT: u32 = 0x06;
 pub trait EditorState {
     fn check(&mut self) -> i32;
     fn execute(&mut self, key: i32) -> i32;
+    fn is_prompt(&self) -> bool {
+        false
+    }
 }
 
 use crate::cursor::K_OPT_VE_FLAG_ALL;
@@ -100,7 +103,11 @@ fn wait_key_or_event() -> bool {
 
 pub fn state_enter<S: EditorState>(s: &mut S) {
     loop {
+        // check() counts as waiting: it may peek for typed keys, e.g. ins_redraw().
+        let waiting = !s.is_prompt() && is_safe_now();
+        let save_state_waiting = input_state().state_waiting.replace(waiting);
         let check_result = s.check();
+        input_state().state_waiting.set(save_state_waiting);
 
         if check_result == 0 {
             break;
@@ -109,6 +116,7 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
         }
 
         'getkey: loop {
+            input_state().state_waiting.set(waiting);
             let key = loop {
                 if vpeekc() != 0 || input_state().typebuf.tb_len.get() > 0 {
                     break safe_vgetc();
@@ -128,6 +136,10 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                     }
                 }
             };
+            input_state().state_waiting.set(save_state_waiting);
+            if waiting {
+                input_state().got_int.set(false); // Absorb the interrupt (see got_int).
+            }
 
             if key == K_EVENT {
                 check_end_reg_executing(true);
@@ -164,16 +176,20 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
     }
 }
 
-pub fn state_handle_k_event() {
+pub fn state_handle_k_event(prompt: bool) {
     loop {
         multiqueue_get(main_loop_events()).dispatch();
 
-        if multiqueue_empty(main_loop_events()) {
+        if multiqueue_empty(main_loop_events()) || input_state().got_int.get() {
             return;
         }
 
-        os_breakcheck();
-        if input_available() != 0 || input_state().got_int.get() {
+        let save_state_waiting = input_state()
+            .state_waiting
+            .replace(!prompt && is_safe_now()); // Still waiting for user input.
+        os_char_avail();
+        input_state().state_waiting.set(save_state_waiting);
+        if input_available() != 0 {
             return;
         }
     }
@@ -195,7 +211,7 @@ pub fn state_wait_key() -> bool {
     exc_state().may_garbage_collect.set(false); // See nv_event().
     {
         let _no_wait = msg_state().suppress_wait_return();
-        state_handle_k_event();
+        state_handle_k_event(true);
     }
     false
 }
@@ -381,6 +397,7 @@ fn is_safe_now() -> bool {
         && input_state().typebuf.tb_len.get() == 0
         && !using_script()
         && cmdline_state().global_busy.get() == 0
+        && input_state().ex_normal_busy.get() == 0
         && !exc_state().debug_mode.get()
 }
 

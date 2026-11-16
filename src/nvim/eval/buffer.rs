@@ -413,7 +413,6 @@ pub fn invoke_prompt_interrupt() -> bool {
         vval: TypvalVval::Number(0),
     }];
 
-    input_state().got_int.set(false);
     let ret = callback_call(&curbuf().b_prompt_interrupt, 0, &mut argv, &mut rettv);
     tv_clear(&mut rettv);
     ret

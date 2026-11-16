@@ -444,7 +444,7 @@ struct CommandLineState {
     skip_pum_redraw: bool,
     some_key_typed: bool,
     ignore_drag_release: bool,
-    break_ctrl_c: bool,
+    prompt: bool,
     b_im_use_insert: Option<bool>,
     b_im_ptr_buf: crate::globals::BufPtr,
     cmdline_type: i32,
@@ -477,7 +477,7 @@ impl CommandLineState {
             skip_pum_redraw: false,
             some_key_typed: false,
             ignore_drag_release: false,
-            break_ctrl_c: false,
+            prompt: false,
             b_im_use_insert: None,
             b_im_ptr_buf: crate::globals::BufPtr::NULL,
             cmdline_type: 0,
@@ -502,6 +502,10 @@ impl EditorState for CommandLineState {
 
     fn execute(&mut self, key: i32) -> i32 {
         command_line_execute(self, key)
+    }
+
+    fn is_prompt(&self) -> bool {
+        self.prompt
     }
 }
 
@@ -961,7 +965,6 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
 
         // if interrupted while searching, behave like it failed
         if input_state().got_int.get() {
-            vpeekc(); // remove <C-C> from input stream
             input_state().got_int.set(false); // don't abandon the command line
             found = 0;
         } else if char_avail() {
@@ -1219,9 +1222,9 @@ fn command_line_enter(
         CCLINE.with(|c| *c.borrow_mut() = std::rc::Rc::new(CmdlineInfo::new()));
     }
 
+    s.prompt = s.firstc == b'@' as i32 || s.firstc == -1; // input(), prompt_for_input()
     if s.firstc == -1 {
         s.firstc = NUL as i32;
-        s.break_ctrl_c = true;
     }
 
     init_ccline(s.firstc, s.indent);
@@ -1721,7 +1724,6 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
         }
 
         if input_state().got_int.get() {
-            vpeekc();
             input_state().got_int.set(false);
             with_ccline_xpc(|xpc| {
                 expand_one(xpc, None, None, 0, WILD_FREE);
@@ -1873,7 +1875,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
 
     if s.c == K_EVENT || s.c == K_COMMAND || s.c == K_LUA {
         if s.c == K_EVENT {
-            state_handle_k_event();
+            state_handle_k_event(s.prompt);
         } else if s.c == K_COMMAND {
             do_cmdline(None, crate::cmdexpand::LineGetter::CmdKeyCmd, DOCMD_NOWAIT);
         } else {
@@ -1924,14 +1926,6 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
                 _ => {}
             }
         }
-    }
-
-    if s.c == CTRL_C_CONST
-        && s.firstc != b'@' as i32
-        && !s.break_ctrl_c
-        && cmdline_state().global_busy.get() == 0
-    {
-        input_state().got_int.set(false);
     }
 
     if s.lookfor.is_some()

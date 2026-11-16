@@ -11125,10 +11125,6 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
         }
     }
 
-    if input_state().got_int.get() {
-        let _ = vpeekc();
-    }
-
     if hide_cursor {
         ui_busy_stop();
     }

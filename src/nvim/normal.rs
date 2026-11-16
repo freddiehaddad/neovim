@@ -7395,7 +7395,6 @@ fn nv_esc(cap: &mut Cmdarg) {
     let cmdwin_cancel = cap.arg != 0 && bt_cmdwin(workspace_state().curbuf.get().opt());
 
     if cmdwin_cancel {
-        input_state().got_int.set(false);
         cmdwin_do_action(c"cancel");
     } else if cap.arg != 0 {
         if edit_state().restart_edit.get() == 0
@@ -7882,7 +7881,7 @@ fn nv_event(cap: &mut Cmdarg) {
     exc_state().may_garbage_collect.set(false);
     let may_restart = edit_state().restart_edit.get() != 0
         || edit_state().visual_global.restart_select.get() != 0;
-    state_handle_k_event();
+    state_handle_k_event(false);
     edit_state().finish_op.set(false);
     if may_restart {
         cap.retval |= CA_COMMAND_BUSY;

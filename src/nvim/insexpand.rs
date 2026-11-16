@@ -58,8 +58,8 @@ use crate::highlight_group::{syn_check_group, syn_id2attr, syn_id2name, syn_name
 use crate::indent::{get_indent, inindent};
 use crate::indent_c::{KEY_COMPLETE, do_c_expr_indent, in_cinkeys};
 use crate::input::{
-    K_INS_NONE, redo_append_char, redo_append_lit, safe_vgetc, using_script, vgetc, vpeekc,
-    vpeekc_any, vungetc,
+    K_INS_NONE, redo_append_char, redo_append_lit, safe_vgetc, using_script, vpeekc, vpeekc_any,
+    vungetc,
 };
 use crate::insert::{
     BS_START, CTRL_S_CONST, CTRL_X_CONST, backspace_until_column, get_can_cindent,
@@ -6884,8 +6884,7 @@ pub fn ins_complete(c: i32, enable_pum: bool) -> bool {
             .set(INSEXPAND.with(|s| s.compl_shows_dir.get()))
     });
 
-    if input_state().got_int.get() && cmdline_state().global_busy.get() == 0 {
-        let _ = vgetc();
+    if cmdline_state().global_busy.get() == 0 {
         input_state().got_int.set(false);
     }
 

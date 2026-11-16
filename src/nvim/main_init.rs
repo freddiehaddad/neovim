@@ -54,7 +54,7 @@ use crate::fileio::{READ_NEW, READ_STDIN, fprintf, printf, readfile, shorten_fna
 use crate::globals::*;
 use crate::highlight::highlight_init;
 use crate::highlight_group::init_highlight;
-use crate::input::{open_scriptin, stuffchar_readbuff, vgetc};
+use crate::input::{open_scriptin, stuffchar_readbuff};
 use crate::keycodes::K_NOP;
 use crate::log::{
     LOGLVL_DBG, LOGLVL_INF, LOGLVL_WRN, log_get_stderr, log_init, logmsg, logmsg_str,
@@ -2035,7 +2035,6 @@ fn create_windows(parmp: &mut Mparm) {
             }
             os_breakcheck();
             if input_state().got_int.get() {
-                vgetc();
                 break;
             }
         }
@@ -2140,7 +2139,6 @@ fn edit_buffers(parmp: &mut Mparm) {
         }
         os_breakcheck();
         if input_state().got_int.get() {
-            vgetc();
             break;
         }
     }
