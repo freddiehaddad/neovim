@@ -3124,7 +3124,11 @@ fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
 }
 
 pub fn ins_compl_cancel() -> bool {
-    ins_compl_stop(b' ' as i32, INSEXPAND.with(|s| s.ctrl_x_mode.get()), true)
+    ins_compl_stop(
+        i32::from(NUL),
+        INSEXPAND.with(|s| s.ctrl_x_mode.get()),
+        true,
+    )
 }
 
 pub fn ins_compl_prep(c: i32) -> bool {
@@ -3161,7 +3165,7 @@ pub fn ins_compl_prep(c: i32) -> bool {
             }
         } else {
             INSEXPAND.with(|s| s.ctrl_x_mode.set(CTRL_X_CMDLINE));
-            ins_compl_prep(b' ' as i32);
+            ins_compl_prep(i32::from(NUL));
             INSEXPAND.with(|s| s.ctrl_x_mode.set(CTRL_X_NOT_DEFINED_YET));
         }
     }
@@ -3674,7 +3678,7 @@ fn set_completion(mut startcol: Colnr, list: Option<&TvList>) {
     let compl_no_select = (cur_cot_flags & K_OPT_COT_FLAG_NOSELECT) != 0;
 
     if INSEXPAND.with(|s| s.compl_started.get()) || ctrl_x_mode_not_default() {
-        ins_compl_prep(b' ' as i32);
+        ins_compl_prep(i32::from(NUL));
     }
     ins_compl_clear();
     ins_compl_free();
