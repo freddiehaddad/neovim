@@ -243,14 +243,8 @@ struct PreviewLines {
 
 #[derive(Clone, Copy)]
 enum SortKey {
-    Line {
-        start_col_nr: Varnumber,
-        end_col_nr: Varnumber,
-    },
-    Num {
-        value: Varnumber,
-        is_number: bool,
-    },
+    KeyOff(usize),
+    Num { value: Varnumber, is_number: bool },
     Float(TvFloat),
 }
 
@@ -571,7 +565,7 @@ fn string_compare(s1: &CStr, s2: &CStr) -> i32 {
     }
 }
 
-fn sort_compare(l1: &Sorti, l2: &Sorti, sortbuf1: &mut [u8], sortbuf2: &mut [u8]) -> i32 {
+fn sort_compare(l1: &Sorti, l2: &Sorti, sort_keys: &[u8]) -> i32 {
     let l1 = *l1;
     let l2 = *l2;
     let result: i32;
@@ -614,29 +608,10 @@ fn sort_compare(l1: &Sorti, l2: &Sorti, sortbuf1: &mut [u8], sortbuf2: &mut [u8]
                 result = -1;
             }
         }
-        (
-            SortKey::Line {
-                start_col_nr: s1,
-                end_col_nr: e1,
-            },
-            SortKey::Line {
-                start_col_nr: s2,
-                end_col_nr: e2,
-            },
-        ) => {
-            let len1 = (e1 - s1) as usize;
-            let line1 = &crate::memline::ml_get_slice(l1.lnum)[s1 as usize..s1 as usize + len1];
-            sortbuf1[..len1].copy_from_slice(line1);
-            sortbuf1[len1] = 0;
-
-            let len2 = (e2 - s2) as usize;
-            let line2 = &crate::memline::ml_get_slice(l2.lnum)[s2 as usize..s2 as usize + len2];
-            sortbuf2[..len2].copy_from_slice(line2);
-            sortbuf2[len2] = 0;
-
+        (SortKey::KeyOff(off1), SortKey::KeyOff(off2)) => {
             result = string_compare(
-                crate::memory::bytes_as_cstr(sortbuf1),
-                crate::memory::bytes_as_cstr(sortbuf2),
+                crate::memory::bytes_as_cstr(&sort_keys[off1..]),
+                crate::memory::bytes_as_cstr(&sort_keys[off2..]),
             );
         }
         _ => unreachable!(),
@@ -754,6 +729,18 @@ pub fn ex_sort(eap: &mut Exarg) {
 
         EXCMDS_STATE.with(|s| s.sort_nr.set(s.sort_nr.get() | sort_what));
 
+        let sort_str = EXCMDS_STATE.with(|s| s.sort_nr.get() == 0 && !s.sort_flt.get());
+        let mut sort_keys: Vec<u8> = Vec::new();
+        if sort_str {
+            let mut keys_size: usize = 0;
+            for lnum in eap.line1..=eap.line2 {
+                keys_size += ml_get_len(lnum) as usize + 1;
+            }
+            if sort_keys.try_reserve_exact(keys_size).is_err() {
+                emsg(gettext(crate::errors::E_OUTOFMEM));
+                break 'sortend;
+            }
+        }
         for lnum in eap.line1..=eap.line2 {
             let s_slice = crate::memline::ml_get_slice(lnum);
             let s_bytes: &[u8] = &s_slice;
@@ -773,9 +760,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                 end_col = 0;
             }
 
-            let st_u = if EXCMDS_STATE.with(|s| s.sort_nr.get()) != 0
-                || EXCMDS_STATE.with(|s| s.sort_flt.get())
-            {
+            let st_u = if !sort_str {
                 let line_slice = crate::memline::ml_get_slice(lnum);
                 let sub_slice = &line_slice[(start_col.max(0) as usize).min(line_slice.len())
                     ..(end_col.max(0) as usize).min(line_slice.len())];
@@ -829,10 +814,12 @@ pub fn ex_sort(eap: &mut Exarg) {
                     }
                 }
             } else {
-                SortKey::Line {
-                    start_col_nr: start_col as Varnumber,
-                    end_col_nr: end_col as Varnumber,
-                }
+                let key_off = sort_keys.len();
+                let start = (start_col.max(0) as usize).min(s_bytes.len());
+                let end = (end_col.max(0) as usize).min(s_bytes.len()).max(start);
+                sort_keys.extend_from_slice(&s_bytes[start..end]);
+                sort_keys.push(0);
+                SortKey::KeyOff(key_off)
             };
 
             nrs_vec.push(Sorti { lnum, st_u });
@@ -846,9 +833,8 @@ pub fn ex_sort(eap: &mut Exarg) {
         }
 
         let mut sortbuf1_vec = vec![0u8; maxlen as usize + 1];
-        let mut sortbuf2_vec = vec![0u8; maxlen as usize + 1];
 
-        nrs_vec.sort_by(|a, b| sort_compare(a, b, &mut sortbuf1_vec, &mut sortbuf2_vec).cmp(&0));
+        nrs_vec.sort_by(|a, b| sort_compare(a, b, &sort_keys).cmp(&0));
 
         if EXCMDS_STATE.with(|s| s.sort_abort.get()) {
             break 'sortend;
@@ -857,33 +843,60 @@ pub fn ex_sort(eap: &mut Exarg) {
         let mut old_count: Bcount = 0;
         let mut new_count: Bcount = 0;
 
+        let keys_are_lines = sort_str && regmatch.regprog.is_null();
+        let mut prev_key_off: Option<usize> = None;
         let mut lnum = eap.line2;
         while i < count {
-            let get_lnum = nrs_vec[if eap.forceit { count - i - 1 } else { i }].lnum;
+            let nr = &nrs_vec[if eap.forceit { count - i - 1 } else { i }];
+            let get_lnum = nr.lnum;
 
             if get_lnum + (count as Linenr - 1) != lnum {
                 change_occurred = true;
             }
 
-            let s_cstr = ml_get(get_lnum);
-            let bytelen: Colnr = ml_get_len(get_lnum) + 1;
-            old_count += bytelen as Bcount;
-            if !unique
-                || i == 0
-                || string_compare(&s_cstr, crate::memory::bytes_as_cstr(&sortbuf1_vec)) != 0
-            {
-                let s_bytes = s_cstr.to_bytes_with_nul();
-                sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
-                if !ml_append(
-                    lnum,
-                    crate::memory::bytes_until_nul(&sortbuf1_vec),
-                    0,
-                    false,
-                ) {
-                    break;
+            if keys_are_lines {
+                let SortKey::KeyOff(key_off) = nr.st_u else {
+                    unreachable!()
+                };
+                let s_cstr = crate::memory::bytes_as_cstr(&sort_keys[key_off..]);
+                let s_bytes = s_cstr.to_bytes();
+                let bytelen: Colnr = (s_bytes.len() as Colnr) + 1;
+                old_count += bytelen as Bcount;
+                if !unique
+                    || i == 0
+                    || prev_key_off.is_none_or(|prev_off| {
+                        string_compare(s_cstr, crate::memory::bytes_as_cstr(&sort_keys[prev_off..]))
+                            != 0
+                    })
+                {
+                    prev_key_off = Some(key_off);
+                    if !ml_append(lnum, s_bytes, 0, false) {
+                        break;
+                    }
+                    lnum += 1;
+                    new_count += bytelen as Bcount;
                 }
-                lnum += 1;
-                new_count += bytelen as Bcount;
+            } else {
+                let s_cstr = ml_get(get_lnum);
+                let bytelen: Colnr = ml_get_len(get_lnum) + 1;
+                old_count += bytelen as Bcount;
+                if !unique
+                    || i == 0
+                    || string_compare(&s_cstr, crate::memory::bytes_as_cstr(&sortbuf1_vec)) != 0
+                {
+                    let s_bytes = s_cstr.to_bytes_with_nul();
+                    sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
+                    if !ml_append(
+                        lnum,
+                        crate::memory::bytes_until_nul(&sortbuf1_vec),
+                        0,
+                        false,
+                    ) {
+                        break;
+                    }
+                    lnum += 1;
+                    new_count += bytelen as Bcount;
+                }
             }
             fast_breakcheck();
             if input_state().got_int.get() {
