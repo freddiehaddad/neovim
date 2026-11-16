@@ -3,39 +3,73 @@
 //! Global variables (`src/nvim/globals.h`).
 
 pub use crate::api::private::validate::CloneCell;
+pub use crate::autocmd::autocmd_state;
 pub use crate::cursor::CursorPosCellExt;
-use crate::highlight::{HLF_COUNT, RgbValue};
-
-use crate::decoration::{DecorState, NS};
-use crate::ex_docmd::Cmdmod;
+pub use crate::drawscreen::screen_state;
+pub use crate::ex_eval::exc_state;
+pub use crate::ex_getln::cmdline_state;
+pub use crate::input::input_state;
+pub use crate::message::msg_state;
+pub use crate::normal::edit_state;
+pub use crate::search::search_state;
 
 use crate::api::ui::NO_SCREEN;
-use crate::buffer::{Bufref, FileBuf, MAXLNUM, SEA_NONE};
+use crate::buffer::{FileBuf, SEA_NONE};
 use crate::context::CtxWin;
-use crate::cursor::{Colnr, CursorPos, Linenr};
-use crate::drawscreen::WinExtmark;
-use crate::eval::typval::Callback;
-use crate::event::multiqueue::MultiQueue;
-use crate::ex_eval::{Except, Msglist};
-use crate::ex_getln::{Disptick, Hlf};
-use crate::extmark::TriState;
-use crate::grid::{GridTarget, GridView, Sattr, Schar, ScreenGrid};
+use crate::ex_getln::Disptick;
+use crate::grid::{GridTarget, ScreenGrid};
+use crate::highlight::HLF_COUNT;
 use crate::lua::converter::NluaRefState;
-use crate::mapping::Typebuf;
-use crate::r#match::{SearchState, SynMatch};
-use crate::mouse::StlClickDefinition;
-use crate::normal::VisualState;
-use crate::os::fs::NvimStats;
-use crate::popupmenu::PumWant;
-use crate::runtime::Sctx;
-use crate::state::{MODE_MAX_LENGTH, MODE_NORMAL};
-use crate::textformat::InsState;
 use crate::window::{Frame, TabPageInfo, WinInfoInfo};
 
 pub(crate) const IOSIZE: usize = 1024 + 1;
 pub(crate) const DFLT_ROWS: i32 = 24;
 pub(crate) const DFLT_COLS: i32 = 80;
 pub(crate) const PROF_NONE: i32 = 0;
+
+/// RAII guard that adds `delta` to a `Cell<i32>` on creation and subtracts `delta` on `Drop`.
+#[must_use = "if unused, the scoped counter will be decremented immediately"]
+pub struct ScopedCellDeltaGuard {
+    cell: &'static std::cell::Cell<i32>,
+    delta: i32,
+}
+
+impl ScopedCellDeltaGuard {
+    #[inline]
+    pub fn new(cell: &'static std::cell::Cell<i32>, delta: i32) -> Self {
+        cell.set(cell.get() + delta);
+        Self { cell, delta }
+    }
+}
+
+impl Drop for ScopedCellDeltaGuard {
+    #[inline]
+    fn drop(&mut self) {
+        self.cell.set(self.cell.get() - self.delta);
+    }
+}
+
+/// RAII guard that replaces a `Cell<T>` with `new_val` and restores the previous value on `Drop`.
+#[must_use = "if unused, the previous Cell value will be restored immediately"]
+pub struct ScopedCellValueGuard<T: Copy + 'static> {
+    cell: &'static std::cell::Cell<T>,
+    prev: T,
+}
+
+impl<T: Copy + 'static> ScopedCellValueGuard<T> {
+    #[inline]
+    pub fn new(cell: &'static std::cell::Cell<T>, new_val: T) -> Self {
+        let prev = cell.replace(new_val);
+        Self { cell, prev }
+    }
+}
+
+impl<T: Copy + 'static> Drop for ScopedCellValueGuard<T> {
+    #[inline]
+    fn drop(&mut self) {
+        self.cell.set(self.prev);
+    }
+}
 
 pub struct WorkspaceState {
     curwin_rc: CloneCell<WinPtr>,
@@ -286,1139 +320,31 @@ impl WorkspaceState {
             .map(|cw| cw.cw_win.clone())
             .collect()
     }
-}
 
-pub struct MessageGlobalState {
-    pub cmdmsg_rl: std::cell::Cell<bool>,
-    pub msg_col: std::cell::Cell<i32>,
-    pub msg_row: std::cell::Cell<i32>,
-    pub msg_scrolled: std::cell::Cell<i32>,
-    pub msg_scrolled_ign: std::cell::Cell<bool>,
-    pub msg_did_scroll: std::cell::Cell<bool>,
-    pub keep_msg: CloneCell<Option<std::ffi::CString>>,
-    pub keep_msg_hl_id: std::cell::Cell<i32>,
-    pub need_fileinfo: std::cell::Cell<bool>,
-    pub msg_scroll: std::cell::Cell<i32>,
-    pub msg_didout: std::cell::Cell<bool>,
-    pub msg_didany: std::cell::Cell<bool>,
-    pub msg_nowait: std::cell::Cell<bool>,
-    pub emsg_off: std::cell::Cell<i32>,
-    pub info_message: std::cell::Cell<bool>,
-    pub msg_hist_off: std::cell::Cell<bool>,
-    pub need_clr_eos: std::cell::Cell<bool>,
-    pub emsg_skip: std::cell::Cell<i32>,
-    pub emsg_severe: std::cell::Cell<bool>,
-    pub did_emsg: std::cell::Cell<i32>,
-    pub did_beep: std::cell::Cell<u64>,
-    pub did_beep_silent: std::cell::Cell<u64>,
-    pub called_emsg: std::cell::Cell<i32>,
-    pub emsg_on_display: std::cell::Cell<bool>,
-    pub rc_did_emsg: std::cell::Cell<bool>,
-    pub no_wait_return: std::cell::Cell<i32>,
-    pub need_wait_return: std::cell::Cell<bool>,
-    pub did_wait_return: std::cell::Cell<bool>,
-    pub quit_more: std::cell::Cell<bool>,
-    pub lines_left: std::cell::Cell<i32>,
-    pub msg_no_more: std::cell::Cell<bool>,
-    pub msg_silent: std::cell::Cell<i32>,
-    pub emsg_silent: std::cell::Cell<i32>,
-    pub emsg_noredir: std::cell::Cell<bool>,
-    pub cmd_silent: std::cell::Cell<bool>,
-    pub in_assert_fails: std::cell::Cell<bool>,
-    pub redir_off: std::cell::Cell<bool>,
-    redir_fd: std::cell::RefCell<Option<crate::os::fs::CFile>>,
-    pub redir_reg: std::cell::Cell<i32>,
-    pub redir_vname: std::cell::Cell<bool>,
-    capture_ga: std::cell::RefCell<Option<Vec<u8>>>,
-    pub on_print: Callback,
-    pub msg_ext_skip_flush: std::cell::Cell<bool>,
-    pub msg_ext_overwrite: std::cell::Cell<bool>,
-    pub msg_ext_skip_verbose: std::cell::Cell<bool>,
-    pub msg_ext_fast: std::cell::Cell<bool>,
-    pub msg_grid: ScreenGrid,
-    pub msg_grid_pos: std::cell::Cell<i32>,
-    pub msg_grid_adj: GridView,
-    pub msg_scrolled_at_flush: std::cell::Cell<i32>,
-    pub msg_grid_scroll_discount: std::cell::Cell<i32>,
-    pub msg_listdo_overwrite: std::cell::Cell<i32>,
-}
-
-impl MessageGlobalState {
-    pub const fn new() -> Self {
-        Self {
-            cmdmsg_rl: std::cell::Cell::new(false),
-            msg_col: std::cell::Cell::new(0),
-            msg_row: std::cell::Cell::new(0),
-            msg_scrolled: std::cell::Cell::new(0),
-            msg_scrolled_ign: std::cell::Cell::new(false),
-            msg_did_scroll: std::cell::Cell::new(false),
-            keep_msg: CloneCell::new(None),
-            keep_msg_hl_id: std::cell::Cell::new(0),
-            need_fileinfo: std::cell::Cell::new(false),
-            msg_scroll: std::cell::Cell::new(0),
-            msg_didout: std::cell::Cell::new(false),
-            msg_didany: std::cell::Cell::new(false),
-            msg_nowait: std::cell::Cell::new(false),
-            emsg_off: std::cell::Cell::new(0),
-            info_message: std::cell::Cell::new(false),
-            msg_hist_off: std::cell::Cell::new(false),
-            need_clr_eos: std::cell::Cell::new(false),
-            emsg_skip: std::cell::Cell::new(0),
-            emsg_severe: std::cell::Cell::new(false),
-            did_emsg: std::cell::Cell::new(0),
-            did_beep: std::cell::Cell::new(0),
-            did_beep_silent: std::cell::Cell::new(0),
-            called_emsg: std::cell::Cell::new(0),
-            emsg_on_display: std::cell::Cell::new(false),
-            rc_did_emsg: std::cell::Cell::new(false),
-            no_wait_return: std::cell::Cell::new(0),
-            need_wait_return: std::cell::Cell::new(false),
-            did_wait_return: std::cell::Cell::new(false),
-            quit_more: std::cell::Cell::new(false),
-            lines_left: std::cell::Cell::new(-1),
-            msg_no_more: std::cell::Cell::new(false),
-            msg_silent: std::cell::Cell::new(0),
-            emsg_silent: std::cell::Cell::new(0),
-            emsg_noredir: std::cell::Cell::new(false),
-            cmd_silent: std::cell::Cell::new(false),
-            in_assert_fails: std::cell::Cell::new(false),
-            redir_off: std::cell::Cell::new(false),
-            redir_fd: std::cell::RefCell::new(None),
-            redir_reg: std::cell::Cell::new(0),
-            redir_vname: std::cell::Cell::new(false),
-            capture_ga: std::cell::RefCell::new(None),
-            on_print: Callback::NONE,
-            msg_ext_skip_flush: std::cell::Cell::new(false),
-            msg_ext_overwrite: std::cell::Cell::new(false),
-            msg_ext_skip_verbose: std::cell::Cell::new(false),
-            msg_ext_fast: std::cell::Cell::new(true),
-            msg_grid: ScreenGrid::with_target(GridTarget::Msg),
-            msg_grid_pos: std::cell::Cell::new(0),
-            msg_grid_adj: GridView {
-                target: std::cell::Cell::new(GridTarget::None),
-                row_offset: std::cell::Cell::new(0),
-                col_offset: std::cell::Cell::new(0),
-            },
-            msg_scrolled_at_flush: std::cell::Cell::new(0),
-            msg_grid_scroll_discount: std::cell::Cell::new(0),
-            msg_listdo_overwrite: std::cell::Cell::new(0),
-        }
-    }
-
-    #[inline(always)]
-    pub fn has_redir_fd(&self) -> bool {
-        self.redir_fd.borrow().is_some()
+    #[inline]
+    pub fn disallow_tabpage_move(&'static self) -> ScopedCellDeltaGuard {
+        ScopedCellDeltaGuard::new(&self.tabpage_move_disallowed, 1)
     }
 
     #[inline]
-    pub fn set_redir_fd(&self, fd: Option<crate::os::fs::CFile>) {
-        let prev = std::mem::replace(&mut *self.redir_fd.borrow_mut(), fd);
-        drop(prev);
+    pub fn pause_fold_update(&'static self) -> ScopedCellDeltaGuard {
+        ScopedCellDeltaGuard::new(&self.disable_fold_update, 1)
     }
 
     #[inline]
-    pub fn redir_puts(&self, s: &std::ffi::CStr) {
-        if let Some(ref rf) = *self.redir_fd.borrow() {
-            rf.puts(s);
-        }
-    }
-
-    #[inline]
-    pub fn redir_putc(&self, c: i32) {
-        if let Some(ref rf) = *self.redir_fd.borrow() {
-            rf.putc(c);
-        }
-    }
-
-    #[inline(always)]
-    pub fn is_capturing(&self) -> bool {
-        self.capture_ga.borrow().is_some()
-    }
-
-    #[inline]
-    pub fn take_capture(&self) -> Option<Vec<u8>> {
-        self.capture_ga.take()
-    }
-
-    #[inline]
-    pub fn set_capture(&self, buf: Option<Vec<u8>>) {
-        let prev = std::mem::replace(&mut *self.capture_ga.borrow_mut(), buf);
-        drop(prev);
-    }
-
-    #[inline]
-    pub fn replace_capture(&self, buf: Option<Vec<u8>>) -> Option<Vec<u8>> {
-        self.capture_ga.replace(buf)
-    }
-
-    #[inline]
-    pub fn append_capture_byte(&self, b: u8) {
-        if let Some(ref mut cap) = *self.capture_ga.borrow_mut() {
-            cap.push(b);
-        }
-    }
-
-    #[inline]
-    pub fn append_capture_slice(&self, slice: &[u8]) {
-        if !slice.is_empty()
-            && let Some(ref mut cap) = *self.capture_ga.borrow_mut()
-        {
-            cap.extend_from_slice(slice);
-        }
-    }
-}
-
-pub struct ExceptionGlobalState {
-    pub g_stats: NvimStats,
-    pub did_endif: std::cell::Cell<bool>,
-    pub ex_exitval: std::cell::Cell<i32>,
-    pub ex_nesting_level: std::cell::Cell<i32>,
-    pub debug_break_level: std::cell::Cell<i32>,
-    pub debug_did_msg: std::cell::Cell<bool>,
-    pub debug_tick: std::cell::Cell<i32>,
-    pub debug_backtrace_level: std::cell::Cell<i32>,
-    pub do_profiling: std::cell::Cell<i32>,
-    pub debug_mode: std::cell::Cell<bool>,
-    pub current_exception: CloneCell<Option<std::rc::Rc<Except>>>,
-    pub did_throw: std::cell::Cell<bool>,
-    pub need_rethrow: std::cell::Cell<bool>,
-    pub trylevel: std::cell::Cell<i32>,
-    pub force_abort: std::cell::Cell<bool>,
-    msg_list: std::cell::RefCell<Option<Vec<Msglist>>>,
-    pub suppress_errthrow: std::cell::Cell<bool>,
-    caught_stack: std::cell::RefCell<Vec<std::rc::Rc<Except>>>,
-    pub may_garbage_collect: std::cell::Cell<bool>,
-    pub want_garbage_collect: std::cell::Cell<bool>,
-    pub garbage_collect_at_exit: std::cell::Cell<bool>,
-    pub current_sctx: std::cell::Cell<Sctx>,
-    pub nlua_disable_preload: std::cell::Cell<bool>,
-    pub tslua_query_parse_count: std::cell::Cell<u64>,
-    pub nvim_testing: std::cell::Cell<bool>,
-    pub fenc_default: CloneCell<Option<std::ffi::CString>>,
-    pub exiting: std::cell::Cell<bool>,
-    pub v_dying: std::cell::Cell<i32>,
-    pub stdin_isatty: std::cell::Cell<bool>,
-    pub stdout_isatty: std::cell::Cell<bool>,
-    pub stderr_isatty: std::cell::Cell<bool>,
-    pub stdin_fd: std::cell::Cell<i32>,
-    pub embedded_mode: std::cell::Cell<bool>,
-    pub headless_mode: std::cell::Cell<bool>,
-    pub readonlymode: std::cell::Cell<bool>,
-    pub recoverymode: std::cell::Cell<bool>,
-    pub windows_version: std::cell::Cell<[u8; 20]>,
-    pub didset_vim: std::cell::Cell<bool>,
-    pub didset_vimruntime: std::cell::Cell<bool>,
-    pub vim_ignored: std::cell::Cell<i32>,
-}
-
-impl ExceptionGlobalState {
-    pub const fn new() -> Self {
-        Self {
-            g_stats: NvimStats {
-                fsync: std::cell::Cell::new(0),
-                redraw: std::cell::Cell::new(0),
-                log_skip: std::cell::Cell::new(0),
-            },
-            did_endif: std::cell::Cell::new(false),
-            ex_exitval: std::cell::Cell::new(0),
-            ex_nesting_level: std::cell::Cell::new(0),
-            debug_break_level: std::cell::Cell::new(-1),
-            debug_did_msg: std::cell::Cell::new(false),
-            debug_tick: std::cell::Cell::new(0),
-            debug_backtrace_level: std::cell::Cell::new(0),
-            do_profiling: std::cell::Cell::new(PROF_NONE),
-            debug_mode: std::cell::Cell::new(false),
-            current_exception: CloneCell::new(None),
-            did_throw: std::cell::Cell::new(false),
-            need_rethrow: std::cell::Cell::new(false),
-            trylevel: std::cell::Cell::new(0),
-            force_abort: std::cell::Cell::new(false),
-            msg_list: std::cell::RefCell::new(None),
-            suppress_errthrow: std::cell::Cell::new(false),
-            caught_stack: std::cell::RefCell::new(Vec::new()),
-            may_garbage_collect: std::cell::Cell::new(false),
-            want_garbage_collect: std::cell::Cell::new(false),
-            garbage_collect_at_exit: std::cell::Cell::new(false),
-            current_sctx: std::cell::Cell::new(Sctx {
-                sc_sid: 0,
-                sc_seq: 0,
-                sc_lnum: 0,
-                sc_chan: 0,
-            }),
-            nlua_disable_preload: std::cell::Cell::new(false),
-            tslua_query_parse_count: std::cell::Cell::new(0),
-            nvim_testing: std::cell::Cell::new(false),
-            fenc_default: CloneCell::new(None),
-            exiting: std::cell::Cell::new(false),
-            v_dying: std::cell::Cell::new(0),
-            stdin_isatty: std::cell::Cell::new(true),
-            stdout_isatty: std::cell::Cell::new(true),
-            stderr_isatty: std::cell::Cell::new(true),
-            stdin_fd: std::cell::Cell::new(-1),
-            embedded_mode: std::cell::Cell::new(false),
-            headless_mode: std::cell::Cell::new(false),
-            readonlymode: std::cell::Cell::new(false),
-            recoverymode: std::cell::Cell::new(false),
-            windows_version: std::cell::Cell::new([0u8; 20]),
-            didset_vim: std::cell::Cell::new(false),
-            didset_vimruntime: std::cell::Cell::new(false),
-            vim_ignored: std::cell::Cell::new(0),
-        }
-    }
-
-    #[inline]
-    pub fn push_caught(&self, exc: std::rc::Rc<Except>) {
-        self.caught_stack.borrow_mut().push(exc);
-    }
-
-    #[inline]
-    pub fn pop_caught(&self) -> Option<std::rc::Rc<Except>> {
-        self.caught_stack.borrow_mut().pop()
-    }
-
-    #[inline]
-    pub fn peek_caught(&self) -> Option<std::rc::Rc<Except>> {
-        self.caught_stack.borrow().last().cloned()
-    }
-
-    #[inline]
-    pub fn take_caught_stack(&self) -> Vec<std::rc::Rc<Except>> {
-        self.caught_stack.take()
-    }
-
-    #[inline]
-    pub fn set_caught_stack(&self, stack: Vec<std::rc::Rc<Except>>) {
-        let prev = std::mem::replace(&mut *self.caught_stack.borrow_mut(), stack);
-        drop(prev);
-    }
-
-    #[inline]
-    pub fn has_msg_list(&self) -> bool {
-        self.msg_list.borrow().is_some()
-    }
-
-    #[inline]
-    pub fn has_nonempty_msg_list(&self) -> bool {
-        self.msg_list
-            .borrow()
-            .as_ref()
-            .is_some_and(|msgs| !msgs.is_empty())
-    }
-
-    #[inline]
-    pub fn take_msg_list(&self) -> Option<Vec<Msglist>> {
-        self.msg_list.take()
-    }
-
-    #[inline]
-    pub fn take_pending_messages(&self) -> Option<Vec<Msglist>> {
-        let mut guard = self.msg_list.borrow_mut();
-        let list = guard.as_mut()?;
-        if list.is_empty() {
-            return None;
-        }
-        Some(std::mem::take(list))
-    }
-
-    #[inline]
-    pub fn replace_msg_list(&self, list: Option<Vec<Msglist>>) -> Option<Vec<Msglist>> {
-        self.msg_list.replace(list)
-    }
-
-    #[inline]
-    pub fn set_msg_list(&self, list: Option<Vec<Msglist>>) {
-        let prev = std::mem::replace(&mut *self.msg_list.borrow_mut(), list);
-        drop(prev);
-    }
-
-    #[inline]
-    pub fn clear_msg_list(&self) {
-        if let Some(ref mut list) = *self.msg_list.borrow_mut() {
-            list.clear();
-        }
-    }
-
-    pub fn with_msg_list_mut<R>(&self, f: impl FnOnce(Option<&mut Vec<Msglist>>) -> R) -> R {
-        let mut guard = self.msg_list.borrow_mut();
-        f(guard.as_mut())
-    }
-}
-
-pub struct ScreenLineBuf {
-    pub chars: Vec<Schar>,
-    pub attrs: Vec<Sattr>,
-    pub vcols: Vec<Colnr>,
-}
-
-impl ScreenLineBuf {
-    pub const fn new() -> Self {
-        Self {
-            chars: Vec::new(),
-            attrs: Vec::new(),
-            vcols: Vec::new(),
-        }
-    }
-}
-
-pub struct ScreenGlobalState {
-    pub rows_global: std::cell::Cell<i32>,
-    pub columns_global: std::cell::Cell<i32>,
-    pub t_colors: std::cell::Cell<i32>,
-    pub include_none: std::cell::Cell<i32>,
-    pub include_default: std::cell::Cell<i32>,
-    pub include_link: std::cell::Cell<i32>,
-    pub full_screen: std::cell::Cell<bool>,
-    pub need_maketitle: std::cell::Cell<bool>,
-    pub ru_col: std::cell::Cell<i32>,
-    pub ru_wid: std::cell::Cell<i32>,
-    pub sc_col: std::cell::Cell<i32>,
-    pub stl_syntax: std::cell::Cell<i32>,
-    pub spell_redraw_lnum: std::cell::Cell<Linenr>,
-    pub redrawing_disabled: std::cell::Cell<i32>,
-    pub must_redraw: std::cell::Cell<i32>,
-    pub skip_redraw: std::cell::Cell<bool>,
-    pub do_redraw: std::cell::Cell<bool>,
-    pub must_redraw_pum: std::cell::Cell<bool>,
-    pub need_highlight_changed: std::cell::Cell<bool>,
-    pub updating_screen: std::cell::Cell<bool>,
-    pub redraw_not_allowed: std::cell::Cell<bool>,
-    pub resizing_screen: std::cell::Cell<bool>,
-    pub default_grid: ScreenGrid,
-    pub default_gridview: GridView,
-    linebuf: std::cell::RefCell<ScreenLineBuf>,
-    pub highlight_attr: [std::cell::Cell<i32>; HLF_COUNT],
-    pub highlight_attr_last: [std::cell::Cell<i32>; HLF_COUNT],
-    pub highlight_user: [std::cell::Cell<i32>; 9],
-    pub highlight_stlnc: [std::cell::Cell<i32>; 9],
-    pub cterm_normal_fg_color: std::cell::Cell<i32>,
-    pub cterm_normal_bg_color: std::cell::Cell<i32>,
-    pub normal_fg: std::cell::Cell<RgbValue>,
-    pub normal_bg: std::cell::Cell<RgbValue>,
-    pub normal_sp: std::cell::Cell<RgbValue>,
-    pub ns_hl_global: std::cell::Cell<NS>,
-    pub ns_hl_fast: std::cell::Cell<NS>,
-    pub ns_hl_active: std::cell::Cell<NS>,
-    decor_state: std::cell::RefCell<DecorState>,
-    win_extmark_arr: std::cell::RefCell<Vec<WinExtmark>>,
-    pub pum_grid: ScreenGrid,
-    pub pum_want: PumWant,
-    tab_page_click_defs: std::cell::RefCell<Vec<StlClickDefinition>>,
-    pub current_ui: std::cell::Cell<u64>,
-    pub ui_event_ns_id: std::cell::Cell<u32>,
-    pub resize_events: CloneCell<MultiQueue>,
-    pub ui_refresh_cmdheight: std::cell::Cell<bool>,
-    pub ui_client_channel_id: std::cell::Cell<u64>,
-    pub ui_client_error_exit: std::cell::Cell<i32>,
-    pub ui_client_exit_status: std::cell::Cell<i32>,
-    pub ui_client_attached: std::cell::Cell<bool>,
-    pub ui_client_forward_stdin: std::cell::Cell<bool>,
-}
-
-impl ScreenGlobalState {
-    pub const fn new() -> Self {
-        Self {
-            rows_global: std::cell::Cell::new(DFLT_ROWS),
-            columns_global: std::cell::Cell::new(DFLT_COLS),
-            t_colors: std::cell::Cell::new(256),
-            include_none: std::cell::Cell::new(0),
-            include_default: std::cell::Cell::new(0),
-            include_link: std::cell::Cell::new(0),
-            full_screen: std::cell::Cell::new(false),
-            need_maketitle: std::cell::Cell::new(true),
-            ru_col: std::cell::Cell::new(0),
-            ru_wid: std::cell::Cell::new(0),
-            sc_col: std::cell::Cell::new(0),
-            stl_syntax: std::cell::Cell::new(0),
-            spell_redraw_lnum: std::cell::Cell::new(0),
-            redrawing_disabled: std::cell::Cell::new(0),
-            must_redraw: std::cell::Cell::new(0),
-            skip_redraw: std::cell::Cell::new(false),
-            do_redraw: std::cell::Cell::new(false),
-            must_redraw_pum: std::cell::Cell::new(false),
-            need_highlight_changed: std::cell::Cell::new(true),
-            updating_screen: std::cell::Cell::new(false),
-            redraw_not_allowed: std::cell::Cell::new(false),
-            resizing_screen: std::cell::Cell::new(false),
-            default_grid: ScreenGrid::with_target(GridTarget::Default),
-            default_gridview: GridView {
-                target: std::cell::Cell::new(GridTarget::Default),
-                row_offset: std::cell::Cell::new(0),
-                col_offset: std::cell::Cell::new(0),
-            },
-            linebuf: std::cell::RefCell::new(ScreenLineBuf::new()),
-            highlight_attr: [const { std::cell::Cell::new(0) }; HLF_COUNT],
-            highlight_attr_last: [const { std::cell::Cell::new(0) }; HLF_COUNT],
-            highlight_user: [const { std::cell::Cell::new(0) }; 9],
-            highlight_stlnc: [const { std::cell::Cell::new(0) }; 9],
-            cterm_normal_fg_color: std::cell::Cell::new(0),
-            cterm_normal_bg_color: std::cell::Cell::new(0),
-            normal_fg: std::cell::Cell::new(-1),
-            normal_bg: std::cell::Cell::new(-1),
-            normal_sp: std::cell::Cell::new(-1),
-            ns_hl_global: std::cell::Cell::new(0),
-            ns_hl_fast: std::cell::Cell::new(-1),
-            ns_hl_active: std::cell::Cell::new(0),
-            decor_state: std::cell::RefCell::new(DecorState::new()),
-            win_extmark_arr: std::cell::RefCell::new(Vec::new()),
-            pum_grid: ScreenGrid::with_target(GridTarget::Pum),
-            pum_want: PumWant {
-                active: std::cell::Cell::new(false),
-                item: std::cell::Cell::new(0),
-                insert: std::cell::Cell::new(false),
-                finish: std::cell::Cell::new(false),
-            },
-            tab_page_click_defs: std::cell::RefCell::new(Vec::new()),
-            current_ui: std::cell::Cell::new(0),
-            ui_event_ns_id: std::cell::Cell::new(0),
-            resize_events: CloneCell::new(MultiQueue::NULL),
-            ui_refresh_cmdheight: std::cell::Cell::new(true),
-            ui_client_channel_id: std::cell::Cell::new(0),
-            ui_client_error_exit: std::cell::Cell::new(-1),
-            ui_client_exit_status: std::cell::Cell::new(0),
-            ui_client_attached: std::cell::Cell::new(false),
-            ui_client_forward_stdin: std::cell::Cell::new(false),
-        }
-    }
-
-    #[inline]
-    pub fn with_linebuf<R>(&self, f: impl FnOnce(&ScreenLineBuf) -> R) -> R {
-        f(&self.linebuf.borrow())
-    }
-
-    #[inline]
-    pub fn with_linebuf_mut<R>(&self, f: impl FnOnce(&mut ScreenLineBuf) -> R) -> R {
-        f(&mut self.linebuf.borrow_mut())
-    }
-
-    #[inline]
-    pub fn with_decor_state<R>(&self, f: impl FnOnce(&DecorState) -> R) -> R {
-        f(&self.decor_state.borrow())
-    }
-
-    #[inline]
-    pub fn with_decor_state_mut<R>(&self, f: impl FnOnce(&mut DecorState) -> R) -> R {
-        f(&mut self.decor_state.borrow_mut())
-    }
-
-    #[inline]
-    pub fn replace_decor_state(&self, ds: DecorState) -> DecorState {
-        self.decor_state.replace(ds)
-    }
-
-    #[inline]
-    pub fn set_decor_state(&self, ds: DecorState) {
-        let prev = std::mem::replace(&mut *self.decor_state.borrow_mut(), ds);
-        drop(prev);
-    }
-
-    #[inline]
-    pub fn clear_win_extmarks(&self) {
-        self.win_extmark_arr.borrow_mut().clear();
-    }
-
-    #[inline]
-    pub fn push_win_extmark(&self, m: WinExtmark) {
-        self.win_extmark_arr.borrow_mut().push(m);
-    }
-
-    #[inline]
-    pub fn win_extmarks_len(&self) -> usize {
-        self.win_extmark_arr.borrow().len()
-    }
-
-    #[inline]
-    pub fn win_extmark_at(&self, idx: usize) -> WinExtmark {
-        self.win_extmark_arr.borrow()[idx]
-    }
-
-    #[inline]
-    pub fn with_tab_page_click_defs<R>(&self, f: impl FnOnce(&[StlClickDefinition]) -> R) -> R {
-        f(&self.tab_page_click_defs.borrow())
-    }
-
-    #[inline]
-    pub fn with_tab_page_click_defs_mut<R>(
-        &self,
-        f: impl FnOnce(&mut Vec<StlClickDefinition>) -> R,
-    ) -> R {
-        f(&mut self.tab_page_click_defs.borrow_mut())
-    }
-
-    #[inline]
-    pub fn set_tab_page_click_def(&self, idx: usize, def: StlClickDefinition) {
-        let prev = std::mem::replace(&mut self.tab_page_click_defs.borrow_mut()[idx], def);
-        drop(prev);
-    }
-
-    #[inline]
-    pub fn clear_tab_page_click_defs(&self) {
-        let prev = std::mem::take(&mut *self.tab_page_click_defs.borrow_mut());
-        drop(prev);
-    }
-}
-
-pub struct InputGlobalState {
-    pub mod_mask: std::cell::Cell<i32>,
-    pub vgetc_mod_mask: std::cell::Cell<i32>,
-    pub vgetc_char: std::cell::Cell<i32>,
-    pub vgetc_busy: std::cell::Cell<i32>,
-    pub exec_from_reg: std::cell::Cell<bool>,
-    pub reg_recording: std::cell::Cell<i32>,
-    pub reg_executing: std::cell::Cell<i32>,
-    pub pending_end_reg_executing: std::cell::Cell<bool>,
-    pub reg_recorded: std::cell::Cell<i32>,
-    pub no_mapping: std::cell::Cell<i32>,
-    pub no_zero_mapping: std::cell::Cell<i32>,
-    pub allow_keys: std::cell::Cell<i32>,
-    pub mapped_ctrl_c: std::cell::Cell<i32>,
-    pub ctrl_c_interrupts: std::cell::Cell<bool>,
-    pub got_int: std::cell::Cell<bool>,
-    pub typebuf: Typebuf,
-    pub typebuf_was_filled: std::cell::Cell<bool>,
-    pub ex_normal_busy: std::cell::Cell<i32>,
-    pub expr_map_lock: std::cell::Cell<i32>,
-    pub ignore_script: std::cell::Cell<bool>,
-    pub key_typed: std::cell::Cell<bool>,
-    pub key_stuffed: std::cell::Cell<i32>,
-    pub maptick: std::cell::Cell<i32>,
-    pub repeat_luamap: std::cell::Cell<i32>,
-    scriptout: std::cell::RefCell<Option<crate::os::fs::CFile>>,
-    pub langmap_mapchar: [std::cell::Cell<u8>; 256],
-    pub ch_before_blocking_events: CloneCell<MultiQueue>,
-    pub mouse_grid: std::cell::Cell<i32>,
-    pub mouse_row: std::cell::Cell<i32>,
-    pub mouse_col: std::cell::Cell<i32>,
-    pub mouse_dragging: std::cell::Cell<i32>,
-    pub secure: std::cell::Cell<i32>,
-    pub textlock: std::cell::Cell<i32>,
-    pub allbuf_lock: std::cell::Cell<i32>,
-    pub sandbox: std::cell::Cell<i32>,
-}
-
-impl InputGlobalState {
-    pub const fn new() -> Self {
-        Self {
-            mod_mask: std::cell::Cell::new(0),
-            vgetc_mod_mask: std::cell::Cell::new(0),
-            vgetc_char: std::cell::Cell::new(0),
-            vgetc_busy: std::cell::Cell::new(0),
-            exec_from_reg: std::cell::Cell::new(false),
-            reg_recording: std::cell::Cell::new(0),
-            reg_executing: std::cell::Cell::new(0),
-            pending_end_reg_executing: std::cell::Cell::new(false),
-            reg_recorded: std::cell::Cell::new(0),
-            no_mapping: std::cell::Cell::new(0),
-            no_zero_mapping: std::cell::Cell::new(0),
-            allow_keys: std::cell::Cell::new(0),
-            mapped_ctrl_c: std::cell::Cell::new(0),
-            ctrl_c_interrupts: std::cell::Cell::new(true),
-            got_int: std::cell::Cell::new(false),
-            typebuf: Typebuf::ZERO,
-            typebuf_was_filled: std::cell::Cell::new(false),
-            ex_normal_busy: std::cell::Cell::new(0),
-            expr_map_lock: std::cell::Cell::new(0),
-            ignore_script: std::cell::Cell::new(false),
-            key_typed: std::cell::Cell::new(false),
-            key_stuffed: std::cell::Cell::new(0),
-            maptick: std::cell::Cell::new(0),
-            repeat_luamap: std::cell::Cell::new(0),
-            scriptout: std::cell::RefCell::new(None),
-            langmap_mapchar: [const { std::cell::Cell::new(0) }; 256],
-            ch_before_blocking_events: CloneCell::new(MultiQueue::NULL),
-            mouse_grid: std::cell::Cell::new(0),
-            mouse_row: std::cell::Cell::new(0),
-            mouse_col: std::cell::Cell::new(0),
-            mouse_dragging: std::cell::Cell::new(0),
-            secure: std::cell::Cell::new(0),
-            textlock: std::cell::Cell::new(0),
-            allbuf_lock: std::cell::Cell::new(0),
-            sandbox: std::cell::Cell::new(0),
-        }
-    }
-
-    #[inline(always)]
-    pub fn has_scriptout(&self) -> bool {
-        self.scriptout.borrow().is_some()
-    }
-
-    #[inline]
-    pub fn set_scriptout(&self, f: Option<crate::os::fs::CFile>) {
-        let prev = std::mem::replace(&mut *self.scriptout.borrow_mut(), f);
-        drop(prev);
-    }
-
-    #[inline]
-    pub fn take_scriptout(&self) -> Option<crate::os::fs::CFile> {
-        self.scriptout.take()
-    }
-
-    #[inline]
-    pub fn scriptout_putc(&self, c: i32) {
-        if let Some(ref so) = *self.scriptout.borrow() {
-            so.putc(c);
-        }
-    }
-}
-
-pub struct CmdlineGlobalState {
-    pub cmdline_row: std::cell::Cell<i32>,
-    pub redraw_cmdline: std::cell::Cell<bool>,
-    pub redraw_mode: std::cell::Cell<bool>,
-    pub clear_cmdline: std::cell::Cell<bool>,
-    pub mode_displayed: std::cell::Cell<bool>,
-    pub cmdline_star: std::cell::Cell<i32>,
-    pub redrawing_cmdline: std::cell::Cell<bool>,
-    pub cmdline_was_last_drawn: std::cell::Cell<bool>,
-    pub silent_mode: std::cell::Cell<bool>,
-    pub exmode_active: std::cell::Cell<bool>,
-    pub cmdpreview: std::cell::Cell<bool>,
-    cmdmod: std::cell::RefCell<Cmdmod>,
-    pub bangredo: std::cell::Cell<bool>,
-    pub global_busy: std::cell::Cell<i32>,
-    pub listcmd_busy: std::cell::Cell<bool>,
-    pub keep_help_flag: std::cell::Cell<bool>,
-    pub last_cmdline: CloneCell<Option<std::ffi::CString>>,
-    pub repeat_cmdline: CloneCell<Option<std::ffi::CString>>,
-    pub new_last_cmdline: CloneCell<Option<std::ffi::CString>>,
-    pub wild_menu_showing: std::cell::Cell<i32>,
-    pub wim_flags: [std::cell::Cell<u8>; 4],
-    pub cmdwin_type: std::cell::Cell<i32>,
-    pub cmdwin_buf: CloneCell<BufPtr>,
-    pub cmdline_win: CloneCell<WinPtr>,
-}
-
-impl CmdlineGlobalState {
-    pub const fn new() -> Self {
-        Self {
-            cmdline_row: std::cell::Cell::new(0),
-            redraw_cmdline: std::cell::Cell::new(false),
-            redraw_mode: std::cell::Cell::new(false),
-            clear_cmdline: std::cell::Cell::new(false),
-            mode_displayed: std::cell::Cell::new(false),
-            cmdline_star: std::cell::Cell::new(0),
-            redrawing_cmdline: std::cell::Cell::new(false),
-            cmdline_was_last_drawn: std::cell::Cell::new(false),
-            silent_mode: std::cell::Cell::new(false),
-            exmode_active: std::cell::Cell::new(false),
-            cmdpreview: std::cell::Cell::new(false),
-            cmdmod: std::cell::RefCell::new(Cmdmod::new()),
-            bangredo: std::cell::Cell::new(false),
-            global_busy: std::cell::Cell::new(0),
-            listcmd_busy: std::cell::Cell::new(false),
-            keep_help_flag: std::cell::Cell::new(false),
-            last_cmdline: CloneCell::new(None),
-            repeat_cmdline: CloneCell::new(None),
-            new_last_cmdline: CloneCell::new(None),
-            wild_menu_showing: std::cell::Cell::new(0),
-            wim_flags: [const { std::cell::Cell::new(0) }; 4],
-            cmdwin_type: std::cell::Cell::new(0),
-            cmdwin_buf: CloneCell::new(BufPtr::NULL),
-            cmdline_win: CloneCell::new(WinPtr::NULL),
-        }
-    }
-
-    #[inline]
-    pub fn cmod_flags(&self) -> i32 {
-        self.cmdmod.borrow().cmod_flags
-    }
-
-    #[inline]
-    pub fn set_cmod_flags(&self, flags: i32) {
-        self.cmdmod.borrow_mut().cmod_flags = flags;
-    }
-
-    #[inline]
-    pub fn add_cmod_flags(&self, flags: i32) {
-        self.cmdmod.borrow_mut().cmod_flags |= flags;
-    }
-
-    #[inline]
-    pub fn remove_cmod_flags(&self, flags: i32) {
-        self.cmdmod.borrow_mut().cmod_flags &= !flags;
-    }
-
-    #[inline]
-    pub fn cmod_split(&self) -> i32 {
-        self.cmdmod.borrow().cmod_split
-    }
-
-    #[inline]
-    pub fn set_cmod_split(&self, split: i32) {
-        self.cmdmod.borrow_mut().cmod_split = split;
-    }
-
-    #[inline]
-    pub fn add_cmod_split(&self, split: i32) {
-        self.cmdmod.borrow_mut().cmod_split |= split;
-    }
-
-    #[inline]
-    pub fn cmod_tab(&self) -> i32 {
-        self.cmdmod.borrow().cmod_tab
-    }
-
-    #[inline]
-    pub fn set_cmod_tab(&self, tab: i32) {
-        self.cmdmod.borrow_mut().cmod_tab = tab;
-    }
-
-    #[inline]
-    pub fn cmod_did_esilent(&self) -> i32 {
-        self.cmdmod.borrow().cmod_did_esilent
-    }
-
-    #[inline]
-    pub fn set_cmod_did_esilent(&self, v: i32) {
-        self.cmdmod.borrow_mut().cmod_did_esilent = v;
-    }
-
-    #[inline]
-    pub fn cmod_filter_force(&self) -> bool {
-        self.cmdmod.borrow().cmod_filter_force
-    }
-
-    #[inline]
-    pub fn take_cmod_filter_regmatch(&self) -> crate::regexp::Regmatch {
-        std::mem::take(&mut self.cmdmod.borrow_mut().cmod_filter_regmatch)
-    }
-
-    #[inline]
-    pub fn set_cmod_filter_regmatch(&self, rm: crate::regexp::Regmatch) {
-        self.cmdmod.borrow_mut().cmod_filter_regmatch = rm;
-    }
-
-    #[inline]
-    pub fn snapshot_cmdmod(&self) -> Cmdmod {
-        self.cmdmod.borrow().clone()
-    }
-
-    #[inline]
-    pub fn set_cmdmod(&self, cmod: Cmdmod) {
-        let prev = std::mem::replace(&mut *self.cmdmod.borrow_mut(), cmod);
-        drop(prev);
-    }
-
-    #[inline]
-    pub fn cmod_has_filter(&self) -> bool {
-        !self.cmdmod.borrow().cmod_filter_regmatch.regprog.is_null()
-    }
-
-    #[inline]
-    pub fn take_cmdmod(&self) -> Cmdmod {
-        self.cmdmod.take()
-    }
-
-    #[inline]
-    pub fn replace_cmdmod(&self, cmod: Cmdmod) -> Cmdmod {
-        std::mem::replace(&mut *self.cmdmod.borrow_mut(), cmod)
-    }
-}
-
-pub struct AutocmdGlobalState {
-    pub last_cursormoved_win: CloneCell<WinPtr>,
-    pub last_cursormoved: std::cell::Cell<CursorPos>,
-    pub did_cursorhold: std::cell::Cell<bool>,
-    pub autocmd_busy: std::cell::Cell<bool>,
-    pub autocmd_no_enter: std::cell::Cell<i32>,
-    pub autocmd_no_leave: std::cell::Cell<i32>,
-    pub au_new_curbuf: CloneCell<Bufref>,
-    au_pending_free_buf: std::cell::RefCell<Vec<BufPtr>>,
-    au_pending_free_win: std::cell::RefCell<Vec<WinPtr>>,
-    pub autocmd_fname: CloneCell<Option<std::ffi::CString>>,
-    pub autocmd_fname_full: std::cell::Cell<bool>,
-    pub autocmd_bufnr: std::cell::Cell<i32>,
-    pub autocmd_match: CloneCell<Option<std::ffi::CString>>,
-}
-
-impl AutocmdGlobalState {
-    pub const fn new() -> Self {
-        Self {
-            last_cursormoved_win: CloneCell::new(WinPtr::NULL),
-            last_cursormoved: std::cell::Cell::new(CursorPos {
-                lnum: 0,
-                col: 0,
-                coladd: 0,
-            }),
-            did_cursorhold: std::cell::Cell::new(true),
-            autocmd_busy: std::cell::Cell::new(false),
-            autocmd_no_enter: std::cell::Cell::new(0),
-            autocmd_no_leave: std::cell::Cell::new(0),
-            au_new_curbuf: CloneCell::new(Bufref {
-                br_buf: crate::globals::BufPtr::NULL,
-                br_fnum: 0,
-                br_buf_free_count: 0,
-            }),
-            au_pending_free_buf: std::cell::RefCell::new(Vec::new()),
-            au_pending_free_win: std::cell::RefCell::new(Vec::new()),
-            autocmd_fname: CloneCell::new(None),
-            autocmd_fname_full: std::cell::Cell::new(false),
-            autocmd_bufnr: std::cell::Cell::new(0),
-            autocmd_match: CloneCell::new(None),
-        }
-    }
-
-    #[inline]
-    pub fn defer_free_buf(&self, buf: BufPtr) {
-        self.au_pending_free_buf.borrow_mut().push(buf);
-    }
-
-    #[inline]
-    pub fn defer_free_win(&self, win: WinPtr) {
-        self.au_pending_free_win.borrow_mut().push(win);
-    }
-
-    pub fn clear_pending_frees(&self) {
-        let bufs = std::mem::take(&mut *self.au_pending_free_buf.borrow_mut());
-        let wins = std::mem::take(&mut *self.au_pending_free_win.borrow_mut());
-        drop((bufs, wins));
-    }
-}
-
-pub struct SearchGlobalState {
-    pub search_global: SearchState,
-    screen_search_hl: std::cell::RefCell<SynMatch>,
-    pub search_hl_has_cursor_lnum: std::cell::Cell<Linenr>,
-    pub sub_nsubs: std::cell::Cell<i32>,
-    pub sub_nlines: std::cell::Cell<Linenr>,
-    pub g_do_tagpreview: std::cell::Cell<i32>,
-    pub g_tag_at_cursor: std::cell::Cell<bool>,
-}
-
-impl SearchGlobalState {
-    pub const fn new() -> Self {
-        Self {
-            search_global: SearchState {
-                hl_match: std::cell::Cell::new(false),
-                match_lines: std::cell::Cell::new(0),
-                match_endcol: std::cell::Cell::new(0),
-                first_line: std::cell::Cell::new(0),
-                last_line: std::cell::Cell::new(MAXLNUM),
-                no_smartcase: std::cell::Cell::new(false),
-                cmdlen: std::cell::Cell::new(0),
-                no_hlsearch: std::cell::Cell::new(false),
-            },
-            screen_search_hl: std::cell::RefCell::new(SynMatch {
-                rm: crate::regexp::Regmmatch {
-                    regprog: crate::regexp::RegprogPtr::NULL,
-                    startpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
-                    endpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
-                    rmm_matchcol: 0,
-                    rmm_ic: false,
-                    rmm_maxcol: 0,
-                },
-                buf: BufPtr::NULL,
-                lnum: 0,
-                attr: 0,
-                attr_cur: 0,
-                first_lnum: 0,
-                startcol: 0,
-                endcol: 0,
-                is_addpos: false,
-                has_cursor: false,
-                tm: 0,
-            }),
-            search_hl_has_cursor_lnum: std::cell::Cell::new(0),
-            sub_nsubs: std::cell::Cell::new(0),
-            sub_nlines: std::cell::Cell::new(0),
-            g_do_tagpreview: std::cell::Cell::new(0),
-            g_tag_at_cursor: std::cell::Cell::new(false),
-        }
-    }
-
-    #[inline]
-    pub fn with_screen_search_hl<R>(&self, f: impl FnOnce(&SynMatch) -> R) -> R {
-        f(&self.screen_search_hl.borrow())
-    }
-
-    #[inline]
-    pub fn with_screen_search_hl_mut<R>(&self, f: impl FnOnce(&mut SynMatch) -> R) -> R {
-        f(&mut self.screen_search_hl.borrow_mut())
-    }
-}
-
-pub struct EditGlobalState {
-    pub state_global: std::cell::Cell<i32>,
-    pub last_mode: std::cell::Cell<[u8; MODE_MAX_LENGTH]>,
-    pub dollar_vcol: std::cell::Cell<Colnr>,
-    pub edit_submode: std::cell::Cell<Option<&'static std::ffi::CStr>>,
-    pub edit_submode_pre: std::cell::Cell<Option<&'static std::ffi::CStr>>,
-    pub edit_submode_extra: CloneCell<Option<std::ffi::CString>>,
-    pub edit_submode_highl: std::cell::Cell<Hlf>,
-    pub visual_global: VisualState,
-    pub km_stopsel: std::cell::Cell<bool>,
-    pub km_startsel: std::cell::Cell<bool>,
-    pub virtual_op: std::cell::Cell<TriState>,
-    pub where_paste_started: std::cell::Cell<CursorPos>,
-    pub old_indent: std::cell::Cell<i32>,
-    pub saved_cursor: std::cell::Cell<CursorPos>,
-    pub ins_global: InsState,
-    pub orig_line_count: std::cell::Cell<Linenr>,
-    pub vr_lines_changed: std::cell::Cell<i32>,
-    pub inhibit_delete_count: std::cell::Cell<i32>,
-    pub finish_op: std::cell::Cell<bool>,
-    pub opcount: std::cell::Cell<i32>,
-    pub motion_force: std::cell::Cell<i32>,
-    pub no_u_sync: std::cell::Cell<i32>,
-    pub u_sync_once: std::cell::Cell<i32>,
-    pub force_restart_edit: std::cell::Cell<bool>,
-    pub restart_edit: std::cell::Cell<i32>,
-    pub ins_at_eol: std::cell::Cell<bool>,
-    pub no_abbr: std::cell::Cell<bool>,
-    pub replace_offset: std::cell::Cell<i32>,
-    last_insert_ga: std::cell::RefCell<Vec<u8>>,
-    pub add_last_insert: std::cell::Cell<i32>,
-}
-
-impl EditGlobalState {
-    pub const fn new() -> Self {
-        Self {
-            state_global: std::cell::Cell::new(MODE_NORMAL),
-            last_mode: std::cell::Cell::new([b'n', 0, 0, 0]),
-            dollar_vcol: std::cell::Cell::new(-1),
-            edit_submode: std::cell::Cell::new(None),
-            edit_submode_pre: std::cell::Cell::new(None),
-            edit_submode_extra: CloneCell::new(None),
-            edit_submode_highl: std::cell::Cell::new(0),
-            visual_global: VisualState {
-                start: std::cell::Cell::new(CursorPos {
-                    lnum: 0,
-                    col: 0,
-                    coladd: 0,
-                }),
-                active: std::cell::Cell::new(false),
-                select: std::cell::Cell::new(false),
-                select_reg: std::cell::Cell::new(0),
-                select_exclu_adj: std::cell::Cell::new(false),
-                restart_select: std::cell::Cell::new(0),
-                need_end: std::cell::Cell::new(false),
-                reselect: std::cell::Cell::new(0),
-                mode: std::cell::Cell::new(b'v' as i32),
-                resel: crate::normal::VisualExtent {
-                    mode: std::cell::Cell::new(0),
-                    line_count: std::cell::Cell::new(0),
-                    vcol: std::cell::Cell::new(0),
-                },
-            },
-            km_stopsel: std::cell::Cell::new(false),
-            km_startsel: std::cell::Cell::new(false),
-            virtual_op: std::cell::Cell::new(-1),
-            where_paste_started: std::cell::Cell::new(CursorPos {
-                lnum: 0,
-                col: 0,
-                coladd: 0,
-            }),
-            old_indent: std::cell::Cell::new(0),
-            saved_cursor: std::cell::Cell::new(CursorPos {
-                lnum: 0,
-                col: 0,
-                coladd: 0,
-            }),
-            ins_global: InsState {
-                start: std::cell::Cell::new(CursorPos {
-                    lnum: 0,
-                    col: 0,
-                    coladd: 0,
-                }),
-                start_orig: std::cell::Cell::new(CursorPos {
-                    lnum: 0,
-                    col: 0,
-                    coladd: 0,
-                }),
-                start_textlen: std::cell::Cell::new(0),
-                start_blank_vcol: std::cell::Cell::new(0),
-                moved: std::cell::Cell::new(0),
-                stop_insert_mode: std::cell::Cell::new(false),
-                can_cindent: std::cell::Cell::new(false),
-                need_undo: std::cell::Cell::new(false),
-                did_ai: std::cell::Cell::new(false),
-                ai_col: std::cell::Cell::new(0),
-                end_comment_pending: std::cell::Cell::new(0),
-                did_si: std::cell::Cell::new(false),
-                can_si: std::cell::Cell::new(false),
-                can_si_back: std::cell::Cell::new(false),
-                update_start_orig: std::cell::Cell::new(false),
-                new_insert_skip: std::cell::Cell::new(0),
-                did_restart_edit: std::cell::Cell::new(0),
-                revins_on: std::cell::Cell::new(false),
-                revins_chars: std::cell::Cell::new(0),
-                revins_legal: std::cell::Cell::new(0),
-                revins_scol: std::cell::Cell::new(0),
-                dont_sync_undo: std::cell::Cell::new(crate::extmark::K_NONE),
-                o_lnum: std::cell::Cell::new(0),
-            },
-            orig_line_count: std::cell::Cell::new(0),
-            vr_lines_changed: std::cell::Cell::new(0),
-            inhibit_delete_count: std::cell::Cell::new(0),
-            finish_op: std::cell::Cell::new(false),
-            opcount: std::cell::Cell::new(0),
-            motion_force: std::cell::Cell::new(0),
-            no_u_sync: std::cell::Cell::new(0),
-            u_sync_once: std::cell::Cell::new(0),
-            force_restart_edit: std::cell::Cell::new(false),
-            restart_edit: std::cell::Cell::new(0),
-            ins_at_eol: std::cell::Cell::new(false),
-            no_abbr: std::cell::Cell::new(true),
-            replace_offset: std::cell::Cell::new(0),
-            last_insert_ga: std::cell::RefCell::new(Vec::new()),
-            add_last_insert: std::cell::Cell::new(0),
-        }
-    }
-
-    #[inline]
-    pub fn append_last_insert(&self, s: &[u8]) {
-        if !s.is_empty() {
-            self.last_insert_ga.borrow_mut().extend_from_slice(s);
-        }
-    }
-
-    #[inline]
-    pub fn clear_last_insert(&self) {
-        let prev = std::mem::take(&mut *self.last_insert_ga.borrow_mut());
-        drop(prev);
-    }
-
-    #[inline]
-    pub fn with_last_insert<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
-        let borrow = self.last_insert_ga.borrow();
-        f(&borrow)
-    }
-}
-
-pub struct EditorState {
-    pub workspace: WorkspaceState,
-    pub msg: MessageGlobalState,
-    pub exc: ExceptionGlobalState,
-    pub screen: ScreenGlobalState,
-    pub input: InputGlobalState,
-    pub cmdline: CmdlineGlobalState,
-    pub autocmd: AutocmdGlobalState,
-    pub search: SearchGlobalState,
-    pub edit: EditGlobalState,
-}
-
-impl EditorState {
-    pub const fn new() -> Self {
-        Self {
-            workspace: WorkspaceState::new(),
-            msg: MessageGlobalState::new(),
-            exc: ExceptionGlobalState::new(),
-            screen: ScreenGlobalState::new(),
-            input: InputGlobalState::new(),
-            cmdline: CmdlineGlobalState::new(),
-            autocmd: AutocmdGlobalState::new(),
-            search: SearchGlobalState::new(),
-            edit: EditGlobalState::new(),
-        }
+    pub fn pause_check_timestamps(&'static self) -> ScopedCellDeltaGuard {
+        ScopedCellDeltaGuard::new(&self.no_check_timestamps, 1)
     }
 }
 
 thread_local! {
-    static EDITOR_STATE: &'static EditorState = Box::leak(Box::new(EditorState::new()));
+    static WORKSPACE_STATE: &'static WorkspaceState =
+        Box::leak(Box::new(WorkspaceState::new()));
 }
 
 #[inline(always)]
-pub fn g_st() -> &'static EditorState {
-    EDITOR_STATE.with(|s| *s)
+pub fn workspace_state() -> &'static WorkspaceState {
+    WORKSPACE_STATE.with(|s| *s)
 }
 
 #[allow(non_upper_case_globals, unsafe_code)]
@@ -1428,43 +354,43 @@ pub static CURWIN_FFI: std::sync::atomic::AtomicPtr<WinInfoInfo> =
 
 #[inline(always)]
 pub fn curwin() -> WinPtr {
-    g_st().workspace.curwin()
+    workspace_state().curwin()
 }
 
 #[inline(always)]
 pub fn set_curwin(wp: impl Into<WinPtr>) {
-    g_st().workspace.set_curwin(wp);
+    workspace_state().set_curwin(wp);
 }
 
 #[inline(always)]
 pub fn curbuf() -> BufPtr {
-    g_st().workspace.curbuf.get()
+    workspace_state().curbuf.get()
 }
 
 #[inline(always)]
 pub fn curbuf_opt() -> Option<BufPtr> {
-    let b = g_st().workspace.curbuf.get();
+    let b = workspace_state().curbuf.get();
     (!b.is_null()).then_some(b)
 }
 
 #[inline(always)]
 pub fn curtab() -> TabpagePtr {
-    g_st().workspace.curtab.get().clone()
+    workspace_state().curtab.get().clone()
 }
 
 #[inline(always)]
 pub fn firstwin() -> WinPtr {
-    g_st().workspace.firstwin.get()
+    workspace_state().firstwin.get()
 }
 
 #[inline(always)]
 pub fn lastwin() -> WinPtr {
-    g_st().workspace.lastwin.get()
+    workspace_state().lastwin.get()
 }
 
 #[inline(always)]
 pub fn prevwin_opt() -> Option<WinPtr> {
-    let w = g_st().workspace.prevwin.get();
+    let w = workspace_state().prevwin.get();
     (!w.is_null()).then_some(w)
 }
 
@@ -2081,7 +1007,7 @@ pub fn buf_iter_ptr(start: impl Into<BufPtr>) -> BufPtrIter {
 
 #[inline(always)]
 pub fn for_all_buffers_ptr() -> BufPtrIter {
-    BufPtrIter(g_st().workspace.firstbuf.get())
+    BufPtrIter(workspace_state().firstbuf.get())
 }
 
 pub struct BufRevPtrIter(BufPtr);
@@ -2101,7 +1027,7 @@ impl Iterator for BufRevPtrIter {
 
 #[inline(always)]
 pub fn for_all_buffers_rev_ptr() -> BufRevPtrIter {
-    BufRevPtrIter(g_st().workspace.lastbuf.get())
+    BufRevPtrIter(workspace_state().lastbuf.get())
 }
 
 pub struct WinPtrIter(WinPtr);
@@ -2121,7 +1047,7 @@ impl Iterator for WinPtrIter {
 
 #[inline(always)]
 pub fn for_all_windows_ptr() -> WinPtrIter {
-    WinPtrIter(g_st().workspace.firstwin.get())
+    WinPtrIter(workspace_state().firstwin.get())
 }
 
 #[inline(always)]
@@ -2131,8 +1057,8 @@ pub fn win_iter_ptr(start: impl Into<WinPtr>) -> WinPtrIter {
 
 #[inline(always)]
 pub fn for_all_windows_in_tab_ptr(tp: &TabPageInfo) -> WinPtrIter {
-    WinPtrIter(if g_st().workspace.curtab.get() == tp {
-        g_st().workspace.firstwin.get()
+    WinPtrIter(if workspace_state().curtab.get() == tp {
+        workspace_state().firstwin.get()
     } else {
         tp.tp_firstwin.get()
     })
@@ -2155,7 +1081,7 @@ impl Iterator for WinRevPtrIter {
 
 #[inline(always)]
 pub fn for_all_windows_rev_ptr() -> WinRevPtrIter {
-    WinRevPtrIter(g_st().workspace.lastwin.get())
+    WinRevPtrIter(workspace_state().lastwin.get())
 }
 
 pub struct TabPtrIter(TabpagePtr);
@@ -2175,7 +1101,7 @@ impl Iterator for TabPtrIter {
 
 #[inline(always)]
 pub fn for_all_tabpages_ptr() -> TabPtrIter {
-    TabPtrIter(g_st().workspace.first_tabpage.get().clone())
+    TabPtrIter(workspace_state().first_tabpage.get().clone())
 }
 
 pub struct FramePtrIter(FramePtr);
@@ -2233,11 +1159,11 @@ pub fn has_time_fd() -> bool {
 }
 #[inline(always)]
 pub fn has_redir_fd() -> bool {
-    g_st().msg.has_redir_fd()
+    msg_state().has_redir_fd()
 }
 #[inline(always)]
 pub fn has_scriptout() -> bool {
-    g_st().input.has_scriptout()
+    input_state().has_scriptout()
 }
 #[allow(clippy::declare_interior_mutable_const)]
 pub const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid::with_target(GridTarget::None);
@@ -2357,12 +1283,12 @@ pub(crate) static TEST_GLOBAL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new
 
 #[inline(always)]
 pub fn topframe() -> FramePtr {
-    g_st().workspace.topframe.get().clone()
+    workspace_state().topframe.get().clone()
 }
 
 #[inline(always)]
 pub fn first_tabpage() -> TabpagePtr {
-    g_st().workspace.first_tabpage.get().clone()
+    workspace_state().first_tabpage.get().clone()
 }
 
 #[inline(always)]
@@ -2372,19 +1298,29 @@ pub fn nlua_global_refs() -> NluaRefState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::autocmd::AutocmdGlobalState;
+    use crate::decoration::DecorState;
+    use crate::drawscreen::{ScreenGlobalState, WinExtmark};
+    use crate::ex_eval::ExceptionGlobalState;
+    use crate::ex_getln::CmdlineGlobalState;
+    use crate::input::InputGlobalState;
+    use crate::message::MessageGlobalState;
+    use crate::mouse::StlClickDefinition;
+    use crate::normal::EditGlobalState;
+    use crate::search::SearchGlobalState;
 
     #[test]
     fn default_globals_match_c_initializers() {
         let _guard = TEST_GLOBAL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         {
-            assert_eq!({ g_st().screen.rows_global.get() }, 24);
-            assert_eq!({ g_st().screen.columns_global.get() }, 80);
-            assert_eq!({ g_st().edit.dollar_vcol.get() }, -1);
-            assert_eq!({ g_st().screen.t_colors.get() }, 256);
+            assert_eq!({ screen_state().rows_global.get() }, 24);
+            assert_eq!({ screen_state().columns_global.get() }, 80);
+            assert_eq!({ edit_state().dollar_vcol.get() }, -1);
+            assert_eq!({ screen_state().t_colors.get() }, 256);
             assert_eq!(starting_val(), 2);
-            assert_eq!({ g_st().edit.state_global.get() }, 0x01);
-            assert_eq!({ g_st().edit.visual_global.mode.get() }, b'v' as i32);
-            assert_eq!({ g_st().search.search_global.last_line.get() }, 0x7fffffff);
+            assert_eq!({ edit_state().state_global.get() }, 0x01);
+            assert_eq!({ edit_state().visual_global.mode.get() }, b'v' as i32);
+            assert_eq!({ search_state().search_global.last_line.get() }, 0x7fffffff);
             assert_eq!(NO_LINES_MSG.to_bytes(), b"--No lines in buffer--");
         }
     }
@@ -2522,5 +1458,102 @@ mod tests {
 
         assert!(!cmd.cmod_has_filter());
         assert_eq!(cmd.snapshot_cmdmod().cmod_tab, 5);
+    }
+
+    #[test]
+    fn scoped_cell_guards_restore_and_nest_correctly() {
+        let _guard = TEST_GLOBAL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        assert_eq!(input_state().textlock.get(), 0);
+        {
+            let _g1 = input_state().lock_text();
+            assert_eq!(input_state().textlock.get(), 1);
+            {
+                let _g2 = input_state().lock_text();
+                assert_eq!(input_state().textlock.get(), 2);
+                {
+                    let _ov = input_state().override_textlock(0);
+                    assert_eq!(input_state().textlock.get(), 0);
+                }
+                assert_eq!(input_state().textlock.get(), 2);
+            }
+            assert_eq!(input_state().textlock.get(), 1);
+        }
+        assert_eq!(input_state().textlock.get(), 0);
+
+        assert_eq!(screen_state().redrawing_disabled.get(), 0);
+        {
+            let _rd1 = screen_state().disable_redrawing();
+            assert_eq!(screen_state().redrawing_disabled.get(), 1);
+            {
+                let _rd2 = screen_state().override_redrawing_disabled(0);
+                assert_eq!(screen_state().redrawing_disabled.get(), 0);
+            }
+            assert_eq!(screen_state().redrawing_disabled.get(), 1);
+        }
+        assert_eq!(screen_state().redrawing_disabled.get(), 0);
+
+        assert_eq!(msg_state().emsg_off.get(), 0);
+        {
+            let _e = msg_state().suppress_emsg();
+            assert_eq!(msg_state().emsg_off.get(), 1);
+        }
+        assert_eq!(msg_state().emsg_off.get(), 0);
+
+        assert_eq!(edit_state().no_u_sync.get(), 0);
+        {
+            let _u = edit_state().disable_u_sync();
+            assert_eq!(edit_state().no_u_sync.get(), 1);
+        }
+        assert_eq!(edit_state().no_u_sync.get(), 0);
+    }
+
+    #[test]
+    fn cell_backed_graph_fields_roundtrip() {
+        let fmark = crate::mark::FmarkCell::new();
+        fmark.mark.set_lnum(42);
+        fmark.mark.set_col(7);
+        fmark.mark.set_coladd(2);
+        fmark.fnum.set(3);
+        let snap = fmark.get();
+        assert_eq!(snap.mark.lnum, 42);
+        assert_eq!(snap.mark.col, 7);
+        assert_eq!(snap.mark.coladd, 2);
+        assert_eq!(snap.fnum, 3);
+        fmark.reset(crate::cursor::CursorPos::new(), 0, snap.view);
+        assert_eq!(fmark.mark.get().lnum, 0);
+
+        let vis = crate::normal::VisualinfoCell::new();
+        vis.vi_start.set_lnum(5);
+        vis.vi_end.set_lnum(10);
+        vis.vi_mode.set(b'V' as i32);
+        vis.vi_curswant.set(99);
+        let vsnap = vis.get();
+        assert_eq!(vsnap.vi_start.lnum, 5);
+        assert_eq!(vsnap.vi_end.lnum, 10);
+        assert_eq!(vsnap.vi_mode, b'V' as i32);
+        assert_eq!(vsnap.vi_curswant, 99);
+
+        let ts = crate::buffer::TabstopArray::from_vec(vec![4, 8, 2]);
+        assert!(!ts.is_empty());
+        assert_eq!(&*ts, &[4, 8, 2]);
+        assert!(crate::buffer::TabstopArray::EMPTY.is_empty());
+
+        let lcs = crate::window::LcsCharsCell::new();
+        let mut lcs_val = crate::window::LcsChars::new();
+        lcs_val.tab1 = b'>' as u32;
+        lcs_val.multispace = vec![b'.' as u32, b':' as u32];
+        lcs_val.leadmultispace = vec![b'+' as u32];
+        lcs.set(lcs_val);
+        assert_eq!(lcs.tab1.get(), b'>' as u32);
+        assert!(lcs.has_multispace());
+        assert_eq!(lcs.multispace_len(), 2);
+        assert_eq!(lcs.multispace_at(0), b'.' as u32);
+        assert_eq!(lcs.multispace_at(1), b':' as u32);
+        assert!(lcs.has_leadmultispace());
+        assert_eq!(lcs.leadmultispace_len(), 1);
+        assert_eq!(lcs.leadmultispace_at(0), b'+' as u32);
+        lcs.clear_multispace();
+        assert!(!lcs.has_multispace());
+        assert!(!lcs.has_leadmultispace());
     }
 }

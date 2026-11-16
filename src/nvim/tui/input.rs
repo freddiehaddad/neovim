@@ -264,7 +264,7 @@ fn tinput_flush(input: &mut TermInput) {
         ];
         let args = Array::from_slice(&mut items[..3]);
         rpc_send_event(
-            g_st().screen.ui_client_channel_id.get(),
+            screen_state().ui_client_channel_id.get(),
             c"nvim_paste",
             args,
         );
@@ -275,7 +275,7 @@ fn tinput_flush(input: &mut TermInput) {
         let mut items = [string_obj(keys)];
         let args = Array::from_slice(&mut items[..1]);
         rpc_send_event(
-            g_st().screen.ui_client_channel_id.get(),
+            screen_state().ui_client_channel_id.get(),
             c"nvim_input",
             args,
         );
@@ -537,7 +537,7 @@ fn handle_focus_event(input: &mut TermInput, bytes: &[u8]) -> usize {
         let mut items = [boolean_obj(focus_gained)];
         let args = Array::from_slice(&mut items[..1]);
         rpc_send_event(
-            g_st().screen.ui_client_channel_id.get(),
+            screen_state().ui_client_channel_id.get(),
             c"nvim_ui_set_focus",
             args,
         );
@@ -581,7 +581,7 @@ fn send_termresponse(response: &[u8]) {
     ];
     let args = Array::from_slice(&mut items[..2]);
     rpc_send_event(
-        g_st().screen.ui_client_channel_id.get(),
+        screen_state().ui_client_channel_id.get(),
         c"nvim_ui_term_event",
         args,
     );
@@ -617,7 +617,7 @@ fn handle_primary_device_attr(tui: &mut TUIData, params: &[TermKeyCsiParam], npa
         tui_handle_primary_device_attr(tui, action);
     }
 
-    if nparams == 0 || g_st().exc.exiting.get() {
+    if nparams == 0 || exc_state().exiting.get() {
         // when DA1 is sent by tui_stop(), the RPC channel is already closing
         return;
     }

@@ -7,7 +7,7 @@ use crate::event::signal::{
     signal_watcher_stop,
 };
 use crate::ex_cmds2::autowrite_all;
-use crate::globals::g_st;
+use crate::globals::exc_state;
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::main_init::preserve_exit;
 #[cfg(target_os = "linux")]
@@ -259,7 +259,7 @@ fn signal_name(signum: i32) -> &'static CStr {
 fn deadly_signal(signum: i32) -> ! {
     // Set the v:dying variable.
     set_vim_var_nr(VV_DYING, 1);
-    g_st().exc.v_dying.set(1);
+    exc_state().v_dying.set(1);
 
     let mut iobuff = [0u8; crate::globals::IOSIZE];
     format_to_buf!(

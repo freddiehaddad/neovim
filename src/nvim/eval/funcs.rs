@@ -1386,11 +1386,11 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<crate::globals::B
 
     let name_bytes = tv.vval.v_string_bytes();
     if name_bytes.is_empty() {
-        let b = g_st().workspace.curbuf.get();
+        let b = workspace_state().curbuf.get();
         return (!b.is_null()).then_some(b);
     }
     if name_bytes == b"$" {
-        let b = g_st().workspace.lastbuf.get();
+        let b = workspace_state().lastbuf.get();
         return (!b.is_null()).then_some(b);
     }
 
@@ -1415,17 +1415,16 @@ pub fn tv_get_buf_from_arg(tv: &mut TypVal) -> Option<crate::globals::BufPtr> {
     if !tv_check_str_or_nr(&*tv) {
         return None;
     }
-    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
-    let buf = tv_get_buf(tv, 0);
-    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
-    buf
+    let _emsg_off = msg_state().suppress_emsg();
+    tv_get_buf(tv, 0)
 }
 
 /// Get the buffer from "arg" and give an error and return NULL if it is not valid.
 pub fn get_buf_arg(arg: &mut TypVal) -> Option<crate::globals::BufPtr> {
-    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
-    let buf = tv_get_buf(arg, 0);
-    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
+    let buf = {
+        let _emsg_off = msg_state().suppress_emsg();
+        tv_get_buf(arg, 0)
+    };
     if buf.is_none() {
         semsg!(gettext(E_INVALID_BUFFER_NAME_STR), tv_get_string(&*arg),);
     }
@@ -1999,7 +1998,7 @@ pub fn f_eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         {
             semsg!(gettext(E_INVEXPR2), expr_start);
         }
-        g_st().msg.need_clr_eos.set(false);
+        msg_state().need_clr_eos.set(false);
         rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     } else if !s_bytes.is_empty() {
@@ -2013,7 +2012,7 @@ pub fn f_eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 /// "eventhandler()" function
 pub fn f_eventhandler(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval =
-        crate::eval::typval::TypvalVval::Number(Varnumber::from(g_st().input.vgetc_busy.get()));
+        crate::eval::typval::TypvalVval::Number(Varnumber::from(input_state().vgetc_busy.get()));
 }
 
 pub fn get_list_line(
@@ -2033,16 +2032,16 @@ pub fn get_list_line(
 }
 
 pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) {
-    let save_msg_silent = g_st().msg.msg_silent.get();
-    let save_emsg_silent = g_st().msg.emsg_silent.get();
-    let save_emsg_noredir = g_st().msg.emsg_noredir.get();
-    let save_redir_off = g_st().msg.redir_off.get();
-    let save_capture_ga = g_st().msg.take_capture();
-    let save_msg_col = g_st().msg.msg_col.get();
+    let save_msg_silent = msg_state().msg_silent.get();
+    let save_emsg_silent = msg_state().emsg_silent.get();
+    let save_emsg_noredir = msg_state().emsg_noredir.get();
+    let save_redir_off = msg_state().redir_off.get();
+    let save_capture_ga = msg_state().take_capture();
+    let save_msg_col = msg_state().msg_col.get();
     let mut echo_output = false;
 
     if check_secure() {
-        g_st().msg.set_capture(save_capture_ga);
+        msg_state().set_capture(save_capture_ga);
         return;
     }
 
@@ -2050,27 +2049,31 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
     if argvars[off + 1].v_type != VarType::VarUnknown {
         let mut buf = [0u8; NUMBUFLEN];
         let Some(s) = tv_get_string_buf_chk(&argvars[off + 1], &mut buf) else {
-            g_st().msg.set_capture(save_capture_ga);
+            msg_state().set_capture(save_capture_ga);
             return;
         };
         if s.to_bytes().is_empty() {
             echo_output = true;
         }
         if s.to_bytes().starts_with(b"silent") {
-            g_st().msg.msg_silent.set(g_st().msg.msg_silent.get() + (1));
+            msg_state()
+                .msg_silent
+                .set(msg_state().msg_silent.get() + (1));
         }
         if s == c"silent!" {
-            g_st().msg.emsg_silent.set(1);
-            g_st().msg.emsg_noredir.set(true);
+            msg_state().emsg_silent.set(1);
+            msg_state().emsg_noredir.set(true);
         }
     } else {
-        g_st().msg.msg_silent.set(g_st().msg.msg_silent.get() + (1));
+        msg_state()
+            .msg_silent
+            .set(msg_state().msg_silent.get() + (1));
     }
 
-    g_st().msg.set_capture(Some(Vec::new()));
-    g_st().msg.redir_off.set(false);
+    msg_state().set_capture(Some(Vec::new()));
+    msg_state().redir_off.set(false);
     if !echo_output {
-        g_st().msg.msg_col.set(0);
+        msg_state().msg_col.set(0);
     }
 
     if argvars[off].v_type != VarType::VarList {
@@ -2089,18 +2092,17 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
         );
         tv_list_unref(list_id.opt());
     }
-    g_st().msg.msg_silent.set(save_msg_silent);
-    g_st().msg.emsg_silent.set(save_emsg_silent);
-    g_st().msg.emsg_noredir.set(save_emsg_noredir);
-    g_st().msg.redir_off.set(save_redir_off);
+    msg_state().msg_silent.set(save_msg_silent);
+    msg_state().emsg_silent.set(save_emsg_silent);
+    msg_state().emsg_noredir.set(save_emsg_noredir);
+    msg_state().redir_off.set(save_redir_off);
     if echo_output {
-        g_st().msg.msg_col.set(0);
+        msg_state().msg_col.set(0);
     } else {
-        g_st().msg.msg_col.set(save_msg_col);
+        msg_state().msg_col.set(save_msg_col);
     }
 
-    let capture_local = g_st()
-        .msg
+    let capture_local = msg_state()
         .replace_capture(save_capture_ga)
         .unwrap_or_default();
     crate::eval::typval::tv_set_bytes(&mut *rettv, &capture_local);
@@ -2175,16 +2177,15 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
     let s_cstr = tv_get_string(&argvars[0]);
     if matches!(s_cstr.to_bytes().first(), Some(b'%' | b'#' | b'<')) {
-        if opt_vars().p_verbose.get() == 0 {
-            g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
-        }
         let mut len: usize = 0;
         let mut errormsg = None;
         let mut s_buf = s_cstr.to_bytes_with_nul().to_vec();
-        let result = eval_vars(&mut s_buf, 0, &mut len, None, &mut errormsg, None, false);
-        if opt_vars().p_verbose.get() == 0 {
-            g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
-        } else if let Some(msg) = errormsg {
+        let verbose = opt_vars().p_verbose.get() != 0;
+        let result = {
+            let _emsg_off = (!verbose).then(|| msg_state().suppress_emsg());
+            eval_vars(&mut s_buf, 0, &mut len, None, &mut errormsg, None, false)
+        };
+        if verbose && let Some(msg) = errormsg {
             emsg(&msg);
         }
         if rettv.v_type == VarType::VarList {
@@ -2275,18 +2276,15 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     eap.cmdidx = Cmdidx::CmdUser;
     eap.argt |= EX_NOSPC;
 
-    if emsgoff {
-        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
-    }
-    if !expand_filename(&mut eap, &mut errormsg)
-        && !emsgoff
-        && let Some(msg) = errormsg
-        && !msg.to_bytes().is_empty()
     {
-        emsg(&msg);
-    }
-    if emsgoff {
-        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
+        let _emsg_off = emsgoff.then(|| msg_state().suppress_emsg());
+        if !expand_filename(&mut eap, &mut errormsg)
+            && !emsgoff
+            && let Some(msg) = errormsg
+            && !msg.to_bytes().is_empty()
+        {
+            emsg(&msg);
+        }
     }
 
     crate::eval::typval::tv_set_string(rettv, Some(eap.arg.as_cstr()));
@@ -2596,9 +2594,9 @@ pub fn f_function(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// "garbagecollect()" function
 pub fn f_garbagecollect(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    g_st().exc.want_garbage_collect.set(true);
+    exc_state().want_garbage_collect.set(true);
     if argvars[0].v_type != VarType::VarUnknown && tv_get_bool(&argvars[0]) == 1 {
-        g_st().exc.garbage_collect_at_exit.set(true);
+        exc_state().garbage_collect_at_exit.set(true);
     }
 }
 
@@ -2744,16 +2742,13 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, 2);
     let buf = if argvars[0].v_type == VarType::VarUnknown {
-        g_st().workspace.curbuf.get()
+        workspace_state().curbuf.get()
     } else {
-        g_st()
-            .exc
+        exc_state()
             .vim_ignored
             .set(tv_get_number(&argvars[0]) as i32);
-        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
-        let b = crate::globals::BufPtr::from(tv_get_buf(&mut argvars[0], 0));
-        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
-        b
+        let _emsg_off = msg_state().suppress_emsg();
+        crate::globals::BufPtr::from(tv_get_buf(&mut argvars[0], 0))
     };
     let Some(buf_ref) = buf.opt() else {
         return;
@@ -2765,40 +2760,30 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         curwin().w_changelistidx.get()
     } else {
         let mut idx = buf_ref.b_changelistlen.get();
-        for wip in &*buf_ref.b_wininfo.borrow() {
-            if wip.wi_win == curwin() {
-                idx = wip.wi_changelistidx;
-                break;
+        buf_ref.with_wininfo(|wininfo| {
+            for wip in wininfo {
+                if wip.wi_win == curwin() {
+                    idx = wip.wi_changelistidx;
+                    break;
+                }
             }
-        }
+        });
         idx
     };
     let _ = &mut changelistindex;
     tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(changelistindex));
 
     for i in 0..(buf_ref.b_changelistlen.get() as usize) {
-        if buf_ref.b_changelist.borrow()[i].mark.lnum == 0 {
+        let mark = buf_ref.changelist_pos(i);
+        if mark.lnum == 0 {
             continue;
         }
         let d = tv_dict_alloc();
         tv_list_append_dict(&l, Some(&d));
 
-        tv_dict_add_nr(
-            &d,
-            c"lnum",
-            Varnumber::from(buf_ref.b_changelist.borrow()[i].mark.lnum),
-        );
-
-        tv_dict_add_nr(
-            &d,
-            c"col",
-            Varnumber::from(buf_ref.b_changelist.borrow()[i].mark.col),
-        );
-        tv_dict_add_nr(
-            &d,
-            c"coladd",
-            Varnumber::from(buf_ref.b_changelist.borrow()[i].mark.coladd),
-        );
+        tv_dict_add_nr(&d, c"lnum", Varnumber::from(mark.lnum));
+        tv_dict_add_nr(&d, c"col", Varnumber::from(mark.col));
+        tv_dict_add_nr(&d, c"coladd", Varnumber::from(mark.coladd));
     }
 }
 
@@ -2911,32 +2896,17 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     );
 
     for i in 0..(wp.w_jumplistlen.get() as usize) {
-        if wp.w_jumplist.borrow()[i].fmark.mark.lnum == 0 {
+        let entry = wp.jumplist_at(i);
+        if entry.fmark.mark.lnum == 0 {
             continue;
         }
         let d = tv_dict_alloc();
         tv_list_append_dict(&l, Some(&d));
-        tv_dict_add_nr(
-            &d,
-            c"lnum",
-            Varnumber::from(wp.w_jumplist.borrow()[i].fmark.mark.lnum),
-        );
-        tv_dict_add_nr(
-            &d,
-            c"col",
-            Varnumber::from(wp.w_jumplist.borrow()[i].fmark.mark.col),
-        );
-        tv_dict_add_nr(
-            &d,
-            c"coladd",
-            Varnumber::from(wp.w_jumplist.borrow()[i].fmark.mark.coladd),
-        );
-        tv_dict_add_nr(
-            &d,
-            c"bufnr",
-            Varnumber::from(wp.w_jumplist.borrow()[i].fmark.fnum),
-        );
-        if let Some(ref fname) = wp.w_jumplist.borrow()[i].fname {
+        tv_dict_add_nr(&d, c"lnum", Varnumber::from(entry.fmark.mark.lnum));
+        tv_dict_add_nr(&d, c"col", Varnumber::from(entry.fmark.mark.col));
+        tv_dict_add_nr(&d, c"coladd", Varnumber::from(entry.fmark.mark.coladd));
+        tv_dict_add_nr(&d, c"bufnr", Varnumber::from(entry.fmark.fnum));
+        if let Some(ref fname) = entry.fname {
             tv_dict_add_str(&d, c"filename", Some(fname.as_c_str()));
         }
     }
@@ -3092,10 +3062,9 @@ fn getregionpos(
         return false;
     }
 
-    g_st().workspace.curbuf.set(findbuf_ref);
-    curwin().w_buffer.set(g_st().workspace.curbuf.get());
-    g_st()
-        .edit
+    workspace_state().curbuf.set(findbuf_ref);
+    curwin().w_buffer.set(workspace_state().curbuf.get());
+    edit_state()
         .virtual_op
         .set(TriState::from(virtual_active(&curwin())));
 
@@ -3116,8 +3085,8 @@ fn getregionpos(
 
 /// "getregion()" function
 pub fn f_getregion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let save_curbuf = g_st().workspace.curbuf.get();
-    let save_virtual = g_st().edit.virtual_op.get();
+    let save_curbuf = workspace_state().curbuf.get();
+    let save_virtual = edit_state().virtual_op.get();
 
     let mut p1 = CursorPos {
         lnum: 0,
@@ -3178,9 +3147,9 @@ pub fn f_getregion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
     }
 
-    g_st().workspace.curbuf.set(save_curbuf);
-    curwin().w_buffer.set(g_st().workspace.curbuf.get());
-    g_st().edit.virtual_op.set(save_virtual);
+    workspace_state().curbuf.set(save_curbuf);
+    curwin().w_buffer.set(workspace_state().curbuf.get());
+    edit_state().virtual_op.set(save_virtual);
 }
 
 fn add_regionpos_range(rettv: &mut TypVal, p1: CursorPos, p2: CursorPos) {
@@ -3206,8 +3175,8 @@ fn add_regionpos_range(rettv: &mut TypVal, p1: CursorPos, p2: CursorPos) {
 
 /// "getregionpos()" function
 pub fn f_getregionpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let save_curbuf = g_st().workspace.curbuf.get();
-    let save_virtual = g_st().edit.virtual_op.get();
+    let save_curbuf = workspace_state().curbuf.get();
+    let save_virtual = edit_state().virtual_op.get();
 
     let mut p1 = CursorPos {
         lnum: 0,
@@ -3322,9 +3291,9 @@ pub fn f_getregionpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         }
     }
 
-    g_st().workspace.curbuf.set(save_curbuf);
-    curwin().w_buffer.set(g_st().workspace.curbuf.get());
-    g_st().edit.virtual_op.set(save_virtual);
+    workspace_state().curbuf.set(save_curbuf);
+    curwin().w_buffer.set(workspace_state().curbuf.get());
+    edit_state().virtual_op.set(save_virtual);
 }
 
 /// Common between `getreg()`, `getreginfo()` and `getregtype()`.
@@ -3443,7 +3412,7 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut argv = tv_initial_value();
     let mut exprval = tv_initial_value();
     let mut error = false;
-    let called_emsg_before = g_st().msg.called_emsg.get();
+    let called_emsg_before = msg_state().called_emsg.get();
 
     ui_flush();
 
@@ -3461,9 +3430,9 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             &mut exprval,
         )
     } || tv_get_number_chk(&exprval, Some(&mut error)) != 0
-        || g_st().msg.called_emsg.get() > called_emsg_before
+        || msg_state().called_emsg.get() > called_emsg_before
         || error
-        || g_st().input.got_int.get())
+        || input_state().got_int.get())
         && !expired
     {
         let events = loop_queues(crate::event::r#loop::main_loop_ptr()).events;
@@ -3478,10 +3447,10 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         }
     }
 
-    if g_st().msg.called_emsg.get() > called_emsg_before || error {
+    if msg_state().called_emsg.get() > called_emsg_before || error {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-3);
-    } else if g_st().input.got_int.get() {
-        g_st().input.got_int.set(false);
+    } else if input_state().got_int.get() {
+        input_state().got_int.set(false);
         vgetc();
         rettv.vval = crate::eval::typval::TypvalVval::Number(-2);
     } else if tv_get_number_chk(&exprval, Some(&mut error)) != 0 {
@@ -3543,10 +3512,10 @@ pub fn f_has(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         n = starting_val() != 0;
     } else if name_bytes.eq_ignore_ascii_case(b"ttyin") {
         x = true;
-        n = g_st().exc.stdin_isatty.get();
+        n = exc_state().stdin_isatty.get();
     } else if name_bytes.eq_ignore_ascii_case(b"ttyout") {
         x = true;
-        n = g_st().exc.stdout_isatty.get();
+        n = exc_state().stdout_isatty.get();
     } else if name_bytes.eq_ignore_ascii_case(b"multi_byte_encoding") {
         x = true;
         n = true;
@@ -3858,7 +3827,7 @@ fn indexof_blob(b: Option<&TvBlob>, mut startidx: Varnumber, expr: &mut TypVal) 
     set_vim_var_type(VV_KEY, VarType::VarNumber);
     set_vim_var_type(VV_VAL, VarType::VarNumber);
 
-    let called_emsg_start = g_st().msg.called_emsg.get();
+    let called_emsg_start = msg_state().called_emsg.get();
     let mut idx = startidx;
     while idx < Varnumber::from(tv_blob_len(b)) {
         set_vim_var_nr(VV_KEY, idx);
@@ -3867,7 +3836,7 @@ fn indexof_blob(b: Option<&TvBlob>, mut startidx: Varnumber, expr: &mut TypVal) 
         if indexof_eval_expr(expr) != 0 {
             return idx;
         }
-        if g_st().msg.called_emsg.get() != called_emsg_start {
+        if msg_state().called_emsg.get() != called_emsg_start {
             return -1;
         }
         idx += 1;
@@ -3893,7 +3862,7 @@ fn indexof_list(l: Option<&TvList>, startidx: Varnumber, expr: &mut TypVal) -> V
 
     set_vim_var_type(VV_KEY, VarType::VarNumber);
 
-    let called_emsg_start = g_st().msg.called_emsg.get();
+    let called_emsg_start = msg_state().called_emsg.get();
     for cur in crate::eval::typval::list_iter_ptr(item) {
         set_vim_var_nr(VV_KEY, idx);
         tv_copy(&cur.tv(), &mut get_vim_var_tv(VV_VAL).tv_mut());
@@ -3904,7 +3873,7 @@ fn indexof_list(l: Option<&TvList>, startidx: Varnumber, expr: &mut TypVal) -> V
         if found {
             return idx;
         }
-        if g_st().msg.called_emsg.get() != called_emsg_start {
+        if msg_state().called_emsg.get() != called_emsg_start {
             return -1;
         }
         idx += 1;
@@ -3939,8 +3908,8 @@ pub fn f_indexof(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     prepare_vimvar(VV_VAL, &mut save_val);
     prepare_vimvar(VV_KEY, &mut save_key);
 
-    let save_did_emsg = g_st().msg.did_emsg.get();
-    g_st().msg.did_emsg.set(0);
+    let save_did_emsg = msg_state().did_emsg.get();
+    msg_state().did_emsg.set(0);
 
     if argvars[0].v_type == VarType::VarBlob {
         rettv.vval = crate::eval::typval::TypvalVval::Number(indexof_blob(
@@ -3959,10 +3928,9 @@ pub fn f_indexof(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
     restore_vimvar(VV_KEY, &mut save_key);
     restore_vimvar(VV_VAL, &mut save_val);
-    g_st()
-        .msg
+    msg_state()
         .did_emsg
-        .set(g_st().msg.did_emsg.get() | (save_did_emsg));
+        .set(msg_state().did_emsg.get() | (save_did_emsg));
 }
 
 /// "input()" function
@@ -3994,9 +3962,11 @@ pub fn f_inputlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
     msg_ext_set_kind(c"confirm");
     msg_start();
-    g_st().msg.msg_row.set(g_st().screen.rows_global.get() - 1);
-    g_st().msg.lines_left.set(g_st().screen.rows_global.get());
-    g_st().msg.msg_scroll.set(1);
+    msg_state()
+        .msg_row
+        .set(screen_state().rows_global.get() - 1);
+    msg_state().lines_left.set(screen_state().rows_global.get());
+    msg_state().msg_scroll.set(1);
     msg_clr_eos();
 
     let l = argvars[0].vval.v_list_opt();
@@ -4011,7 +3981,7 @@ pub fn f_inputlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut selected = prompt_for_input(None, 0, false, Some(&mut mouse_used));
     if mouse_used {
         selected =
-            tv_list_len(l) - (g_st().cmdline.cmdline_row.get() - g_st().input.mouse_row.get());
+            tv_list_len(l) - (cmdline_state().cmdline_row.get() - input_state().mouse_row.get());
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(selected));
 }
@@ -4037,22 +4007,20 @@ pub fn f_inputsave(_argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFunc
 
 /// "inputsecret()" function
 pub fn f_inputsecret(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData) {
-    g_st()
-        .cmdline
+    cmdline_state()
         .cmdline_star
-        .set(g_st().cmdline.cmdline_star.get() + (1));
+        .set(cmdline_state().cmdline_star.get() + (1));
     FUNCS_STATE.with(|s| s.inputsecret_flag.set(true));
     f_input(argvars, rettv, fptr);
-    g_st()
-        .cmdline
+    cmdline_state()
         .cmdline_star
-        .set(g_st().cmdline.cmdline_star.get() - (1));
+        .set(cmdline_state().cmdline_star.get() - (1));
     FUNCS_STATE.with(|s| s.inputsecret_flag.set(false));
 }
 
 /// "interrupt()" function
 pub fn f_interrupt(_argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    g_st().input.got_int.set(true);
+    input_state().got_int.set(true);
 }
 
 /// "invert(expr)" function
@@ -4489,7 +4457,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
 
         let pid = chan_ref.uv.proc_.pid;
-        let buf = g_st().workspace.curbuf.get();
+        let buf = workspace_state().curbuf.get();
 
         buf.b_p_swf.set(false);
         if buf.b_ml.ml_mfp.borrow().is_none() && !ml_open(&buf) {
@@ -4871,11 +4839,11 @@ pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             if opt_vars().p_spk.first_byte() != b'c'
                 || (wp_ref.w_onebuf_opt.wo_diff.get() && curwin().w_onebuf_opt.wo_diff.get())
             {
-                g_st().workspace.skip_update_topline.set(true);
+                workspace_state().skip_update_topline.set(true);
             }
             check_cursor(&wp_ref);
             fp = var2fpos(&argvars[0], true, &mut fnum, false, &wp_ref);
-            g_st().workspace.skip_update_topline.set(false);
+            workspace_state().skip_update_topline.set(false);
         }
     } else {
         fp = var2fpos(&argvars[0], true, &mut fnum, false, &curwin());
@@ -5218,9 +5186,9 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     }
 
-    let prev_did_emsg = g_st().msg.did_emsg.get();
+    let prev_did_emsg = msg_state().did_emsg.get();
     let Some(buf_ref) = tv_get_buf(&mut argvars[0], 0) else {
-        if g_st().msg.did_emsg.get() == prev_did_emsg {
+        if msg_state().did_emsg.get() == prev_did_emsg {
             semsg!(
                 gettext(E_INVALID_BUFFER_NAME_STR),
                 tv_get_string(&argvars[0]),
@@ -5237,9 +5205,9 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let mut patbuf = [0u8; NUMBUFLEN];
     let pat = tv_get_string_buf(&argvars[1], &mut patbuf);
 
-    let did_emsg_before = g_st().msg.did_emsg.get();
+    let did_emsg_before = msg_state().did_emsg.get();
     let mut slnum = tv_get_lnum_buf(&argvars[2], buf.opt());
-    if g_st().msg.did_emsg.get() > did_emsg_before {
+    if msg_state().did_emsg.get() > did_emsg_before {
         return;
     }
     if slnum < 1 {
@@ -5248,7 +5216,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     }
 
     let mut elnum = tv_get_lnum_buf(&argvars[3], buf.opt());
-    if g_st().msg.did_emsg.get() > did_emsg_before {
+    if msg_state().did_emsg.get() > did_emsg_before {
         return;
     }
     if elnum < 1 || elnum < slnum {
@@ -5467,13 +5435,13 @@ pub fn f_state(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         (argvars[0].v_type != VarType::VarUnknown).then(|| tv_get_string(&argvars[0]));
     let include = include_cow.as_deref().map(CStr::to_bytes);
 
-    if !(stuff_empty() && g_st().input.typebuf.tb_len.get() == 0 && !using_script()) {
+    if !(stuff_empty() && input_state().typebuf.tb_len.get() == 0 && !using_script()) {
         may_add_state_char(&mut buf, &mut len, include, b'm');
     }
     if op_pending() {
         may_add_state_char(&mut buf, &mut len, include, b'o');
     }
-    if g_st().autocmd.autocmd_busy.get() {
+    if autocmd_state().autocmd_busy.get() {
         may_add_state_char(&mut buf, &mut len, include, b'x');
     }
     if ins_compl_active() {
@@ -5486,7 +5454,7 @@ pub fn f_state(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     for _ in 0..(depth.min(3)) {
         may_add_state_char(&mut buf, &mut len, include, b'c');
     }
-    if g_st().msg.msg_scrolled.get() > 0 {
+    if msg_state().msg_scrolled.get() > 0 {
         may_add_state_char(&mut buf, &mut len, include, b's');
     }
 
@@ -5724,21 +5692,20 @@ pub fn f_printf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
-    let saved_did_emsg = g_st().msg.did_emsg.get();
-    g_st().msg.did_emsg.set(0);
+    let saved_did_emsg = msg_state().did_emsg.get();
+    msg_state().did_emsg.set(0);
     let (arg0, rest_args) = argvars.split_first_mut().unwrap();
     let mut buf = [0u8; NUMBUFLEN];
     let fmt = tv_get_string_buf(arg0, &mut buf);
     let len = format_typval_to_buf(&mut [], Some(fmt), rest_args);
-    if g_st().msg.did_emsg.get() == 0 {
+    if msg_state().did_emsg.get() == 0 {
         let mut s = vec![0u8; (len as usize) + 1];
         format_typval_to_buf(&mut s, Some(fmt), rest_args);
         crate::eval::typval::tv_set_string_len(rettv, Some(&s[..len as usize]));
     }
-    g_st()
-        .msg
+    msg_state()
         .did_emsg
-        .set(g_st().msg.did_emsg.get() | (saved_did_emsg));
+        .set(msg_state().did_emsg.get() | (saved_did_emsg));
 }
 
 /// "pum_getpos()" function
@@ -6024,16 +5991,16 @@ fn return_register(regname: i32, rettv: &mut TypVal) {
 
 /// "reg_executing()" function
 pub fn f_reg_executing(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    return_register(g_st().input.reg_executing.get(), rettv);
+    return_register(input_state().reg_executing.get(), rettv);
 }
 
 /// "reg_recording()" function
 pub fn f_reg_recording(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    return_register(g_st().input.reg_recording.get(), rettv);
+    return_register(input_state().reg_recording.get(), rettv);
 }
 
 pub fn f_reg_recorded(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    return_register(g_st().input.reg_recorded.get(), rettv);
+    return_register(input_state().reg_recorded.get(), rettv);
 }
 
 fn list2proftime(arg: &mut TypVal) -> Option<Proftime> {
@@ -6169,7 +6136,7 @@ fn reduce_list(argvars: &mut [TypVal], rettv: &mut TypVal) {
     let expr = &argvars[1];
     {
         let l = argvars[0].vval.v_list_opt();
-        let called_emsg_start = g_st().msg.called_emsg.get();
+        let called_emsg_start = msg_state().called_emsg.get();
 
         let initial: TypVal;
         let li: Option<crate::eval::typval::ListitemId>;
@@ -6205,7 +6172,7 @@ fn reduce_list(argvars: &mut [TypVal], rettv: &mut TypVal) {
 
             let r = eval_expr_typval(expr, true, &mut argv, 2, &mut *rettv);
             tv_clear(&mut argv[0]);
-            if !r || g_st().msg.called_emsg.get() != called_emsg_start {
+            if !r || msg_state().called_emsg.get() != called_emsg_start {
                 break;
             }
         }
@@ -6218,7 +6185,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
     {
         let p_cow = tv_get_string(&argvars[0]);
         let mut p_bytes = p_cow.to_bytes();
-        let called_emsg_start = g_st().msg.called_emsg.get();
+        let called_emsg_start = msg_state().called_emsg.get();
 
         if argvars[2].v_type == VarType::VarUnknown {
             if p_bytes.is_empty() {
@@ -6258,7 +6225,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
             let r = eval_expr_typval(expr, true, &mut argv, 2, &mut *rettv);
             tv_clear(&mut argv[0]);
             tv_clear(&mut argv[1]);
-            if !r || g_st().msg.called_emsg.get() != called_emsg_start {
+            if !r || msg_state().called_emsg.get() != called_emsg_start {
                 break;
             }
             p_bytes = &p_bytes[len..];
@@ -6270,7 +6237,7 @@ fn reduce_blob(argvars: &mut [TypVal], rettv: &mut TypVal) {
     let expr = &argvars[1];
     {
         let b = argvars[0].vval.v_blob_opt();
-        let called_emsg_start = g_st().msg.called_emsg.get();
+        let called_emsg_start = msg_state().called_emsg.get();
 
         let initial: TypVal;
         let mut i: i32;
@@ -6308,7 +6275,7 @@ fn reduce_blob(argvars: &mut [TypVal], rettv: &mut TypVal) {
             ];
 
             let r = eval_expr_typval(expr, true, &mut argv, 2, &mut *rettv);
-            if !r || g_st().msg.called_emsg.get() != called_emsg_start {
+            if !r || msg_state().called_emsg.get() != called_emsg_start {
                 return;
             }
             i += 1;
@@ -7506,7 +7473,7 @@ pub fn f_stdioopen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     if !tv_dict_get_callback(opts_opt, c"on_stdin", 8, &on_stdin.cb) {
         return;
     }
-    if !tv_dict_get_callback(opts_opt, c"on_print", 8, &g_st().msg.on_print) {
+    if !tv_dict_get_callback(opts_opt, c"on_print", 8, &msg_state().on_print) {
         return;
     }
 
@@ -8155,11 +8122,8 @@ pub fn f_synconcealed(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         if (syntax_flags & HL_CONCEAL) != 0 && curwin().w_onebuf_opt.wo_cole.get() < 3 {
             let mut cchar = schar_from_char(syn_get_sub_char());
             if cchar == 0 && curwin().w_onebuf_opt.wo_cole.get() == 1 {
-                cchar = if curwin().w_p_lcs_chars.borrow().conceal == 0 {
-                    b' ' as Schar
-                } else {
-                    curwin().w_p_lcs_chars.borrow().conceal
-                };
+                let conceal = curwin().w_p_lcs_chars.conceal.get();
+                cchar = if conceal == 0 { b' ' as Schar } else { conceal };
             }
             if cchar != 0 {
                 schar_get(&mut str_, cchar);
@@ -8208,10 +8172,10 @@ pub fn f_synstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut wp = crate::globals::WinPtr::NULL;
     if argvars[0].v_type == VarType::VarUnknown {
-        wp = g_st().workspace.firstwin.get();
+        wp = workspace_state().firstwin.get();
     } else if let Some(tp) = find_tabpage(tv_get_number(&argvars[0]) as i32) {
-        wp = if g_st().workspace.curtab.get() == tp {
-            g_st().workspace.firstwin.get()
+        wp = if workspace_state().curtab.get() == tp {
+            workspace_state().firstwin.get()
         } else {
             tp.tp_firstwin.get()
         };
@@ -8433,8 +8397,8 @@ pub fn f_visualmode(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// "wildmenumode()" function
 pub fn f_wildmenumode(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    if g_st().cmdline.wild_menu_showing.get() != 0
-        || ((g_st().edit.state_global.get() & MODE_CMDLINE) != 0 && cmdline_pum_active())
+    if cmdline_state().wild_menu_showing.get() != 0
+        || ((edit_state().state_global.get() & MODE_CMDLINE) != 0 && cmdline_pum_active())
     {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
     }
@@ -8442,7 +8406,7 @@ pub fn f_wildmenumode(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// "windowsversion()" function
 pub fn f_windowsversion(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let win_ver = g_st().exc.windows_version.get();
+    let win_ver = exc_state().windows_version.get();
     crate::eval::typval::tv_set_string(rettv, Some(crate::memory::bytes_as_cstr(&win_ver)));
 }
 

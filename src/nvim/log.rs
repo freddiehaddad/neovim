@@ -209,11 +209,10 @@ pub fn log_init() {
 
 pub fn log_should_log(log_level: i32) -> bool {
     if !DID_LOG_INIT.load(Ordering::Relaxed) {
-        g_st()
-            .exc
+        exc_state()
             .g_stats
             .log_skip
-            .set(g_st().exc.g_stats.log_skip.get() + (1));
+            .set(exc_state().g_stats.log_skip.get() + (1));
         return false;
     }
     log_level >= min_log_level()
@@ -228,11 +227,10 @@ pub fn logmsg_str(
     msg: &CStr,
 ) -> bool {
     if !DID_LOG_INIT.load(Ordering::Relaxed) {
-        g_st()
-            .exc
+        exc_state()
             .g_stats
             .log_skip
-            .set(g_st().exc.g_stats.log_skip.get() + (1));
+            .set(exc_state().g_stats.log_skip.get() + (1));
         return false;
     }
     if log_level < min_log_level() {
@@ -263,11 +261,10 @@ pub fn logmsg_str(
                 line_num,
             );
         }
-        g_st()
-            .exc
+        exc_state()
             .g_stats
             .log_skip
-            .set(g_st().exc.g_stats.log_skip.get() + (1));
+            .set(exc_state().g_stats.log_skip.get() + (1));
         return false;
     }
     LOG_RECURSIVE.set(true);
@@ -345,7 +342,7 @@ fn do_log_to_file_str(
 
     let millis = os_gettimeofday_ms();
 
-    let ui = g_st().screen.ui_client_channel_id.get() != 0;
+    let ui = screen_state().ui_client_channel_id.get() != 0;
     let first_byte = st.instance_name[0];
     let regen = ui || first_byte == 0 || first_byte == b'?';
 

@@ -138,7 +138,7 @@ pub fn os_delay(ms: u64, ignoreinput: bool) {
 
     while !expired {
         let cond = if ignoreinput {
-            g_st().input.got_int.get()
+            input_state().got_int.get()
         } else {
             os_input_ready(None)
         };

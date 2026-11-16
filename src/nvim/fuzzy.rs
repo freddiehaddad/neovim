@@ -316,8 +316,7 @@ fn match_positions(needle: &[u8], haystack: &[u8], positions: &mut [u32]) -> f64
         } = &mut **scratch;
 
         let chartab = worker_chartab.unwrap_or_else(|| {
-            g_st()
-                .workspace
+            workspace_state()
                 .curbuf
                 .with(|b| b.opt().map_or([0; 4], |b_ref| b_ref.b_chartab.get()))
         });
@@ -578,8 +577,7 @@ fn fuzzy_match_in_list(
     }
 
     if item_cb.cb_type() == K_CALLBACK_NONE && len >= 256 && max_matches == 0 {
-        let cur_chartab = g_st()
-            .workspace
+        let cur_chartab = workspace_state()
             .curbuf
             .with(|b| b.opt().map_or([0; 4], |b_ref| b_ref.b_chartab.get()));
         init_worker_fuzzy_chartab(cur_chartab);
@@ -1067,7 +1065,7 @@ pub fn search_for_fuzzy_match(
 
     let whole_line = ctrl_x_mode_whole_line();
     let line_count = buf.b_ml.ml_line_count.get();
-    let circly_end = if g_st().workspace.curbuf.get() == buf {
+    let circly_end = if workspace_state().curbuf.get() == buf {
         *start_pos
     } else {
         CursorPos {

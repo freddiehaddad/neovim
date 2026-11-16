@@ -348,7 +348,7 @@ pub fn mf_free(mfp: &mut Memfile, hp_id: BhdrId) {
 
 /// Sync memory file to disk.
 pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
-    let got_int_save = g_st().input.got_int.get();
+    let got_int_save = input_state().got_int.get();
 
     if mfp.mf_fd < 0 {
         mfp.mf_dirty = MF_DIRTY_NO;
@@ -356,7 +356,7 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
     }
 
     {
-        g_st().input.got_int.set(false);
+        input_state().got_int.set(false);
     }
 
     let mut status = true;
@@ -394,7 +394,7 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
             } else if crate::event::r#loop::main_loop_ptr().recursive == 0 {
                 os_breakcheck();
             }
-            if g_st().input.got_int.get() {
+            if input_state().got_int.get() {
                 completed_all = false;
                 break;
             }
@@ -410,10 +410,9 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
     }
 
     {
-        g_st()
-            .input
+        input_state()
             .got_int
-            .set(g_st().input.got_int.get() | (got_int_save));
+            .set(input_state().got_int.get() | (got_int_save));
     }
 
     status
@@ -553,17 +552,17 @@ fn mf_write_tracked(mfp: &mut Memfile, hp_id: BhdrId, cur_file_offset: &mut Opti
             }
             if attempt == 2 || mfp.mf_fd < 0 {
                 {
-                    if !g_st().workspace.did_swapwrite_msg.get() {
+                    if !workspace_state().did_swapwrite_msg.get() {
                         emsg(gettext(c"E297: Write error in swap file"));
                     }
-                    g_st().workspace.did_swapwrite_msg.set(true);
+                    workspace_state().did_swapwrite_msg.set(true);
                 }
                 return false;
             }
         }
 
         {
-            g_st().workspace.did_swapwrite_msg.set(false);
+            workspace_state().did_swapwrite_msg.set(false);
         }
         if let Some(hp2_id) = hp2_id {
             mfp.bhdr_mut(hp2_id).bh_flags &= !BH_DIRTY;

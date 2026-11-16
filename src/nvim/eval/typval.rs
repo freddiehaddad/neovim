@@ -278,7 +278,7 @@ impl Default for TvPartial {
 
 impl Drop for TvPartial {
     fn drop(&mut self) {
-        if crate::globals::g_st().exc.exiting.get() {
+        if crate::globals::exc_state().exiting.get() {
             return;
         }
         for tv in self.pt_argv.get_mut() {
@@ -2570,7 +2570,7 @@ pub fn tv_list_copy(
         orig.lv_copylist.set(copy.clone());
     }
     for item in crate::eval::typval::list_iter_ptr(orig.first_opt()) {
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             break;
         }
         let ni = tv_list_item_alloc();
@@ -2729,7 +2729,7 @@ pub fn tv_list_flatten(list: &TvList, first_opt: Option<&Listitem>, maxitems: i6
         let next = item.li_next.get();
 
         fast_breakcheck();
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             return;
         }
         if item.tv().v_type == VarType::VarList {
@@ -2937,7 +2937,7 @@ fn list_join_inner(
     let mut first = true;
 
     for item in crate::eval::typval::list_iter_ptr(l.first_opt()) {
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             break;
         }
         let mut size: usize = 0;
@@ -2958,7 +2958,7 @@ fn list_join_inner(
     gap.reserve(sumlen + 2);
 
     for s in join_vec.iter() {
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             break;
         }
         if first {
@@ -4528,7 +4528,7 @@ pub fn tv_dict_copy(
     }
     let items: Vec<DictitemId> = orig.dv_hashtab.iter_items().map(|(_, di)| di).collect();
     for di in items {
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             break;
         }
         let key_cstr = di.key_cstr();
@@ -4561,7 +4561,7 @@ pub fn tv_dict_copy(
     }
 
     copy.dv_refcount.set(copy.dv_refcount.get() + 1);
-    if g_st().input.got_int.get() {
+    if input_state().got_int.get() {
         tv_dict_unref(copy.opt());
         return None;
     }
@@ -5738,9 +5738,9 @@ pub fn tv_get_bool_chk(tv: &TypVal, ret_error: Option<&mut bool>) -> Varnumber {
 
 /// Get the line number from Vimscript object.
 pub fn tv_get_lnum(tv: &TypVal) -> Linenr {
-    let did_emsg_before = g_st().msg.did_emsg.get();
+    let did_emsg_before = msg_state().did_emsg.get();
     let mut lnum = tv_get_number_chk(tv, None) as Linenr;
-    if lnum <= 0 && did_emsg_before == g_st().msg.did_emsg.get() && tv.v_type != VarType::VarNumber
+    if lnum <= 0 && did_emsg_before == msg_state().did_emsg.get() && tv.v_type != VarType::VarNumber
     {
         let mut fnum: i32 = 0;
         if let Some(fp) = var2fpos(tv, true, &mut fnum, false, &curwin()) {
@@ -6097,10 +6097,9 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         {
             crate::main_init::ensure_test_editor_init();
-            crate::globals::g_st()
-                .msg
+            crate::globals::msg_state()
                 .emsg_skip
-                .set(g_st().msg.emsg_skip.get() + (1));
+                .set(msg_state().emsg_skip.get() + (1));
 
             // Basic alloc, append_number, find, reverse
             let l = tv_list_alloc(0);
@@ -6192,10 +6191,9 @@ mod tests {
 
             tv_list_unref(l2_copy.as_deref());
             tv_list_unref(Some(&l2));
-            crate::globals::g_st()
-                .msg
+            crate::globals::msg_state()
                 .emsg_skip
-                .set(g_st().msg.emsg_skip.get() - (1));
+                .set(msg_state().emsg_skip.get() - (1));
         }
     }
 
@@ -6206,10 +6204,9 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         {
             crate::main_init::ensure_test_editor_init();
-            crate::globals::g_st()
-                .msg
+            crate::globals::msg_state()
                 .emsg_skip
-                .set(g_st().msg.emsg_skip.get() + (1));
+                .set(msg_state().emsg_skip.get() + (1));
 
             let d = tv_dict_alloc();
             d.dv_refcount.set(1);
@@ -6262,10 +6259,9 @@ mod tests {
             tv_dict_unref(Some(&d2));
             tv_dict_unref(Some(&d_copy_ref));
             tv_dict_unref(Some(&d));
-            crate::globals::g_st()
-                .msg
+            crate::globals::msg_state()
                 .emsg_skip
-                .set(g_st().msg.emsg_skip.get() - (1));
+                .set(msg_state().emsg_skip.get() - (1));
         }
     }
 
@@ -6276,10 +6272,9 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         {
             crate::main_init::ensure_test_editor_init();
-            crate::globals::g_st()
-                .msg
+            crate::globals::msg_state()
                 .emsg_skip
-                .set(g_st().msg.emsg_skip.get() + (1));
+                .set(msg_state().emsg_skip.get() + (1));
 
             let mut tv = tv_initial_value();
             tv.v_type = VarType::VarNumber;
@@ -6328,10 +6323,9 @@ mod tests {
             tv_clear(&mut tv_str);
             tv_clear(&mut tv_l);
             tv_clear(&mut tv_d);
-            crate::globals::g_st()
-                .msg
+            crate::globals::msg_state()
                 .emsg_skip
-                .set(g_st().msg.emsg_skip.get() - (1));
+                .set(msg_state().emsg_skip.get() - (1));
         }
     }
 

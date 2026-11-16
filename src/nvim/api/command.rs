@@ -337,10 +337,10 @@ pub fn nvim_parse_cmd(str_val: NvimString, _opts: &mut KeyDictEmpty) -> Result<K
             Some((c.uc_name.clone(), c.uc_def))
         })
     } else if ea.cmdidx == Cmdidx::CmdUserBuf {
-        let cb = curbuf();
-        let ucmds = cb.b_ucmds.borrow();
-        let c = &ucmds[ea.useridx as usize];
-        Some((c.uc_name.clone(), c.uc_def))
+        curbuf().with_ucmds(|ucmds| {
+            let c = &ucmds[ea.useridx as usize];
+            Some((c.uc_name.clone(), c.uc_def))
+        })
     } else {
         None
     };
@@ -1077,22 +1077,24 @@ pub fn nvim_cmd(
     }
 
     let mut capture_local: Vec<u8> = Vec::new();
-    let save_msg_silent = g_st().msg.msg_silent.get();
-    let save_redir_off = g_st().msg.redir_off.get();
-    let mut save_capture_ga = g_st().msg.take_capture();
-    let save_msg_col = g_st().msg.msg_col.get();
+    let save_msg_silent = msg_state().msg_silent.get();
+    let save_redir_off = msg_state().redir_off.get();
+    let mut save_capture_ga = msg_state().take_capture();
+    let save_msg_col = msg_state().msg_col.get();
 
     if opts.output {
-        g_st().msg.set_capture(Some(Vec::new()));
+        msg_state().set_capture(Some(Vec::new()));
     } else {
-        g_st().msg.set_capture(save_capture_ga.take());
+        msg_state().set_capture(save_capture_ga.take());
     }
 
     try_wrap(|| {
         if opts.output {
-            g_st().msg.msg_silent.set(g_st().msg.msg_silent.get() + (1));
-            g_st().msg.redir_off.set(false);
-            g_st().msg.msg_col.set(0);
+            msg_state()
+                .msg_silent
+                .set(msg_state().msg_silent.get() + (1));
+            msg_state().redir_off.set(false);
+            msg_state().msg_col.set(0);
         }
 
         with_script_context(channel_id, || {
@@ -1100,13 +1102,12 @@ pub fn nvim_cmd(
         });
 
         if opts.output {
-            capture_local = g_st()
-                .msg
+            capture_local = msg_state()
                 .replace_capture(save_capture_ga.take())
                 .unwrap_or_default();
-            g_st().msg.msg_silent.set(save_msg_silent);
-            g_st().msg.redir_off.set(save_redir_off);
-            g_st().msg.msg_col.set(save_msg_col);
+            msg_state().msg_silent.set(save_msg_silent);
+            msg_state().redir_off.set(save_redir_off);
+            msg_state().msg_col.set(save_msg_col);
         }
     })?;
 
@@ -1231,10 +1232,10 @@ pub fn nvim_buf_create_user_command(
 ) -> Result<(), Error> {
     let target_buf = find_buffer_by_handle(buf)?;
 
-    let save_curbuf = g_st().workspace.curbuf.get();
-    g_st().workspace.curbuf.set(target_buf);
+    let save_curbuf = workspace_state().curbuf.get();
+    workspace_state().curbuf.set(target_buf);
     let res = create_user_command(channel_id, name, cmd, &mut *opts, UC_BUFFER);
-    g_st().workspace.curbuf.set(save_curbuf);
+    workspace_state().curbuf.set(save_curbuf);
     res
 }
 
@@ -1264,17 +1265,17 @@ pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString) -> Result<(), Er
         })
     } else {
         let b = crate::api::private::helpers::find_buffer_by_handle(buf)?;
-        let pos = b
-            .b_ucmds
-            .borrow()
-            .iter()
-            .position(|cmd| cmd.uc_name.as_bytes() == name_bytes);
-        if let Some(i) = pos {
-            let _ = b.b_ucmds.borrow_mut().remove(i);
-            true
-        } else {
-            false
-        }
+        b.with_ucmds_mut(|ucmds| {
+            if let Some(i) = ucmds
+                .iter()
+                .position(|cmd| cmd.uc_name.as_bytes() == name_bytes)
+            {
+                let _ = ucmds.remove(i);
+                true
+            } else {
+                false
+            }
+        })
     };
     if removed {
         return Ok(());

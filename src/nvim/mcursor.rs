@@ -79,7 +79,7 @@ use crate::shada::shada_encode_regs;
 use crate::state::{MODE_INSERT, virtual_active};
 use crate::strings::format_to_buf;
 use crate::textformat::{InsState, Oparg};
-use crate::undo::{u_forget_unchanged, u_save, uhp_mut};
+use crate::undo::{u_forget_unchanged, u_save, with_uhp_mut};
 use std::ffi::CStr;
 
 const DECOR_INLINE_INIT: DecorInline = DecorInline {
@@ -326,7 +326,7 @@ fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
             coladd: 0,
         },
     );
-    sb.visual = g_st().edit.visual_global.clone();
+    sb.visual = edit_state().visual_global.clone();
     save_current_state(&mut sb.sst);
     save_search_patterns();
     save_redobuff(&mut sb.redo);
@@ -339,7 +339,7 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
     ctx_load(&mut sb.primary, K_CTX_COUNT, 0);
     restore_redobuff(&mut sb.redo);
     restore_search_patterns();
-    g_st().edit.visual_global.restore_from(&sb.visual);
+    edit_state().visual_global.restore_from(&sb.visual);
     restore_current_state(&mut sb.sst);
     let mut topline = INIT_POS;
     let mut topline_valid = false;
@@ -348,9 +348,9 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
         extmark_del_id(&buf, mc_session_ns(), sb.cursor_mark);
         topline_valid = extmark_get_pos(&buf, mc_session_ns(), sb.topline_mark, &mut topline);
         extmark_del_id(&buf, mc_session_ns(), sb.topline_mark);
-        g_st().workspace.curbuf.get() == buf
+        workspace_state().curbuf.get() == buf
     } else {
-        g_st().workspace.curbuf.get().is_null()
+        workspace_state().curbuf.get().is_null()
     };
     if is_curbuf {
         restore_viewstate(&curwin(), &sb.view);
@@ -379,7 +379,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         (a.keys.clone(), a.r#type, a.spec.cmd, a.spec.cmd2, a.remap)
     });
 
-    if !handle_get_buffer(ctx.buf).is_some_and(|b| g_st().workspace.curbuf.get() == b) {
+    if !handle_get_buffer(ctx.buf).is_some_and(|b| workspace_state().curbuf.get() == b) {
         return;
     }
 
@@ -429,15 +429,15 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     }
 
     if atom_type == K_AVISUAL_SPAN {
-        g_st().edit.visual_global.active.set(false);
-        g_st().edit.visual_global.select.set(false);
+        edit_state().visual_global.active.set(false);
+        edit_state().visual_global.select.set(false);
     }
 
     if atom_type == K_AINSERT_SPAN {
-        g_st().edit.state_global.set(MODE_INSERT);
+        edit_state().state_global.set(MODE_INSERT);
     }
 
-    let beeps = g_st().msg.did_beep.get();
+    let beeps = msg_state().did_beep.get();
     let tick = buf_get_changedtick(&curbuf());
     let mode_str = if atom_remap { c"ix" } else { c"nix" };
     nvim_feedkeys(
@@ -448,22 +448,22 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
 
     if atom_type == K_AINSERT_SPAN
         && with_mc(|st| st.mc_ins_span.first.get())
-        && g_st().msg.did_beep.get() != beeps
+        && msg_state().did_beep.get() != beeps
         && buf_get_changedtick(&curbuf()) == tick
     {
         extmark_del_id(&curbuf(), mc_ns(), ctx.mark);
         return;
     }
 
-    if g_st().edit.visual_global.active.get() {
+    if edit_state().visual_global.active.get() {
         if atom_type == K_AVISUAL_SPAN {
-            *curbuf().b_visual.borrow_mut() = visualinfo();
+            curbuf().b_visual.set(visualinfo());
             curbuf()
                 .b_visual_mode_eval
-                .set(g_st().edit.visual_global.mode.get());
+                .set(edit_state().visual_global.mode.get());
         }
-        g_st().edit.visual_global.active.set(false);
-        g_st().edit.visual_global.select.set(false);
+        edit_state().visual_global.active.set(false);
+        edit_state().visual_global.select.set(false);
     }
 
     let wrote_regs = swap_regs && reg_max_ts(false) != regs_ts;
@@ -487,8 +487,8 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         },
     );
 
-    if atom_type == K_AINSERT_SPAN && curbuf().b_last_insert.borrow().mark.lnum > 0 {
-        ctx.pos = curbuf().b_last_insert.borrow().mark;
+    if atom_type == K_AINSERT_SPAN && curbuf().b_last_insert.mark.get().lnum > 0 {
+        ctx.pos = curbuf().b_last_insert.mark.get();
     }
     mc_mark_upd(&curbuf(), &mut ctx.mark, ctx.pos);
     with_mc(|st| st.mc_cursors.borrow_mut()[cursoridx] = ctx);
@@ -503,7 +503,7 @@ fn mc_cascade() {
         (origin, edits, g_atoms.len())
     });
     let _ = &mut edits;
-    let mcursor = if origin.buf.br_buf == g_st().workspace.curbuf.get() {
+    let mcursor = if origin.buf.br_buf == workspace_state().curbuf.get() {
         origin.mcursor
     } else {
         0
@@ -511,7 +511,7 @@ fn mc_cascade() {
     assert!(!cursors_is_empty());
     assert!(!mc_replaying());
 
-    g_st().input.got_int.set(false);
+    input_state().got_int.set(false);
 
     if edits {
         mc_cleanup(true, None, 0);
@@ -534,14 +534,14 @@ fn mc_cascade() {
         let atom_origin = with_atom(|st| st.g_atoms.borrow()[ai].origin.clone());
         if !atom_origin.buf.br_buf.is_null()
             && (!bufref_valid(Some(&atom_origin.buf))
-                || atom_origin.buf.br_buf != g_st().workspace.curbuf.get())
+                || atom_origin.buf.br_buf != workspace_state().curbuf.get())
         {
             continue;
         }
         let mut ci = 0;
         while ci < cursors_len() {
             line_breakcheck();
-            if g_st().input.got_int.get() {
+            if input_state().got_int.get() {
                 break 'outer;
             }
             let cur_mark = with_mc(|st| st.mc_cursors.borrow()[ci].mark);
@@ -557,16 +557,17 @@ fn mc_cascade() {
     mc_sandbox_leave(&mut sb);
 
     mc_cleanup(true, Some(&curwin().w_cursor.get()), mcursor);
-    if handle_get_buffer(bufnr).is_some_and(|b| g_st().workspace.curbuf.get() == b)
+    if handle_get_buffer(bufnr).is_some_and(|b| workspace_state().curbuf.get() == b)
         && !curbuf().b_u_synced.get()
         && let Some(nh) = curbuf().b_u_newhead.get()
     {
-        uhp_mut(&curbuf(), nh).uh_cursor_after = curwin().w_cursor.get();
+        let curpos = curwin().w_cursor.get();
+        with_uhp_mut(&curbuf(), nh, |h| h.uh_cursor_after = curpos);
     }
 }
 
 pub fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
-    if (map_edit || (follow && map_moved && !g_st().edit.visual_global.active.get()))
+    if (map_edit || (follow && map_moved && !edit_state().visual_global.active.get()))
         && !atom_composite_queued()
         && with_atom(|st| st.g_atoms.borrow().is_empty())
         && atom_composite_active()
@@ -577,7 +578,7 @@ pub fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
     if mc_buf_has_cursors(&curbuf()) && with_atom(|st| !st.g_atoms.borrow().is_empty()) {
         let has_edit =
             map_edit || with_atom(|st| st.g_atoms.borrow().iter().any(|a| a.r#type != K_AMOTION));
-        if has_edit || follow || g_st().edit.visual_global.active.get() {
+        if has_edit || follow || edit_state().visual_global.active.get() {
             mc_cascade();
         } else {
             with_atom(|st| st.g_atoms.borrow_mut().clear());
@@ -602,7 +603,7 @@ fn mc_cleanup(dedupe: bool, primary: Option<&CursorPos>, keep_mark: u32) {
         let dup = dedupe
             && ctx.mark != 0
             && ((!(curwin()).is_null()
-                && g_st().workspace.curbuf.get() == buf
+                && workspace_state().curbuf.get() == buf
                 && primary.is_some_and(|p| equalpos(ctx.pos, *p))
                 && ctx.mark != keep_mark)
                 || mc_mark_at(&buf, ctx.pos, 0) != ctx.mark);
@@ -673,21 +674,21 @@ pub fn mc_ins_cascade_start(
 
 fn mc_ins_save_state() -> McInsSaved {
     let saved = McInsSaved {
-        ins: g_st().edit.ins_global.clone(),
+        ins: edit_state().ins_global.clone(),
         last_changedtick: curbuf().b_last_changedtick.get(),
         last_changedtick_i: curbuf().b_last_changedtick_i.get(),
     };
-    g_st().edit.ins_global.did_ai.set(false);
-    g_st().edit.ins_global.ai_col.set(0);
-    g_st().edit.ins_global.end_comment_pending.set(NUL);
-    g_st().edit.ins_global.did_si.set(false);
-    g_st().edit.ins_global.can_si.set(false);
-    g_st().edit.ins_global.can_si_back.set(false);
+    edit_state().ins_global.did_ai.set(false);
+    edit_state().ins_global.ai_col.set(0);
+    edit_state().ins_global.end_comment_pending.set(NUL);
+    edit_state().ins_global.did_si.set(false);
+    edit_state().ins_global.can_si.set(false);
+    edit_state().ins_global.can_si_back.set(false);
     saved
 }
 
 fn mc_ins_restore_state(saved: &McInsSaved) {
-    g_st().edit.ins_global.restore_from(&saved.ins);
+    edit_state().ins_global.restore_from(&saved.ins);
     curbuf().b_last_changedtick.set(saved.last_changedtick);
     curbuf().b_last_changedtick_i.set(saved.last_changedtick_i);
 }
@@ -719,7 +720,7 @@ fn mc_ins_regions_clear() {
 
 #[inline]
 fn mc_ctx_resolve(ctx: &Context, pos: &mut CursorPos) -> bool {
-    handle_get_buffer(ctx.buf).is_some_and(|b| g_st().workspace.curbuf.get() == b)
+    handle_get_buffer(ctx.buf).is_some_and(|b| workspace_state().curbuf.get() == b)
         && ctx.mark != 0
         && extmark_get_pos(&curbuf(), mc_ns(), ctx.mark, pos)
 }
@@ -826,8 +827,8 @@ fn mc_ins_preview_set(new_text: &NvimString) {
     let saved = mc_ins_save_state();
     let mut primary: u32 = 0;
     mc_track_upd(&curbuf(), &mut primary, curwin().w_cursor.get());
-    let save_cmod_flags = g_st().cmdline.cmod_flags();
-    g_st().cmdline.add_cmod_flags(CMOD_KEEPJUMPS);
+    let save_cmod_flags = cmdline_state().cmod_flags();
+    cmdline_state().add_cmod_flags(CMOD_KEEPJUMPS);
     set_vim_var_bool(VV_CASCADING, K_BOOL_VAR_TRUE_CONST);
     let regions = with_mc(|st| st.mc_ins_span.regions.borrow().clone());
     for region_id in regions {
@@ -839,7 +840,7 @@ fn mc_ins_preview_set(new_text: &NvimString) {
         mc_ins_preview_replace(rs, re, new_text);
     }
     set_vim_var_bool(VV_CASCADING, K_BOOL_VAR_FALSE_CONST);
-    g_st().cmdline.set_cmod_flags(save_cmod_flags);
+    cmdline_state().set_cmod_flags(save_cmod_flags);
     let mut pos = curwin().w_cursor.get();
     if extmark_get_pos(&curbuf(), mc_session_ns(), primary, &mut pos) {
         curwin().w_cursor.set(pos);
@@ -868,7 +869,7 @@ fn mc_ins_keys_nonliteral(keys: &[u8]) -> bool {
 pub fn mc_ins_cascade_restart() {
     if !with_mc(|st| st.mc_ins_span.active.get())
         || mc_replaying()
-        || (g_st().edit.state_global.get() & MODE_INSERT) == 0
+        || (edit_state().state_global.get() & MODE_INSERT) == 0
         || !mc_buf_has_cursors(&curbuf())
         || with_atom(|st| !st.g_atoms.borrow().is_empty())
     {
@@ -898,7 +899,7 @@ pub fn mc_ins_cascaded(root_frame: u64) -> bool {
 pub fn mc_ins_cascade() {
     if !with_mc(|st| st.mc_ins_span.active.get())
         || mc_replaying()
-        || (g_st().edit.state_global.get() & MODE_INSERT) == 0
+        || (edit_state().state_global.get() & MODE_INSERT) == 0
         || !mc_buf_has_cursors(&curbuf())
     {
         return;
@@ -917,7 +918,7 @@ pub fn mc_ins_cascade() {
     });
 
     if first {
-        if !g_st().edit.ins_global.did_ai.get() && !ins.data.is_null() && ins.size > 0 {
+        if !edit_state().ins_global.did_ai.get() && !ins.data.is_null() && ins.size > 0 {
             let mut keys: Vec<u8> = Vec::new();
             let mut skip = 0;
             if let Some(vsel) = with_mc(|st| st.mc_ins_span.vsel.borrow_mut().take()) {
@@ -1015,7 +1016,7 @@ fn mc_reg_read(reg: i32) -> std::ffi::CString {
 }
 
 fn mc_reg_gather() {
-    if cursors_is_empty() || g_st().exc.exiting.get() {
+    if cursors_is_empty() || exc_state().exiting.get() {
         return;
     }
     let start_time = with_mc(|st| st.mc_start.time.get());
@@ -1048,7 +1049,7 @@ fn mc_reg_gather() {
     for idx in 0..cursors_len() {
         let ctx = cursor_clone(idx);
         if !ctx.regs.is_empty()
-            && handle_get_buffer(ctx.buf).is_some_and(|b| g_st().workspace.curbuf.get() == b)
+            && handle_get_buffer(ctx.buf).is_some_and(|b| workspace_state().curbuf.get() == b)
         {
             order.push(ctx);
         }
@@ -1151,10 +1152,9 @@ pub fn mc_vsel_refresh() {
     mc_sandbox_enter(&mut sb, false);
     block_autocmds();
     block_on_key();
-    g_st()
-        .msg
+    msg_state()
         .emsg_silent
-        .set(g_st().msg.emsg_silent.get() + (1));
+        .set(msg_state().emsg_silent.get() + (1));
 
     for i in 0..cursors_len() {
         let mut ctx = cursor_clone(i);
@@ -1166,25 +1166,24 @@ pub fn mc_vsel_refresh() {
         with_mc(|st| st.mc_cursors.borrow_mut()[i].pos = pos);
         ctx_load(&mut ctx, K_CTX_CURSOR | K_CTX_VISUAL | K_CTX_MARKS, 0);
         check_cursor(&curwin());
-        g_st().edit.visual_global.active.set(false);
-        g_st().edit.visual_global.select.set(false);
+        edit_state().visual_global.active.set(false);
+        edit_state().visual_global.select.set(false);
         nvim_feedkeys(span.clone(), cstr_as_string(Some(c"nix")), false);
-        if !g_st().edit.visual_global.active.get() {
+        if !edit_state().visual_global.active.get() {
             continue;
         }
-        let mut s = g_st().edit.visual_global.start.get();
+        let mut s = edit_state().visual_global.start.get();
         let mut e = curwin().w_cursor.get();
-        let r_type: i32 = if g_st().edit.visual_global.mode.get() == b'V' as i32 {
+        let r_type: i32 = if edit_state().visual_global.mode.get() == b'V' as i32 {
             MT_LINE_WISE
-        } else if g_st().edit.visual_global.mode.get() == CTRL_V_CONST {
+        } else if edit_state().visual_global.mode.get() == CTRL_V_CONST {
             MT_BLOCK_WISE
         } else {
             MT_CHAR_WISE
         };
         let mut inclusive = true;
         let mut oa = Oparg::new();
-        g_st()
-            .edit
+        edit_state()
             .virtual_op
             .set(i32::from(virtual_active(&curwin())));
         getregionpos_prep(
@@ -1226,13 +1225,12 @@ pub fn mc_vsel_refresh() {
             true,
         );
         with_mc(|st| st.mc_vsel_buf.set(curbuf().b_fnum.get()));
-        g_st().edit.visual_global.active.set(false);
+        edit_state().visual_global.active.set(false);
     }
 
-    g_st()
-        .msg
+    msg_state()
         .emsg_silent
-        .set(g_st().msg.emsg_silent.get() - (1));
+        .set(msg_state().emsg_silent.get() - (1));
     unblock_on_key();
     unblock_autocmds();
     mc_sandbox_leave(&mut sb);
@@ -1316,7 +1314,7 @@ pub fn mc_following() -> bool {
 }
 
 fn mc_lua_enable(enable: bool) {
-    if g_st().exc.exiting.get() {
+    if exc_state().exiting.get() {
         return;
     }
     let mut tv_args = [
@@ -1343,50 +1341,54 @@ pub fn mc_mark_at(buf: &FileBuf, pos: CursorPos, skip: u32) -> u32 {
         return 0;
     }
     let mut itr: MarkTreeIter = MarkTreeIter::new();
-    marktree_itr_get(&buf.b_marktree.borrow(), pos.lnum - 1, pos.col, &mut itr);
-    loop {
-        let k = marktree_itr_current(&buf.b_marktree.borrow(), &itr);
-        if k.id == 0 || k.pos.row != pos.lnum - 1 || k.pos.col != pos.col {
-            break;
+    buf.with_marktree(|mt| {
+        marktree_itr_get(mt, pos.lnum - 1, pos.col, &mut itr);
+        loop {
+            let k = marktree_itr_current(mt, &itr);
+            if k.id == 0 || k.pos.row != pos.lnum - 1 || k.pos.col != pos.col {
+                break;
+            }
+            if k.ns == mc_ns() && !mt_end(k) && k.id != skip {
+                return k.id;
+            }
+            if !marktree_itr_next(mt, &mut itr) {
+                break;
+            }
         }
-        if k.ns == mc_ns() && !mt_end(k) && k.id != skip {
-            return k.id;
-        }
-        if !marktree_itr_next(&buf.b_marktree.borrow(), &mut itr) {
-            break;
-        }
-    }
-    0
+        0
+    })
 }
 
 fn mc_zq_step(keys: &CStr, pos: CursorPos) -> CursorPos {
     curwin().w_cursor.set(pos);
     curwin().w_set_curswant.set(false);
-    g_st().msg.msg_silent.set(g_st().msg.msg_silent.get() + (1));
-    g_st()
-        .msg
+    msg_state()
+        .msg_silent
+        .set(msg_state().msg_silent.get() + (1));
+    msg_state()
         .emsg_silent
-        .set(g_st().msg.emsg_silent.get() + (1));
-    let save_cmod_flags = g_st().cmdline.cmod_flags();
-    g_st().cmdline.add_cmod_flags(CMOD_KEEPJUMPS);
+        .set(msg_state().emsg_silent.get() + (1));
+    let save_cmod_flags = cmdline_state().cmod_flags();
+    cmdline_state().add_cmod_flags(CMOD_KEEPJUMPS);
     atom_suppress(true);
     block_autocmds();
     block_on_key();
     let mut sst = SaveState::new();
     save_current_state(&mut sst);
-    let beeps = g_st().msg.did_beep_silent.get();
+    let beeps = msg_state().did_beep_silent.get();
     exec_normal_cmd(keys.to_bytes(), REMAP_NONE, true);
-    let failed = g_st().msg.did_beep_silent.get() != beeps;
+    let failed = msg_state().did_beep_silent.get() != beeps;
     restore_current_state(&mut sst);
     unblock_on_key();
     unblock_autocmds();
     atom_suppress(false);
-    g_st().cmdline.set_cmod_flags(save_cmod_flags);
-    g_st()
-        .msg
+    cmdline_state().set_cmod_flags(save_cmod_flags);
+    msg_state()
         .emsg_silent
-        .set(g_st().msg.emsg_silent.get() - (1));
-    g_st().msg.msg_silent.set(g_st().msg.msg_silent.get() - (1));
+        .set(msg_state().emsg_silent.get() - (1));
+    msg_state()
+        .msg_silent
+        .set(msg_state().msg_silent.get() - (1));
     if failed {
         INIT_POS
     } else {
@@ -1400,10 +1402,10 @@ fn mc_zq_target(
     motion_type: i32,
     ctx_idx: Option<usize>,
 ) -> Visualinfo {
-    let save = *curbuf().b_visual.borrow();
+    let save = curbuf().b_visual.get();
     let save_mode_eval = curbuf().b_visual_mode_eval.get();
     if !search {
-        *curbuf().b_visual.borrow_mut() = Visualinfo {
+        curbuf().b_visual.set(Visualinfo {
             vi_start: step,
             vi_end: step,
             vi_curswant: step.col,
@@ -1412,24 +1414,24 @@ fn mc_zq_target(
             } else {
                 b'v' as i32
             },
-        };
+        });
     } else if mc_zq_step(c"gn\x1b", step).lnum == 0 {
-        *curbuf().b_visual.borrow_mut() = Visualinfo {
+        curbuf().b_visual.set(Visualinfo {
             vi_start: INIT_POS,
             vi_end: INIT_POS,
             vi_mode: 0,
             vi_curswant: 0,
-        };
+        });
     }
     curbuf()
         .b_visual_mode_eval
-        .set(curbuf().b_visual.borrow().vi_mode);
+        .set(curbuf().b_visual.vi_mode.get());
     if let Some(idx) = ctx_idx {
         curwin().w_cursor.set(step);
         with_mc(|st| ctx_save(&mut st.mc_cursors.borrow_mut()[idx], K_CTX_VISUAL));
     }
-    let target = *curbuf().b_visual.borrow();
-    *curbuf().b_visual.borrow_mut() = save;
+    let target = curbuf().b_visual.get();
+    curbuf().b_visual.set(save);
     curbuf().b_visual_mode_eval.set(save_mode_eval);
     target
 }
@@ -1493,7 +1495,7 @@ fn mc_zq_run(keys: &CStr, search: bool, motion_type: i32, end: CursorPos, first:
     let mut placed: i32 = 0;
     let mut step = first;
     let curswant = curwin().w_curswant.get();
-    while !g_st().input.got_int.get() {
+    while !input_state().got_int.get() {
         mc_zq_target(step, search, motion_type, mc_add(&curbuf(), step));
         placed += 1;
         let prev = step;
@@ -1524,9 +1526,9 @@ fn mc_zq_run(keys: &CStr, search: bool, motion_type: i32, end: CursorPos, first:
 }
 
 pub fn mc_zq_start(cap: &mut Cmdarg) {
-    cap.oap.from_visual = g_st().edit.visual_global.active.get();
+    cap.oap.from_visual = edit_state().visual_global.active.get();
     cap.oap.motion_type = MT_UNKNOWN;
-    if g_st().edit.visual_global.active.get() {
+    if edit_state().visual_global.active.get() {
         atom_visual_reset();
         end_visual_mode();
         check_cursor_col(&curwin());
@@ -1550,7 +1552,7 @@ pub fn mc_zq(cap: &Cmdarg, origin: CursorPos) {
     }
     let mut primary = origin;
 
-    let mut v = *curbuf().b_visual.borrow();
+    let mut v = curbuf().b_visual.get();
     let mut bounds = [
         primary,
         CursorPos {
@@ -1644,10 +1646,12 @@ pub fn mc_zq(cap: &Cmdarg, origin: CursorPos) {
             primary = first;
             curwin().w_set_curswant.set(true);
         }
-        *curbuf().b_visual.borrow_mut() = mc_zq_target(primary, search, oap.motion_type, None);
+        curbuf()
+            .b_visual
+            .set(mc_zq_target(primary, search, oap.motion_type, None));
         curbuf()
             .b_visual_mode_eval
-            .set(curbuf().b_visual.borrow().vi_mode);
+            .set(curbuf().b_visual.vi_mode.get());
         set_no_hlsearch(true);
         redraw_all_later(UPD_SOME_VALID);
     }
@@ -1812,9 +1816,9 @@ pub fn mc_ns_cleared(buf: &FileBuf, ns_id: u32) {
         mc_reg_gather();
     }
 
-    if !g_st().exc.exiting.get() {
+    if !exc_state().exiting.get() {
         extmark_clear(buf, mc_last_ns(), 0, 0, MAXLNUM, MAXCOL);
-        if g_st().workspace.curbuf.get() == (std::ptr::from_ref(buf).cast_mut()) {
+        if workspace_state().curbuf.get() == (std::ptr::from_ref(buf).cast_mut()) {
             let mut primary: u32 = 1;
             extmark_set_pos(
                 buf,

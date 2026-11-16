@@ -205,7 +205,7 @@ pub fn ns_in_win(ns_id: u32, wp: &WinInfoInfo) -> bool {
     if !is_local {
         return true;
     }
-    wp.w_ns_set.borrow().contains(&ns_id)
+    wp.ns_set_contains(ns_id)
 }
 
 // DLLEXPORT void api_extmark_free_all_mem(void);
@@ -1113,9 +1113,7 @@ pub fn nvim_buf_set_extmark(
     }
 
     if opts.ephemeral
-        && g_st()
-            .screen
-            .with_decor_state(|ds| !ds.win.is_null() && ds.win.w_buffer.get() == b)
+        && screen_state().with_decor_state(|ds| !ds.win.is_null() && ds.win.w_buffer.get() == b)
     {
         let r = line as i32;
         let c = col as i32;
@@ -1134,20 +1132,20 @@ pub fn nvim_buf_set_extmark(
 
         if !virt_text.data.virt_text().is_empty() {
             let vt_id = decor_put_vt(virt_text, crate::decoration::DecorVirtId::NULL);
-            g_st().screen.with_decor_state_mut(|ds| {
+            screen_state().with_decor_state_mut(|ds| {
                 decor_range_add_virt(ds, r, c, line2, col2, vt_id, true);
             });
         }
         if !virt_lines.data.virt_lines().is_empty() {
             let vt_id = decor_put_vt(virt_lines, crate::decoration::DecorVirtId::NULL);
-            g_st().screen.with_decor_state_mut(|ds| {
+            screen_state().with_decor_state_mut(|ds| {
                 decor_range_add_virt(ds, r, c, line2, col2, vt_id, true);
             });
         }
         if has_hl {
             let mut sh = decor_sh_from_inline(hl);
             sh.url = url.take();
-            g_st().screen.with_decor_state_mut(|ds| {
+            screen_state().with_decor_state_mut(|ds| {
                 decor_range_add_sh(
                     ds,
                     r,
@@ -1468,8 +1466,8 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean) -> Result<()
     }
     let b_ptr = b;
     for tp in for_all_tabpages_ptr() {
-        for wp in win_iter_ptr(if g_st().workspace.curtab.get() == tp {
-            g_st().workspace.firstwin.get()
+        for wp in win_iter_ptr(if workspace_state().curtab.get() == tp {
+            workspace_state().firstwin.get()
         } else {
             tp.tp_firstwin.get()
         }) {
@@ -1613,7 +1611,7 @@ pub fn nvim_buf_debug_extmarks(
     dot: Boolean,
 ) -> Result<NvimString, Error> {
     let b = crate::api::private::helpers::find_buffer_by_handle(buf)?;
-    Ok(mt_inspect(&b.b_marktree.borrow(), keys, dot))
+    Ok(b.with_marktree(|mt| mt_inspect(mt, keys, dot)))
 }
 
 /// Set some properties for namespace
@@ -1646,23 +1644,15 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDictNsOpts) -> Result<(), Error
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(&tp) {
                 if windows.contains(&wp.as_ptr())
-                    && wp.w_ns_set.borrow_mut().insert(ns_id as u32)
-                    && (*wp)
-                        .buf()
-                        .b_extmark_ns
-                        .borrow()
-                        .contains_key(&(ns_id as u32))
+                    && wp.ns_set_insert(ns_id as u32)
+                    && (*wp).buf().extmark_ns_contains(ns_id as u32)
                 {
                     changed_window_setting(&wp);
                 }
 
                 if !windows.contains(&wp.as_ptr())
-                    && wp.w_ns_set.borrow_mut().remove(&(ns_id as u32))
-                    && (*wp)
-                        .buf()
-                        .b_extmark_ns
-                        .borrow()
-                        .contains_key(&(ns_id as u32))
+                    && wp.ns_set_remove(ns_id as u32)
+                    && (*wp).buf().extmark_ns_contains(ns_id as u32)
                 {
                     changed_window_setting(&wp);
                 }
@@ -1680,7 +1670,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDictNsOpts) -> Result<(), Error
     if scope_changed {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_ptr(&tp) {
-                if wp.buf().b_extmark_ns.borrow().contains_key(&(ns_id as u32)) {
+                if wp.buf().extmark_ns_contains(ns_id as u32) {
                     changed_window_setting(&wp);
                 }
             }
@@ -1711,7 +1701,7 @@ pub fn nvim_ns_get(ns_id: Integer) -> Result<KeyDictNsOpts, Error> {
     let mut count = 0usize;
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&tp) {
-            if wp.w_ns_set.borrow().contains(&(ns_id as u32)) {
+            if wp.ns_set_contains(ns_id as u32) {
                 count += 1;
             }
         }
@@ -1721,7 +1711,7 @@ pub fn nvim_ns_get(ns_id: Integer) -> Result<KeyDictNsOpts, Error> {
 
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&tp) {
-            if wp.w_ns_set.borrow().contains(&(ns_id as u32)) {
+            if wp.ns_set_contains(ns_id as u32) {
                 windows.push(integer_obj(i64::from(wp.handle)));
             }
         }

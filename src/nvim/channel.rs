@@ -192,7 +192,7 @@ pub fn channel_teardown() {
 pub fn channel_free_all_mem() {
     crate::event::r#loop::main_loop_ptr().channels.clear();
 
-    callback_free(&g_st().msg.on_print);
+    callback_free(&msg_state().on_print);
 }
 
 /// Closes a channel.
@@ -277,7 +277,7 @@ pub fn channel_close(
             }
             if !chan.err_closed {
                 chan.err_closed = true;
-                if !g_st().exc.exiting.get() {
+                if !exc_state().exiting.get() {
                     redirect_stderr_to_null();
                 }
                 channel_decref(&mut *chan);
@@ -639,7 +639,7 @@ pub fn channel_from_stdio(
     on_output: CallbackReader,
     error: &mut Option<&'static CStr>,
 ) -> u64 {
-    if !g_st().exc.headless_mode.get() && !g_st().exc.embedded_mode.get() {
+    if !exc_state().headless_mode.get() && !exc_state().embedded_mode.get() {
         *error = Some(gettext(c"can only be opened in headless mode"));
         return 0;
     }
@@ -655,14 +655,14 @@ pub fn channel_from_stdio(
     let mut stdout_dup_fd = STDOUT_FILENO;
 
     #[cfg(windows)]
-    if g_st().exc.embedded_mode.get() && os_has_conpty_working() {
+    if exc_state().embedded_mode.get() && os_has_conpty_working() {
         stdin_dup_fd = os_dup_cloexec(STDIN_FILENO);
         stdout_dup_fd = os_dup_cloexec(STDOUT_FILENO);
         os_attach_parent_console();
     }
 
     #[cfg(not(windows))]
-    if g_st().exc.embedded_mode.get() {
+    if exc_state().embedded_mode.get() {
         stdin_dup_fd = os_dupfd_cloexec(STDIN_FILENO, STDERR_FILENO + 1);
         stdout_dup_fd = os_dupfd_cloexec(STDOUT_FILENO, STDERR_FILENO + 1);
         let _ = dup2(STDERR_FILENO, STDOUT_FILENO);
@@ -868,9 +868,9 @@ pub(crate) fn channel_proc_exit_cb(status: i32, chan: &mut Channel) {
         terminal_close(chan.term, status);
     }
 
-    if !g_st().exc.exiting.get() && g_st().screen.ui_client_channel_id.get() == chan.id {
+    if !exc_state().exiting.get() && screen_state().ui_client_channel_id.get() == chan.id {
         ui_client_attach_to_restarted_server(status != 0);
-        if g_st().screen.ui_client_channel_id.get() == chan.id {
+        if screen_state().ui_client_channel_id.get() == chan.id {
             exit_on_closed_chan(status);
         }
     }
@@ -983,14 +983,15 @@ pub fn channel_term_write(buf: &[u8], chan: &mut Channel) {
             crate::api::private::helpers::string_obj(NvimString::from_bytes(buf)),
         ];
         let args = Array::from_slice(&mut args_items[..3]);
-        g_st().input.textlock.set(g_st().input.textlock.get() + (1));
-        crate::lua::executor::nlua_call_ref_log_err(
-            cb,
-            Some(c"input"),
-            args,
-            crate::lua::executor::K_RET_NIL_BOOL,
-        );
-        g_st().input.textlock.set(g_st().input.textlock.get() - (1));
+        {
+            let _textlock = input_state().lock_text();
+            crate::lua::executor::nlua_call_ref_log_err(
+                cb,
+                Some(c"input"),
+                args,
+                crate::lua::executor::K_RET_NIL_BOOL,
+            );
+        }
         return;
     }
     let in_stream = &mut chan.uv.proc_.r#in;

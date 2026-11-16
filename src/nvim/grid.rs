@@ -93,11 +93,10 @@ impl GridTarget {
     pub fn opt(self) -> Option<GridRef> {
         match self {
             Self::None => None,
-            Self::Default => Some(GridRef::Static(&g_st().screen.default_grid)),
-            Self::Msg => Some(GridRef::Static(&g_st().msg.msg_grid)),
-            Self::Pum => Some(GridRef::Static(&g_st().screen.pum_grid)),
-            Self::Win(h) => g_st()
-                .workspace
+            Self::Default => Some(GridRef::Static(&screen_state().default_grid)),
+            Self::Msg => Some(GridRef::Static(&msg_state().msg_grid)),
+            Self::Pum => Some(GridRef::Static(&screen_state().pum_grid)),
+            Self::Win(h) => workspace_state()
                 .find_window(h)
                 .or_else(|| for_all_windows_ptr().find(|wp| wp.handle == h))
                 .map(GridRef::Win),
@@ -590,7 +589,7 @@ pub fn grid_line_start(view: &GridView, mut row: i32) {
 }
 
 pub fn screengrid_line_start(grid: &ScreenGrid, row: i32, col: i32) {
-    let linebuf_size = g_st().screen.with_linebuf(|lb| lb.chars.len());
+    let linebuf_size = screen_state().with_linebuf(|lb| lb.chars.len());
     let grid_cols = grid.cols.get();
     let grid_target = grid.target_kind.get();
     grid_st(|st| {
@@ -609,10 +608,11 @@ pub fn screengrid_line_start(grid: &ScreenGrid, row: i32, col: i32) {
         assert!(maxcol as usize <= linebuf_size);
     });
 
-    if g_st().screen.full_screen.get() && (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_INVALID) != 0
+    if screen_state().full_screen.get()
+        && (opt_vars().rdb_flags.get() & K_OPT_RDB_FLAG_INVALID) != 0
     {
         assert!(linebuf_size > 0);
-        g_st().screen.with_linebuf_mut(|lb| {
+        screen_state().with_linebuf_mut(|lb| {
             lb.chars.fill(u32::MAX);
             lb.attrs.fill(-1);
         });
@@ -644,7 +644,7 @@ pub fn grid_line_put_schar(col: i32, schar: Schar, attr: i32) {
         return;
     }
 
-    g_st().screen.with_linebuf_mut(|lb| {
+    screen_state().with_linebuf_mut(|lb| {
         lb.chars[col as usize] = schar;
         lb.attrs[col as usize] = attr;
         lb.vcols[col as usize] = -1;
@@ -671,7 +671,7 @@ pub fn grid_line_puts(mut col: i32, text: &std::ffi::CStr, textlen: i32, attr: i
     let start_col = col;
     let mut ci = utf_ptr2_str_char_info_len(text_bytes, len);
     let init_ptr_len = ci.ptr.len();
-    g_st().screen.with_linebuf_mut(|lb| {
+    screen_state().with_linebuf_mut(|lb| {
         while col < max_col && len > 0 && !ci.ptr.is_empty() {
             let cli = utf_cluster_info_len(ci, &mut len);
             let mut mbyte_cells = cli.cells;
@@ -727,7 +727,7 @@ pub fn grid_line_fill(start_col: i32, mut end_col: i32, sc: Schar, attr: i32) ->
     }
 
     let range = start_col as usize..end_col as usize;
-    g_st().screen.with_linebuf_mut(|lb| {
+    screen_state().with_linebuf_mut(|lb| {
         lb.chars[range.clone()].fill(sc);
         lb.attrs[range.clone()].fill(attr);
         lb.vcols[range].fill(-1);
@@ -792,7 +792,7 @@ pub fn linebuf_mirror(firstp: &mut i32, lastp: &mut i32, clearp: &mut i32, width
     let mirror = width - 1;
     grid_st(|st| {
         let mut scratch = st.linebuf_scratch.borrow_mut();
-        g_st().screen.with_linebuf_mut(|lb| {
+        screen_state().with_linebuf_mut(|lb| {
             for (dst, &src) in scratch[first_u..last_u]
                 .iter_mut()
                 .zip(&lb.chars[first_u..last_u])
@@ -962,7 +962,7 @@ pub fn grid_put_linebuf(
         return;
     }
 
-    let invalid_row = !ptr::eq(grid, &raw const g_st().screen.default_grid)
+    let invalid_row = !ptr::eq(grid, &raw const screen_state().default_grid)
         && grid_invalid_row(grid, row)
         && col == 0;
     let line_off = grid.line_offset.borrow()[row as usize];
@@ -971,7 +971,7 @@ pub fn grid_put_linebuf(
 
     if col > 0 && grid.chars.borrow()[off_to + col as usize] == 0 {
         let prev_attr = grid.attrs.borrow()[off_to + col as usize - 1];
-        g_st().screen.with_linebuf_mut(|lb| {
+        screen_state().with_linebuf_mut(|lb| {
             lb.chars[(col - 1) as usize] = schar_from_ascii(b'>');
             lb.attrs[(col - 1) as usize] = prev_attr;
         });
@@ -987,13 +987,13 @@ pub fn grid_put_linebuf(
     }
 
     if opt_vars().p_arshape.get() && !opt_vars().p_tbidi.get() && endcol > col {
-        g_st().screen.with_linebuf_mut(|lb| {
+        screen_state().with_linebuf_mut(|lb| {
             line_do_arabic_shape(&mut lb.chars[col as usize..endcol as usize]);
         });
     }
 
     if bg_attr != 0 && endcol > col {
-        g_st().screen.with_linebuf_mut(|lb| {
+        screen_state().with_linebuf_mut(|lb| {
             for attr_slot in &mut lb.attrs[col as usize..endcol as usize] {
                 *attr_slot = hl_combine_attr(bg_attr, *attr_slot);
             }
@@ -1004,7 +1004,7 @@ pub fn grid_put_linebuf(
     let mut start_dirty: i32 = -1;
     let mut end_dirty: i32 = 0;
 
-    g_st().screen.with_linebuf(|lb| {
+    screen_state().with_linebuf(|lb| {
         let lb_char = &lb.chars;
         let lb_attr = &lb.attrs;
         let lb_vcol = &lb.vcols;
@@ -1224,9 +1224,9 @@ pub fn grid_alloc(grid: &ScreenGrid, rows: i32, columns: i32, copy: bool, valid:
     grid.cols.set(columns);
 
     let cols = columns as usize;
-    let need_alloc = g_st().screen.with_linebuf(|lb| lb.chars.len() < cols);
+    let need_alloc = screen_state().with_linebuf(|lb| lb.chars.len() < cols);
     if need_alloc {
-        g_st().screen.with_linebuf_mut(|lb| {
+        screen_state().with_linebuf_mut(|lb| {
             lb.chars = vec![0; cols];
             lb.attrs = vec![0; cols];
             lb.vcols = vec![0; cols];
@@ -1243,10 +1243,10 @@ pub fn grid_free(grid: &ScreenGrid) {
 }
 
 pub fn grid_free_all_mem() {
-    grid_free(&g_st().screen.default_grid);
-    grid_free(&g_st().msg.msg_grid);
-    *g_st().msg.msg_grid.dirty_col.borrow_mut() = Vec::new();
-    g_st().screen.with_linebuf_mut(|lb| {
+    grid_free(&screen_state().default_grid);
+    grid_free(&msg_state().msg_grid);
+    *msg_state().msg_grid.dirty_col.borrow_mut() = Vec::new();
+    screen_state().with_linebuf_mut(|lb| {
         lb.chars = Vec::new();
         lb.attrs = Vec::new();
         lb.vcols = Vec::new();
@@ -1267,12 +1267,9 @@ pub fn win_grid_alloc(wp: &WinInfoInfo) {
     let want_allocation = ui_has(K_UIMULTIGRID) || wp.w_floating.get();
     let has_allocation = !wp.w_grid_alloc.chars.borrow().is_empty();
 
-    if (wp.w_view_height.get() as usize) + 1 > wp.w_lines.borrow().len() {
+    if (wp.w_view_height.get() as usize) + 1 > wp.w_lines_len() {
         wp.w_lines_valid.set(0);
-        wp.w_lines.borrow_mut().clear();
-        wp.w_lines
-            .borrow_mut()
-            .resize(wp.w_view_height.get() as usize + 1, Wline::default());
+        wp.resize_w_lines(wp.w_view_height.get() as usize + 1);
     }
 
     let mut was_resized = false;
@@ -1284,7 +1281,7 @@ pub fn win_grid_alloc(wp: &WinInfoInfo) {
         let is_valid = wp.w_grid_alloc.valid.get();
         grid_alloc(&wp.w_grid_alloc, total_rows, total_cols, is_valid, false);
         wp.w_grid_alloc.valid.set(true);
-        if wp.w_floating.get() && wp.w_config.borrow().border {
+        if wp.w_floating.get() && wp.config_border() {
             wp.w_redr_border.set(true);
         }
         was_resized = true;
@@ -1311,7 +1308,7 @@ pub fn win_grid_alloc(wp: &WinInfoInfo) {
             .set(wp.w_wincol.get() + wp.w_wincol_off.get());
     }
 
-    if (g_st().screen.resizing_screen.get() || was_resized) && want_allocation {
+    if (screen_state().resizing_screen.get() || was_resized) && want_allocation {
         ui_call_grid_resize(
             i64::from(wp.w_grid_alloc.handle.get()),
             i64::from(wp.w_grid_alloc.cols.get()),

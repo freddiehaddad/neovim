@@ -426,7 +426,7 @@ pub fn do_tag(
             return;
         }
 
-        if g_st().workspace.postponed_split.get() == 0 && !check_can_set_curbuf_forceit(forceit) {
+        if workspace_state().postponed_split.get() == 0 && !check_can_set_curbuf_forceit(forceit) {
             return;
         }
 
@@ -445,7 +445,7 @@ pub fn do_tag(
             if !opt_vars().p_tgst.get() && !tag.is_empty() {
                 use_tagstack = false;
                 new_tag = true;
-                if g_st().search.g_do_tagpreview.get() != 0 {
+                if search_state().g_do_tagpreview.get() != 0 {
                     tag_st(|st| {
                         let mut ptag = st.ptag_entry.borrow_mut();
                         tagstack_clear_entry(&mut ptag);
@@ -453,7 +453,7 @@ pub fn do_tag(
                     });
                 }
             } else {
-                use_tagstack = g_st().search.g_do_tagpreview.get() == 0;
+                use_tagstack = search_state().g_do_tagpreview.get() == 0;
 
                 // new pattern, add to the tag stack
                 if !tag.is_empty()
@@ -462,7 +462,7 @@ pub fn do_tag(
                         || type_ == DT_JUMP
                         || type_ == DT_LTAG)
                 {
-                    if g_st().search.g_do_tagpreview.get() != 0 {
+                    if search_state().g_do_tagpreview.get() != 0 {
                         tag_st(|st| {
                             let mut ptag = st.ptag_entry.borrow_mut();
                             if ptag
@@ -480,31 +480,31 @@ pub fn do_tag(
                     } else {
                         while tagstackidx < tagstacklen {
                             tagstacklen -= 1;
-                            tagstack_clear_entry(
-                                &mut curwin().w_tagstack.borrow_mut()[tagstacklen as usize],
-                            );
+                            curwin().with_tagstack_mut(|ts| {
+                                tagstack_clear_entry(&mut ts[tagstacklen as usize]);
+                            });
                         }
 
                         tagstacklen += 1;
                         if tagstacklen > TAGSTACKSIZE {
                             tagstacklen = TAGSTACKSIZE;
-                            (&mut curwin().w_tagstack.borrow_mut())[..tagstacklen as usize]
-                                .rotate_left(1);
                             tagstackidx -= 1;
-                            tagstack_clear_entry(
-                                &mut curwin().w_tagstack.borrow_mut()[tagstackidx as usize],
-                            );
+                            curwin().with_tagstack_mut(|ts| {
+                                ts[..tagstacklen as usize].rotate_left(1);
+                                tagstack_clear_entry(&mut ts[tagstackidx as usize]);
+                            });
                         }
 
-                        curwin().w_tagstack.borrow_mut()[tagstackidx as usize].tagname =
-                            Some(tag.to_owned());
+                        curwin().with_tagstack_mut(|ts| {
+                            ts[tagstackidx as usize].tagname = Some(tag.to_owned());
+                        });
                         curwin().w_tagstacklen.set(tagstacklen);
                         save_pos = true;
                     }
 
                     new_tag = true;
                 } else {
-                    if if g_st().search.g_do_tagpreview.get() != 0 {
+                    if if search_state().g_do_tagpreview.get() != 0 {
                         tag_st(|st| st.ptag_entry.borrow().tagname.is_none())
                     } else {
                         tagstacklen == 0
@@ -514,7 +514,7 @@ pub fn do_tag(
                     }
 
                     if type_ == DT_POP {
-                        let old_key_typed = g_st().input.key_typed.get();
+                        let old_key_typed = input_state().key_typed.get();
                         tagstackidx -= count;
                         if tagstackidx < 0 {
                             emsg(gettext(E_AT_BOTTOM_OF_TAG_STACK));
@@ -528,9 +528,8 @@ pub fn do_tag(
                             break 'end_do_tag;
                         }
 
-                        saved_fmark = curwin().w_tagstack.borrow()[tagstackidx as usize]
-                            .fmark
-                            .clone();
+                        saved_fmark =
+                            curwin().with_tagstack(|ts| ts[tagstackidx as usize].fmark.clone());
                         if saved_fmark.fnum != curbuf().b_fnum.get() {
                             if !buflist_getfile(
                                 saved_fmark.fnum,
@@ -562,7 +561,7 @@ pub fn do_tag(
                     }
 
                     if type_ == DT_TAG || type_ == DT_LTAG {
-                        if g_st().search.g_do_tagpreview.get() != 0 {
+                        if search_state().g_do_tagpreview.get() != 0 {
                             tag_st(|st| {
                                 let ptag = st.ptag_entry.borrow();
                                 cur_match = ptag.cur_match;
@@ -580,15 +579,16 @@ pub fn do_tag(
                                 tagstackidx = 0;
                                 break 'end_do_tag;
                             }
-                            cur_match =
-                                curwin().w_tagstack.borrow()[tagstackidx as usize].cur_match;
-                            cur_fnum = curwin().w_tagstack.borrow()[tagstackidx as usize].cur_fnum;
+                            (cur_match, cur_fnum) = curwin().with_tagstack(|ts| {
+                                let e = &ts[tagstackidx as usize];
+                                (e.cur_match, e.cur_fnum)
+                            });
                         }
                         new_tag = true;
                     } else {
                         prevtagstackidx = tagstackidx;
 
-                        if g_st().search.g_do_tagpreview.get() != 0 {
+                        if search_state().g_do_tagpreview.get() != 0 {
                             tag_st(|st| {
                                 let ptag = st.ptag_entry.borrow();
                                 cur_match = ptag.cur_match;
@@ -599,9 +599,10 @@ pub fn do_tag(
                             if tagstackidx < 0 {
                                 tagstackidx = 0;
                             }
-                            cur_match =
-                                curwin().w_tagstack.borrow()[tagstackidx as usize].cur_match;
-                            cur_fnum = curwin().w_tagstack.borrow()[tagstackidx as usize].cur_fnum;
+                            (cur_match, cur_fnum) = curwin().with_tagstack(|ts| {
+                                let e = &ts[tagstackidx as usize];
+                                (e.cur_match, e.cur_fnum)
+                            });
                         }
                         match type_ {
                             DT_FIRST => cur_match = count - 1,
@@ -621,7 +622,7 @@ pub fn do_tag(
                     }
                 }
 
-                if g_st().search.g_do_tagpreview.get() != 0 {
+                if search_state().g_do_tagpreview.get() != 0 {
                     if type_ != DT_SELECT && type_ != DT_JUMP {
                         tag_st(|st| {
                             let mut ptag = st.ptag_entry.borrow_mut();
@@ -630,26 +631,27 @@ pub fn do_tag(
                         });
                     }
                 } else {
-                    saved_fmark = curwin().w_tagstack.borrow()[tagstackidx as usize]
-                        .fmark
-                        .clone();
+                    saved_fmark =
+                        curwin().with_tagstack(|ts| ts[tagstackidx as usize].fmark.clone());
                     if save_pos {
-                        curwin().w_tagstack.borrow_mut()[tagstackidx as usize]
-                            .fmark
-                            .mark = curwin().w_cursor.get();
-                        curwin().w_tagstack.borrow_mut()[tagstackidx as usize]
-                            .fmark
-                            .fnum = curbuf().b_fnum.get();
-                        curwin().w_tagstack.borrow_mut()[tagstackidx as usize]
-                            .fmark
-                            .view = mark_view_make(&curwin(), curwin().w_cursor.get());
+                        let cursor_pos = curwin().w_cursor.get();
+                        let fnum = curbuf().b_fnum.get();
+                        let view = mark_view_make(&curwin(), cursor_pos);
+                        curwin().with_tagstack_mut(|ts| {
+                            let fm = &mut ts[tagstackidx as usize].fmark;
+                            fm.mark = cursor_pos;
+                            fm.fnum = fnum;
+                            fm.view = view;
+                        });
                     }
 
                     curwin().w_tagstackidx.set(tagstackidx);
                     if type_ != DT_SELECT && type_ != DT_JUMP {
-                        curwin().w_tagstack.borrow_mut()[tagstackidx as usize].cur_match =
-                            cur_match;
-                        curwin().w_tagstack.borrow_mut()[tagstackidx as usize].cur_fnum = cur_fnum;
+                        curwin().with_tagstack_mut(|ts| {
+                            let e = &mut ts[tagstackidx as usize];
+                            e.cur_match = cur_match;
+                            e.cur_fnum = cur_fnum;
+                        });
                     }
                 }
             }
@@ -662,11 +664,9 @@ pub fn do_tag(
 
             loop {
                 let mut name_cstr: &CStr = if use_tagstack {
-                    tofree = curwin().w_tagstack.borrow()[tagstackidx as usize]
-                        .tagname
-                        .clone();
+                    tofree = curwin().with_tagstack(|ts| ts[tagstackidx as usize].tagname.clone());
                     tofree.as_deref().unwrap_or(c"")
-                } else if g_st().search.g_do_tagpreview.get() != 0 {
+                } else if search_state().g_do_tagpreview.get() != 0 {
                     tofree = tag_st(|st| st.ptag_entry.borrow().tagname.clone());
                     tofree.as_deref().unwrap_or(c"")
                 } else {
@@ -764,7 +764,7 @@ pub fn do_tag(
                     if verbose {
                         semsg!(gettext(E_TAG_NOT_FOUND_STR), name_cstr);
                     }
-                    g_st().search.g_do_tagpreview.set(0);
+                    search_state().g_do_tagpreview.set(0);
                 } else {
                     if type_ == DT_TAG && !tag.is_empty() {
                         cur_match = if count > 0 { count - 1 } else { 0 };
@@ -778,8 +778,9 @@ pub fn do_tag(
                             name_cstr,
                         );
                         if use_tagstack {
-                            curwin().w_tagstack.borrow_mut()[tagstackidx as usize].fmark =
-                                saved_fmark;
+                            curwin().with_tagstack_mut(|ts| {
+                                ts[tagstackidx as usize].fmark = saved_fmark;
+                            });
                             tagstackidx = prevtagstackidx;
                         }
                         break;
@@ -809,20 +810,21 @@ pub fn do_tag(
                     if use_tagstack {
                         let mut tagp2 = Tagptrs::default();
 
-                        curwin().w_tagstack.borrow_mut()[tagstackidx as usize].cur_match =
-                            cur_match;
-                        curwin().w_tagstack.borrow_mut()[tagstackidx as usize].cur_fnum = cur_fnum;
-
-                        if use_tfu
-                            && parse_match(&cur_match_vec, &mut tagp2)
-                            && let Some(ud_slice) = tagp2.user_data
-                        {
-                            curwin().w_tagstack.borrow_mut()[tagstackidx as usize].user_data =
-                                Some(std::ffi::CString::new(ud_slice).unwrap());
-                        }
+                        let new_ud = (use_tfu && parse_match(&cur_match_vec, &mut tagp2))
+                            .then_some(tagp2.user_data)
+                            .flatten()
+                            .map(|ud_slice| std::ffi::CString::new(ud_slice).unwrap());
+                        curwin().with_tagstack_mut(|ts| {
+                            let e = &mut ts[tagstackidx as usize];
+                            e.cur_match = cur_match;
+                            e.cur_fnum = cur_fnum;
+                            if let Some(ud) = new_ud {
+                                e.user_data = Some(ud);
+                            }
+                        });
 
                         tagstackidx += 1;
-                    } else if g_st().search.g_do_tagpreview.get() != 0 {
+                    } else if search_state().g_do_tagpreview.get() != 0 {
                         tag_st(|st| {
                             let mut ptag = st.ptag_entry.borrow_mut();
                             ptag.cur_match = cur_match;
@@ -868,13 +870,13 @@ pub fn do_tag(
                             && do_tag_num_matches > 1
                         {
                             msg(iobuf_cstr, if ic { HLF_W } else { 0 });
-                            g_st().msg.msg_scroll.set(1);
+                            msg_state().msg_scroll.set(1);
                         } else {
                             give_warning(iobuf_cstr, ic, true);
                         }
                         if ic
-                            && g_st().msg.msg_scrolled.get() == 0
-                            && g_st().msg.msg_silent.get() == 0
+                            && msg_state().msg_scrolled.get() == 0
+                            && msg_state().msg_silent.get() == 0
                         {
                             msg_delay(1007, true);
                         }
@@ -926,8 +928,8 @@ pub fn do_tag(
         if use_tagstack && tagstackidx <= curwin().w_tagstacklen.get() {
             curwin().w_tagstackidx.set(tagstackidx);
         }
-        g_st().workspace.postponed_split.set(0);
-        g_st().search.g_do_tagpreview.set(0);
+        workspace_state().postponed_split.set(0);
+        search_state().g_do_tagpreview.set(0);
         drop(tofree);
     }
 }
@@ -953,7 +955,7 @@ fn select_tag_match(
         for (idx, m_vec) in matches.iter().enumerate() {
             let i = idx as i32;
             os_breakcheck();
-            if g_st().input.got_int.get() {
+            if input_state().got_int.get() {
                 tv_clear(&mut items_tv);
                 return;
             }
@@ -961,10 +963,10 @@ fn select_tag_match(
             parse_match(m_vec, &mut tagp);
 
             let cur = !new_tag
-                && ((g_st().search.g_do_tagpreview.get() != 0
+                && ((search_state().g_do_tagpreview.get() != 0
                     && i == tag_st(|st| st.ptag_entry.borrow().cur_match))
                     || (use_tagstack
-                        && i == curwin().w_tagstack.borrow()[tagstackidx as usize].cur_match));
+                        && i == curwin().with_tagstack(|ts| ts[tagstackidx as usize].cur_match)));
 
             let d = tv_dict_alloc();
             tv_dict_add_str_len(&d, c"tag", Some(tagp.tagname));
@@ -1004,7 +1006,7 @@ fn select_tag_match(
             vval: TypvalVval::Dict(extra_d),
         };
 
-        let cmod = g_st().cmdline.snapshot_cmdmod();
+        let cmod = cmdline_state().snapshot_cmdmod();
         nlua_call_excmd(
             c"vim._core.tag",
             c"select_tag",
@@ -1134,15 +1136,13 @@ pub fn do_tags(_eap: &mut Exarg) {
 
     msg_puts_title(gettext(c"\n  # TO tag         FROM line  in file/text"));
     for i in 0..tagstacklen {
-        let entry_opt = {
-            let cw = curwin();
-            let ts_borrow = cw.w_tagstack.borrow();
+        let entry_opt = curwin().with_tagstack(|ts_borrow| {
             let entry = &ts_borrow[i as usize];
             entry
                 .tagname
                 .as_ref()
                 .map(|tn| (tn.clone(), entry.fmark.clone(), entry.cur_match))
-        };
+        });
         if let Some((tagname, fmark, cur_match)) = entry_opt {
             let Some(name) = fm_getname(&fmark, 30) else {
                 continue;
@@ -1303,7 +1303,7 @@ fn find_tagfunc_tags(
     format_to_buf!(
         &mut flag_string[..],
         c"%s%s%s",
-        if g_st().search.g_tag_at_cursor.get() {
+        if search_state().g_tag_at_cursor.get() {
             c"c"
         } else {
             c""
@@ -1325,7 +1325,7 @@ fn find_tagfunc_tags(
     let d = tv_dict_alloc_lock(VAR_FIXED);
     if (flags & TAG_INS_COMP) == 0
         && let Some(idx) = tag_idx
-        && let Some(ref ud) = curwin().w_tagstack.borrow()[idx].user_data
+        && let Some(ud) = curwin().with_tagstack(|ts| ts[idx].user_data.clone())
     {
         tv_dict_add_str(&d, c"user_data", Some(ud.as_c_str()));
     }
@@ -1651,16 +1651,14 @@ fn findtags_get_next_line(st: &mut FindtagsState, sinfo_p: &mut TagsearchInfo) -
     let fp = st.fp.as_ref().unwrap();
     if st.state == TagsearchState::TsBinary || st.state == TagsearchState::TsSkipBack {
         sinfo_p.curr_offset_used = sinfo_p.curr_offset;
-        g_st()
-            .exc
+        exc_state()
             .vim_ignored
             .set(st.seek(sinfo_p.curr_offset, SEEK_SET));
         eof = vim_fgets(&mut st.lbuf, fp);
         if !eof && sinfo_p.curr_offset != 0 {
             sinfo_p.curr_offset = st.tell();
             if sinfo_p.curr_offset == sinfo_p.high_offset {
-                g_st()
-                    .exc
+                exc_state()
                     .vim_ignored
                     .set(st.seek(sinfo_p.low_offset, SEEK_SET));
                 sinfo_p.curr_offset = sinfo_p.low_offset;
@@ -1755,7 +1753,7 @@ fn findtags_start_state_handler(
             st.state = TagsearchState::TsLinear;
         } else {
             let filesize = st.tell();
-            g_st().exc.vim_ignored.set(st.seek(0, SEEK_SET));
+            exc_state().vim_ignored.set(st.seek(0, SEEK_SET));
 
             sinfo_p.low_offset = 0;
             sinfo_p.low_char = 0;
@@ -2037,7 +2035,7 @@ fn findtags_add_match(
                 v[..len].copy_from_slice(tagpp.tagname);
                 mfp_vec = Some(v);
 
-                if (g_st().edit.state_global.get() & MODE_INSERT) != 0 {
+                if (edit_state().state_global.get() & MODE_INSERT) != 0 {
                     st.get_searchpat = opt_vars().p_sft.get();
                 }
             }
@@ -2081,7 +2079,7 @@ fn findtags_get_all_tags(
             if (st.flags & TAG_INS_COMP) != 0 {
                 ins_compl_check_keys(30, false);
             }
-            if g_st().input.got_int.get() || ins_compl_interrupted() {
+            if input_state().got_int.get() || ins_compl_interrupted() {
                 st.stop_searching = true;
                 break;
             }
@@ -2117,8 +2115,7 @@ fn findtags_get_all_tags(
                 if st_ref.state == TagsearchState::TsStepForward
                     || st_ref.state == TagsearchState::TsLinear
                 {
-                    g_st()
-                        .exc
+                    exc_state()
                         .vim_ignored
                         .set(st_ref.seek(search_info.curr_offset, SEEK_SET));
                 }
@@ -2300,10 +2297,10 @@ pub fn find_tags(
             st.orgpat.len = opt_vars().p_tl.get() as i32;
         }
 
-        let save_emsg_off = g_st().msg.emsg_off.get();
-        g_st().msg.emsg_off.set(1);
+        let save_emsg_off = msg_state().emsg_off.get();
+        msg_state().emsg_off.set(1);
         prepare_pats(&mut st.orgpat, has_re);
-        g_st().msg.emsg_off.set(save_emsg_off);
+        msg_state().emsg_off.set(save_emsg_off);
         if has_re && st.orgpat.regmatch.regprog.is_null() {
             retval = false;
         } else if let Some(tfu_ret) = findtags_apply_tfu(&mut st, pat_cstr, buf_ffname) {
@@ -2640,7 +2637,7 @@ fn tag_full_fname(tagp: &mut Tagptrs) -> std::ffi::CString {
 }
 
 fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
-    if g_st().workspace.postponed_split.get() == 0 && !check_can_set_curbuf_forceit(forceit) {
+    if workspace_state().postponed_split.get() == 0 && !check_can_set_curbuf_forceit(forceit) {
         return Some(false);
     }
 
@@ -2650,8 +2647,8 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
     let mut getfile_result = GetFileResult::Unused;
     let mut curwin_save = crate::globals::WinPtr::NULL;
     let mut full_fname: Option<std::ffi::CString> = None;
-    let old_key_typed = g_st().input.key_typed.get();
-    let l_g_do_tagpreview = g_st().search.g_do_tagpreview.get();
+    let old_key_typed = input_state().key_typed.get();
+    let l_g_do_tagpreview = search_state().g_do_tagpreview.get();
     let len = matching_line_len(lbuf_arg) + 1;
     let mut lbuf_vec = lbuf_arg[..len.min(lbuf_arg.len())].to_vec();
     if lbuf_vec.len() < len {
@@ -2702,13 +2699,12 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
             break 'erret;
         }
 
-        g_st()
-            .screen
+        screen_state()
             .redrawing_disabled
-            .set(g_st().screen.redrawing_disabled.get() + (1));
+            .set(screen_state().redrawing_disabled.get() + (1));
 
         if l_g_do_tagpreview != 0 {
-            g_st().workspace.postponed_split.set(0);
+            workspace_state().postponed_split.set(0);
             curwin_save = curwin();
 
             if !curwin().w_onebuf_opt.wo_pvw.get() {
@@ -2719,7 +2715,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
             }
         }
 
-        if g_st().workspace.postponed_split.get() != 0
+        if workspace_state().postponed_split.get() != 0
             && (opt_vars().swb_flags.get() & (K_OPT_SWB_FLAG_USEOPEN | K_OPT_SWB_FLAG_USETAB)) != 0
             && let Some(existing_buf) = buflist_findname_exp(fname_opt_ref)
             && swbuf_goto_win_with_buf(Some(&existing_buf)).is_some()
@@ -2727,30 +2723,28 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
             getfile_result = GetFileResult::SameFile;
         }
         if getfile_result == GetFileResult::Unused
-            && (g_st().workspace.postponed_split.get() != 0 || g_st().cmdline.cmod_tab() != 0)
+            && (workspace_state().postponed_split.get() != 0 || cmdline_state().cmod_tab() != 0)
         {
             if (opt_vars().swb_flags.get() & K_OPT_SWB_FLAG_VSPLIT) != 0 {
-                g_st().cmdline.add_cmod_split(WSP_VERT);
+                cmdline_state().add_cmod_split(WSP_VERT);
             }
             if (opt_vars().swb_flags.get() & K_OPT_SWB_FLAG_NEWTAB) != 0
-                && g_st().cmdline.cmod_tab() == 0
+                && cmdline_state().cmod_tab() == 0
             {
-                g_st()
-                    .cmdline
-                    .set_cmod_tab(tabpage_index(g_st().workspace.curtab.get().opt()) + 1);
+                cmdline_state()
+                    .set_cmod_tab(tabpage_index(workspace_state().curtab.get().opt()) + 1);
             }
             if !win_split(
-                if g_st().workspace.postponed_split.get() > 0 {
-                    g_st().workspace.postponed_split.get()
+                if workspace_state().postponed_split.get() > 0 {
+                    workspace_state().postponed_split.get()
                 } else {
                     0
                 },
-                g_st().workspace.postponed_split_flags.get(),
+                workspace_state().postponed_split_flags.get(),
             ) {
-                g_st()
-                    .screen
+                screen_state()
                     .redrawing_disabled
-                    .set(g_st().screen.redrawing_disabled.get() - (1));
+                    .set(screen_state().redrawing_disabled.get() - (1));
                 break 'erret;
             }
             curwin().w_onebuf_opt.wo_scb.set(false);
@@ -2759,25 +2753,24 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
         if keep_help {
             if l_g_do_tagpreview != 0 {
-                g_st()
-                    .cmdline
+                cmdline_state()
                     .keep_help_flag
                     .set(bt_help(curwin_save.buf_opt().as_deref()));
             } else {
-                g_st().cmdline.keep_help_flag.set(curbuf().b_help.get());
+                cmdline_state().keep_help_flag.set(curbuf().b_help.get());
             }
         }
 
         if getfile_result == GetFileResult::Unused {
             getfile_result = getfile(0, fname_opt_ref, None, true, 0, forceit);
         }
-        g_st().cmdline.keep_help_flag.set(false);
+        cmdline_state().keep_help_flag.set(false);
 
         if getfile_result.is_success() {
             curwin().w_set_curswant.set(true);
-            g_st().workspace.postponed_split.set(0);
+            workspace_state().postponed_split.set(0);
 
-            let save_no_hlsearch = g_st().search.search_global.no_hlsearch.get();
+            let save_no_hlsearch = search_state().search_global.no_hlsearch.get();
 
             let search_options =
                 if crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_TAGPAT) {
@@ -2888,8 +2881,8 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                     } else {
                         if found == 2 || !save_p_ic {
                             msg(gettext(c"E435: Couldn't find tag, just guessing!"), 0);
-                            if g_st().msg.msg_scrolled.get() == 0
-                                && g_st().msg.msg_silent.get() == 0
+                            if msg_state().msg_scrolled.get() == 0
+                                && msg_state().msg_silent.get() == 0
                             {
                                 msg_delay(1010, true);
                             }
@@ -2903,21 +2896,22 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
                 check_cursor(&curwin());
             } else {
-                let save_secure = g_st().input.secure.get();
+                let save_secure = input_state().secure.get();
 
-                g_st().input.secure.set(1);
-                g_st().input.sandbox.set(g_st().input.sandbox.get() + (1));
-                curwin().w_cursor.set_lnum(1);
-                curwin().w_cursor.set_col(0);
-                curwin().w_cursor.set_coladd(0);
-                do_cmdline_cmd(&pbuf_vec);
-                retval = Some(true);
+                input_state().secure.set(1);
+                {
+                    let _sandbox = input_state().enter_sandbox();
+                    curwin().w_cursor.set_lnum(1);
+                    curwin().w_cursor.set_col(0);
+                    curwin().w_cursor.set_coladd(0);
+                    do_cmdline_cmd(&pbuf_vec);
+                    retval = Some(true);
 
-                if g_st().input.secure.get() == 2 {
-                    wait_return(1);
+                    if input_state().secure.get() == 2 {
+                        wait_return(1);
+                    }
+                    input_state().secure.set(save_secure);
                 }
-                g_st().input.secure.set(save_secure);
-                g_st().input.sandbox.set(g_st().input.sandbox.get() - (1));
             }
 
             if search_options != 0 {
@@ -2943,23 +2937,21 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                 win_enter(curwin_save.borrow(), true);
             }
 
-            g_st()
-                .screen
+            screen_state()
                 .redrawing_disabled
-                .set(g_st().screen.redrawing_disabled.get() - (1));
+                .set(screen_state().redrawing_disabled.get() - (1));
         } else {
-            g_st()
-                .screen
+            screen_state()
                 .redrawing_disabled
-                .set(g_st().screen.redrawing_disabled.get() - (1));
-            if g_st().workspace.postponed_split.get() != 0 {
+                .set(screen_state().redrawing_disabled.get() - (1));
+            if workspace_state().postponed_split.get() != 0 {
                 win_close(&curwin(), false, false);
-                g_st().workspace.postponed_split.set(0);
+                workspace_state().postponed_split.set(0);
             }
         }
     }
 
-    g_st().search.g_do_tagpreview.set(0);
+    search_state().g_do_tagpreview.set(0);
     drop(tofree_fname);
     drop(full_fname);
 
@@ -3260,7 +3252,7 @@ pub fn get_tags(list: &TvList, pat: &std::ffi::CStr, buf_fname: Option<&std::ffi
     }
 }
 
-fn get_tag_details(tag: &mut Taggy, retdict: &TvDict) {
+fn get_tag_details(tag: &Taggy, retdict: &TvDict) {
     tv_dict_add_str(retdict, c"tagname", tag.tagname.as_deref());
     tv_dict_add_nr(retdict, c"matchnr", (tag.cur_match + 1) as Varnumber);
     tv_dict_add_nr(retdict, c"bufnr", tag.cur_fnum as Varnumber);
@@ -3271,7 +3263,7 @@ fn get_tag_details(tag: &mut Taggy, retdict: &TvDict) {
     let pos = tv_list_alloc(4);
     tv_dict_add_list(retdict, c"from", Some(&pos));
 
-    let fmark = &mut tag.fmark;
+    let fmark = &tag.fmark;
     tv_list_append_number(
         &pos,
         if fmark.fnum != -1 {
@@ -3306,22 +3298,27 @@ pub fn get_tagstack(wp: &WinInfoInfo, retdict: &TvDict) {
     for i in 0..wp.w_tagstacklen.get() as usize {
         let d = tv_dict_alloc();
         tv_list_append_dict(&l, Some(&d));
-        get_tag_details(&mut wp.w_tagstack.borrow_mut()[i], &d);
+        wp.with_tagstack(|ts| get_tag_details(&ts[i], &d));
     }
 }
 
 fn tagstack_clear(wp: &WinInfoInfo) {
-    for i in 0..wp.w_tagstacklen.get() as usize {
-        tagstack_clear_entry(&mut wp.w_tagstack.borrow_mut()[i]);
-    }
+    let ts_len = wp.w_tagstacklen.get() as usize;
+    wp.with_tagstack_mut(|ts| {
+        for entry in ts.iter_mut().take(ts_len) {
+            tagstack_clear_entry(entry);
+        }
+    });
     wp.w_tagstacklen.set(0);
     wp.w_tagstackidx.set(0);
 }
 
 fn tagstack_shift(wp: &WinInfoInfo) {
     let len = wp.w_tagstacklen.get() as usize;
-    (&mut wp.w_tagstack.borrow_mut())[..len].rotate_left(1);
-    tagstack_clear_entry(&mut wp.w_tagstack.borrow_mut()[len - 1]);
+    wp.with_tagstack_mut(|ts| {
+        ts[..len].rotate_left(1);
+        tagstack_clear_entry(&mut ts[len - 1]);
+    });
     wp.w_tagstacklen.set(wp.w_tagstacklen.get() - (1));
 }
 
@@ -3342,17 +3339,19 @@ fn tagstack_push_item(
     }
 
     wp.w_tagstacklen.set(wp.w_tagstacklen.get() + (1));
-    let entry = &mut wp.w_tagstack.borrow_mut()[idx as usize];
-    entry.tagname = tagname;
-    entry.cur_fnum = cur_fnum;
-    entry.cur_match = cur_match.max(0);
-    entry.fmark.mark = mark;
-    entry.fmark.fnum = fnum;
-    entry.fmark.view = Fmarkv {
-        topline_offset: MAXLNUM,
-        skipcol: 0,
-    };
-    entry.user_data = user_data;
+    wp.with_tagstack_mut(|ts| {
+        let entry = &mut ts[idx as usize];
+        entry.tagname = tagname;
+        entry.cur_fnum = cur_fnum;
+        entry.cur_match = cur_match.max(0);
+        entry.fmark.mark = mark;
+        entry.fmark.fnum = fnum;
+        entry.fmark.view = Fmarkv {
+            topline_offset: MAXLNUM,
+            skipcol: 0,
+        };
+        entry.user_data = user_data;
+    });
 }
 
 fn tagstack_push_items(wp: &WinInfoInfo, l: Option<&TvList>) {
@@ -3428,7 +3427,7 @@ pub fn set_tagstack(wp: &WinInfoInfo, d: Option<&TvDict>, action: i32) -> bool {
 
         while tagstackidx < tagstacklen {
             tagstacklen -= 1;
-            tagstack_clear_entry(&mut curwin().w_tagstack.borrow_mut()[tagstacklen as usize]);
+            curwin().with_tagstack_mut(|ts| tagstack_clear_entry(&mut ts[tagstacklen as usize]));
         }
         wp.w_tagstacklen.set(tagstacklen);
     }

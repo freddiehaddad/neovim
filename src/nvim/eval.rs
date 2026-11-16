@@ -346,7 +346,7 @@ pub struct VimTimer {
 
 impl Drop for VimTimer {
     fn drop(&mut self) {
-        if crate::globals::g_st().exc.exiting.get() {
+        if crate::globals::exc_state().exiting.get() {
             return;
         }
         if let Some(events) = self.watcher.get_mut().events.opt() {
@@ -494,9 +494,7 @@ pub fn eval_to_bool(
 
     fill_evalarg_from_eap(&mut evalarg, skip);
 
-    if skip {
-        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() + (1));
-    }
+    let _skip_emsg = skip.then(|| msg_state().skip_emsg());
     let r = if use_simple_function {
         eval0_simple_funccal(arg, &mut tv, Some(&mut *eap), &mut evalarg)
     } else {
@@ -511,9 +509,6 @@ pub fn eval_to_bool(
             tv_clear(&mut tv);
         }
     }
-    if skip {
-        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() - (1));
-    }
 
     retval
 }
@@ -521,8 +516,8 @@ pub fn eval_to_bool(
 /// Call eval1() and give an error message if not done at a lower level.
 fn eval1_emsg(arg: &mut &[u8], rettv: &mut TypVal, eap: Option<&mut Exarg>) -> bool {
     let start = crate::memory::bytes_until_nul(arg);
-    let did_emsg_before = g_st().msg.did_emsg.get();
-    let called_emsg_before = g_st().msg.called_emsg.get();
+    let did_emsg_before = msg_state().did_emsg.get();
+    let called_emsg_before = msg_state().called_emsg.get();
     let mut evalarg = Evalarg::new();
 
     fill_evalarg_from_eap(&mut evalarg, eap.is_some() && eap.unwrap().skip);
@@ -530,8 +525,8 @@ fn eval1_emsg(arg: &mut &[u8], rettv: &mut TypVal, eap: Option<&mut Exarg>) -> b
     let ret = eval1(arg, &mut *rettv, Some(&mut evalarg));
     if !ret
         && !aborting()
-        && g_st().msg.did_emsg.get() == did_emsg_before
-        && g_st().msg.called_emsg.get() == called_emsg_before
+        && msg_state().did_emsg.get() == did_emsg_before
+        && msg_state().called_emsg.get() == called_emsg_before
     {
         semsg!(gettext(E_INVEXPR2), bytes_to_cstring(start).as_c_str());
     }
@@ -665,17 +660,12 @@ pub fn eval_to_string_skip(arg: &[u8], eap: &mut Exarg, skip: bool) -> Option<st
     let mut evalarg = Evalarg::new();
 
     fill_evalarg_from_eap(&mut evalarg, skip);
-    if skip {
-        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() + (1));
-    }
+    let _skip_emsg = skip.then(|| msg_state().skip_emsg());
     if !eval0(arg, &mut tv, Some(&mut *eap), &mut evalarg) || skip {
         retval = None;
     } else {
         retval = Some(tv_get_string(&tv).into_owned());
         tv_clear(&mut tv);
-    }
-    if skip {
-        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() - (1));
     }
 
     retval
@@ -765,19 +755,11 @@ pub fn eval_to_string_safe(
     use_simple_function: bool,
 ) -> Option<std::ffi::CString> {
     save_funccal();
-    {
-        if use_sandbox {
-            g_st().input.sandbox.set(g_st().input.sandbox.get() + (1));
-        }
-        g_st().input.textlock.set(g_st().input.textlock.get() + (1));
-    }
-    let retval = eval_to_string(arg, false, use_simple_function);
-    {
-        if use_sandbox {
-            g_st().input.sandbox.set(g_st().input.sandbox.get() - (1));
-        }
-        g_st().input.textlock.set(g_st().input.textlock.get() - (1));
-    }
+    let retval = {
+        let _sandbox = use_sandbox.then(|| input_state().enter_sandbox());
+        let _textlock = input_state().lock_text();
+        eval_to_string(arg, false, use_simple_function)
+    };
     restore_funccal();
     retval
 }
@@ -790,9 +772,7 @@ pub fn eval_to_number(expr: &[u8], use_simple_function: bool) -> Varnumber {
     let mut p = crate::charset::skipwhite_slice(expr_bytes);
     let mut r: Option<bool> = None;
 
-    {
-        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
-    }
+    let _emsg_off = msg_state().suppress_emsg();
 
     if use_simple_function {
         r = may_call_simple_func(expr_bytes, &mut rettv);
@@ -803,9 +783,6 @@ pub fn eval_to_number(expr: &[u8], use_simple_function: bool) -> Varnumber {
     } else {
         retval = tv_get_number_chk(&rettv, None);
         tv_clear(&mut rettv);
-    }
-    {
-        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
     }
 
     retval
@@ -912,20 +889,16 @@ pub fn call_func_retlist(
 pub fn eval_expr_option_number(cb: &Callback, use_sandbox: bool) -> i32 {
     let copy = Callback::NONE;
     callback_copy(&copy, cb);
-    if use_sandbox {
-        g_st().input.sandbox.set(g_st().input.sandbox.get() + (1));
-    }
-    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
-    let mut tv = tv_initial_value();
-    let mut argv = [tv_initial_value()];
     let mut retval = -1;
-    if callback_call(&copy, 0, &mut argv, &mut tv) {
-        retval = tv_get_number_chk(&tv, None) as i32;
-        tv_clear(&mut tv);
-    }
-    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
-    if use_sandbox {
-        g_st().input.sandbox.set(g_st().input.sandbox.get() - (1));
+    {
+        let _sandbox = use_sandbox.then(|| input_state().enter_sandbox());
+        let _emsg_off = msg_state().suppress_emsg();
+        let mut tv = tv_initial_value();
+        let mut argv = [tv_initial_value()];
+        if callback_call(&copy, 0, &mut argv, &mut tv) {
+            retval = tv_get_number_chk(&tv, None) as i32;
+            tv_clear(&mut tv);
+        }
     }
     callback_free(&copy);
     retval
@@ -935,20 +908,12 @@ pub fn eval_expr_option_number(cb: &Callback, use_sandbox: bool) -> i32 {
 /// isolated funccal stack; evaluates in the |sandbox| when `use_sandbox`.
 pub fn eval_expr_option_tv(cb: &Callback, use_sandbox: bool, ret_tv: &mut TypVal) -> bool {
     save_funccal();
-    {
-        if use_sandbox {
-            g_st().input.sandbox.set(g_st().input.sandbox.get() + (1));
-        }
-        g_st().input.textlock.set(g_st().input.textlock.get() + (1));
-    }
-    let mut argv = [tv_initial_value()];
-    let ok = callback_call(cb, 0, &mut argv, &mut *ret_tv);
-    {
-        g_st().input.textlock.set(g_st().input.textlock.get() - (1));
-        if use_sandbox {
-            g_st().input.sandbox.set(g_st().input.sandbox.get() - (1));
-        }
-    }
+    let ok = {
+        let _sandbox = use_sandbox.then(|| input_state().enter_sandbox());
+        let _textlock = input_state().lock_text();
+        let mut argv = [tv_initial_value()];
+        callback_call(cb, 0, &mut argv, &mut *ret_tv)
+    };
     restore_funccal();
     ok
 }
@@ -956,51 +921,45 @@ pub fn eval_expr_option_tv(cb: &Callback, use_sandbox: bool, ret_tv: &mut TypVal
 /// Evaluate 'foldexpr'. Returns the foldlevel, and any character preceding
 /// it in "*cp". Doesn't give error messages.
 pub fn eval_foldexpr(wp: &WinInfoInfo, cp: &mut i32) -> i32 {
-    let saved_sctx = g_st().exc.current_sctx.get();
+    let saved_sctx = exc_state().current_sctx.get();
     let use_sandbox = was_set_insecurely(Some(wp), K_OPT_FOLDEXPR, OPT_LOCAL);
 
-    g_st()
-        .exc
+    exc_state()
         .current_sctx
         .set(wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDEXPR].get());
 
-    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
-    if use_sandbox {
-        g_st().input.sandbox.set(g_st().input.sandbox.get() + (1));
-    }
-    g_st().input.textlock.set(g_st().input.textlock.get() + (1));
-    *cp = NUL as i32;
+    let retval: Varnumber = {
+        let _emsg_off = msg_state().suppress_emsg();
+        let _sandbox = use_sandbox.then(|| input_state().enter_sandbox());
+        let _textlock = input_state().lock_text();
+        *cp = NUL as i32;
 
-    let mut tv = tv_initial_value();
-    let mut argv = [tv_initial_value()];
-    let retval: Varnumber;
-    if !callback_call(&wp.w_onebuf_opt.wo_fde, 0, &mut argv, &mut tv) {
-        retval = 0;
-    } else {
-        if tv.v_type == VarType::VarNumber {
-            retval = tv.vval.v_number();
-        } else if tv.v_type != VarType::VarString || tv.vval.v_string_is_null() {
-            retval = 0;
+        let mut tv = tv_initial_value();
+        let mut argv = [tv_initial_value()];
+        if !callback_call(&wp.w_onebuf_opt.wo_fde, 0, &mut argv, &mut tv) {
+            0
         } else {
-            let mut s = tv.vval.v_string_bytes();
-            if let Some(&b0) = s.first()
-                && !ascii_isdigit(b0)
-                && b0 != b'-'
-            {
-                *cp = i32::from(b0);
-                s = &s[1..];
-            }
-            retval = Varnumber::from(crate::charset::parse_i64_prefix(s));
+            let rv = if tv.v_type == VarType::VarNumber {
+                tv.vval.v_number()
+            } else if tv.v_type != VarType::VarString || tv.vval.v_string_is_null() {
+                0
+            } else {
+                let mut s = tv.vval.v_string_bytes();
+                if let Some(&b0) = s.first()
+                    && !ascii_isdigit(b0)
+                    && b0 != b'-'
+                {
+                    *cp = i32::from(b0);
+                    s = &s[1..];
+                }
+                Varnumber::from(crate::charset::parse_i64_prefix(s))
+            };
+            tv_clear(&mut tv);
+            rv
         }
-        tv_clear(&mut tv);
-    }
+    };
 
-    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
-    if use_sandbox {
-        g_st().input.sandbox.set(g_st().input.sandbox.get() - (1));
-    }
-    g_st().input.textlock.set(g_st().input.textlock.get() - (1));
-    g_st().exc.current_sctx.set(saved_sctx);
+    exc_state().current_sctx.set(saved_sctx);
 
     retval as i32
 }
@@ -1463,7 +1422,7 @@ pub fn get_lval<'a>(
             lp.ll_name = None;
             lp.ll_name_off = 0;
             if !aborting() && !quiet {
-                g_st().msg.emsg_severe.set(true);
+                msg_state().emsg_severe.set(true);
                 semsg!(gettext(E_INVARG2), bytes_to_cstring(name_bytes).as_c_str());
                 return None;
             }
@@ -1749,9 +1708,7 @@ pub fn eval_for_line(
         return fi;
     }
 
-    if skip {
-        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() + (1));
-    }
+    let _skip_emsg = skip.then(|| msg_state().skip_emsg());
     expr = crate::charset::skipwhite_slice(&expr[2..]);
     if eval0(expr, &mut tv, Some(&mut *eap), &mut *evalarg) {
         *errp = false;
@@ -1759,9 +1716,6 @@ pub fn eval_for_line(
             if tv.v_type == VarType::VarList {
                 let Some(l) = tv.vval.v_list_opt() else {
                     tv_clear(&mut tv);
-                    if skip {
-                        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() - (1));
-                    }
                     return fi;
                 };
                 let lw = std::rc::Rc::new(Listwatch {
@@ -1785,9 +1739,6 @@ pub fn eval_for_line(
                 tv_clear(&mut tv);
             }
         }
-    }
-    if skip {
-        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() - (1));
     }
 
     fi
@@ -2074,8 +2025,8 @@ pub fn eval0(
     evalarg: &mut Evalarg,
 ) -> bool {
     let arg_bytes = crate::memory::bytes_until_nul(arg);
-    let did_emsg_before = g_st().msg.did_emsg.get();
-    let called_emsg_before = g_st().msg.called_emsg.get();
+    let did_emsg_before = msg_state().did_emsg.get();
+    let called_emsg_before = msg_state().called_emsg.get();
     let mut end_error = false;
 
     let mut p = crate::charset::skipwhite_slice(arg_bytes);
@@ -2089,8 +2040,8 @@ pub fn eval0(
             tv_clear(rettv);
         }
         if !aborting()
-            && g_st().msg.did_emsg.get() == did_emsg_before
-            && g_st().msg.called_emsg.get() == called_emsg_before
+            && msg_state().did_emsg.get() == did_emsg_before
+            && msg_state().called_emsg.get() == called_emsg_before
         {
             if end_error {
                 semsg!(gettext(E_TRAILING_ARG), bytes_to_cstring(p).as_c_str());
@@ -4165,9 +4116,9 @@ pub fn garbage_collect(testing: bool) -> bool {
     let mut abort = false;
 
     if !testing {
-        g_st().exc.want_garbage_collect.set(false);
-        g_st().exc.may_garbage_collect.set(false);
-        g_st().exc.garbage_collect_at_exit.set(false);
+        exc_state().want_garbage_collect.set(false);
+        exc_state().may_garbage_collect.set(false);
+        exc_state().garbage_collect_at_exit.set(false);
     }
 
     crate::runtime::estack_cleanup();
@@ -4188,9 +4139,8 @@ pub fn garbage_collect(testing: bool) -> bool {
             abort = abort || set_ref_in_callback(&buf.b_p_tsrfu, copy_id, None, None);
             abort = abort || set_ref_in_callback(&buf.b_p_tfu, copy_id, None, None);
             abort = abort || set_ref_in_callback(&buf.b_p_ffu, copy_id, None, None);
-            if !abort && !buf.b_p_cpt_cb.borrow().is_empty() {
-                abort =
-                    abort || set_ref_in_cpt_callbacks(&mut buf.b_p_cpt_cb.borrow_mut(), copy_id);
+            if !abort && !buf.cpt_cb_is_empty() {
+                abort = abort || buf.with_cpt_cb_mut(|cbs| set_ref_in_cpt_callbacks(cbs, copy_id));
             }
         }
     }
@@ -4210,7 +4160,7 @@ pub fn garbage_collect(testing: bool) -> bool {
             }
         }
 
-        for cw_win in g_st().workspace.active_ctx_wins() {
+        for cw_win in workspace_state().active_ctx_wins() {
             let mut w_tv = cw_win.w_winvar.tv().clone();
             abort = abort || set_ref_in_item(&mut w_tv, copy_id, None, None);
         }
@@ -4800,7 +4750,7 @@ fn string_to_list(mut bytes: &[u8], keepempty: bool) -> crate::eval::typval::Lis
 
 fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlist: bool) {
     let mut wait_time: Proftime = 0;
-    let profiling = g_st().exc.do_profiling.get() == PROF_YES;
+    let profiling = exc_state().do_profiling.get() == PROF_YES;
 
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
@@ -5146,8 +5096,8 @@ pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_id: u64) {
     let Some(timer) = with_timers(|t| t.get(&timer_id).cloned()) else {
         return;
     };
-    let save_did_emsg = g_st().msg.did_emsg.get();
-    let called_emsg_before = g_st().msg.called_emsg.get();
+    let save_did_emsg = msg_state().did_emsg.get();
+    let called_emsg_before = msg_state().called_emsg.get();
 
     if timer.stopped.get() || timer.paused.get() {
         return;
@@ -5172,14 +5122,14 @@ pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_id: u64) {
 
     callback_call(&timer.callback, 1, &mut argv, &mut rettv);
 
-    if g_st().msg.called_emsg.get() > called_emsg_before && g_st().msg.did_emsg.get() != 0 {
+    if msg_state().called_emsg.get() > called_emsg_before && msg_state().did_emsg.get() != 0 {
         timer.emsg_count.set(timer.emsg_count.get() + 1);
 
-        if g_st().exc.did_throw.get() {
+        if exc_state().did_throw.get() {
             discard_current_exception();
         }
     }
-    g_st().msg.did_emsg.set(save_did_emsg);
+    msg_state().did_emsg.set(save_did_emsg);
 
     if timer.emsg_count.get() >= 3 {
         timer_stop(&timer);
@@ -5455,11 +5405,11 @@ pub fn var2fpos(
             coladd: wp.w_cursor.get().coladd,
         };
     } else if name_bytes == b"v" {
-        if g_st().edit.visual_global.active.get() && wp == curwin() {
+        if edit_state().visual_global.active.get() && wp == curwin() {
             pos = CursorPos {
-                lnum: g_st().edit.visual_global.start.get().lnum,
-                col: g_st().edit.visual_global.start.get().col,
-                coladd: g_st().edit.visual_global.start.get().coladd,
+                lnum: edit_state().visual_global.start.get().lnum,
+                col: edit_state().visual_global.start.get().col,
+                coladd: edit_state().visual_global.start.get().coladd,
             };
         } else {
             pos = CursorPos {
@@ -6219,66 +6169,64 @@ pub fn ex_echo(eap: &mut Exarg) {
     let mut rettv = tv_initial_value();
     let mut atstart = true;
     let mut need_clear = true;
-    let did_emsg_before = g_st().msg.did_emsg.get();
-    let called_emsg_before = g_st().msg.called_emsg.get();
+    let did_emsg_before = msg_state().did_emsg.get();
+    let called_emsg_before = msg_state().called_emsg.get();
     let mut evalarg = Evalarg::new();
 
     fill_evalarg_from_eap(&mut evalarg, eap.skip);
 
-    if eap.skip {
-        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() + (1));
-    }
-    while !arg.is_empty() && arg[0] != b'|' && arg[0] != b'\n' && !g_st().input.got_int.get() {
-        g_st().msg.need_clr_eos.set(true);
+    {
+        let _skip_emsg = eap.skip.then(|| msg_state().skip_emsg());
+        while !arg.is_empty() && arg[0] != b'|' && arg[0] != b'\n' && !input_state().got_int.get() {
+            msg_state().need_clr_eos.set(true);
 
-        {
-            let p = arg;
-            if !eval1(&mut arg, &mut rettv, Some(&mut evalarg)) {
-                if !aborting()
-                    && g_st().msg.did_emsg.get() == did_emsg_before
-                    && g_st().msg.called_emsg.get() == called_emsg_before
-                {
-                    semsg!(gettext(E_INVEXPR2), bytes_to_cstring(p).as_c_str());
-                }
-                g_st().msg.need_clr_eos.set(false);
-                break;
-            }
-            g_st().msg.need_clr_eos.set(false);
-        }
-
-        if !eap.skip {
-            if atstart {
-                atstart = false;
-                msg_ext_set_append(eap.cmdidx == Cmdidx::CmdEchon);
-                msg_ext_no_fast();
-                msg_ext_set_kind(c"echo");
-                if eap.cmdidx == Cmdidx::CmdEcho {
-                    if !g_st().msg.msg_didout.get() {
-                        msg_sb_eol();
+            {
+                let p = arg;
+                if !eval1(&mut arg, &mut rettv, Some(&mut evalarg)) {
+                    if !aborting()
+                        && msg_state().did_emsg.get() == did_emsg_before
+                        && msg_state().called_emsg.get() == called_emsg_before
+                    {
+                        semsg!(gettext(E_INVEXPR2), bytes_to_cstring(p).as_c_str());
                     }
-                    msg_start();
+                    msg_state().need_clr_eos.set(false);
+                    break;
                 }
-            } else if eap.cmdidx == Cmdidx::CmdEcho {
-                msg_puts_hl(c" ", EVAL_STATE.with(|s| s.echo_hl_id.get()), false);
+                msg_state().need_clr_eos.set(false);
             }
-            let tofree = encode_tv2echo(&mut rettv, None);
-            msg_multiline(
-                cstr_as_string(Some(&*tofree)),
-                EVAL_STATE.with(|s| s.echo_hl_id.get()),
-                true,
-                false,
-                &mut need_clear,
-            );
-        }
-        tv_clear(&mut rettv);
-        arg = crate::charset::skipwhite_slice(arg);
-    }
-    eap.nextcmd = arg_slice.advance_to_opt_slice(check_nextcmd(arg));
-    msg_ext_set_append(false);
 
-    if eap.skip {
-        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() - (1));
-    } else {
+            if !eap.skip {
+                if atstart {
+                    atstart = false;
+                    msg_ext_set_append(eap.cmdidx == Cmdidx::CmdEchon);
+                    msg_ext_no_fast();
+                    msg_ext_set_kind(c"echo");
+                    if eap.cmdidx == Cmdidx::CmdEcho {
+                        if !msg_state().msg_didout.get() {
+                            msg_sb_eol();
+                        }
+                        msg_start();
+                    }
+                } else if eap.cmdidx == Cmdidx::CmdEcho {
+                    msg_puts_hl(c" ", EVAL_STATE.with(|s| s.echo_hl_id.get()), false);
+                }
+                let tofree = encode_tv2echo(&mut rettv, None);
+                msg_multiline(
+                    cstr_as_string(Some(&*tofree)),
+                    EVAL_STATE.with(|s| s.echo_hl_id.get()),
+                    true,
+                    false,
+                    &mut need_clear,
+                );
+            }
+            tv_clear(&mut rettv);
+            arg = crate::charset::skipwhite_slice(arg);
+        }
+        eap.nextcmd = arg_slice.advance_to_opt_slice(check_nextcmd(arg));
+        msg_ext_set_append(false);
+    }
+
+    if !eap.skip {
         if ui_has(K_UIMESSAGES)
             && (eap.arg.is_empty() || eap.arg.first_byte() == b'|' || eap.arg.first_byte() == b'\n')
         {
@@ -6311,71 +6259,67 @@ pub fn ex_execute(eap: &mut Exarg) {
     let mut buf: Vec<u8> = Vec::with_capacity(80);
     let mut has_arg = false;
 
-    if eap.skip {
-        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() + (1));
-    }
-    while !arg.is_empty() && arg[0] != b'|' && arg[0] != b'\n' {
-        ret = eval1_emsg(&mut arg, &mut rettv, Some(eap));
-        if !ret {
-            break;
-        }
+    {
+        let _skip_emsg = eap.skip.then(|| msg_state().skip_emsg());
+        while !arg.is_empty() && arg[0] != b'|' && arg[0] != b'\n' {
+            ret = eval1_emsg(&mut arg, &mut rettv, Some(eap));
+            if !ret {
+                break;
+            }
 
-        if !eap.skip {
-            let mut argstr_owned: Option<std::ffi::CString> = None;
-            let argstr_cow;
-            let argstr: &CStr = if eap.cmdidx == Cmdidx::CmdExecute {
-                argstr_cow = tv_get_string(&rettv);
-                &argstr_cow
-            } else {
-                argstr_owned = Some(if rettv.v_type == VarType::VarString {
-                    encode_tv2echo(&mut rettv, None)
+            if !eap.skip {
+                let mut argstr_owned: Option<std::ffi::CString> = None;
+                let argstr_cow;
+                let argstr: &CStr = if eap.cmdidx == Cmdidx::CmdExecute {
+                    argstr_cow = tv_get_string(&rettv);
+                    &argstr_cow
                 } else {
-                    encode_tv2string(&mut rettv, None)
-                });
-                argstr_owned.as_deref().unwrap_or(c"")
-            };
-            if has_arg {
-                buf.push(b' ');
+                    argstr_owned = Some(if rettv.v_type == VarType::VarString {
+                        encode_tv2echo(&mut rettv, None)
+                    } else {
+                        encode_tv2string(&mut rettv, None)
+                    });
+                    argstr_owned.as_deref().unwrap_or(c"")
+                };
+                if has_arg {
+                    buf.push(b' ');
+                }
+                has_arg = true;
+                let bytes = argstr.to_bytes();
+                if !bytes.is_empty() {
+                    buf.extend_from_slice(bytes);
+                }
+                drop(argstr_owned);
             }
-            has_arg = true;
-            let bytes = argstr.to_bytes();
-            if !bytes.is_empty() {
-                buf.extend_from_slice(bytes);
-            }
-            drop(argstr_owned);
+
+            tv_clear(&mut rettv);
+            arg = crate::charset::skipwhite_slice(arg);
         }
 
-        tv_clear(&mut rettv);
-        arg = crate::charset::skipwhite_slice(arg);
-    }
-
-    if ret && has_arg {
-        buf.push(0);
-        if eap.cmdidx == Cmdidx::CmdEchomsg {
-            msg_ext_no_fast();
-            msg_ext_set_kind(c"echomsg");
-            msg(
-                crate::memory::bytes_as_cstr(&buf),
-                EVAL_STATE.with(|s| s.echo_hl_id.get()),
-            );
-        } else if eap.cmdidx == Cmdidx::CmdEchoerr {
-            let save_did_emsg = g_st().msg.did_emsg.get();
-            msg_ext_no_fast();
-            emsg_multiline(crate::memory::bytes_as_cstr(&buf), c"echoerr", HLF_E, true);
-            if !g_st().exc.force_abort.get() {
-                g_st().msg.did_emsg.set(save_did_emsg);
+        if ret && has_arg {
+            buf.push(0);
+            if eap.cmdidx == Cmdidx::CmdEchomsg {
+                msg_ext_no_fast();
+                msg_ext_set_kind(c"echomsg");
+                msg(
+                    crate::memory::bytes_as_cstr(&buf),
+                    EVAL_STATE.with(|s| s.echo_hl_id.get()),
+                );
+            } else if eap.cmdidx == Cmdidx::CmdEchoerr {
+                let save_did_emsg = msg_state().did_emsg.get();
+                msg_ext_no_fast();
+                emsg_multiline(crate::memory::bytes_as_cstr(&buf), c"echoerr", HLF_E, true);
+                if !exc_state().force_abort.get() {
+                    msg_state().did_emsg.set(save_did_emsg);
+                }
+            } else if eap.cmdidx == Cmdidx::CmdExecute {
+                do_cmdline(
+                    Some(&buf[..buf.len() - 1]),
+                    eap.ea_getline.clone(),
+                    DOCMD_NOWAIT | DOCMD_VERBOSE,
+                );
             }
-        } else if eap.cmdidx == Cmdidx::CmdExecute {
-            do_cmdline(
-                Some(&buf[..buf.len() - 1]),
-                eap.ea_getline.clone(),
-                DOCMD_NOWAIT | DOCMD_VERBOSE,
-            );
         }
-    }
-
-    if eap.skip {
-        g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() - (1));
     }
 
     eap.nextcmd = arg_slice.advance_to_opt_slice(check_nextcmd(arg));
@@ -6438,7 +6382,7 @@ pub fn last_set_msg(script_ctx: Sctx) {
     }
 
     let p = get_scriptname(script_ctx, true);
-    g_st().msg.msg_ext_skip_verbose.set(true);
+    msg_state().msg_ext_skip_verbose.set(true);
 
     verbose_enter();
     msg_puts(gettext(c"\n\tLast set from "));
@@ -6647,12 +6591,12 @@ pub fn eval_call_provider(
     let name_len = format_to_buf!(&mut func, c"provider#%s#Call", provider);
 
     let new_scope = CallerScope {
-        script_ctx: g_st().exc.current_sctx.get(),
+        script_ctx: exc_state().current_sctx.get(),
         es_entry: crate::runtime::estack_top_clone(),
-        autocmd_fname: g_st().autocmd.autocmd_fname.get().clone(),
-        autocmd_match: g_st().autocmd.autocmd_match.get().clone(),
-        autocmd_fname_full: g_st().autocmd.autocmd_fname_full.get(),
-        autocmd_bufnr: g_st().autocmd.autocmd_bufnr.get(),
+        autocmd_fname: autocmd_state().autocmd_fname.get().clone(),
+        autocmd_match: autocmd_state().autocmd_match.get().clone(),
+        autocmd_fname_full: autocmd_state().autocmd_fname_full.get(),
+        autocmd_bufnr: autocmd_state().autocmd_bufnr.get(),
         funccalp: get_current_funccal().into(),
     };
     EVAL_STATE.with(|s| {
@@ -6789,8 +6733,9 @@ pub fn prompt_get_input(buf: &FileBuf) -> Option<std::ffi::CString> {
     if !bt_prompt(Some(buf)) {
         return None;
     }
-    let lnum_start = buf.b_prompt_start.borrow().mark.lnum;
-    let mark_col = buf.b_prompt_start.borrow().mark.col;
+    let prompt_pos = buf.b_prompt_start.mark.get();
+    let lnum_start = prompt_pos.lnum;
+    let mark_col = prompt_pos.col;
     let lnum_last = buf.b_ml.ml_line_count.get();
 
     let text_rc = crate::memline::ml_get_buf_slice(buf, lnum_start);

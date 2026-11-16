@@ -3044,7 +3044,7 @@ fn enc_alias_search(bytes: &[u8]) -> Option<usize> {
 pub fn enc_canonize(enc: &[u8]) -> std::ffi::CString {
     let enc_bytes = crate::memory::bytes_until_nul(enc);
     if enc_bytes == b"default" {
-        return g_st().exc.fenc_default.get().clone().unwrap_or_default();
+        return exc_state().fenc_default.get().clone().unwrap_or_default();
     }
 
     let mut r_vec: Vec<u8> = enc_bytes

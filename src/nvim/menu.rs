@@ -951,7 +951,7 @@ fn show_menus(path_name: &CStr, modes: i32) -> bool {
         show_menus_recursive(menu, modes, 0);
     } else {
         for child in &mut root {
-            if g_st().input.got_int.get() {
+            if input_state().got_int.get() {
                 break;
             }
             if !menu_is_hidden(child.dname.as_bytes()) {
@@ -971,7 +971,7 @@ fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, depth: i32) 
 
     if menu.is_some() {
         msg_putchar(b'\n' as i32);
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             return;
         }
         for _ in 0..depth {
@@ -988,7 +988,7 @@ fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, depth: i32) 
         for (bit, mode_cstr) in MENU_MODE_CHARS.iter().enumerate() {
             if (menu.as_deref_mut().unwrap().modes & modes & (1 << bit)) != 0 {
                 msg_putchar(b'\n' as i32);
-                if g_st().input.got_int.get() {
+                if input_state().got_int.get() {
                     return;
                 }
                 for _ in 0..(depth + 2) {
@@ -1029,7 +1029,7 @@ fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, depth: i32) 
         }
     } else if let Some(menu) = menu {
         for child in &mut menu.children {
-            if g_st().input.got_int.get() {
+            if input_state().got_int.get() {
                 break;
             }
             if !menu_is_hidden(child.dname.as_bytes()) {
@@ -1496,31 +1496,31 @@ fn menu_is_hidden(name: &[u8]) -> bool {
 }
 
 fn get_menu_mode() -> i32 {
-    if (g_st().edit.state_global.get() & MODE_TERMINAL) != 0 {
+    if (edit_state().state_global.get() & MODE_TERMINAL) != 0 {
         return MENU_INDEX_TERMINAL;
     }
-    if g_st().edit.visual_global.active.get() {
-        if g_st().edit.visual_global.select.get() {
+    if edit_state().visual_global.active.get() {
+        if edit_state().visual_global.select.get() {
             return MENU_INDEX_SELECT;
         }
         return MENU_INDEX_VISUAL;
     }
-    if (g_st().edit.state_global.get() & MODE_INSERT) != 0 {
+    if (edit_state().state_global.get() & MODE_INSERT) != 0 {
         return MENU_INDEX_INSERT;
     }
-    if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0
-        || g_st().edit.state_global.get() == MODE_ASKMORE
-        || g_st().edit.state_global.get() == MODE_HITRETURN
+    if (edit_state().state_global.get() & MODE_CMDLINE) != 0
+        || edit_state().state_global.get() == MODE_ASKMORE
+        || edit_state().state_global.get() == MODE_HITRETURN
     {
         return MENU_INDEX_CMDLINE;
     }
-    if g_st().edit.finish_op.get() {
+    if edit_state().finish_op.get() {
         return MENU_INDEX_OP_PENDING;
     }
-    if (g_st().edit.state_global.get() & MODE_NORMAL) != 0 {
+    if (edit_state().state_global.get() & MODE_NORMAL) != 0 {
         return MENU_INDEX_NORMAL;
     }
-    if (g_st().edit.state_global.get() & MODE_LANGMAP) != 0 {
+    if (edit_state().state_global.get() & MODE_LANGMAP) != 0 {
         return MENU_INDEX_INSERT;
     }
     MENU_INDEX_INVALID
@@ -1576,36 +1576,29 @@ pub fn execute_menu(eap: &Exarg, menu: &Vimmenu, mode_idx: i32) {
     let mut idx = mode_idx;
 
     if idx < 0 {
-        if (g_st().edit.state_global.get() & MODE_TERMINAL) != 0 {
+        if (edit_state().state_global.get() & MODE_TERMINAL) != 0 {
             idx = MENU_INDEX_TERMINAL;
-        } else if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0 {
+        } else if (edit_state().state_global.get() & MODE_CMDLINE) != 0 {
             idx = MENU_INDEX_CMDLINE;
         } else if (get_real_state() & MODE_VISUAL) != 0 {
             idx = MENU_INDEX_VISUAL;
-        } else if ((g_st().edit.state_global.get() & MODE_INSERT) != 0
-            || g_st().edit.restart_edit.get() != 0)
-            && g_st().exc.current_sctx.get().sc_sid == 0
+        } else if ((edit_state().state_global.get() & MODE_INSERT) != 0
+            || edit_state().restart_edit.get() != 0)
+            && exc_state().current_sctx.get().sc_sid == 0
         {
             idx = MENU_INDEX_INSERT;
         } else if eap.addr_count != 0 {
             idx = MENU_INDEX_VISUAL;
 
             let tpos: CursorPos;
-            if curbuf().b_visual.borrow().vi_start.lnum == eap.line1
-                && curbuf().b_visual.borrow().vi_end.lnum == eap.line2
-            {
-                g_st()
-                    .edit
-                    .visual_global
-                    .mode
-                    .set(curbuf().b_visual.borrow().vi_mode);
-                tpos = curbuf().b_visual.borrow().vi_end;
-                curwin().w_cursor.set(curbuf().b_visual.borrow().vi_start);
-                curwin()
-                    .w_curswant
-                    .set(curbuf().b_visual.borrow().vi_curswant);
+            let vis = curbuf().b_visual.get();
+            if vis.vi_start.lnum == eap.line1 && vis.vi_end.lnum == eap.line2 {
+                edit_state().visual_global.mode.set(vis.vi_mode);
+                tpos = vis.vi_end;
+                curwin().w_cursor.set(vis.vi_start);
+                curwin().w_curswant.set(vis.vi_curswant);
             } else {
-                g_st().edit.visual_global.mode.set(b'V' as i32);
+                edit_state().visual_global.mode.set(b'V' as i32);
                 curwin().w_cursor.set_lnum(eap.line1);
                 curwin().w_cursor.set_col(1);
                 tpos = CursorPos {
@@ -1615,10 +1608,13 @@ pub fn execute_menu(eap: &Exarg, menu: &Vimmenu, mode_idx: i32) {
                 };
             }
 
-            g_st().edit.visual_global.active.set(true);
-            g_st().edit.visual_global.reselect.set(1);
+            edit_state().visual_global.active.set(true);
+            edit_state().visual_global.reselect.set(1);
             check_cursor(&curwin());
-            g_st().edit.visual_global.start.set(curwin().w_cursor.get());
+            edit_state()
+                .visual_global
+                .start
+                .set(curwin().w_cursor.get());
             curwin().w_cursor.set(tpos);
 
             check_cursor(&curwin());
@@ -1637,19 +1633,17 @@ pub fn execute_menu(eap: &Exarg, menu: &Vimmenu, mode_idx: i32) {
     if let Some(ref cmd_str) = menu.strings[u_idx]
         && (menu.modes & (1 << idx)) != 0
     {
-        if g_st().exc.current_sctx.get().sc_sid != 0 {
+        if exc_state().current_sctx.get().sc_sid != 0 {
             let mut save_state = SaveState::new();
-            g_st()
-                .input
+            input_state()
                 .ex_normal_busy
-                .set(g_st().input.ex_normal_busy.get() + (1));
+                .set(input_state().ex_normal_busy.get() + (1));
             save_current_state(&mut save_state);
             exec_normal_cmd(cmd_str.as_bytes(), menu.noremap[u_idx], menu.silent[u_idx]);
             restore_current_state(&mut save_state);
-            g_st()
-                .input
+            input_state()
                 .ex_normal_busy
-                .set(g_st().input.ex_normal_busy.get() - (1));
+                .set(input_state().ex_normal_busy.get() - (1));
         } else {
             ins_typebuf(cmd_str, menu.noremap[u_idx], 0, true, menu.silent[u_idx]);
         }
@@ -2050,7 +2044,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let saved_off = g_st().msg.emsg_off.replace(1);
+        let saved_off = msg_state().emsg_off.replace(1);
         MENU_STATE.with(|s| s.root_menu.borrow_mut().clear());
 
         let pri_tab = [500; MENUDEPTH + 1];
@@ -2101,6 +2095,6 @@ mod tests {
         ));
 
         MENU_STATE.with(|s| s.root_menu.borrow_mut().clear());
-        g_st().msg.emsg_off.set(saved_off);
+        msg_state().emsg_off.set(saved_off);
     }
 }

@@ -263,11 +263,9 @@ pub fn win_linetabsize_bytes(wp: &WinInfoInfo, lnum: Linenr, line: &[u8], len: C
 pub fn win_chartabsize(wp: &WinInfoInfo, p: impl crate::mbyte::AsMbyteSlice, col: Colnr) -> i32 {
     p.with_cluster_bytes(|p| {
         if p.first().copied() == Some(TAB as u8)
-            && (!wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.borrow().tab1 != 0)
+            && (!wp.w_onebuf_opt.wo_list.get() || wp.w_p_lcs_chars.tab1.get() != 0)
         {
-            return wp.with_buf(|buf| {
-                tabstop_padding(col, buf.b_p_ts.get(), &buf.b_p_vts_array.borrow())
-            });
+            return wp.with_buf(|buf| tabstop_padding(col, buf.b_p_ts.get(), &buf.vts_array()));
         }
         crate::mbyte::ptr2cells(p)
     })
@@ -294,7 +292,7 @@ pub fn linetabsize(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
 
 pub fn linetabsize_eol(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
     linetabsize(wp, lnum)
-        + if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().eol != 0 {
+        + if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.eol.get() != 0 {
             1
         } else {
             0
@@ -334,9 +332,8 @@ pub fn init_charsize_arg<'a>(
     csarg.indent_width = i32::MIN;
     let wo_list = wp.w_onebuf_opt.wo_list.get();
     if wo_list {
-        let lcs = wp.w_p_lcs_chars.borrow();
-        csarg.use_tabstop = lcs.tab1 != 0;
-        csarg.has_lcs_eol = lcs.eol != 0;
+        csarg.use_tabstop = wp.w_p_lcs_chars.tab1.get() != 0;
+        csarg.has_lcs_eol = wp.w_p_lcs_chars.eol.get() != 0;
     } else {
         csarg.use_tabstop = true;
         csarg.has_lcs_eol = false;
@@ -351,18 +348,12 @@ pub fn init_charsize_arg<'a>(
 
     wp.with_buf(|buf| {
         csarg.b_p_ts = buf.b_p_ts.get();
-        csarg.has_vts = !buf.b_p_vts_array.borrow().is_empty();
+        csarg.has_vts = !buf.vts_array().is_empty();
         if lnum > 0
-            && buf.b_marktree.borrow().meta_root[K_MTMETA_INLINE] > 0
-            && marktree_itr_get_filter(
-                &buf.b_marktree.borrow(),
-                lnum - 1,
-                0,
-                lnum,
-                0,
-                &INLINE_FILTER,
-                &mut csarg.iter,
-            )
+            && buf.marktree_meta_root(K_MTMETA_INLINE) > 0
+            && buf.with_marktree(|mt| {
+                marktree_itr_get_filter(mt, lnum - 1, 0, lnum, 0, &INLINE_FILTER, &mut csarg.iter)
+            })
         {
             csarg.virt_row = lnum - 1;
         }
@@ -453,7 +444,7 @@ pub fn init_charsize_arg_skip_cur_text<'a>(
 ) -> CSType {
     let mut cstype = init_charsize_arg(csarg, wp, 0, line);
     csarg.skip_cur_text = true;
-    if lnum > 0 && wp.with_buf(|buf| buf.b_marktree.borrow().meta_root[K_MTMETA_INLINE] > 0) {
+    if lnum > 0 && wp.with_buf(|buf| buf.marktree_meta_root(K_MTMETA_INLINE) > 0) {
         csarg.virt_row = lnum - 1;
         cstype = K_CHARSIZE_REGULAR;
     }
@@ -463,28 +454,29 @@ pub fn init_charsize_arg_skip_cur_text<'a>(
 fn inline_virt_text_width(wp: &WinInfoInfo, iter: &mut MarkTreeIter, row: i32, col: i32) -> i32 {
     let mut width: i32 = 0;
     wp.with_buf(|buf| {
-        let mt = buf.b_marktree.borrow();
-        loop {
-            let mark = marktree_itr_current(&mt, iter);
-            if mark.pos.row != row || mark.pos.col > col {
-                break;
-            } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
-                let decor = mt_decor(mark);
-                crate::decoration::for_each_virt_text(
-                    if decor.is_ext() {
-                        decor.data.ext().vt
-                    } else {
-                        crate::decoration::DecorVirtId::NULL
-                    },
-                    |_, vt| {
-                        if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
-                            width += vt.width;
-                        }
-                    },
-                );
+        buf.with_marktree(|mt| {
+            loop {
+                let mark = marktree_itr_current(mt, iter);
+                if mark.pos.row != row || mark.pos.col > col {
+                    break;
+                } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
+                    let decor = mt_decor(mark);
+                    crate::decoration::for_each_virt_text(
+                        if decor.is_ext() {
+                            decor.data.ext().vt
+                        } else {
+                            crate::decoration::DecorVirtId::NULL
+                        },
+                        |_, vt| {
+                            if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
+                                width += vt.width;
+                            }
+                        },
+                    );
+                }
+                marktree_itr_next_filter(mt, iter, row + 1, 0, &INLINE_FILTER);
             }
-            marktree_itr_next_filter(&mt, iter, row + 1, 0, &INLINE_FILTER);
-        }
+        });
     });
     width
 }
@@ -626,7 +618,7 @@ pub fn charsize_regular(
         let mut is_doublewidth = false;
         if use_tabstop {
             size = if csarg.has_vts {
-                wp.with_buf(|buf| tabstop_padding(vcol, csarg.b_p_ts, &buf.b_p_vts_array.borrow()))
+                wp.with_buf(|buf| tabstop_padding(vcol, csarg.b_p_ts, &buf.vts_array()))
             } else {
                 tabstop_padding(vcol, csarg.b_p_ts, &[])
             };
@@ -643,48 +635,50 @@ pub fn charsize_regular(
             let mut tab_size = size;
             let col = cur_off as i32;
             wp.with_buf(|buf| {
-                let mt = buf.b_marktree.borrow();
-                loop {
-                    let mark = marktree_itr_current(&mt, &csarg.iter);
-                    if mark.pos.row != csarg.virt_row || mark.pos.col > col {
-                        break;
-                    } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
-                        let decor = mt_decor(mark);
-                        crate::decoration::for_each_virt_text(
-                            if decor.is_ext() {
-                                decor.data.ext().vt
-                            } else {
-                                crate::decoration::DecorVirtId::NULL
-                            },
-                            |_, vt| {
-                                if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
-                                    if mt_right(mark) {
-                                        csarg.cur_text_width_right += vt.width;
-                                    } else {
-                                        csarg.cur_text_width_left += vt.width;
+                buf.with_marktree(|mt| {
+                    loop {
+                        let mark = marktree_itr_current(mt, &csarg.iter);
+                        if mark.pos.row != csarg.virt_row || mark.pos.col > col {
+                            break;
+                        } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp)
+                        {
+                            let decor = mt_decor(mark);
+                            crate::decoration::for_each_virt_text(
+                                if decor.is_ext() {
+                                    decor.data.ext().vt
+                                } else {
+                                    crate::decoration::DecorVirtId::NULL
+                                },
+                                |_, vt| {
+                                    if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
+                                        if mt_right(mark) {
+                                            csarg.cur_text_width_right += vt.width;
+                                        } else {
+                                            csarg.cur_text_width_left += vt.width;
+                                        }
+                                        size += vt.width;
+                                        if use_tabstop {
+                                            size -= tab_size;
+                                            tab_size = tabstop_padding(
+                                                vcol + size,
+                                                csarg.b_p_ts,
+                                                &buf.vts_array(),
+                                            );
+                                            size += tab_size;
+                                        }
                                     }
-                                    size += vt.width;
-                                    if use_tabstop {
-                                        size -= tab_size;
-                                        tab_size = tabstop_padding(
-                                            vcol + size,
-                                            csarg.b_p_ts,
-                                            &buf.b_p_vts_array.borrow(),
-                                        );
-                                        size += tab_size;
-                                    }
-                                }
-                            },
+                                },
+                            );
+                        }
+                        marktree_itr_next_filter(
+                            mt,
+                            &mut csarg.iter,
+                            csarg.virt_row + 1,
+                            0,
+                            &INLINE_FILTER,
                         );
                     }
-                    marktree_itr_next_filter(
-                        &mt,
-                        &mut csarg.iter,
-                        csarg.virt_row + 1,
-                        0,
-                        &INLINE_FILTER,
-                    );
-                }
+                });
             });
         }
 
@@ -852,15 +846,17 @@ pub fn charsize_regular(
                 let col = s_off as i32;
                 if has_virt < 0 {
                     has_virt = i32::from(wp.with_buf(|buf| {
-                        marktree_itr_get_filter(
-                            &buf.b_marktree.borrow(),
-                            csarg.virt_row,
-                            col,
-                            csarg.virt_row + 1,
-                            0,
-                            &INLINE_FILTER,
-                            &mut virt_iter,
-                        )
+                        buf.with_marktree(|mt| {
+                            marktree_itr_get_filter(
+                                mt,
+                                csarg.virt_row,
+                                col,
+                                csarg.virt_row + 1,
+                                0,
+                                &INLINE_FILTER,
+                                &mut virt_iter,
+                            )
+                        })
                     }));
                 }
                 let virt_width = if has_virt != 0 {
@@ -876,11 +872,7 @@ pub fn charsize_regular(
                 } else if s_first == TAB && csarg.use_tabstop {
                     if csarg.has_vts {
                         wp.with_buf(|buf| {
-                            tabstop_padding(
-                                raw_vcol2 + virt_width,
-                                csarg.b_p_ts,
-                                &buf.b_p_vts_array.borrow(),
-                            )
+                            tabstop_padding(raw_vcol2 + virt_width, csarg.b_p_ts, &buf.vts_array())
                         })
                     } else {
                         tabstop_padding(raw_vcol2 + virt_width, csarg.b_p_ts, &[])
@@ -958,7 +950,7 @@ fn charsize_fast_impl(
 ) -> CharSize {
     if cur_char == TAB && use_tabstop {
         let width = if has_vts {
-            wp.with_buf(|buf| tabstop_padding(vcol, b_p_ts, &buf.b_p_vts_array.borrow()))
+            wp.with_buf(|buf| tabstop_padding(vcol, b_p_ts, &buf.vts_array()))
         } else {
             tabstop_padding(vcol, b_p_ts, &[])
         };
@@ -1027,7 +1019,7 @@ pub fn charsize_nowrap(
     mb_width: i32,
 ) -> i32 {
     if cur_char == TAB && use_tabstop {
-        tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array.borrow())
+        tabstop_padding(vcol, buf.b_p_ts.get(), &buf.vts_array())
     } else if cur_char < 0 {
         K_INVALID_BYTE_CELLS
     } else {
@@ -1089,7 +1081,7 @@ pub fn linetabsize_disp(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
 /// Like linetabsize_disp(), but counts the size of 'listchars' "eol".
 pub fn linetabsize_disp_eol(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
     linetabsize_disp(wp, lnum)
-        + if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.borrow().eol != 0 {
+        + if wp.w_onebuf_opt.wo_list.get() && wp.w_p_lcs_chars.eol.get() != 0 {
             1
         } else {
             0
@@ -1295,10 +1287,10 @@ pub fn linesize_fast(csarg: &CharsizeArg<'_>, mut vcol_arg: i32, len: Colnr) -> 
 
 fn virt_text_cursor_off(csarg: &CharsizeArg<'_>, on_nul: bool) -> i32 {
     let mut off = 0;
-    if !on_nul || (g_st().edit.state_global.get() & MODE_NORMAL) == 0 {
+    if !on_nul || (edit_state().state_global.get() & MODE_NORMAL) == 0 {
         off += csarg.cur_text_width_left;
     }
-    if !on_nul && (g_st().edit.state_global.get() & MODE_NORMAL) != 0 {
+    if !on_nul && (edit_state().state_global.get() & MODE_NORMAL) != 0 {
         off += csarg.cur_text_width_right;
     }
     off
@@ -1425,12 +1417,12 @@ pub fn getvcol(
             if cursor.is_some() {
                 if ci.chr.value == TAB
                     && !concealed
-                    && (g_st().edit.state_global.get() & MODE_NORMAL) != 0
+                    && (edit_state().state_global.get() & MODE_NORMAL) != 0
                     && !wp.w_onebuf_opt.wo_list.get()
                     && !virtual_active(wp)
-                    && !(g_st().edit.visual_global.active.get()
+                    && !(edit_state().visual_global.active.get()
                         && (opt_vars().p_sel.first_byte() == b'e'
-                            || ltoreq(*pos, g_st().edit.visual_global.start.get())))
+                            || ltoreq(*pos, edit_state().visual_global.start.get())))
                 {
                     *cursor.as_deref_mut().unwrap() = vcol + incr - char_size.hidden - 1 - off;
                 } else {
@@ -1548,7 +1540,7 @@ pub fn getvcols(
 
 pub fn win_may_fill(wp: &WinInfoInfo) -> bool {
     (wp.w_onebuf_opt.wo_diff.get() && diffopt_filler())
-        || wp.with_buf(|buf| buf.b_marktree.borrow().meta_root[K_MTMETA_LINES] != 0)
+        || wp.with_buf(|buf| buf.marktree_meta_root(K_MTMETA_LINES) != 0)
 }
 
 pub fn win_get_fill(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
@@ -1664,7 +1656,7 @@ pub fn plines_win_col(wp: &WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
 
         let mut col = vcol;
         if ci.chr.value == TAB
-            && (g_st().edit.state_global.get() & MODE_NORMAL) != 0
+            && (edit_state().state_global.get() & MODE_NORMAL) != 0
             && csarg.use_tabstop
         {
             let cs = win_charsize(cstype, raw_vcol, ci.cstr(), ci.chr.value, csarg, 1);

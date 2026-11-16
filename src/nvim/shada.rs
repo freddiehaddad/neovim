@@ -1495,34 +1495,31 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                     }
                 } else {
                     let mut i = curwin().w_jumplistlen.get();
-                    while i > 0 {
-                        let cw = curwin();
-                        let jl_borrow = cw.w_jumplist.borrow();
-                        let jl_entry = &jl_borrow[(i - 1) as usize];
-                        if jl_entry.fmark.timestamp <= cur_entry.timestamp {
-                            if marks_equal(jl_entry.fmark.mark, fm_mark)
-                                && (if buf_fnum == 0 {
-                                    jl_entry.fname.is_some() && fm.fname == jl_entry.fname
-                                } else {
-                                    fm.fmark.fnum == jl_entry.fmark.fnum
-                                })
-                            {
-                                i = -1;
+                    curwin().with_jumplist(|jl_borrow| {
+                        while i > 0 {
+                            let jl_entry = &jl_borrow[(i - 1) as usize];
+                            if jl_entry.fmark.timestamp <= cur_entry.timestamp {
+                                if marks_equal(jl_entry.fmark.mark, fm_mark)
+                                    && (if buf_fnum == 0 {
+                                        jl_entry.fname.is_some() && fm.fname == jl_entry.fname
+                                    } else {
+                                        fm.fmark.fnum == jl_entry.fmark.fnum
+                                    })
+                                {
+                                    i = -1;
+                                }
+                                break;
                             }
-                            break;
+                            i -= 1;
                         }
-                        i -= 1;
-                    }
+                    });
                     if i > 0 && curwin().w_jumplistlen.get() == (JUMPLISTSIZE as i32) {
-                        free_xfmark(&mut curwin().w_jumplist.borrow_mut()[0]);
+                        curwin().with_jumplist_mut(|jl| free_xfmark(&mut jl[0]));
                     }
-                    i = marklist_insert(
-                        &mut curwin().w_jumplist.borrow_mut(),
-                        curwin().w_jumplistlen.get(),
-                        i,
-                    );
+                    let jl_len = curwin().w_jumplistlen.get();
+                    i = curwin().with_jumplist_mut(|jl| marklist_insert(jl, jl_len, i));
                     if i != -1 {
-                        curwin().w_jumplist.borrow_mut()[i as usize] = fm;
+                        curwin().set_jumplist_at(i as usize, fm);
                         if curwin().w_jumplistlen.get() < (JUMPLISTSIZE as i32) {
                             curwin()
                                 .w_jumplistlen
@@ -1549,17 +1546,17 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         Some(&f[fb.len() - pb.len()..])
                     });
                     if let Some(buf) = buflist_new(fname_opt, sfname, 0, BLN_LISTED) {
-                        *buf.b_last_cursor.borrow_mut() = Fmark {
+                        buf.b_last_cursor.set(Fmark {
                             mark: item.pos,
                             fnum: 0,
                             timestamp: os_time(),
                             view: INIT_FMARKV,
                             additional_data: None,
-                        };
-                        let lnum = buf.b_last_cursor.borrow().mark.lnum;
-                        let col = buf.b_last_cursor.borrow().mark.col;
+                        });
+                        let lnum = item.pos.lnum;
+                        let col = item.pos.col;
                         buflist_setfpos(&buf, curwin().opt(), lnum, col, false);
-                        *buf.additional_data.borrow_mut() = item.additional_data.take();
+                        buf.set_additional_data(item.additional_data.take());
                     }
                 }
                 shada_free_shada_entry(&mut cur_entry);
@@ -1595,23 +1592,22 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                 } else {
                     cl_bufs.insert(buf.addr());
                     let mut i = buf.b_changelistlen.get();
-                    while i > 0 {
-                        let jl_entry = &buf.b_changelist.borrow()[(i - 1) as usize];
-                        if jl_entry.timestamp <= cur_entry.timestamp {
-                            if marks_equal(jl_entry.mark, fm_mark) {
-                                i = -1;
+                    buf.with_changelist(|cl| {
+                        while i > 0 {
+                            let jl_entry = &cl[(i - 1) as usize];
+                            if jl_entry.timestamp <= cur_entry.timestamp {
+                                if marks_equal(jl_entry.mark, fm_mark) {
+                                    i = -1;
+                                }
+                                break;
                             }
-                            break;
+                            i -= 1;
                         }
-                        i -= 1;
-                    }
-                    i = marklist_insert(
-                        &mut buf.b_changelist.borrow_mut(),
-                        buf.b_changelistlen.get(),
-                        i,
-                    );
+                    });
+                    let cl_len = buf.b_changelistlen.get();
+                    i = buf.with_changelist_mut(|cl| marklist_insert(cl, cl_len, i));
                     if i != -1 {
-                        buf.b_changelist.borrow_mut()[i as usize] = fm;
+                        buf.set_changelist_at(i as usize, fm);
                         if buf.b_changelistlen.get() < (JUMPLISTSIZE as i32) {
                             buf.b_changelistlen.set(buf.b_changelistlen.get() + (1));
                         }
@@ -2321,9 +2317,9 @@ fn shada_get_buflist(removable_bufs: &std::collections::HashSet<usize>) -> Shada
                 break;
             }
             buffers.push(BufferListBuffer {
-                pos: buf.b_last_cursor.borrow().mark,
+                pos: buf.b_last_cursor.mark.get(),
                 fname: Some(buf.ffname_cstr().to_owned().as_cstr().to_owned()),
-                additional_data: buf.additional_data.borrow().clone(),
+                additional_data: buf.additional_data(),
             });
         }
     }
@@ -2703,7 +2699,7 @@ fn shada_write(
         }
 
         if dump_one_history[HIST_SEARCH as usize] {
-            let search_highlighted = !(g_st().search.search_global.no_hlsearch.get()
+            let search_highlighted = !(search_state().search_global.no_hlsearch.get()
                 || find_shada_parameter(b'h' as i32).is_some());
             let search_last_used = search_was_last_used();
 
@@ -2837,24 +2833,26 @@ fn shada_write(
                             break;
                         }
                     }
-                    for i in 0..(buf.b_changelistlen.get() as usize) {
-                        let fm = &buf.b_changelist.borrow()[i];
-                        filemarks.changes[i] = ShadaEntry {
-                            can_free_entry: false,
-                            entry_type: ShadaEntryType::SDItemChange,
-                            timestamp: fm.timestamp,
-                            data: ShadaEntryData::Filemark(ShadaFilemark {
-                                name: 0,
-                                mark: fm.mark,
-                                fname: Some(fname_cstr.clone().as_cstr().to_owned()),
-                            }),
-                            additional_data: fm.additional_data.clone(),
-                        };
-                        if fm.timestamp > filemarks.greatest_timestamp {
-                            filemarks.greatest_timestamp = fm.timestamp;
+                    let cl_len = buf.b_changelistlen.get() as usize;
+                    buf.with_changelist(|cl| {
+                        for (i, fm) in cl.iter().enumerate().take(cl_len) {
+                            filemarks.changes[i] = ShadaEntry {
+                                can_free_entry: false,
+                                entry_type: ShadaEntryType::SDItemChange,
+                                timestamp: fm.timestamp,
+                                data: ShadaEntryData::Filemark(ShadaFilemark {
+                                    name: 0,
+                                    mark: fm.mark,
+                                    fname: Some(fname_cstr.clone().as_cstr().to_owned()),
+                                }),
+                                additional_data: fm.additional_data.clone(),
+                            };
+                            if fm.timestamp > filemarks.greatest_timestamp {
+                                filemarks.greatest_timestamp = fm.timestamp;
+                            }
                         }
-                    }
-                    filemarks.changes_size = buf.b_changelistlen.get() as usize;
+                    });
+                    filemarks.changes_size = cl_len;
                 }
             }
         }
@@ -2868,7 +2866,7 @@ fn shada_write(
         }
 
         if dump_global_marks
-            && !ignore_buf(g_st().workspace.curbuf.get().opt(), &removable_bufs)
+            && !ignore_buf(workspace_state().curbuf.get().opt(), &removable_bufs)
             && curwin().w_cursor.get().lnum != 0
         {
             replace_numbered_mark(
@@ -4003,7 +4001,7 @@ fn shada_init_jumps(
             siemsg!(
                 c"ShaDa: mark lnum zero (ji:%zu, js:%p, len:%i)",
                 jump_iter.unwrap_or(0),
-                curwin().w_jumplist.borrow().as_ptr().addr(),
+                curwin().with_jumplist(|jl| jl.as_ptr().addr()),
                 curwin().w_jumplistlen.get(),
             );
             if jump_iter.is_none() {

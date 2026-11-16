@@ -545,7 +545,7 @@ fn do_path_expand(
 
     if PATH_STATE.with(|st| st.stardepth.get()) > 0 && (flags & EW_NOBREAK) == 0 {
         os_breakcheck();
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             return 0;
         }
     }
@@ -624,10 +624,9 @@ fn do_path_expand(
     };
 
     if (flags & (EW_NOERROR | EW_NOTWILD)) != 0 {
-        g_st()
-            .msg
+        msg_state()
             .emsg_silent
-            .set(g_st().msg.emsg_silent.get() + (1));
+            .set(msg_state().emsg_silent.get() + (1));
     }
     let nobreak = (flags & EW_NOBREAK) != 0;
     regmatch.set_prog(vim_regcomp(
@@ -635,10 +634,9 @@ fn do_path_expand(
         RE_MAGIC | if nobreak { RE_NOBREAK } else { 0 },
     ));
     if (flags & (EW_NOERROR | EW_NOTWILD)) != 0 {
-        g_st()
-            .msg
+        msg_state()
             .emsg_silent
-            .set(g_st().msg.emsg_silent.get() - (1));
+            .set(msg_state().emsg_silent.get() - (1));
     }
     drop(pat);
 
@@ -670,7 +668,7 @@ fn do_path_expand(
     };
     if os_file_is_readable(dirpath) && os_scandir(&mut dir, dirpath) {
         scandir_next_with_dots(None);
-        while !g_st().input.got_int.get() {
+        while !input_state().got_int.get() {
             let Some(name) = scandir_next_with_dots(Some(&mut dir)) else {
                 break;
             };
@@ -731,7 +729,7 @@ fn do_path_expand(
     regmatch.free_prog();
 
     let matches = gap.len() - start_len;
-    if matches > 0 && !g_st().input.got_int.get() {
+    if matches > 0 && !input_state().got_int.get() {
         gap[start_len..].sort_by(|a, b| {
             let cmp = path_cmp(opt_vars().p_fic.get(), a.as_bytes(), b.as_bytes(), MAXPATHL);
             if cmp < 0 {
@@ -918,7 +916,7 @@ fn uniquefy_paths(gap: &mut Vec<std::ffi::CString>, pattern: &[u8], path_option:
     let mut in_curdir: Vec<Option<std::ffi::CString>> = vec![None; gap.len()];
 
     for i in 0..gap.len() {
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             break;
         }
         let path_bytes = gap[i].as_bytes();
@@ -975,7 +973,7 @@ fn uniquefy_paths(gap: &mut Vec<std::ffi::CString>, pattern: &[u8], path_option:
     }
 
     for (i, path_opt) in in_curdir.iter().enumerate() {
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             break;
         }
         let Some(path_cstr) = path_opt else {
@@ -1173,7 +1171,7 @@ pub fn gen_expand_wildcards_vec(
     PATH_STATE.with(|st| st.expand_recursive.set(true));
 
     for &pat_item in pat {
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             break;
         }
         let mut add_pat: i32 = -1;
@@ -1270,7 +1268,7 @@ pub fn expand_wildcards_vec(pat: &[&[u8]], files: &mut Vec<std::ffi::CString>, f
         });
     }
 
-    if files.len() > 1 && !g_st().input.got_int.get() {
+    if files.len() > 1 && !input_state().got_int.get() {
         let mut non_suf_match = 0;
         for i in 0..files.len() {
             if !match_suffix(files[i].as_bytes()) {
@@ -1925,20 +1923,21 @@ pub fn expand_wildcards_eval(pat: &[u8], file: &mut Vec<std::ffi::CString>, flag
     file.clear();
 
     if is_cur_alt_file || first_byte == b'<' {
-        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
-        let mut pat_buf = Vec::with_capacity(exp_pat.len() + 1);
-        pat_buf.extend_from_slice(exp_pat);
-        pat_buf.push(0);
-        eval_pat = eval_vars(
-            &mut pat_buf,
-            0,
-            &mut usedlen,
-            None,
-            &mut ignored_msg,
-            None,
-            true,
-        );
-        g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
+        {
+            let _emsg_off = msg_state().suppress_emsg();
+            let mut pat_buf = Vec::with_capacity(exp_pat.len() + 1);
+            pat_buf.extend_from_slice(exp_pat);
+            pat_buf.push(0);
+            eval_pat = eval_vars(
+                &mut pat_buf,
+                0,
+                &mut usedlen,
+                None,
+                &mut ignored_msg,
+                None,
+                true,
+            );
+        }
         if let Some(ref ep) = eval_pat {
             let tail_bytes = &exp_pat[usedlen.min(exp_pat.len())..];
             star_follows = tail_bytes == b"*";

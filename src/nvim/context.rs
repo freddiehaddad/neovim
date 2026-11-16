@@ -237,7 +237,7 @@ std::thread_local! {
 
 #[inline]
 pub fn handle_get_buffer(h: ObjHandle) -> Option<crate::globals::BufPtr> {
-    g_st().workspace.find_buffer(h)
+    workspace_state().find_buffer(h)
 }
 
 #[inline]
@@ -247,7 +247,7 @@ pub fn handle_get_buffer_opt(h: ObjHandle) -> Option<crate::globals::BufPtr> {
 
 #[inline]
 pub fn handle_get_window(h: ObjHandle) -> Option<crate::globals::WinPtr> {
-    g_st().workspace.find_window(h)
+    workspace_state().find_window(h)
 }
 
 #[inline]
@@ -321,14 +321,14 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
     }
 
     if (flags & K_CTX_VISUAL) != 0 {
-        ctx.visual = *curbuf().b_visual.borrow();
+        ctx.visual = curbuf().b_visual.get();
         ctx.visual_mode_eval = curbuf().b_visual_mode_eval.get();
     }
     if (flags & K_CTX_MARKS) != 0 {
         ctx.op_start = curbuf().b_op_start.get();
         ctx.op_end = curbuf().b_op_end.get();
-        ctx.last_change = curbuf().b_last_change.borrow().clone();
-        ctx.last_insert = curbuf().b_last_insert.borrow().clone();
+        ctx.last_change = curbuf().b_last_change.get();
+        ctx.last_insert = curbuf().b_last_insert.get();
     }
     if (flags & (K_CTX_VISUAL | K_CTX_MARKS)) != 0 {
         let mut pos_marks = ctx.pos_marks;
@@ -401,7 +401,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
 
 pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags) {
     if (flags & K_CTX_CURSOR) != 0 {
-        assert!(handle_get_buffer(ctx.buf).is_some_and(|b| g_st().workspace.curbuf.get() == b));
+        assert!(handle_get_buffer(ctx.buf).is_some_and(|b| workspace_state().curbuf.get() == b));
         curwin().w_cursor.set(ctx.pos);
         if ctx.curswant >= 0 {
             curwin().w_curswant.set(ctx.curswant);
@@ -432,14 +432,14 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
             extmark_get_pos(&buf, ctx_marks_ns(), pos_marks[i], pos_ref);
         }
         if (flags & K_CTX_VISUAL) != 0 {
-            *buf.b_visual.borrow_mut() = ctx.visual;
+            buf.b_visual.set(ctx.visual);
             buf.b_visual_mode_eval.set(ctx.visual_mode_eval);
         }
         if (flags & K_CTX_MARKS) != 0 {
             buf.b_op_start.set(ctx.op_start);
             buf.b_op_end.set(ctx.op_end);
-            *buf.b_last_change.borrow_mut() = ctx.last_change.clone();
-            *buf.b_last_insert.borrow_mut() = ctx.last_insert.clone();
+            buf.b_last_change.set(ctx.last_change.clone());
+            buf.b_last_insert.set(ctx.last_insert.clone());
         }
     }
 
@@ -558,7 +558,7 @@ fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &WinInfoInfo, buf: &FileBuf) {
     cw_win.w_localdir.set(None);
     cs.cs_b_localdir = buf.b_localdir.take();
     cs.cs_tp_localdir = curtab().tp_localdir.replace(None);
-    cs.cs_globaldir = g_st().workspace.globaldir.take();
+    cs.cs_globaldir = workspace_state().globaldir.take();
 }
 
 fn ctx_localdirs_restore(
@@ -600,8 +600,8 @@ fn ctx_localdirs_restore(
         update_cwd(K_CD_CAUSE_WINDOW);
     }
 
-    if !(persist && cs.cs_globaldir.is_none() && g_st().workspace.globaldir.get().is_some()) {
-        g_st().workspace.globaldir.set(cs.cs_globaldir.take());
+    if !(persist && cs.cs_globaldir.is_none() && workspace_state().globaldir.get().is_some()) {
+        workspace_state().globaldir.set(cs.cs_globaldir.take());
     }
 }
 
@@ -610,7 +610,7 @@ fn ctx_dirs_save(cs: &mut CtxSwitch, wp: &WinInfoInfo, tp: &TabPageInfo, buf: Op
         return;
     }
 
-    cs.cs_globaldir = g_st().workspace.globaldir.get().clone();
+    cs.cs_globaldir = workspace_state().globaldir.get().clone();
 
     if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 {
         let wp_buf = wp.buf();
@@ -645,7 +645,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
         let dirs_tab = for_all_tabpages_ptr().find(|tp| tp.handle == cs.cs_dirs_tab);
         ctx_localdirs_restore(&mut *cs, None, dirs_tab.as_deref(), false);
     } else if cs.cs_cwd.is_some() && !CTX_STATE.with(|st| st.ctx_did_chdir.get()) {
-        g_st().workspace.globaldir.set(cs.cs_globaldir.take());
+        workspace_state().globaldir.set(cs.cs_globaldir.take());
     }
     cs.cs_globaldir = None;
 
@@ -665,17 +665,17 @@ pub fn ctx_did_chdir() {
 }
 
 pub fn is_ctx_win(win: &WinInfoInfo) -> bool {
-    g_st().workspace.is_ctx_win(win)
+    workspace_state().is_ctx_win(win)
 }
 
 fn ctx_win_prep(cs: &mut CtxSwitch, buf: &FileBuf) -> crate::globals::WinPtr {
     let mut need_append = true;
-    let (idx, is_null) = g_st().workspace.acquire_ctx_win_slot();
+    let (idx, is_null) = workspace_state().acquire_ctx_win_slot();
     if is_null {
         win_alloc_ctx_win(idx as i32);
         need_append = false;
     }
-    let cw_win = g_st().workspace.activate_ctx_win(idx);
+    let cw_win = workspace_state().activate_ctx_win(idx);
     cs.cs_ctxwin_idx = idx as i32;
 
     cw_win.w_buffer.set(crate::globals::BufPtr::from(buf));
@@ -685,11 +685,9 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &FileBuf) -> crate::globals::WinPtr {
     ctx_win_dirs_save(cs, &cw_win, buf);
 
     if need_append {
-        win_append(g_st().workspace.lastwin.get().opt(), &cw_win, None);
-        g_st()
-            .workspace
-            .register_window(cw_win.handle, cw_win.clone());
-        let cfg = cw_win.w_config.borrow().clone();
+        win_append(workspace_state().lastwin.get().opt(), &cw_win, None);
+        workspace_state().register_window(cw_win.handle, cw_win.clone());
+        let cfg = cw_win.clone_config();
         win_config_float(&cw_win, cfg);
     }
 
@@ -697,7 +695,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &FileBuf) -> crate::globals::WinPtr {
 }
 
 fn ctx_win_rest(cs: &mut CtxSwitch) -> crate::globals::WinPtr {
-    let cwp = g_st().workspace.ctx_win_at(cs.cs_ctxwin_idx as usize);
+    let cwp = workspace_state().ctx_win_at(cs.cs_ctxwin_idx as usize);
 
     block_autocmds();
     if curwin() != cwp {
@@ -705,7 +703,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> crate::globals::WinPtr {
             for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_ptr(&tp) {
                     if wp == cwp {
-                        if g_st().workspace.curtab.get() != tp {
+                        if workspace_state().curtab.get() != tp {
                             goto_tabpage_tp(Some(&tp), true, true);
                         }
                         win_goto(cwp.borrow());
@@ -718,11 +716,9 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> crate::globals::WinPtr {
 
     curbuf().b_nwindows.set(curbuf().b_nwindows.get() - (1));
     win_remove(&curwin(), None);
-    g_st().workspace.unregister_window(curwin().handle);
+    workspace_state().unregister_window(curwin().handle);
 
-    g_st()
-        .workspace
-        .deactivate_ctx_win(cs.cs_ctxwin_idx as usize);
+    workspace_state().deactivate_ctx_win(cs.cs_ctxwin_idx as usize);
 
     if !valid_tabpage_win(&curtab()) {
         close_tabpage(&curtab());
@@ -769,7 +765,7 @@ pub fn ctx_switch(
     }
 
     if !buf.is_null() {
-        if buf == g_st().workspace.curbuf.get().as_ptr() {
+        if buf == workspace_state().curbuf.get().as_ptr() {
             wp = curwin();
         } else {
             for wp2 in for_all_windows_ptr() {
@@ -798,15 +794,15 @@ pub fn ctx_switch(
         cs.cs_prompt_insert = curbuf().b_prompt_insert.get();
     }
     if !cs.cs_same_win {
-        cs.cs_visual_active = g_st().edit.visual_global.active.get();
-        g_st().edit.visual_global.active.set(false);
+        cs.cs_visual_active = edit_state().visual_global.active.get();
+        edit_state().visual_global.active.set(false);
     }
 
     if (flags & K_CTX_NO_EVENTS) != 0 {
         block_autocmds();
     }
     if !tp.is_null() {
-        cs.cs_curtab = g_st().workspace.curtab.get().clone();
+        cs.cs_curtab = workspace_state().curtab.get().clone();
         if (flags & K_CTX_NO_DISPLAY) != 0 {
             unuse_tabpage(&curtab());
             use_tabpage(tp.borrow());
@@ -820,16 +816,16 @@ pub fn ctx_switch(
             wp = ctx_win_prep(cs, buf_ref);
             leaving_window(&curwin());
             buf_copy_options(buf_ref, BCO_ENTER | BCO_NOHELP);
-            g_st().workspace.prevwin.set(curwin());
+            workspace_state().prevwin.set(curwin());
         }
         assert!(wp == curwin() || win_valid(wp.opt()));
     } else if !win_valid(wp.opt()) {
         return false;
     }
     set_curwin(wp);
-    g_st().workspace.curbuf.set(curwin().w_buffer.get());
+    workspace_state().curbuf.set(curwin().w_buffer.get());
     cs.cs_new_curwin = curwin().handle;
-    set_bufref(&mut cs.cs_new_curbuf, g_st().workspace.curbuf.get().opt());
+    set_bufref(&mut cs.cs_new_curbuf, workspace_state().curbuf.get().opt());
 
     if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {
         CTX_STATE.with(|st| {
@@ -857,10 +853,9 @@ fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: Option<&WinInfoInfo>) {
     }
     if let Some(save_curwin) = save_curwin {
         set_curwin(save_curwin);
-        g_st().workspace.curbuf.set(curwin().w_buffer.get());
+        workspace_state().curbuf.set(curwin().w_buffer.get());
     }
-    g_st()
-        .workspace
+    workspace_state()
         .prevwin
         .set(crate::globals::WinPtr::from(win_find_by_handle(
             cs.cs_prevwin,
@@ -886,7 +881,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
         ctx_restore_curwin(cs, None);
     } else if cs.cs_ctxwin_idx >= 0 {
         let cwp = ctx_win_rest(cs);
-        let fw = g_st().workspace.firstwin.get();
+        let fw = workspace_state().firstwin.get();
         ctx_restore_curwin(cs, fw.opt());
         entering_window(&curwin());
         if bt_prompt(Some(&crate::globals::curbuf())) {
@@ -911,13 +906,13 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
     } else if cs.cs_mode == K_CTX_SWITCH_BUF {
         let saved_buf = &cs.cs_new_curbuf.br_buf;
         if curwin().handle == cs.cs_new_curwin
-            && g_st().workspace.curbuf.get() != saved_buf
+            && workspace_state().curbuf.get() != saved_buf
             && bufref_valid(Some(&cs.cs_new_curbuf))
             && saved_buf.b_ml.ml_mfp.borrow().is_some()
         {
             curbuf().b_nwindows.set(curbuf().b_nwindows.get() - (1));
-            g_st().workspace.curbuf.set(saved_buf.clone());
-            curwin().w_buffer.set(g_st().workspace.curbuf.get());
+            workspace_state().curbuf.set(saved_buf.clone());
+            curwin().w_buffer.set(workspace_state().curbuf.get());
             curbuf().b_nwindows.set(curbuf().b_nwindows.get() + (1));
         }
 
@@ -925,14 +920,14 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
     }
 
     if !cs.cs_same_win {
-        g_st().edit.visual_global.active.set(cs.cs_visual_active);
+        edit_state().visual_global.active.set(cs.cs_visual_active);
     }
     if cs.cs_mode == K_CTX_SWITCH_BUF {
         check_cursor(&curwin());
-        if g_st().edit.visual_global.active.get() {
-            let mut vstart = g_st().edit.visual_global.start.get();
+        if edit_state().visual_global.active.get() {
+            let mut vstart = edit_state().visual_global.start.get();
             check_pos(&curbuf(), &mut vstart);
-            g_st().edit.visual_global.start.set(vstart);
+            edit_state().visual_global.start.set(vstart);
         }
     }
 
@@ -954,10 +949,10 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             wp.w_redr_status.set(true);
         }
         check_cursor(&curwin());
-        if g_st().edit.visual_global.active.get() {
-            let mut vstart = g_st().edit.visual_global.start.get();
+        if edit_state().visual_global.active.get() {
+            let mut vstart = edit_state().visual_global.start.get();
             check_pos(&curbuf(), &mut vstart);
-            g_st().edit.visual_global.start.set(vstart);
+            edit_state().visual_global.start.set(vstart);
         }
     }
     if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {

@@ -107,37 +107,38 @@ pub fn exec_impl(
     src: NvimString,
     opts: &mut KeyDictExecOpts,
 ) -> Result<NvimString, Error> {
-    let save_msg_silent = g_st().msg.msg_silent.get();
-    let save_redir_off = g_st().msg.redir_off.get();
-    let mut save_capture_ga = g_st().msg.take_capture();
-    let save_msg_col = g_st().msg.msg_col.get();
+    let save_msg_silent = msg_state().msg_silent.get();
+    let save_redir_off = msg_state().redir_off.get();
+    let mut save_capture_ga = msg_state().take_capture();
+    let save_msg_col = msg_state().msg_col.get();
     let mut capture_local: Vec<u8> = Vec::new();
     if opts.output {
-        g_st().msg.set_capture(Some(Vec::new()));
+        msg_state().set_capture(Some(Vec::new()));
     } else {
-        g_st().msg.set_capture(save_capture_ga.take());
+        msg_state().set_capture(save_capture_ga.take());
     }
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     if opts.output {
-        g_st().msg.msg_silent.set(g_st().msg.msg_silent.get() + (1));
-        g_st().msg.redir_off.set(false);
-        g_st().msg.msg_col.set(0);
+        msg_state()
+            .msg_silent
+            .set(msg_state().msg_silent.get() + (1));
+        msg_state().redir_off.set(false);
+        msg_state().msg_col.set(0);
     }
 
     let save_current_sctx = api_set_sctx(channel_id);
     do_source_str(src.as_cstr(), c"nvim_exec2()");
     if opts.output {
-        capture_local = g_st()
-            .msg
+        capture_local = msg_state()
             .replace_capture(save_capture_ga)
             .unwrap_or_default();
-        g_st().msg.msg_silent.set(save_msg_silent);
-        g_st().msg.redir_off.set(save_redir_off);
-        g_st().msg.msg_col.set(save_msg_col);
+        msg_state().msg_silent.set(save_msg_silent);
+        msg_state().redir_off.set(save_redir_off);
+        msg_state().msg_col.set(save_msg_col);
     }
-    g_st().exc.current_sctx.set(save_current_sctx);
+    exc_state().current_sctx.set(save_current_sctx);
     try_leave(&tstate)?;
 
     if opts.output && capture_local.len() > 1 {
@@ -176,10 +177,10 @@ pub fn nvim_command(cmd: NvimString) -> Result<(), Error> {
 pub fn nvim_eval(expr: NvimString) -> Result<Object, Error> {
     let eval_rec = API_VIMS_STATE.with(|st| st.eval_recursive.get());
     if eval_rec == 0 {
-        g_st().exc.force_abort.set(false);
-        g_st().exc.suppress_errthrow.set(false);
-        g_st().exc.did_throw.set(false);
-        g_st().msg.did_emsg.set(0);
+        exc_state().force_abort.set(false);
+        exc_state().suppress_errthrow.set(false);
+        exc_state().did_throw.set(false);
+        msg_state().did_emsg.set(0);
     }
     API_VIMS_STATE.with(|st| st.eval_recursive.set(eval_rec + 1));
 
@@ -237,10 +238,10 @@ fn call_function_impl(
 
     let call_rec = API_VIMS_STATE.with(|st| st.call_func_recursive.get());
     if call_rec == 0 {
-        g_st().exc.force_abort.set(false);
-        g_st().exc.suppress_errthrow.set(false);
-        g_st().exc.did_throw.set(false);
-        g_st().msg.did_emsg.set(0);
+        exc_state().force_abort.set(false);
+        exc_state().suppress_errthrow.set(false);
+        exc_state().did_throw.set(false);
+        msg_state().did_emsg.set(0);
     }
     API_VIMS_STATE.with(|st| st.call_func_recursive.set(call_rec + 1));
 
@@ -269,7 +270,7 @@ fn call_function_impl(
         &mut vim_args,
         &mut funcexe,
     );
-    g_st().exc.current_sctx.set(save_current_sctx);
+    exc_state().current_sctx.set(save_current_sctx);
     let res = try_leave(&tstate).map(|()| vim_to_object(&rettv));
 
     tv_clear(&mut rettv);

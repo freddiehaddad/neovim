@@ -239,8 +239,7 @@ fn unpacker_closed(p: &Unpacker) -> bool {
 
 pub fn rpc_init() {
     let qc = loop_queues(crate::event::r#loop::main_loop_ptr());
-    g_st()
-        .input
+    input_state()
         .ch_before_blocking_events
         .set(multiqueue_new_child(qc.events));
 }
@@ -436,7 +435,7 @@ fn parse_msgpack(channel: &mut Channel, read_buf: &mut &[u8]) {
         let msg_type = channel.unpacker_mut().msg_type;
         if msg_type == MessageType::MessageTypeRedrawEvent {
             let p = channel.unpacker_mut();
-            if g_st().screen.ui_client_attached.get() {
+            if screen_state().ui_client_attached.get() {
                 if p.has_grid_line_event {
                     ui_client_event_raw_line(&mut p.grid_line_event);
                     p.has_grid_line_event = false;
@@ -568,7 +567,7 @@ fn handle_request(channel: &mut Channel, args: Array) {
 
         if is_get_mode && !input_blocking() {
             multiqueue_put_event(
-                g_st().input.ch_before_blocking_events.get(),
+                input_state().ch_before_blocking_events.get(),
                 Event::RpcRequest(Box::new(evdata)),
             );
         } else {
@@ -584,7 +583,7 @@ fn handle_request(channel: &mut Channel, args: Array) {
 
             multiqueue_put_event(channel.events, Event::Oneshot(std::rc::Rc::clone(&oneshot)));
 
-            multiqueue_put_event(g_st().screen.resize_events.get(), Event::Oneshot(oneshot));
+            multiqueue_put_event(screen_state().resize_events.get(), Event::Oneshot(oneshot));
         } else {
             multiqueue_put_event(channel.events, Event::RpcRequest(Box::new(evdata)));
         }
@@ -744,17 +743,17 @@ pub fn rpc_close_event(chan_id: u64) {
 
     let _ = remote_ui_disconnect(channel.id, false);
 
-    let is_ui_client = g_st().screen.ui_client_channel_id.get() != 0
-        && channel.id == g_st().screen.ui_client_channel_id.get();
+    let is_ui_client = screen_state().ui_client_channel_id.get() != 0
+        && channel.id == screen_state().ui_client_channel_id.get();
     if is_ui_client {
-        if !g_st().exc.exiting.get() && channel.streamtype != K_CHANNEL_STREAM_PROC {
+        if !exc_state().exiting.get() && channel.streamtype != K_CHANNEL_STREAM_PROC {
             ui_client_attach_to_restarted_server(false);
         }
-        if g_st().screen.ui_client_channel_id.get() != channel.id {
+        if screen_state().ui_client_channel_id.get() != channel.id {
             return;
         }
         if channel.streamtype == K_CHANNEL_STREAM_PROC
-            && g_st().screen.ui_client_error_exit.get() < 0
+            && screen_state().ui_client_error_exit.get() < 0
         {
             return;
         }
@@ -976,7 +975,7 @@ pub fn get_client_info<'a>(chan: &'a mut Channel, key: &CStr) -> Option<&'a CStr
 }
 
 pub fn rpc_free_all_mem() {
-    multiqueue_free(g_st().input.ch_before_blocking_events.get());
+    multiqueue_free(input_state().ch_before_blocking_events.get());
 }
 
 #[cfg(test)]

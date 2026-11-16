@@ -146,4 +146,104 @@ describe('matchaddpos()', function()
       }
     )
   end)
+
+  it('reentrant on_lines callback can call getmatches/matchadd/vartabstop safely', function()
+    n.exec_lua(function()
+      vim.api.nvim_buf_set_lines(0, 0, -1, false, { '  first line', '  second line' })
+      vim.bo.vartabstop = '2,4'
+      local m1 = vim.fn.matchaddpos('Search', { { 1, 1, 5 }, { 2, 1, 6 } })
+      local m2 = vim.fn.matchadd('ErrorMsg', 'line')
+      local callbacks = 0
+      vim.api.nvim_buf_attach(0, false, {
+        on_lines = function()
+          callbacks = callbacks + 1
+          local m = vim.fn.getmatches()
+          assert(#m >= 1)
+          local id = vim.fn.matchadd('Todo', 'first')
+          vim.fn.matchdelete(id)
+          if m1 then
+            pcall(vim.fn.matchdelete, m1)
+            m1 = nil
+          elseif m2 then
+            vim.fn.clearmatches()
+            m2 = nil
+          end
+          vim.bo.vartabstop = '4,2'
+          local ut = vim.fn.undotree()
+          assert(type(ut.seq_cur) == 'number')
+          local jl = vim.fn.getjumplist()
+          assert(type(jl) == 'table')
+        end,
+      })
+      vim.cmd('normal! ggm`G>>gg<<')
+      vim.cmd('silent jumps')
+      vim.cmd('redraw!')
+      assert(callbacks >= 2)
+    end)
+  end)
+
+  it(
+    'reentrant on_lines callback in diff mode can query diff_hlID/diff_filler and undotree safely',
+    function()
+      n.exec_lua(function()
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'alpha', 'beta', 'gamma' })
+        vim.cmd('diffthis')
+        vim.cmd('vnew')
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'alpha', 'beta changed', 'gamma' })
+        vim.cmd('diffthis')
+        local diff_cbs = 0
+        vim.api.nvim_buf_attach(0, false, {
+          on_lines = function()
+            diff_cbs = diff_cbs + 1
+            local _ = vim.fn.diff_hlID(2, 1)
+            local _ = vim.fn.diff_filler(2)
+            local ut = vim.fn.undotree()
+            assert(type(ut.entries) == 'table')
+          end,
+        })
+        vim.cmd('normal! 2Gccbeta updated')
+        vim.cmd('redraw!')
+        vim.cmd('diffoff!')
+        assert(diff_cbs >= 1)
+      end)
+    end
+  )
+
+  it(
+    'reentrant foldexpr during multiline match prepare_search_hl can mutate matches safely',
+    function()
+      n.exec_lua(function()
+        vim.api.nvim_buf_set_lines(
+          0,
+          0,
+          -1,
+          false,
+          { 'line 1', 'line 2', 'line 3', 'line 4', 'line 5', 'line 6' }
+        )
+        local m_early = vim.fn.matchadd('Todo', 'line 1')
+        local _ = vim.fn.matchadd('Search', 'line 2\\nline 3')
+        local _ = vim.fn.matchadd('ErrorMsg', 'line 4\\nline 5')
+        local fold_calls = 0
+        _G.test_reentrant_foldexpr = function()
+          fold_calls = fold_calls + 1
+          local cur = vim.fn.getmatches()
+          assert(type(cur) == 'table')
+          if fold_calls == 1 and m_early then
+            -- Delete earlier match to shift w_match_head indices mid-iteration
+            pcall(vim.fn.matchdelete, m_early)
+            m_early = nil
+          elseif fold_calls == 3 then
+            -- Clear all matches while prepare_search_hl is walking w_match_head
+            vim.fn.clearmatches()
+          end
+          return 0
+        end
+        vim.wo.foldmethod = 'expr'
+        vim.wo.foldexpr = 'v:lua.test_reentrant_foldexpr()'
+        vim.cmd('normal! 2Gzt4G')
+        vim.cmd('redraw!')
+        assert(fold_calls >= 3)
+      end)
+    end
+  )
 end)

@@ -175,11 +175,11 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
         return true;
     }
 
-    if g_st().input.sandbox.get() != 0 && check_secure() {
+    if input_state().sandbox.get() != 0 && check_secure() {
         return false;
     }
 
-    if g_st().input.secure.get() != 0 {
+    if input_state().secure.get() != 0 {
         for &p in pat {
             if p.to_bytes().contains(&b'`') && check_secure() {
                 return false;
@@ -354,10 +354,9 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
         os_remove(tempname_cstr.as_c_str());
         if (flags & EW_SILENT) == 0 {
             msg_putchar(b'\n' as i32);
-            g_st()
-                .cmdline
+            cmdline_state()
                 .cmdline_row
-                .set(g_st().screen.rows_global.get() - 1);
+                .set(screen_state().rows_global.get() - 1);
             msg(gettext(E_WILDEXPAND), 0);
             msg_start();
         }
@@ -603,7 +602,7 @@ pub fn os_call_shell(cmd: Option<&CStr>, opts: i32, extra_args: Option<&CStr>) -
     let mut input: Vec<u8> = Vec::new();
     let mut output: Vec<u8> = Vec::new();
     let mut want_output = false;
-    let current_state = g_st().edit.state_global.get();
+    let current_state = edit_state().state_global.get();
     let mut forward_output = true;
 
     signal_reject_deadly();
@@ -611,7 +610,7 @@ pub fn os_call_shell(cmd: Option<&CStr>, opts: i32, extra_args: Option<&CStr>) -
     if (opts & (K_SHELL_OPT_HIDE_MESS | K_SHELL_OPT_EXPAND)) != 0 {
         forward_output = false;
     } else {
-        g_st().edit.state_global.set(MODE_EXTERNCMD);
+        edit_state().state_global.set(MODE_EXTERNCMD);
 
         if (opts & K_SHELL_OPT_WRITE) != 0 {
             read_input(&mut input);
@@ -629,7 +628,7 @@ pub fn os_call_shell(cmd: Option<&CStr>, opts: i32, extra_args: Option<&CStr>) -
         shell_build_argv(cmd, extra_args),
         &input,
         want_output.then_some(&mut output),
-        g_st().msg.emsg_silent.get() != 0,
+        msg_state().emsg_silent.get() != 0,
         forward_output,
     );
     drop(input);
@@ -638,7 +637,7 @@ pub fn os_call_shell(cmd: Option<&CStr>, opts: i32, extra_args: Option<&CStr>) -
         write_output(&mut output, true);
     }
 
-    if g_st().msg.emsg_silent.get() == 0 && exitcode != 0 && (opts & K_SHELL_OPT_SILENT) == 0 {
+    if msg_state().emsg_silent.get() == 0 && exitcode != 0 && (opts & K_SHELL_OPT_SILENT) == 0 {
         msg_ext_set_kind(c"shell_ret");
         msg_ext_no_fast();
         if !ui_has(K_UIMESSAGES) {
@@ -648,7 +647,7 @@ pub fn os_call_shell(cmd: Option<&CStr>, opts: i32, extra_args: Option<&CStr>) -
         msg_outnum(exitcode);
     }
 
-    g_st().edit.state_global.set(current_state);
+    edit_state().state_global.set(current_state);
     signal_accept_deadly();
 
     exitcode
@@ -672,7 +671,7 @@ pub fn call_shell(cmd: Option<&CStr>, opts: i32, extra_shell_arg: Option<&CStr>)
         verbose_leave();
     }
 
-    if g_st().exc.do_profiling.get() == PROF_YES {
+    if exc_state().do_profiling.get() == PROF_YES {
         prof_child_enter(&mut wait_time);
     }
 
@@ -685,7 +684,7 @@ pub fn call_shell(cmd: Option<&CStr>, opts: i32, extra_shell_arg: Option<&CStr>)
     };
 
     set_vim_var_nr(VV_SHELL_ERROR, Varnumber::from(retval));
-    if g_st().exc.do_profiling.get() == PROF_YES {
+    if exc_state().do_profiling.get() == PROF_YES {
         prof_child_exit(&mut wait_time);
     }
 
@@ -710,19 +709,14 @@ pub fn get_cmd_output(
 
     let command = make_filter_cmd(cmd.unwrap_or(c""), infile, Some(tempname), false);
 
-    g_st()
-        .workspace
-        .no_check_timestamps
-        .set(g_st().workspace.no_check_timestamps.get() + (1));
-    call_shell(
-        Some(command.as_c_str()),
-        K_SHELL_OPT_DO_OUT | K_SHELL_OPT_EXPAND | flags,
-        None,
-    );
-    g_st()
-        .workspace
-        .no_check_timestamps
-        .set(g_st().workspace.no_check_timestamps.get() - (1));
+    {
+        let _pause_ts = workspace_state().pause_check_timestamps();
+        call_shell(
+            Some(command.as_c_str()),
+            K_SHELL_OPT_DO_OUT | K_SHELL_OPT_EXPAND | flags,
+            None,
+        );
+    }
 
     drop(command);
 
@@ -858,24 +852,19 @@ fn do_os_system(
         if forward_output {
             msg_sb_eol();
             msg_start();
-            g_st().msg.msg_no_more.set(true);
-            g_st().msg.lines_left.set(-1);
+            msg_state().msg_no_more.set(true);
+            msg_state().lines_left.set(-1);
         }
         exitcode = proc_wait(proc_, -1, None);
-        if !g_st().input.got_int.get() && out_data_decide_throttle(0) {
+        if !input_state().got_int.get() && out_data_decide_throttle(0) {
             out_data_ring(None);
         }
         if forward_output {
-            g_st()
-                .msg
-                .no_wait_return
-                .set(g_st().msg.no_wait_return.get() + (1));
-            msg_end();
-            g_st()
-                .msg
-                .no_wait_return
-                .set(g_st().msg.no_wait_return.get() - (1));
-            g_st().msg.msg_no_more.set(false);
+            {
+                let _no_wait = msg_state().suppress_wait_return();
+                msg_end();
+            }
+            msg_state().msg_no_more.set(false);
         }
 
         ui_busy_stop();

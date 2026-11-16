@@ -24,9 +24,10 @@ pub fn luaret_truthy(res: Object) -> bool {
 
 fn textlock_wrap<F: FnOnce()>(f: F) {
     let save_cursor = curwin().w_cursor.get();
-    g_st().input.textlock.set(g_st().input.textlock.get() + (1));
-    f();
-    g_st().input.textlock.set(g_st().input.textlock.get() - (1));
+    {
+        let _textlock = input_state().lock_text();
+        f();
+    }
     curwin().w_cursor.set(save_cursor);
 }
 
@@ -42,18 +43,18 @@ pub fn buf_updates_register(
 
     if channel_id == LUA_INTERNAL_CALL {
         let utf_sizes = cb.utf_sizes;
-        buf.update_callbacks.borrow_mut().push(cb);
+        buf.push_update_callback(cb);
         if utf_sizes {
             buf.update_need_codepoints.set(true);
         }
         return true;
     }
 
-    if buf.update_channels.borrow().contains(&channel_id) {
+    if buf.update_channels_contains(channel_id) {
         return true;
     }
 
-    buf.update_channels.borrow_mut().push(channel_id);
+    buf.push_update_channel(channel_id);
 
     if send_buffer {
         let line_count = buf.b_ml.ml_line_count.get() as usize;
@@ -90,7 +91,7 @@ pub fn buf_updates_register(
 }
 
 pub fn buf_updates_active(buf: &FileBuf) -> bool {
-    !buf.update_channels.borrow().is_empty() || !buf.update_callbacks.borrow().is_empty()
+    buf.has_update_channels() || buf.has_update_callbacks()
 }
 
 pub fn buf_updates_send_end(buf: &FileBuf, channelid: u64) {
@@ -100,37 +101,35 @@ pub fn buf_updates_send_end(buf: &FileBuf, channelid: u64) {
 }
 
 pub fn buf_updates_unregister(buf: &FileBuf, channelid: u64) {
-    let size = buf.update_channels.borrow().len();
+    let size = buf.update_channels_len();
     if size == 0 {
         return;
     }
 
-    buf.update_channels
-        .borrow_mut()
-        .retain(|&id| id != channelid);
-    if buf.update_channels.borrow().len() < size {
+    buf.with_update_channels_mut(|channels| channels.retain(|&id| id != channelid));
+    if buf.update_channels_len() < size {
         buf_updates_send_end(buf, channelid);
-        if buf.update_channels.borrow().is_empty() {
-            *buf.update_channels.borrow_mut() = Vec::new();
+        if !buf.has_update_channels() {
+            buf.clear_update_channels();
         }
     }
 }
 
 pub fn buf_free_callbacks(buf: &FileBuf) {
-    *buf.update_channels.borrow_mut() = Vec::new();
-    *buf.update_callbacks.borrow_mut() = Vec::new();
+    buf.clear_update_channels();
+    buf.clear_update_callbacks();
 }
 
 pub fn buf_updates_unload(buf: &FileBuf, can_reload: bool) {
-    let channels = std::mem::take(&mut *buf.update_channels.borrow_mut());
+    let channels = buf.take_update_channels();
     for channelid in channels {
         buf_updates_send_end(buf, channelid);
     }
 
     let mut i = 0usize;
-    while i < buf.update_callbacks.borrow().len() {
-        let on_reload = buf.update_callbacks.borrow().as_slice()[i].on_reload;
-        let on_detach = buf.update_callbacks.borrow().as_slice()[i].on_detach;
+    while let Some((on_reload, on_detach)) =
+        buf.with_update_callback_at(i, |cb| (cb.on_reload, cb.on_detach))
+    {
         let mut thecb = LUA_NOREF;
         let mut keep = false;
 
@@ -158,11 +157,11 @@ pub fn buf_updates_unload(buf: &FileBuf, can_reload: bool) {
         if keep {
             i += 1;
         } else {
-            buf.update_callbacks.borrow_mut().remove(i);
+            buf.remove_update_callback(i);
         }
     }
-    if buf.update_callbacks.borrow().is_empty() {
-        *buf.update_callbacks.borrow_mut() = Vec::new();
+    if !buf.has_update_callbacks() {
+        buf.clear_update_callbacks();
     }
 }
 
@@ -181,11 +180,11 @@ pub fn buf_updates_send_changes(
         return;
     }
 
-    let send_tick = !(g_st().cmdline.cmdpreview.get()
-        && (std::ptr::from_ref(buf).cast_mut()) == g_st().workspace.curbuf.get().as_ptr());
+    let send_tick = !(cmdline_state().cmdpreview.get()
+        && (std::ptr::from_ref(buf).cast_mut()) == workspace_state().curbuf.get().as_ptr());
     let mut badchannelid: u64 = 0;
     let mut linedata = Array::new();
-    if num_added > 0 && !buf.update_channels.borrow().is_empty() {
+    if num_added > 0 && buf.has_update_channels() {
         linedata = Array::with_capacity(num_added as usize);
         buf_collect_lines(
             buf,
@@ -198,7 +197,7 @@ pub fn buf_updates_send_changes(
         );
     }
 
-    let channels = buf.update_channels.borrow().clone();
+    let channels = buf.clone_update_channels();
     for &channelid in &channels {
         let mut items = [
             buffer_obj(buf.b_fnum.get()),
@@ -231,12 +230,11 @@ pub fn buf_updates_send_changes(
         buf_updates_unregister(buf, badchannelid);
     }
     let mut i = 0usize;
-    while i < buf.update_callbacks.borrow().len() {
-        let on_lines = buf.update_callbacks.borrow().as_slice()[i].on_lines;
-        let preview = buf.update_callbacks.borrow().as_slice()[i].preview;
-        let utf_sizes = buf.update_callbacks.borrow().as_slice()[i].utf_sizes;
+    while let Some((on_lines, preview, utf_sizes)) =
+        buf.with_update_callback_at(i, |cb| (cb.on_lines, cb.preview, cb.utf_sizes))
+    {
         let mut keep = true;
-        if on_lines != LUA_NOREF && (preview || !g_st().cmdline.cmdpreview.get()) {
+        if on_lines != LUA_NOREF && (preview || !cmdline_state().cmdpreview.get()) {
             let mut items = [
                 buffer_obj(buf.b_fnum.get()),
                 if send_tick {
@@ -265,7 +263,7 @@ pub fn buf_updates_send_changes(
         if keep {
             i += 1;
         } else {
-            buf.update_callbacks.borrow_mut().remove(i);
+            buf.remove_update_callback(i);
         }
     }
 }
@@ -287,11 +285,11 @@ pub fn buf_updates_send_splice(
     }
 
     let mut i = 0usize;
-    while i < buf.update_callbacks.borrow().len() {
-        let on_bytes = buf.update_callbacks.borrow().as_slice()[i].on_bytes;
-        let preview = buf.update_callbacks.borrow().as_slice()[i].preview;
+    while let Some((on_bytes, preview)) =
+        buf.with_update_callback_at(i, |cb| (cb.on_bytes, cb.preview))
+    {
         let mut keep = true;
-        if on_bytes != LUA_NOREF && (preview || !g_st().cmdline.cmdpreview.get()) {
+        if on_bytes != LUA_NOREF && (preview || !cmdline_state().cmdpreview.get()) {
             let mut items = [
                 buffer_obj(buf.b_fnum.get()),
                 integer_obj(buf_get_changedtick(buf)),
@@ -319,21 +317,20 @@ pub fn buf_updates_send_splice(
         if keep {
             i += 1;
         } else {
-            buf.update_callbacks.borrow_mut().remove(i);
+            buf.remove_update_callback(i);
         }
     }
 }
 
 pub fn buf_updates_changedtick(buf: &FileBuf) {
-    let len = buf.update_channels.borrow().len();
+    let len = buf.update_channels_len();
     for idx in 0..len {
-        let channel_id = buf.update_channels.borrow()[idx];
+        let channel_id = buf.update_channel_at(idx);
         buf_updates_changedtick_single(buf, channel_id);
     }
 
     let mut i = 0usize;
-    while i < buf.update_callbacks.borrow().len() {
-        let on_changedtick = buf.update_callbacks.borrow().as_slice()[i].on_changedtick;
+    while let Some(on_changedtick) = buf.with_update_callback_at(i, |cb| cb.on_changedtick) {
         let mut keep = true;
         if on_changedtick != LUA_NOREF {
             let mut items = [
@@ -359,7 +356,7 @@ pub fn buf_updates_changedtick(buf: &FileBuf) {
         if keep {
             i += 1;
         } else {
-            buf.update_callbacks.borrow_mut().remove(i);
+            buf.remove_update_callback(i);
         }
     }
 }

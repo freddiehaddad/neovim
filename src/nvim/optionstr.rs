@@ -1194,7 +1194,7 @@ pub fn check_stl_option<'a>(s: &[u8], mut errbuf: Option<&'a mut [u8]>) -> Optio
 
 /// Check for a "normal" directory or file name in some options.
 pub fn check_illegal_path_names(val_bytes: &[u8], flags: u32) -> bool {
-    let nfname_illegal: &[u8] = if g_st().input.secure.get() != 0 {
+    let nfname_illegal: &[u8] = if input_state().secure.get() != 0 {
         b"/\\*?[|;&<>\r\n"
     } else {
         b"/\\*?[<>\r\n"
@@ -1600,10 +1600,10 @@ pub fn did_set_buftype<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         );
         let next_prompt = CursorPos {
             lnum: buf.b_ml.ml_line_count.get(),
-            col: buf.b_prompt_start.borrow().mark.col,
+            col: buf.b_prompt_start.mark.get().col,
             coladd: 0,
         };
-        *buf.b_prompt_start.borrow_mut() = Fmark {
+        buf.b_prompt_start.set(Fmark {
             mark: next_prompt,
             fnum: 0,
             timestamp: 0,
@@ -1612,7 +1612,7 @@ pub fn did_set_buftype<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
                 skipcol: 0,
             },
             additional_data: None,
-        };
+        });
     }
     if win.w_status_height.get() != 0 || global_stl_height() != 0 {
         win.w_redr_status.set(true);
@@ -2275,7 +2275,7 @@ pub fn did_set_guicursor<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
     if let Some(errmsg) = parse_shape_opt(SHAPE_CURSOR) {
         return Some(errmsg);
     }
-    if g_st().edit.visual_global.active.get() {
+    if edit_state().visual_global.active.get() {
         redraw_winline(&crate::globals::curwin(), curwin().w_cursor.get().lnum);
     }
     None
@@ -2283,10 +2283,10 @@ pub fn did_set_guicursor<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// The 'helpfile' option is changed.
 pub fn did_set_helpfile<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if g_st().exc.didset_vim.get() {
+    if exc_state().didset_vim.get() {
         vim_unsetenv_ext(c"VIM");
     }
-    if g_st().exc.didset_vimruntime.get() {
+    if exc_state().didset_vimruntime.get() {
         vim_unsetenv_ext(c"VIMRUNTIME");
     }
     None
@@ -2323,7 +2323,7 @@ pub fn did_set_iconstring<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// The 'inccommand' option is changed.
 pub fn did_set_inccommand<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if g_st().cmdline.cmdpreview.get() {
+    if cmdline_state().cmdpreview.get() {
         return Some(E_INVARG);
     }
     None
@@ -2361,12 +2361,12 @@ pub fn did_set_keymap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf();
     let opt_flags = args.os_flags;
 
-    let secure_save = g_st().input.secure.get();
-    g_st().input.secure.set(0);
+    let secure_save = input_state().secure.get();
+    input_state().secure.set(0);
 
     let errmsg = keymap_init();
 
-    g_st().input.secure.set(secure_save);
+    input_state().secure.set(secure_save);
 
     args.os_value_checked = true;
 
@@ -2396,11 +2396,11 @@ pub fn did_set_keymap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// The 'keymodel' option is changed.
 pub fn did_set_keymodel<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    g_st().edit.km_stopsel.set(crate::strings::vim_haschr(
+    edit_state().km_stopsel.set(crate::strings::vim_haschr(
         &opt_vars().p_km.as_cstr(),
         b'o' as i32,
     ));
-    g_st().edit.km_startsel.set(crate::strings::vim_haschr(
+    edit_state().km_startsel.set(crate::strings::vim_haschr(
         &opt_vars().p_km.as_cstr(),
         b'a' as i32,
     ));
@@ -2509,7 +2509,7 @@ pub fn did_set_rulerformat<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// The 'selection' option is changed.
 pub fn did_set_selection<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if g_st().edit.visual_global.active.get() {
+    if edit_state().visual_global.active.get() {
         redraw_curbuf_later(UPD_INVERTED);
     }
     None
@@ -2680,18 +2680,18 @@ pub fn did_set_signcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Validate 'spellcapcheck' and prepare its regexp program.
 pub fn validate_spellcapcheck<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut prog: Option<Box<Regprog>> = None;
-    let save_emsg_silent = g_st().msg.emsg_silent.get();
-    let save_suppress_errthrow = g_st().exc.suppress_errthrow.get();
-    g_st().msg.emsg_silent.set(0);
-    g_st().exc.suppress_errthrow.set(false);
+    let save_emsg_silent = msg_state().emsg_silent.get();
+    let save_suppress_errthrow = exc_state().suppress_errthrow.get();
+    msg_state().emsg_silent.set(0);
+    exc_state().suppress_errthrow.set(false);
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     let errmsg = compile_cap_prog(args.os_newval.data.string().as_cstr(), &mut prog);
     let leave_res = try_leave(&tstate);
 
-    g_st().msg.emsg_silent.set(save_emsg_silent);
-    g_st().exc.suppress_errthrow.set(save_suppress_errthrow);
+    msg_state().emsg_silent.set(save_emsg_silent);
+    exc_state().suppress_errthrow.set(save_suppress_errthrow);
     args.os_prep = OptSetPrep::SpellcapProg(prog);
     if let Err(err) = leave_res {
         let msg_cstr = err.msg_cstr().unwrap_or(c"");
@@ -2827,7 +2827,7 @@ fn did_set_statustabline_rulerformat<'a>(
     statuscolumn: bool,
 ) -> Option<&'a CStr> {
     if rulerformat {
-        g_st().screen.ru_wid.set(0);
+        screen_state().ru_wid.set(0);
     } else if statuscolumn {
         args.win().w_nrwidth_line_count.set(0);
     }
@@ -2848,7 +2848,7 @@ fn did_set_statustabline_rulerformat<'a>(
         && let Some(win) = args.win_opt()
         && win.w_floating.get()
     {
-        let cfg = win.w_config.borrow().clone();
+        let cfg = win.clone_config();
         win_config_float(&win, cfg);
     }
 
@@ -2859,7 +2859,7 @@ fn did_set_statustabline_rulerformat<'a>(
         }
         let wid = getdigits_int(&mut rem, true, 0);
         if wid != 0 && rem.first() == Some(&b'(') {
-            g_st().screen.ru_wid.set(wid);
+            screen_state().ru_wid.set(wid);
         }
     }
     if rulerformat {
@@ -2916,15 +2916,13 @@ fn did_set_titleiconstring<'a>(args: &mut Optset<'a>, flagval: i32) -> Option<&'
     if crate::strings::vim_haschr(&val, b'%' as i32)
         && check_stl_option(val.to_bytes(), None).is_none()
     {
-        g_st()
-            .screen
+        screen_state()
             .stl_syntax
-            .set(g_st().screen.stl_syntax.get() | (flagval));
+            .set(screen_state().stl_syntax.get() | (flagval));
     } else {
-        g_st()
-            .screen
+        screen_state()
             .stl_syntax
-            .set(g_st().screen.stl_syntax.get() & (!flagval));
+            .set(screen_state().stl_syntax.get() & (!flagval));
     }
     did_set_title();
 
@@ -2966,13 +2964,12 @@ pub fn did_set_vartabstop<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf();
     let win = args.win();
     let soft = args.os_idx == K_OPT_VARSOFTTABSTOP;
-    let mut array = if soft {
-        buf.b_p_vsts_array.borrow_mut()
+    let tabstop = args.os_prep.take_tabstop();
+    if soft {
+        buf.set_vsts_array(tabstop);
     } else {
-        buf.b_p_vts_array.borrow_mut()
-    };
-    *array = args.os_prep.take_tabstop();
-    drop(array);
+        buf.set_vts_array(tabstop);
+    }
     if !soft && foldmethod_is_indent(&win) {
         fold_update_all(&win);
     }
@@ -3052,7 +3049,7 @@ pub fn validate_wildmode<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// The 'wildmode' option is changed.
 pub fn did_set_wildmode<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if let OptSetPrep::Wildmode(flags) = args.os_prep {
-        for (dst, src) in g_st().cmdline.wim_flags.iter().zip(flags) {
+        for (dst, src) in cmdline_state().wim_flags.iter().zip(flags) {
             dst.set(src);
         }
     }
@@ -3828,7 +3825,7 @@ pub fn set_chars_option<'a>(
 
     if apply {
         if what == CharsOption::Listchars {
-            *wp.w_p_lcs_chars.borrow_mut() = lcs_chars;
+            wp.w_p_lcs_chars.set(lcs_chars);
         } else {
             wp.w_p_fcs_chars.set(fcs_chars);
         }

@@ -688,8 +688,8 @@ pub fn buf_put_decor(buf: &FileBuf, decor: DecorInline, row: i32, mut row2: i32)
 
 fn may_force_numberwidth_recompute(buf: &FileBuf, unplace: bool) {
     for tp in for_all_tabpages_ptr() {
-        for wp in win_iter_ptr(if g_st().workspace.curtab.get() == tp {
-            g_st().workspace.firstwin.get()
+        for wp in win_iter_ptr(if workspace_state().curtab.get() == tp {
+            workspace_state().firstwin.get()
         } else {
             tp.tp_firstwin.get()
         }) {
@@ -759,10 +759,7 @@ pub fn decor_free(decor: DecorInline) {
     let vt = ext.vt;
     let mut idx = ext.sh_idx;
 
-    if g_st()
-        .screen
-        .with_decor_state(|ds| ds.running_decor_provider)
-    {
+    if screen_state().with_decor_state(|ds| ds.running_decor_provider) {
         if !vt.is_null() {
             TO_FREE_VIRT.with(|cell| cell.borrow_mut().push(vt));
         }
@@ -804,13 +801,10 @@ fn decor_free_sh(first_idx: u32) {
 }
 
 pub fn decor_state_invalidate(buf: &FileBuf) {
-    let same_buf = g_st()
-        .screen
+    let same_buf = screen_state()
         .with_decor_state(|ds| ds.win.opt().is_some_and(|win| win.w_buffer.get() == buf));
     if same_buf {
-        g_st()
-            .screen
-            .with_decor_state_mut(|ds| ds.itr_valid = false);
+        screen_state().with_decor_state_mut(|ds| ds.itr_valid = false);
     }
 }
 
@@ -824,8 +818,8 @@ pub fn conceal_replacement(wp: &WinInfoInfo, is_start: bool, cchar: Schar) -> Sc
     if cchar != 0 {
         return cchar;
     }
-    if wp.w_p_lcs_chars.borrow().conceal != 0 {
-        wp.w_p_lcs_chars.borrow().conceal
+    if wp.w_p_lcs_chars.conceal.get() != 0 {
+        wp.w_p_lcs_chars.conceal.get()
     } else {
         schar_from_ascii(b' ')
     }
@@ -862,19 +856,13 @@ pub fn decor_extconceal_char(
 }
 
 pub fn decor_check_to_be_deleted() {
-    assert!(
-        !g_st()
-            .screen
-            .with_decor_state(|ds| ds.running_decor_provider)
-    );
+    assert!(!screen_state().with_decor_state(|ds| ds.running_decor_provider));
     while let Some(vt) = TO_FREE_VIRT.with(|cell| cell.borrow_mut().pop()) {
         decor_free_vt(vt);
     }
     decor_free_sh(DECOR_MOD_STATE.with(|s| s.to_free_sh.get()));
     DECOR_MOD_STATE.with(|s| s.to_free_sh.set(DECOR_ID_INVALID));
-    g_st()
-        .screen
-        .with_decor_state_mut(|ds| ds.win = crate::globals::WinPtr::NULL);
+    screen_state().with_decor_state_mut(|ds| ds.win = crate::globals::WinPtr::NULL);
 }
 
 pub fn decor_check_invalid_glyphs() {
@@ -918,29 +906,30 @@ pub fn next_virt_text_chunk<'a>(
 }
 
 pub fn decor_find_virttext(buf: &FileBuf, row: i32, ns_id: u64) -> Option<DecorVirtId> {
-    let b = buf.b_marktree.borrow();
-    let mut itr = MarkTreeIter::new();
-    marktree_itr_get(&b, row, 0, &mut itr);
-    loop {
-        let mark = marktree_itr_current(&b, &itr);
-        if mark.pos.row < 0 || mark.pos.row > row {
-            break;
-        } else if !mt_invalid(mark) {
-            let mut found = None;
-            for_each_virt_text(mt_decor_virt_id(mark), |id, d| {
-                if found.is_none() && (d.flags & K_VTIS_LINES) == 0 {
-                    found = Some(id);
+    buf.with_marktree(|b| {
+        let mut itr = MarkTreeIter::new();
+        marktree_itr_get(b, row, 0, &mut itr);
+        loop {
+            let mark = marktree_itr_current(b, &itr);
+            if mark.pos.row < 0 || mark.pos.row > row {
+                break;
+            } else if !mt_invalid(mark) {
+                let mut found = None;
+                for_each_virt_text(mt_decor_virt_id(mark), |id, d| {
+                    if found.is_none() && (d.flags & K_VTIS_LINES) == 0 {
+                        found = Some(id);
+                    }
+                });
+                if (ns_id == 0 || ns_id == u64::from(mark.ns))
+                    && let Some(id) = found
+                {
+                    return Some(id);
                 }
-            });
-            if (ns_id == 0 || ns_id == u64::from(mark.ns))
-                && let Some(id) = found
-            {
-                return Some(id);
             }
+            marktree_itr_next(b, &mut itr);
         }
-        marktree_itr_next(&b, &mut itr);
-    }
-    None
+        None
+    })
 }
 
 pub fn decor_redraw_reset(wp: &WinInfoInfo, state: &mut DecorState) -> bool {
@@ -954,7 +943,7 @@ pub fn decor_redraw_reset(wp: &WinInfoInfo, state: &mut DecorState) -> bool {
     state.future_begin = 0;
     state.new_range_ordering = 0;
 
-    wp.with_buf(|buf| buf.b_marktree.borrow().n_keys != 0)
+    wp.with_buf(|buf| buf.marktree_n_keys() != 0)
 }
 
 pub fn decor_virt_pos(decor: &DecorRange) -> bool {
@@ -974,32 +963,33 @@ pub fn decor_redraw_start(wp: &WinInfoInfo, top_row: i32, state: &mut DecorState
     state.itr_valid = true;
 
     wp.with_buf(|buf| {
-        let b = buf.b_marktree.borrow();
-        if !marktree_itr_get_overlap(&b, top_row, 0, &mut state.itr) {
-            return false;
-        }
-        let mut pair: MTPair = MTPair::new();
+        buf.with_marktree(|b| {
+            if !marktree_itr_get_overlap(b, top_row, 0, &mut state.itr) {
+                return false;
+            }
+            let mut pair: MTPair = MTPair::new();
 
-        while marktree_itr_step_overlap(&b, &mut state.itr, &mut pair) {
-            let m = pair.start;
-            if mt_invalid(m) || !mt_decor_any(m) || !ns_in_win(m.ns, wp) {
-                continue;
+            while marktree_itr_step_overlap(b, &mut state.itr, &mut pair) {
+                let m = pair.start;
+                if mt_invalid(m) || !mt_decor_any(m) || !ns_in_win(m.ns, wp) {
+                    continue;
+                }
+
+                decor_range_add_from_inline(
+                    state,
+                    pair.start.pos.row,
+                    pair.start.pos.col,
+                    pair.end_pos.row,
+                    pair.end_pos.col,
+                    mt_decor(m),
+                    false,
+                    m.ns,
+                    m.id,
+                );
             }
 
-            decor_range_add_from_inline(
-                state,
-                pair.start.pos.row,
-                pair.start.pos.col,
-                pair.end_pos.row,
-                pair.end_pos.col,
-                mt_decor(m),
-                false,
-                m.ns,
-                m.id,
-            );
-        }
-
-        true
+            true
+        })
     })
 }
 
@@ -1030,7 +1020,7 @@ pub fn decor_redraw_line(wp: &WinInfoInfo, row: i32, state: &mut DecorState) {
         decor_redraw_start(wp, row, state);
     } else if !state.itr_valid {
         wp.with_buf(|buf| {
-            marktree_itr_get(&buf.b_marktree.borrow(), row, 0, &mut state.itr);
+            buf.with_marktree(|mt| marktree_itr_get(mt, row, 0, &mut state.itr));
         });
         state.itr_valid = true;
     }
@@ -1051,7 +1041,7 @@ pub fn decor_has_more_decorations(state: &mut DecorState, row: i32) -> bool {
 
     let k = state
         .win
-        .with_buf(|buf| marktree_itr_current(&buf.b_marktree.borrow(), &state.itr));
+        .with_buf(|buf| buf.with_marktree(|mt| marktree_itr_current(mt, &state.itr)));
     k.pos.row >= 0 && k.pos.row <= row
 }
 
@@ -1282,38 +1272,43 @@ pub fn decor_redraw_col_impl(
     let mut col_last = max_col_last;
 
     wp.with_buf(|buf| {
-        let b = buf.b_marktree.borrow();
-        if !state.itr_valid {
-            marktree_itr_get(&b, row, state.col_last + 1, &mut state.itr);
-            state.itr_valid = true;
-        }
-
-        loop {
-            let mark = marktree_itr_current(&b, &state.itr);
-            if mark.pos.row < 0 || mark.pos.row > row {
-                break;
-            } else if mark.pos.row == row && mark.pos.col > col {
-                col_last = col_last.min(mark.pos.col - 1);
-                break;
+        buf.with_marktree(|b| {
+            if !state.itr_valid {
+                marktree_itr_get(b, row, state.col_last + 1, &mut state.itr);
+                state.itr_valid = true;
             }
 
-            if !mt_invalid(mark) && !mt_end(mark) && mt_decor_any(mark) && ns_in_win(mark.ns, wp) {
-                let endpos = marktree_get_altpos(&b, mark, None);
-                decor_range_add_from_inline(
-                    state,
-                    mark.pos.row,
-                    mark.pos.col,
-                    endpos.row,
-                    endpos.col,
-                    mt_decor(mark),
-                    false,
-                    mark.ns,
-                    mark.id,
-                );
-            }
+            loop {
+                let mark = marktree_itr_current(b, &state.itr);
+                if mark.pos.row < 0 || mark.pos.row > row {
+                    break;
+                } else if mark.pos.row == row && mark.pos.col > col {
+                    col_last = col_last.min(mark.pos.col - 1);
+                    break;
+                }
 
-            marktree_itr_next(&b, &mut state.itr);
-        }
+                if !mt_invalid(mark)
+                    && !mt_end(mark)
+                    && mt_decor_any(mark)
+                    && ns_in_win(mark.ns, wp)
+                {
+                    let endpos = marktree_get_altpos(b, mark, None);
+                    decor_range_add_from_inline(
+                        state,
+                        mark.pos.row,
+                        mark.pos.col,
+                        endpos.row,
+                        endpos.col,
+                        mt_decor(mark),
+                        false,
+                        mark.ns,
+                        mark.id,
+                    );
+                }
+
+                marktree_itr_next(b, &mut state.itr);
+            }
+        });
     });
 
     let mut count = state.ranges_i.len() as i32;
@@ -1471,29 +1466,32 @@ fn decor_row_has_mark(wp: &WinInfoInfo, row: i32, meta: usize, flag: u32) -> boo
     let mut pair: MTPair = MTPair::new();
     let mut itr = MarkTreeIter::new();
     let wp_buf = (*wp).buf();
-    let b = &wp_buf.b_marktree.borrow();
-    marktree_itr_get_overlap(b, row, 0, &mut itr);
-    while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
-        if !mt_invalid(pair.start) && (pair.start.flags & flag) != 0 && ns_in_win(pair.start.ns, wp)
-        {
-            return true;
+    wp_buf.with_marktree(|b| {
+        marktree_itr_get_overlap(b, row, 0, &mut itr);
+        while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
+            if !mt_invalid(pair.start)
+                && (pair.start.flags & flag) != 0
+                && ns_in_win(pair.start.ns, wp)
+            {
+                return true;
+            }
         }
-    }
 
-    marktree_itr_step_out_filter(b, &mut itr, &filter);
+        marktree_itr_step_out_filter(b, &mut itr, &filter);
 
-    while itr.x.is_some() {
-        let mark = marktree_itr_current(b, &itr);
-        if mark.pos.row > row {
-            break;
+        while itr.x.is_some() {
+            let mark = marktree_itr_current(b, &itr);
+            if mark.pos.row > row {
+                break;
+            }
+            if !mt_invalid(mark) && (mark.flags & flag) != 0 && ns_in_win(mark.ns, wp) {
+                return true;
+            }
+            marktree_itr_next_filter(b, &mut itr, row + 1, 0, &filter);
         }
-        if !mt_invalid(mark) && (mark.flags & flag) != 0 && ns_in_win(mark.ns, wp) {
-            return true;
-        }
-        marktree_itr_next_filter(b, &mut itr, row + 1, 0, &filter);
-    }
 
-    false
+        false
+    })
 }
 
 pub fn decor_row_has_conceal(wp: &WinInfoInfo, row: i32) -> bool {
@@ -1566,35 +1564,36 @@ pub fn decor_redraw_signs(
     let mut num_text: i32 = 0;
     let mut itr = MarkTreeIter::new();
     let mut signs: Vec<SignItem> = Vec::new();
-    let b = &buf.b_marktree.borrow();
-
-    marktree_itr_get_overlap(b, row, 0, &mut itr);
-    while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
-        if !mt_invalid(pair.start) && mt_decor_sign(pair.start) && ns_in_win(pair.start.ns, wp) {
-            let sh = decor_find_sign(mt_decor(pair.start)).unwrap();
-            num_text += i32::from(sh.text[0] != 0);
-            signs.push(SignItem {
-                sh,
-                id: pair.start.id,
-            });
-        }
-    }
-
-    marktree_itr_step_out_filter(b, &mut itr, &SIGN_FILTER);
-
-    while itr.x.is_some() {
-        let mark = marktree_itr_current(b, &itr);
-        if mark.pos.row != row {
-            break;
-        }
-        if !mt_invalid(mark) && !mt_end(mark) && mt_decor_sign(mark) && ns_in_win(mark.ns, wp) {
-            let sh = decor_find_sign(mt_decor(mark)).unwrap();
-            num_text += i32::from(sh.text[0] != 0);
-            signs.push(SignItem { sh, id: mark.id });
+    buf.with_marktree(|b| {
+        marktree_itr_get_overlap(b, row, 0, &mut itr);
+        while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
+            if !mt_invalid(pair.start) && mt_decor_sign(pair.start) && ns_in_win(pair.start.ns, wp)
+            {
+                let sh = decor_find_sign(mt_decor(pair.start)).unwrap();
+                num_text += i32::from(sh.text[0] != 0);
+                signs.push(SignItem {
+                    sh,
+                    id: pair.start.id,
+                });
+            }
         }
 
-        marktree_itr_next_filter(b, &mut itr, row + 1, 0, &SIGN_FILTER);
-    }
+        marktree_itr_step_out_filter(b, &mut itr, &SIGN_FILTER);
+
+        while itr.x.is_some() {
+            let mark = marktree_itr_current(b, &itr);
+            if mark.pos.row != row {
+                break;
+            }
+            if !mt_invalid(mark) && !mt_end(mark) && mt_decor_sign(mark) && ns_in_win(mark.ns, wp) {
+                let sh = decor_find_sign(mt_decor(mark)).unwrap();
+                num_text += i32::from(sh.text[0] != 0);
+                signs.push(SignItem { sh, id: mark.id });
+            }
+
+            marktree_itr_next_filter(b, &mut itr, row + 1, 0, &SIGN_FILTER);
+        }
+    });
 
     if !signs.is_empty() {
         let width = if wp.w_minscwidth.get() == SCL_NUM {
@@ -1657,33 +1656,33 @@ pub fn buf_signcols_count_range(buf: &FileBuf, row1: i32, row2: i32, add: i32, c
     let mut count = vec![0_i32; (row2 + 1 - row1) as usize];
     let mut itr = MarkTreeIter::new();
     let mut pair: MTPair = MTPair::new();
-    let b = &buf.b_marktree.borrow();
-
-    marktree_itr_get_overlap(b, row1, 0, &mut itr);
-    while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
-        if (pair.start.flags & MT_FLAG_DECOR_SIGNTEXT) != 0 && !mt_invalid(pair.start) {
-            for i in row1..=row2.min(pair.end_pos.row) {
-                count[(i - row1) as usize] += 1;
-            }
-        }
-    }
-
-    marktree_itr_step_out_filter(b, &mut itr, &SIGNTEXT_FILTER);
-
-    while itr.x.is_some() {
-        let mark = marktree_itr_current(b, &itr);
-        if mark.pos.row > row2 {
-            break;
-        }
-        if (mark.flags & MT_FLAG_DECOR_SIGNTEXT) != 0 && !mt_invalid(mark) && !mt_end(mark) {
-            let end = marktree_get_altpos(b, mark, None);
-            for i in mark.pos.row..=row2.min(end.row) {
-                count[(i - row1) as usize] += 1;
+    buf.with_marktree(|b| {
+        marktree_itr_get_overlap(b, row1, 0, &mut itr);
+        while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
+            if (pair.start.flags & MT_FLAG_DECOR_SIGNTEXT) != 0 && !mt_invalid(pair.start) {
+                for i in row1..=row2.min(pair.end_pos.row) {
+                    count[(i - row1) as usize] += 1;
+                }
             }
         }
 
-        marktree_itr_next_filter(b, &mut itr, row2 + 1, 0, &SIGNTEXT_FILTER);
-    }
+        marktree_itr_step_out_filter(b, &mut itr, &SIGNTEXT_FILTER);
+
+        while itr.x.is_some() {
+            let mark = marktree_itr_current(b, &itr);
+            if mark.pos.row > row2 {
+                break;
+            }
+            if (mark.flags & MT_FLAG_DECOR_SIGNTEXT) != 0 && !mt_invalid(mark) && !mt_end(mark) {
+                let end = marktree_get_altpos(b, mark, None);
+                for i in mark.pos.row..=row2.min(end.row) {
+                    count[(i - row1) as usize] += 1;
+                }
+            }
+
+            marktree_itr_next_filter(b, &mut itr, row2 + 1, 0, &SIGNTEXT_FILTER);
+        }
+    });
 
     for &c_val in &count {
         let prevwidth = SIGN_SHOW_MAX.min(c_val - add);
@@ -1782,7 +1781,7 @@ pub fn decor_virt_line_rows(
         while off < bytes.len() {
             let bytes_to_next_char = utfc_slice2len(&bytes[off..]);
             let cells = if bytes[off] == b'\t' {
-                tabstop_padding(vcol, buf.b_p_ts.get(), &buf.b_p_vts_array.borrow())
+                tabstop_padding(vcol, buf.b_p_ts.get(), &buf.vts_array())
             } else {
                 utf_ptr2cells(&bytes[off..])
             };
@@ -1816,16 +1815,17 @@ pub fn decor_virt_lines(
     }
 
     let mut itr = MarkTreeIter::new();
-    let b = &buf.b_marktree.borrow();
-    if !marktree_itr_get_filter(
-        b,
-        (start_row - 1).max(0),
-        0,
-        end_row,
-        0,
-        &LINES_FILTER,
-        &mut itr,
-    ) {
+    if !buf.with_marktree(|b| {
+        marktree_itr_get_filter(
+            b,
+            (start_row - 1).max(0),
+            0,
+            end_row,
+            0,
+            &LINES_FILTER,
+            &mut itr,
+        )
+    }) {
         return 0;
     }
 
@@ -1833,7 +1833,7 @@ pub fn decor_virt_lines(
 
     let mut n_virt_lines: i32 = 0;
     loop {
-        let mark = marktree_itr_current(b, &itr);
+        let mark = buf.with_marktree(|b| marktree_itr_current(b, &itr));
         if !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
             for_each_virt_text(mt_decor_virt_id(mark), |_, vt_ref| {
                 let virt_lines = vt_ref.data.virt_lines();
@@ -1869,7 +1869,8 @@ pub fn decor_virt_lines(
             });
         }
 
-        if !marktree_itr_next_filter(b, &mut itr, end_row, 0, &LINES_FILTER) {
+        if !buf.with_marktree(|b| marktree_itr_next_filter(b, &mut itr, end_row, 0, &LINES_FILTER))
+        {
             break;
         }
     }

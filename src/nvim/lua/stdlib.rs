@@ -127,7 +127,7 @@ extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
     let buf = if bufnr != 0 {
         crate::globals::BufPtr::from(handle_get_buffer(bufnr))
     } else {
-        g_st().workspace.curbuf.get()
+        workspace_state().curbuf.get()
     };
     let Some(buf_ref) = buf.opt() else {
         return luaL_error_cstr(lstate, c"invalid buffer");
@@ -588,11 +588,11 @@ extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
     if log_level >= 0 {
         set_min_log_level(log_level);
     }
-    let save_cmdmod = g_st().cmdline.take_cmdmod();
+    let save_cmdmod = cmdline_state().take_cmdmod();
     let mut cur_cmod = crate::ex_docmd::Cmdmod::new();
     cur_cmod.cmod_flags = flags;
     apply_cmdmod(&mut cur_cmod);
-    g_st().cmdline.set_cmdmod(cur_cmod);
+    cmdline_state().set_cmdmod(cur_cmod);
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
@@ -635,9 +635,9 @@ extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
     }
     let leave_res = try_leave(&tstate);
 
-    let mut cur_cmod = g_st().cmdline.take_cmdmod();
+    let mut cur_cmod = cmdline_state().take_cmdmod();
     undo_cmdmod(&mut cur_cmod);
-    g_st().cmdline.set_cmdmod(save_cmdmod);
+    cmdline_state().set_cmdmod(save_cmdmod);
     if log_level >= 0 {
         set_min_log_level(save_min_log_level);
     }

@@ -171,9 +171,8 @@ fn ui_rcs() -> Vec<std::rc::Rc<std::cell::RefCell<RemoteUI>>> {
 }
 
 pub fn ui_init() {
-    g_st().screen.default_grid.handle.set(1);
-    g_st()
-        .msg
+    screen_state().default_grid.handle.set(1);
+    msg_state()
         .msg_grid_adj
         .target
         .set(crate::grid::GridTarget::Default);
@@ -186,7 +185,7 @@ pub fn ui_free_all_mem() {
         *st.uis.borrow_mut() = Vec::new();
     });
 
-    if let Some(events) = g_st().screen.resize_events.get().opt() {
+    if let Some(events) = screen_state().resize_events.get().opt() {
         multiqueue_free(events);
     }
 }
@@ -230,7 +229,7 @@ pub fn ui_active() -> usize {
 }
 
 pub fn ui_refresh() {
-    if g_st().screen.ui_client_channel_id.get() != 0 {
+    if screen_state().ui_client_channel_id.get() != 0 {
         std::process::abort();
     }
 
@@ -268,7 +267,7 @@ pub fn ui_refresh() {
     }
 
     if had_message != ui_state(|st| st.ui_ext.get()[K_UIMESSAGES]) {
-        if g_st().screen.ui_refresh_cmdheight.get() {
+        if screen_state().ui_refresh_cmdheight.get() {
             set_option_value(
                 K_OPT_CMDHEIGHT,
                 integer_obj(Integer::from(had_message)),
@@ -288,7 +287,7 @@ pub fn ui_refresh() {
         return;
     }
 
-    if g_st().screen.updating_screen.get() {
+    if screen_state().updating_screen.get() {
         ui_schedule_refresh();
         return;
     }
@@ -341,7 +340,7 @@ pub fn ui_refresh_event() {
 }
 
 pub fn ui_schedule_refresh() {
-    multiqueue_put_event(g_st().screen.resize_events.get(), Event::UiRefresh);
+    multiqueue_put_event(screen_state().resize_events.get(), Event::UiRefresh);
 }
 
 pub fn ui_default_colors_set() {
@@ -354,11 +353,11 @@ pub fn ui_default_colors_set() {
 fn ui_may_set_default_colors() {
     if ui_state(|st| st.pending_default_colors.replace(false)) {
         ui_call_default_colors_set(
-            Integer::from(g_st().screen.normal_fg.get()),
-            Integer::from(g_st().screen.normal_bg.get()),
-            Integer::from(g_st().screen.normal_sp.get()),
-            Integer::from(g_st().screen.cterm_normal_fg_color.get()),
-            Integer::from(g_st().screen.cterm_normal_bg_color.get()),
+            Integer::from(screen_state().normal_fg.get()),
+            Integer::from(screen_state().normal_bg.get()),
+            Integer::from(screen_state().normal_sp.get()),
+            Integer::from(screen_state().cterm_normal_fg_color.get()),
+            Integer::from(screen_state().cterm_normal_bg_color.get()),
         );
     }
 }
@@ -386,14 +385,13 @@ pub fn ui_busy_stop() {
 }
 
 pub fn vim_beep(val: u32) {
-    if g_st().msg.emsg_silent.get() != 0 || g_st().msg.in_assert_fails.get() {
-        g_st()
-            .msg
+    if msg_state().emsg_silent.get() != 0 || msg_state().in_assert_fails.get() {
+        msg_state()
             .did_beep_silent
-            .set(g_st().msg.did_beep_silent.get() + (1));
+            .set(msg_state().did_beep_silent.get() + (1));
         return;
     }
-    g_st().msg.did_beep.set(g_st().msg.did_beep.get() + (1));
+    msg_state().did_beep.set(msg_state().did_beep.get() + (1));
 
     if (opt_vars().bo_flags.get() & val) == 0
         && (opt_vars().bo_flags.get() & K_OPT_BO_FLAG_ALL) == 0
@@ -443,7 +441,7 @@ pub fn ui_attach_impl(ui_rc: &std::rc::Rc<std::cell::RefCell<RemoteUI>>, chanid:
         let mut ui = ui_rc.borrow_mut();
         if !ui.ui_ext[K_UIMULTIGRID]
             && !ui.ui_ext[K_UIFLOAT_DEBUG]
-            && g_st().screen.ui_client_channel_id.get() == 0
+            && screen_state().ui_client_channel_id.get() == 0
         {
             ui_comp_attach(&mut ui);
         }
@@ -493,7 +491,7 @@ pub fn ui_detach_impl(ui_rc: &std::rc::Rc<std::cell::RefCell<RemoteUI>>, chanid:
         uis.is_empty()
     });
 
-    if !is_empty && !g_st().exc.exiting.get() {
+    if !is_empty && !exc_state().exiting.get() {
         ui_schedule_refresh();
     }
 
@@ -615,14 +613,14 @@ pub fn ui_current_col() -> i32 {
 }
 
 pub fn ui_flush() {
-    debug_assert!(g_st().screen.ui_client_channel_id.get() == 0);
+    debug_assert!(screen_state().ui_client_channel_id.get() == 0);
     if ui_active() == 0 {
         return;
     }
 
-    if (g_st().edit.state_global.get() & MODE_CMDLINE) == 0
+    if (edit_state().state_global.get() & MODE_CMDLINE) == 0
         && curwin().w_floating.get()
-        && curwin().w_config.borrow().hide
+        && curwin().config_hide()
     {
         if !ui_state(|st| st.ui_flush_was_busy.replace(true)) {
             ui_call_busy_start();
@@ -632,7 +630,7 @@ pub fn ui_flush() {
     }
 
     win_ui_flush(false);
-    if g_st().input.textlock.get() == 0 && g_st().input.expr_map_lock.get() == 0 {
+    if input_state().textlock.get() == 0 && input_state().expr_map_lock.get() == 0 {
         cmdline_ui_flush();
         msg_ext_ui_flush();
     }
@@ -706,18 +704,18 @@ pub fn ui_check_mouse() {
         return;
     }
 
-    let checkfor = if g_st().edit.visual_global.active.get() {
+    let checkfor = if edit_state().visual_global.active.get() {
         K_MOUSE_VISUAL
-    } else if g_st().edit.state_global.get() == MODE_HITRETURN
-        || g_st().edit.state_global.get() == MODE_ASKMORE
-        || g_st().edit.state_global.get() == MODE_SETWSIZE
+    } else if edit_state().state_global.get() == MODE_HITRETURN
+        || edit_state().state_global.get() == MODE_ASKMORE
+        || edit_state().state_global.get() == MODE_SETWSIZE
     {
         K_MOUSE_RETURN
-    } else if (g_st().edit.state_global.get() & MODE_INSERT) != 0 {
+    } else if (edit_state().state_global.get() & MODE_INSERT) != 0 {
         K_MOUSE_INSERT
-    } else if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0 {
+    } else if (edit_state().state_global.get() & MODE_CMDLINE) != 0 {
         K_MOUSE_COMMAND_CONST
-    } else if g_st().edit.state_global.get() == MODE_EXTERNCMD {
+    } else if edit_state().state_global.get() == MODE_EXTERNCMD {
         b' ' as i32
     } else {
         K_MOUSE_NORMAL
@@ -746,7 +744,7 @@ pub fn ui_mouse_has(mode: i32) -> bool {
 }
 
 pub fn ui_cursor_shape_no_check_conceal() {
-    if !g_st().screen.full_screen.get() {
+    if !screen_state().full_screen.get() {
         return;
     }
     let new_mode_idx = cursor_get_mode_idx();
@@ -764,7 +762,7 @@ pub fn ui_cursor_shape() {
 }
 
 fn ui_cursor_is_behind_floatwin() -> bool {
-    if (g_st().edit.state_global.get() & MODE_CMDLINE) != 0 || !ui_comp_should_draw() {
+    if (edit_state().state_global.get() & MODE_CMDLINE) != 0 || !ui_comp_should_draw() {
         return false;
     }
 
@@ -779,7 +777,7 @@ fn ui_cursor_is_behind_floatwin() -> bool {
 
     let top_grid = ui_comp_get_grid_at_coord(crow, ccol);
     !ptr::eq(&*top_grid, &raw const curwin().w_grid_alloc)
-        && !ptr::eq(&*top_grid, &raw const g_st().screen.default_grid)
+        && !ptr::eq(&*top_grid, &raw const screen_state().default_grid)
         && top_grid.zindex.get() >= curwin().w_grid_alloc.zindex.get() + 50
 }
 
@@ -855,9 +853,11 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32) -> Result
 
     if wp.w_floating.get() {
         if width != wp.w_width.get() || height != wp.w_height.get() {
-            wp.w_config.borrow_mut().width = width.max(1);
-            wp.w_config.borrow_mut().height = height.max(1);
-            let cfg = wp.w_config.borrow().clone();
+            let cfg = wp.with_config_mut(|cfg| {
+                cfg.width = width.max(1);
+                cfg.height = height.max(1);
+                cfg.clone()
+            });
             win_config_float(&wp, cfg);
         }
     } else {
@@ -892,41 +892,41 @@ fn ui_attach_error(ns_id: u32, name: &CStr, msg: Option<&CStr>) {
 pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
     let mut ctx = CONTEXT_INIT;
     ctx_save(&mut ctx, K_CTX_COUNT);
-    let save_expr_map_lock = g_st().input.expr_map_lock.get();
-    let save_textlock = g_st().input.textlock.get();
-    g_st().input.expr_map_lock.set(0);
-    g_st().input.textlock.set(0);
-
     let mut handled = false;
-    let fast = g_st().msg.msg_ext_fast.get() && name == c"msg_show";
-    let entries: Vec<(u32, LuaRef)> = ui_state(|st| {
-        st.ui_event_cbs
-            .borrow()
-            .iter()
-            .map(|(&k, v)| (k, v.cb))
-            .collect()
-    });
-    for (ns_id, cb_ref) in entries {
-        if !ui_state(|st| st.ui_event_cbs.borrow().contains_key(&ns_id)) {
-            continue;
-        }
-        g_st().screen.ui_event_ns_id.set(ns_id);
-        let res = nlua_call_ref_ctx(fast, cb_ref, Some(name), args.clone(), K_RET_NIL_BOOL);
-        g_st().screen.ui_event_ns_id.set(0);
-        match res {
-            Ok(res) => {
-                if res.obj_type == ObjectType::ObjectTypeBoolean && res.data.boolean() {
-                    handled = true;
+    {
+        let save_expr_map_lock = input_state().expr_map_lock.get();
+        let _save_textlock = input_state().override_textlock(0);
+        input_state().expr_map_lock.set(0);
+
+        let fast = msg_state().msg_ext_fast.get() && name == c"msg_show";
+        let entries: Vec<(u32, LuaRef)> = ui_state(|st| {
+            st.ui_event_cbs
+                .borrow()
+                .iter()
+                .map(|(&k, v)| (k, v.cb))
+                .collect()
+        });
+        for (ns_id, cb_ref) in entries {
+            if !ui_state(|st| st.ui_event_cbs.borrow().contains_key(&ns_id)) {
+                continue;
+            }
+            screen_state().ui_event_ns_id.set(ns_id);
+            let res = nlua_call_ref_ctx(fast, cb_ref, Some(name), args.clone(), K_RET_NIL_BOOL);
+            screen_state().ui_event_ns_id.set(0);
+            match res {
+                Ok(res) => {
+                    if res.obj_type == ObjectType::ObjectTypeBoolean && res.data.boolean() {
+                        handled = true;
+                    }
+                }
+                Err(err) => {
+                    ui_attach_error(ns_id, name, err.msg.as_deref());
+                    ui_remove_cb(ns_id, true);
                 }
             }
-            Err(err) => {
-                ui_attach_error(ns_id, name, err.msg.as_deref());
-                ui_remove_cb(ns_id, true);
-            }
         }
+        input_state().expr_map_lock.set(save_expr_map_lock);
     }
-    g_st().input.expr_map_lock.set(save_expr_map_lock);
-    g_st().input.textlock.set(save_textlock);
     ctx_load(&mut ctx, K_CTX_COUNT, 0);
     ctx_free(&mut ctx);
 

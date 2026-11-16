@@ -327,7 +327,7 @@ fn wipe_ft_buf(buf: &FileBuf) {
 
     close_windows(buf_ptr.opt(), false);
     if bufref_valid(Some(&bufref))
-        && g_st().workspace.curbuf.get() != buf_ptr
+        && workspace_state().curbuf.get() != buf_ptr
         && buf_ptr.b_nwindows.get() == 0
     {
         wipe_buffer(buf_ptr.borrow(), false);
@@ -560,7 +560,7 @@ pub fn nvim_set_option_value(
     let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, &to) {
         b
     } else {
-        &g_st().workspace.curbuf.get()
+        &workspace_state().curbuf.get()
     };
     let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, &to) {
         w
@@ -815,7 +815,7 @@ pub fn nvim_get_option_info2(name: NvimString, opts: &mut KeyDictOption) -> Resu
     let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, &from) {
         b
     } else {
-        &g_st().workspace.curbuf.get()
+        &workspace_state().curbuf.get()
     };
     let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, &from) {
         w

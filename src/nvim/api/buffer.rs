@@ -40,7 +40,7 @@ use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topli
 use crate::msgpack_rpc::packer::Integer;
 use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
-use crate::undo::{u_save_buf, uhp_ref};
+use crate::undo::{u_save_buf, with_uhp};
 use crate::window::{VALID_BOTLINE_AP, WinInfoInfo};
 
 use crate::search::FORWARD;
@@ -568,12 +568,12 @@ pub fn nvim_buf_set_lines(
             K_EXTMARK_NOOP,
         );
 
-        if g_st().edit.visual_global.active.get()
-            && g_st().workspace.curbuf.get() == b
-            && g_st().edit.visual_global.start.get().lnum >= (start as Linenr)
+        if edit_state().visual_global.active.get()
+            && workspace_state().curbuf.get() == b
+            && edit_state().visual_global.start.get().lnum >= (start as Linenr)
         {
-            if g_st().edit.visual_global.start.get().lnum >= (end as Linenr) {
-                g_st().edit.visual_global.start.add_lnum(extra as Linenr);
+            if edit_state().visual_global.start.get().lnum >= (end as Linenr) {
+                edit_state().visual_global.start.add_lnum(extra as Linenr);
             }
             check_visual_pos();
         }
@@ -877,11 +877,11 @@ pub fn nvim_buf_set_text(
             K_EXTMARK_NOOP,
         );
 
-        if g_st().edit.visual_global.active.get()
-            && b_ptr == g_st().workspace.curbuf.get().as_ptr()
-            && g_st().edit.visual_global.mode.get() != CTRL_V_CONST
+        if edit_state().visual_global.active.get()
+            && b_ptr == workspace_state().curbuf.get().as_ptr()
+            && edit_state().visual_global.mode.get() != CTRL_V_CONST
         {
-            let mut vstart = g_st().edit.visual_global.start.get();
+            let mut vstart = edit_state().visual_global.start.get();
             fix_pos_col(
                 &b,
                 &mut vstart,
@@ -893,7 +893,7 @@ pub fn nvim_buf_set_text(
                 last_item.size as Colnr,
                 1,
             );
-            g_st().edit.visual_global.start.set(vstart);
+            edit_state().visual_global.start.set(vstart);
 
             check_visual_pos();
         }
@@ -1236,11 +1236,8 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString) -> Result<(), Error> {
     try_wrap(|| {
         let is_curbuf = b_fnum == curbuf().b_fnum.get();
         let save_acd = opt_vars().p_acd.get();
+        let _redraw_off = (!is_curbuf).then(|| screen_state().disable_redrawing());
         if !is_curbuf {
-            g_st()
-                .screen
-                .redrawing_disabled
-                .set(g_st().screen.redrawing_disabled.get() + (1));
             opt_vars().p_acd.set(false);
         }
 
@@ -1250,10 +1247,6 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString) -> Result<(), Error> {
         ctx_restore(&mut aco);
 
         if !is_curbuf {
-            g_st()
-                .screen
-                .redrawing_disabled
-                .set(g_st().screen.redrawing_disabled.get() - (1));
             opt_vars().p_acd.set(save_acd);
         }
     })?;
@@ -1524,7 +1517,7 @@ pub fn nvim_buf_stats(buf: Buffer) -> Result<Dict, Error> {
     put_c(
         &mut rv,
         c"virt_blocks",
-        integer_obj(b.b_marktree.borrow().meta_root[K_MTMETA_LINES] as Integer),
+        integer_obj(b.marktree_meta_root(K_MTMETA_LINES) as Integer),
     );
     put_c(
         &mut rv,
@@ -1537,7 +1530,7 @@ pub fn nvim_buf_stats(buf: Buffer) -> Result<Dict, Error> {
         put_c(
             &mut rv,
             c"uhp_extmark_size",
-            integer_obj(uhp_ref(&b, uh).uh_extmark.len() as Integer),
+            integer_obj(with_uhp(&b, uh, |h| h.uh_extmark.len()) as Integer),
         );
     }
 
@@ -1623,7 +1616,7 @@ fn fix_cursor_cols(
     new_rows: Linenr,
     new_cols_at_end_row: Colnr,
 ) {
-    let mode_col_adj = if win == curwin() && (g_st().edit.state_global.get() & MODE_INSERT) != 0 {
+    let mode_col_adj = if win == curwin() && (edit_state().state_global.get() & MODE_INSERT) != 0 {
         0
     } else {
         1

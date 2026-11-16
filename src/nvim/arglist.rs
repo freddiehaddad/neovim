@@ -188,7 +188,7 @@ fn alist_set(al: &std::rc::Rc<Alist>, files: Vec<CString>, use_curbuf: i32) {
     al.al_ga.borrow_mut().reserve(files.len());
 
     for fname in files {
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             break;
         }
 
@@ -199,7 +199,7 @@ fn alist_set(al: &std::rc::Rc<Alist>, files: Vec<CString>, use_curbuf: i32) {
     }
 
     if is_global_alist(al) {
-        g_st().workspace.arg_had_last.set(false);
+        workspace_state().arg_had_last.set(false);
     }
 }
 
@@ -338,7 +338,7 @@ fn arglist_del_files(alist_ga: &[CString]) {
     regmatch.rm_ic = opt_vars().p_fic.get();
 
     for orig_p in alist_ga {
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             break;
         }
         let Some(p) = file_pat_to_reg_pat(orig_p.to_bytes(), None, 0) else {
@@ -466,7 +466,7 @@ pub fn check_arg_idx(win: &WinInfoInfo) {
         win.w_arg_idx_invalid.set(true);
         let gcount = gargcount();
         if win.w_arg_idx.get() != wcount - 1
-            && !g_st().workspace.arg_had_last.get()
+            && !workspace_state().arg_had_last.get()
             && is_global_alist(&win_alist_rc(win))
             && gcount > 0
             && win.w_arg_idx.get() < gcount
@@ -483,13 +483,13 @@ pub fn check_arg_idx(win: &WinInfoInfo) {
                         K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                     ))
             {
-                g_st().workspace.arg_had_last.set(true);
+                workspace_state().arg_had_last.set(true);
             }
         }
     } else {
         win.w_arg_idx_invalid.set(false);
         if win.w_arg_idx.get() == wcount - 1 && is_global_alist(&win_alist_rc(win)) {
-            g_st().workspace.arg_had_last.set(true);
+            workspace_state().arg_had_last.set(true);
         }
     }
 }
@@ -607,7 +607,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
 
     setpcmark();
 
-    if is_split_cmd || g_st().cmdline.cmod_tab() != 0 {
+    if is_split_cmd || cmdline_state().cmod_tab() != 0 {
         if !win_split(0, 0) {
             return;
         }
@@ -635,7 +635,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
 
     curwin().w_arg_idx.set(argn);
     if argn == argcount() - 1 && is_global_alist(&win_alist_rc(&curwin())) {
-        g_st().workspace.arg_had_last.set(true);
+        workspace_state().arg_had_last.set(true);
     }
 
     let cur_entry = arg_entry(curwin().w_arg_idx.get() as usize);
@@ -835,30 +835,27 @@ pub fn alist_name(aep: &Aentry) -> Option<crate::option_vars::RcCStr> {
 /// Close all the windows containing files which are not in the argument list (`arg_all_close_unused_windows`).
 fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
     let old_curwin = curwin();
-    let old_curtab = g_st().workspace.curtab.get().clone();
+    let old_curtab = workspace_state().curtab.get().clone();
 
     if aall.had_tab > 0 {
-        let first_tp = g_st().workspace.first_tabpage.get().clone();
+        let first_tp = workspace_state().first_tabpage.get().clone();
         goto_tabpage_tp(first_tp.opt(), true, true);
     }
 
-    g_st()
-        .workspace
-        .tabpage_move_disallowed
-        .set(g_st().workspace.tabpage_move_disallowed.get() + (1));
+    let _no_tab_move = workspace_state().disallow_tabpage_move();
     loop {
         let mut tpnext = curtab().tp_next.get();
         let mut wp = if lastwin().w_floating.get() {
-            g_st().workspace.lastwin.get()
+            workspace_state().lastwin.get()
         } else {
-            g_st().workspace.firstwin.get()
+            workspace_state().firstwin.get()
         };
         while !wp.is_null() {
             let mut wpnext = if wp.w_floating.get() {
                 if !wp.w_prev.get().is_null() && wp.w_prev.get().w_floating.get() {
                     wp.w_prev.get()
                 } else {
-                    g_st().workspace.firstwin.get()
+                    workspace_state().firstwin.get()
                 }
             } else if wp.w_next.get().is_null() || wp.w_next.get().w_floating.get() {
                 crate::globals::WinPtr::NULL
@@ -872,7 +869,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
             if buf.b_ffname.get().is_none()
                 || (!aall_ref.keep_tabs
                     && (buf.b_nwindows.get() > 1
-                        || wp.w_width.get() != g_st().screen.columns_global.get()
+                        || wp.w_width.get() != screen_state().columns_global.get()
                         || (wp.w_floating.get() && !is_ctx_win(&wp))))
             {
                 i = opened_len;
@@ -890,7 +887,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                             ))
                     {
                         let mut weight: i32 = 1;
-                        if old_curtab == g_st().workspace.curtab.get() {
+                        if old_curtab == workspace_state().curtab.get() {
                             weight += 1;
                             if old_curwin == wp {
                                 weight += 1;
@@ -904,7 +901,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                                     aall_ref.new_curwin.w_arg_idx.set(opened_len);
                                 }
                                 aall_ref.new_curwin = wp.clone();
-                                aall_ref.new_curtab = g_st().workspace.curtab.get().clone();
+                                aall_ref.new_curtab = workspace_state().curtab.get().clone();
                             }
                         } else if aall_ref.keep_tabs {
                             i = opened_len;
@@ -934,14 +931,14 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     autowrite(&buf, false);
                     if !win_valid(wp.opt()) || !bufref_valid(Some(&bufref)) {
                         wp = if lastwin().w_floating.get() {
-                            g_st().workspace.lastwin.get()
+                            workspace_state().lastwin.get()
                         } else {
-                            g_st().workspace.firstwin.get()
+                            workspace_state().firstwin.get()
                         };
                         continue;
                     }
                 }
-                if g_st().workspace.firstwin.get() == g_st().workspace.lastwin.get()
+                if workspace_state().firstwin.get() == workspace_state().lastwin.get()
                     && (crate::globals::first_tabpage().tp_next.get().is_null()
                         || aall.had_tab == 0)
                 {
@@ -951,9 +948,9 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     win_close(wp.borrow(), close_b, false);
                     if !win_valid(wpnext.opt()) {
                         wpnext = if lastwin().w_floating.get() {
-                            g_st().workspace.lastwin.get()
+                            workspace_state().lastwin.get()
                         } else {
-                            g_st().workspace.firstwin.get()
+                            workspace_state().firstwin.get()
                         };
                     }
                 }
@@ -966,14 +963,10 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
         }
 
         if !valid_tabpage(tpnext.opt()) {
-            tpnext = g_st().workspace.first_tabpage.get().clone();
+            tpnext = workspace_state().first_tabpage.get().clone();
         }
         goto_tabpage_tp(tpnext.opt(), true, true);
     }
-    g_st()
-        .workspace
-        .tabpage_move_disallowed
-        .set(g_st().workspace.tabpage_move_disallowed.get() - (1));
 }
 
 /// Open up to `count` windows for the files in the argument list `aall->alist` (`arg_all_open_windows`).
@@ -992,9 +985,9 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
 
     let mut split_ret = true;
     let mut i: i32 = 0;
-    while i < count && !g_st().input.got_int.get() {
+    while i < count && !input_state().got_int.get() {
         if is_global_alist(&aall.alist) && i == gargcount() - 1 {
-            g_st().workspace.arg_had_last.set(true);
+            workspace_state().arg_had_last.set(true);
         }
         if aall.opened[i as usize] > 0 {
             if curwin().w_arg_idx.get() != i {
@@ -1002,7 +995,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                     if wp.w_arg_idx.get() == i {
                         if aall.keep_tabs {
                             aall.new_curwin = wp;
-                            aall.new_curtab = g_st().workspace.curtab.get().clone();
+                            aall.new_curtab = workspace_state().curtab.get().clone();
                         } else if wp.w_floating.get() {
                             break;
                         } else if wp.frame().fr_parent.get() != curwin().frame().fr_parent.get() {
@@ -1018,10 +1011,9 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
             }
         } else if split_ret {
             if tab_drop_empty_window && i == count - 1 {
-                g_st()
-                    .autocmd
+                autocmd_state()
                     .autocmd_no_enter
-                    .set(g_st().autocmd.autocmd_no_enter.get() - (1));
+                    .set(autocmd_state().autocmd_no_enter.get() - (1));
             }
             if !aall.use_firstwin {
                 let p_ea_save = opt_vars().p_ea.get();
@@ -1034,16 +1026,15 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                     continue;
                 }
             } else {
-                g_st()
-                    .autocmd
+                autocmd_state()
                     .autocmd_no_leave
-                    .set(g_st().autocmd.autocmd_no_leave.get() - (1));
+                    .set(autocmd_state().autocmd_no_leave.get() - (1));
             }
 
             curwin().w_arg_idx.set(i);
             if i == 0 {
                 aall.new_curwin = crate::globals::curwin();
-                aall.new_curtab = g_st().workspace.curtab.get().clone();
+                aall.new_curtab = workspace_state().curtab.get().clone();
             }
             let entry = aall.alist.al_ga.borrow()[i as usize].clone();
             do_ecmd(
@@ -1060,23 +1051,21 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                 Some(&curwin()),
             );
             if tab_drop_empty_window && i == count - 1 {
-                g_st()
-                    .autocmd
+                autocmd_state()
                     .autocmd_no_enter
-                    .set(g_st().autocmd.autocmd_no_enter.get() + (1));
+                    .set(autocmd_state().autocmd_no_enter.get() + (1));
             }
             if aall.use_firstwin {
-                g_st()
-                    .autocmd
+                autocmd_state()
                     .autocmd_no_leave
-                    .set(g_st().autocmd.autocmd_no_leave.get() + (1));
+                    .set(autocmd_state().autocmd_no_leave.get() + (1));
             }
             aall.use_firstwin = false;
         }
         os_breakcheck();
 
         if aall.had_tab > 0 && (tabpage_index(None) as OptInt) <= opt_vars().p_tpm.get() {
-            g_st().cmdline.set_cmod_tab(9999);
+            cmdline_state().set_cmod_tab(9999);
         }
         i += 1;
     }
@@ -1085,7 +1074,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
 /// Open up to `count` windows, one for each argument (`do_arg_all`).
 fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
     let prev_arglist_locked = ARGLIST_LOCKED.get();
-    debug_assert!(!g_st().workspace.firstwin.get().is_null());
+    debug_assert!(!workspace_state().firstwin.get().is_null());
 
     let acount = argcount();
     if acount <= 0 {
@@ -1096,7 +1085,7 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
     let mut aall = ArgAllState {
         alist: win_alist_rc(&curwin()),
         local_alist: curwin().w_alist.get().clone(),
-        had_tab: g_st().cmdline.cmod_tab(),
+        had_tab: cmdline_state().cmod_tab(),
         keep_tabs,
         forceit,
         use_firstwin: false,
@@ -1107,7 +1096,7 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
 
     ARGLIST_LOCKED.set(true);
 
-    let new_lu_tp = g_st().workspace.curtab.get().clone();
+    let new_lu_tp = workspace_state().curtab.get().clone();
 
     reset_visual_and_resel();
 
@@ -1118,16 +1107,14 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
         count = opened_len;
     }
 
-    g_st()
-        .autocmd
+    autocmd_state()
         .autocmd_no_enter
-        .set(g_st().autocmd.autocmd_no_enter.get() + (1));
-    g_st()
-        .autocmd
+        .set(autocmd_state().autocmd_no_enter.get() + (1));
+    autocmd_state()
         .autocmd_no_leave
-        .set(g_st().autocmd.autocmd_no_leave.get() + (1));
+        .set(autocmd_state().autocmd_no_leave.get() + (1));
     let last_curwin = curwin();
-    let last_curtab = g_st().workspace.curtab.get().clone();
+    let last_curtab = workspace_state().curtab.get().clone();
     win_enter(&lastwin_nofloating(None), false);
 
     arg_all_open_windows(&mut aall, count);
@@ -1135,10 +1122,9 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
     drop(aall.local_alist.take());
     ARGLIST_LOCKED.set(prev_arglist_locked);
 
-    g_st()
-        .autocmd
+    autocmd_state()
         .autocmd_no_enter
-        .set(g_st().autocmd.autocmd_no_enter.get() - (1));
+        .set(autocmd_state().autocmd_no_enter.get() - (1));
 
     if aall.new_curtab != last_curtab {
         if valid_tabpage(last_curtab.opt()) {
@@ -1153,17 +1139,16 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
     }
 
     if valid_tabpage(new_lu_tp.opt()) {
-        g_st().workspace.lastused_tabpage.set(new_lu_tp);
+        workspace_state().lastused_tabpage.set(new_lu_tp);
     }
 
     if win_valid(aall.new_curwin.opt()) {
         win_enter(aall.new_curwin.borrow(), false);
     }
 
-    g_st()
-        .autocmd
+    autocmd_state()
         .autocmd_no_leave
-        .set(g_st().autocmd.autocmd_no_leave.get() - (1));
+        .set(autocmd_state().autocmd_no_leave.get() - (1));
 }
 
 /// `:all` and `:sall` (`ex_all`).

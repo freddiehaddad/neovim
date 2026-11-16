@@ -276,7 +276,7 @@ pub fn ui_comp_put_grid(
 }
 
 pub fn ui_comp_remove_grid(grid: &ScreenGrid) {
-    debug_assert!(!ptr::eq(grid, &raw const g_st().screen.default_grid));
+    debug_assert!(!ptr::eq(grid, &raw const screen_state().default_grid));
     if grid.comp_index.get() == 0 {
         return;
     }
@@ -362,8 +362,8 @@ pub fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
         }
     }
 
-    if cursor_col >= g_st().screen.default_grid.cols.get()
-        || cursor_row >= g_st().screen.default_grid.rows.get()
+    if cursor_col >= screen_state().default_grid.cols.get()
+        || cursor_row >= screen_state().default_grid.rows.get()
     {
         return;
     }
@@ -422,12 +422,12 @@ pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> crate::grid::GridRef {
             && row < grid.comp_row.get() + grid.rows.get()
             && col >= grid.comp_col.get()
             && col < grid.comp_col.get() + grid.cols.get()
-            && !wp.w_config.borrow().hide
+            && !wp.config_hide()
         {
             return crate::grid::GridRef::Win(wp);
         }
     }
-    crate::grid::GridRef::Static(&g_st().screen.default_grid)
+    crate::grid::GridRef::Static(&screen_state().default_grid)
 }
 
 fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut flags: LineFlags) {
@@ -438,7 +438,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
         startcol -= 1;
         skipstart = 1;
     }
-    if endcol < (g_st().screen.default_grid.cols.get() as Integer)
+    if endcol < (screen_state().default_grid.cols.get() as Integer)
         && (flags & K_LINE_FLAG_INVALID) != 0
     {
         endcol += 1;
@@ -448,9 +448,9 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
     let mut col = startcol as i32;
     let mut grid: Option<crate::grid::GridRef> = None;
     let line_off =
-        g_st().screen.default_grid.line_offset.borrow()[row as usize] + (startcol as usize);
-    let bg_line = g_st().screen.default_grid.chars.borrow()[line_off..].to_vec();
-    let bg_attrs = g_st().screen.default_grid.attrs.borrow()[line_off..].to_vec();
+        screen_state().default_grid.line_offset.borrow()[row as usize] + (startcol as usize);
+    let bg_line = screen_state().default_grid.chars.borrow()[line_off..].to_vec();
+    let bg_attrs = screen_state().default_grid.attrs.borrow()[line_off..].to_vec();
     let (msg_sep_row, msg_sep_char, chk_width, chk_height) = with_comp(|c| {
         (
             c.msg_sep_row.get(),
@@ -489,13 +489,13 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
 
             debug_assert!(grid.is_some());
             debug_assert!(until > col);
-            debug_assert!(until <= g_st().screen.default_grid.cols.get());
+            debug_assert!(until <= screen_state().default_grid.cols.get());
             let n = (until - col) as usize;
 
             if row == (msg_sep_row as Integer)
-                && grid.as_ref().unwrap().comp_index <= g_st().msg.msg_grid.comp_index
+                && grid.as_ref().unwrap().comp_index <= msg_state().msg_grid.comp_index
             {
-                grid = Some(crate::grid::GridRef::Static(&g_st().msg.msg_grid));
+                grid = Some(crate::grid::GridRef::Static(&msg_state().msg_grid));
                 let msg_sep_attr = crate::highlight::hl_attr(HLF_MSGSEP as i32) as Sattr;
                 for i in col..until {
                     let idx = (i - startcol as i32) as usize;
@@ -564,8 +564,8 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
         debug_assert!(row < chk_height as Integer);
 
         if !grid.is_some_and(|g| {
-            ptr::eq(&*g, &raw const g_st().screen.default_grid)
-                || (g.comp_col.get() == 0 && g.cols.get() == g_st().screen.columns_global.get())
+            ptr::eq(&*g, &raw const screen_state().default_grid)
+                || (g.comp_col.get() == 0 && g.cols.get() == screen_state().columns_global.get())
         }) {
             flags &= !K_LINE_FLAG_WRAP;
         }
@@ -607,8 +607,8 @@ fn compose_debug(
         return;
     }
 
-    endrow = endrow.min(g_st().screen.default_grid.rows.get() as Integer);
-    endcol = endcol.min(g_st().screen.default_grid.cols.get() as Integer);
+    endrow = endrow.min(screen_state().default_grid.rows.get() as Integer);
+    endcol = endcol.min(screen_state().default_grid.cols.get() as Integer);
     let attr = syn_id2attr(syn_id);
 
     if delay {
@@ -656,8 +656,8 @@ fn compose_area(startrow: Integer, mut endrow: Integer, startcol: Integer, mut e
         with_comp(|c| c.dbghl_recompose.get()),
         true,
     );
-    endrow = endrow.min(g_st().screen.default_grid.rows.get() as Integer);
-    endcol = endcol.min(g_st().screen.default_grid.cols.get() as Integer);
+    endrow = endrow.min(screen_state().default_grid.rows.get() as Integer);
+    endcol = endcol.min(screen_state().default_grid.cols.get() as Integer);
     if endcol <= startcol {
         return;
     }
@@ -704,14 +704,14 @@ pub fn ui_comp_raw_line(
 
     debug_assert!(endcol <= clearcol);
 
-    if row >= g_st().screen.default_grid.rows.get() as Integer {
+    if row >= screen_state().default_grid.rows.get() as Integer {
         return;
     }
-    if clearcol > g_st().screen.default_grid.cols.get() as Integer {
-        if startcol >= g_st().screen.default_grid.cols.get() as Integer {
+    if clearcol > screen_state().default_grid.cols.get() as Integer {
+        if startcol >= screen_state().default_grid.cols.get() as Integer {
             return;
         }
-        clearcol = g_st().screen.default_grid.cols.get() as Integer;
+        clearcol = screen_state().default_grid.cols.get() as Integer;
         endcol = endcol.min(clearcol);
     }
 
@@ -771,8 +771,8 @@ pub fn ui_comp_msg_set_pos(
     _zindex: Integer,
     _compindex: Integer,
 ) {
-    g_st().msg.msg_grid.pending_comp_index_update.set(true);
-    g_st().msg.msg_grid.comp_row.set(row as i32);
+    msg_state().msg_grid.pending_comp_index_update.set(true);
+    msg_state().msg_grid.comp_row.set(row as i32);
     if scrolled && row > 0 {
         with_comp(|c| {
             c.msg_sep_row.set((row as i32) - 1);
@@ -792,29 +792,29 @@ pub fn ui_comp_msg_set_pos(
             (msg_current_row - 1).max(0) as Integer,
             row,
             0,
-            g_st().screen.default_grid.cols.get() as Integer,
+            screen_state().default_grid.cols.get() as Integer,
         );
     } else if row < (msg_current_row as Integer)
         && ui_comp_should_draw()
-        && (msg_current_row < g_st().screen.rows_global.get() || (scrolled && !msg_was_scrolled))
+        && (msg_current_row < screen_state().rows_global.get() || (scrolled && !msg_was_scrolled))
     {
         let delta = msg_current_row - (row as i32);
-        if g_st().msg.msg_grid.blending.get() {
+        if msg_state().msg_grid.blending.get() {
             let first_row = ((row as i32) - if scrolled { 1 } else { 0 }).max(0);
             compose_area(
                 first_row as Integer,
-                (g_st().screen.rows_global.get() - delta) as Integer,
+                (screen_state().rows_global.get() - delta) as Integer,
                 0,
-                g_st().screen.columns_global.get() as Integer,
+                screen_state().columns_global.get() as Integer,
             );
         } else {
             let first_row = ((row as i32) - if msg_was_scrolled { 1 } else { 0 }).max(0);
             ui_composed_call_grid_scroll(
                 1,
                 first_row as Integer,
-                g_st().screen.rows_global.get() as Integer,
+                screen_state().rows_global.get() as Integer,
                 0,
-                g_st().screen.columns_global.get() as Integer,
+                screen_state().columns_global.get() as Integer,
                 delta as Integer,
                 0,
             );
@@ -823,7 +823,7 @@ pub fn ui_comp_msg_set_pos(
                     row - 1,
                     row,
                     0,
-                    g_st().screen.columns_global.get() as Integer,
+                    screen_state().columns_global.get() as Integer,
                 );
             }
         }
@@ -846,7 +846,7 @@ fn curgrid_covered_above(top: i32, bot: i32, left: i32, right: i32) -> bool {
     for idx in start_idx..layers_len() {
         let g = layer_mut(idx);
         let grid_top = g.comp_row.get()
-            - if ptr::eq(&*g, &raw const g_st().msg.msg_grid) && msg_was_scrolled {
+            - if ptr::eq(&*g, &raw const msg_state().msg_grid) && msg_was_scrolled {
                 1
             } else {
                 0

@@ -122,18 +122,19 @@ fn decor_provider_invoke(
     default_true: bool,
     res: Option<&mut Array>,
 ) -> bool {
-    g_st().input.textlock.set(g_st().input.textlock.get() + (1));
-    let call_res = nlua_call_ref(
-        ref_,
-        Some(name),
-        args,
-        if res.is_some() {
-            K_RET_MULTI
-        } else {
-            K_RET_NIL_BOOL
-        },
-    );
-    g_st().input.textlock.set(g_st().input.textlock.get() - (1));
+    let call_res = {
+        let _textlock = input_state().lock_text();
+        nlua_call_ref(
+            ref_,
+            Some(name),
+            args,
+            if res.is_some() {
+                K_RET_MULTI
+            } else {
+                K_RET_NIL_BOOL
+            },
+        )
+    };
 
     let mut ret_obj = None;
     let ret_ok = with_providers_mut(|providers| {
@@ -228,13 +229,9 @@ pub fn decor_providers_invoke_conceal(wp: &WinInfoInfo, row: i32, lines: bool) {
     {
         return;
     }
-    let running = g_st()
-        .screen
-        .with_decor_state(|ds| ds.running_decor_provider);
-    let updating = g_st().screen.updating_screen.get();
-    g_st()
-        .screen
-        .with_decor_state_mut(|ds| ds.running_decor_provider = running || updating);
+    let running = screen_state().with_decor_state(|ds| ds.running_decor_provider);
+    let updating = screen_state().updating_screen.get();
+    screen_state().with_decor_state_mut(|ds| ds.running_decor_provider = running || updating);
     let mut i = 0usize;
     while i < providers_len() {
         let ref_opt = with_providers_mut(|providers| {
@@ -264,9 +261,7 @@ pub fn decor_providers_invoke_conceal(wp: &WinInfoInfo, row: i32, lines: bool) {
         }
         i += 1;
     }
-    g_st()
-        .screen
-        .with_decor_state_mut(|ds| ds.running_decor_provider = running);
+    screen_state().with_decor_state_mut(|ds| ds.running_decor_provider = running);
 }
 
 /// For each provider invoke the 'start' callback (`decor_providers_start`).
@@ -302,7 +297,7 @@ pub fn decor_providers_start() {
 
 /// For each provider run 'win' (`decor_providers_invoke_win`).
 pub fn decor_providers_invoke_win(wp: &WinInfoInfo) {
-    debug_assert!(g_st().screen.with_decor_state(|ds| {
+    debug_assert!(screen_state().with_decor_state(|ds| {
         ds.current_end == 0 && ds.future_begin == ds.ranges_i.len() as i32
     }));
 
@@ -346,9 +341,7 @@ pub fn decor_providers_invoke_win(wp: &WinInfoInfo) {
 
 /// For each provider invoke the 'line' callback for a given window row (`decor_providers_invoke_line`).
 pub fn decor_providers_invoke_line(wp: &WinInfoInfo, row: i32) {
-    g_st()
-        .screen
-        .with_decor_state_mut(|ds| ds.running_decor_provider = true);
+    screen_state().with_decor_state_mut(|ds| ds.running_decor_provider = true);
     let mut i = 0usize;
     while i < providers_len() {
         let redraw_line = with_providers_mut(|providers| {
@@ -376,9 +369,7 @@ pub fn decor_providers_invoke_line(wp: &WinInfoInfo, row: i32) {
         }
         i += 1;
     }
-    g_st()
-        .screen
-        .with_decor_state_mut(|ds| ds.running_decor_provider = false);
+    screen_state().with_decor_state_mut(|ds| ds.running_decor_provider = false);
 }
 
 pub fn decor_providers_invoke_range(
@@ -388,9 +379,7 @@ pub fn decor_providers_invoke_range(
     end_row: i32,
     end_col: i32,
 ) {
-    g_st()
-        .screen
-        .with_decor_state_mut(|ds| ds.running_decor_provider = true);
+    screen_state().with_decor_state_mut(|ds| ds.running_decor_provider = true);
     let mut i = 0usize;
     while i < providers_len() {
         let redraw_range = with_providers_mut(|providers| {
@@ -451,9 +440,7 @@ pub fn decor_providers_invoke_range(
         }
         i += 1;
     }
-    g_st()
-        .screen
-        .with_decor_state_mut(|ds| ds.running_decor_provider = false);
+    screen_state().with_decor_state_mut(|ds| ds.running_decor_provider = false);
 }
 
 /// For each provider invoke the 'buf' callback for a given buffer (`decor_providers_invoke_buf`).
@@ -510,8 +497,8 @@ pub fn decor_provider_invalidate_hl() {
         }
     });
 
-    if g_st().screen.ns_hl_active.get() != 0 {
-        g_st().screen.ns_hl_active.set(-1);
+    if screen_state().ns_hl_active.get() != 0 {
+        screen_state().ns_hl_active.set(-1);
         hl_check_ns();
     }
 }

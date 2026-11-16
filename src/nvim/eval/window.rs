@@ -70,7 +70,7 @@ impl Viewstate {
 }
 
 pub fn win_has_winnr(wp: &WinInfoInfo, tp: &TabPageInfo) -> bool {
-    let cur = if g_st().workspace.curtab.get() == tp {
+    let cur = if workspace_state().curtab.get() == tp {
         curwin().as_ptr()
     } else {
         tp.tp_curwin.get().as_ptr()
@@ -83,7 +83,7 @@ pub fn win_find_nr(mut nr: i32, tp: Option<&TabPageInfo>) -> Option<crate::globa
     let tp_ref = match tp {
         Some(tp) => tp,
         None => {
-            debug_assert!(!g_st().workspace.curtab.get().is_null());
+            debug_assert!(!workspace_state().curtab.get().is_null());
             &ct
         }
     };
@@ -108,8 +108,8 @@ fn win_getid(argvars: &mut [TypVal]) -> i32 {
     let mut tp = crate::globals::TabpagePtr::NULL;
     let wp: crate::globals::WinPtr;
     if argvars[1].v_type == VarType::VarUnknown {
-        tp = g_st().workspace.curtab.get().clone();
-        wp = g_st().workspace.firstwin.get();
+        tp = workspace_state().curtab.get().clone();
+        wp = workspace_state().firstwin.get();
     } else {
         let mut tabnr = tv_get_number(&argvars[1]) as i32;
         for tp2 in for_all_tabpages_ptr() {
@@ -295,7 +295,7 @@ fn get_framelayout(fr: Option<&Frame>, l: &TvList, outer: bool) {
 fn get_winnr(tp: &TabPageInfo, argvar: &mut TypVal) -> i32 {
     let mut nr: i32 = 1;
 
-    let mut twin = if g_st().workspace.curtab.get() == tp {
+    let mut twin = if workspace_state().curtab.get() == tp {
         curwin()
     } else {
         tp.tp_curwin.get()
@@ -305,14 +305,14 @@ fn get_winnr(tp: &TabPageInfo, argvar: &mut TypVal) -> i32 {
         if let Some(arg) = tv_get_string_chk(&*argvar) {
             let bytes = arg.to_bytes();
             if bytes == b"$" {
-                twin = if g_st().workspace.curtab.get() == tp {
-                    g_st().workspace.lastwin.get()
+                twin = if workspace_state().curtab.get() == tp {
+                    workspace_state().lastwin.get()
                 } else {
                     tp.tp_lastwin.get()
                 };
             } else if bytes == b"#" {
-                twin = if g_st().workspace.curtab.get() == tp {
-                    g_st().workspace.prevwin.get()
+                twin = if workspace_state().curtab.get() == tp {
+                    workspace_state().prevwin.get()
                 } else {
                     tp.tp_prevwin.get()
                 };
@@ -538,8 +538,8 @@ pub fn f_tabpagenr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             if bytes == b"$" {
                 nr = tabpage_index(None) - 1;
             } else if bytes == b"#" {
-                nr = if valid_tabpage(g_st().workspace.lastused_tabpage.get().opt()) {
-                    tabpage_index(g_st().workspace.lastused_tabpage.get().opt())
+                nr = if valid_tabpage(workspace_state().lastused_tabpage.get().opt()) {
+                    tabpage_index(workspace_state().lastused_tabpage.get().opt())
                 } else {
                     0
                 };
@@ -548,7 +548,7 @@ pub fn f_tabpagenr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             }
         }
     } else {
-        nr = tabpage_index(g_st().workspace.curtab.get().opt());
+        nr = tabpage_index(workspace_state().curtab.get().opt());
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(nr as Varnumber);
 }
@@ -615,8 +615,8 @@ pub fn f_win_gotoid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_ptr(first_win_in_tab(&tp)) {
             if wp.handle == id {
-                if g_st().edit.visual_global.active.get()
-                    && wp.w_buffer.get() != g_st().workspace.curbuf.get()
+                if edit_state().visual_global.active.get()
+                    && wp.w_buffer.get() != workspace_state().curbuf.get()
                 {
                     end_visual_mode();
                 }
@@ -789,7 +789,7 @@ pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// `getcmdwintype()` function (`f_getcmdwintype`).
 pub fn f_getcmdwintype(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let ch = g_st().cmdline.cmdwin_type.get() as u8;
+    let ch = cmdline_state().cmdwin_type.get() as u8;
     if ch == 0 {
         tv_set_string(rettv, Some(c""));
     } else {

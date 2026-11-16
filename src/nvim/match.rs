@@ -151,7 +151,7 @@ fn match_add(
         id = wp.w_next_match_id.get();
         wp.w_next_match_id.set(wp.w_next_match_id.get() + (1));
     } else {
-        if wp.w_match_head.borrow().iter().any(|cur| cur.mit_id == id) {
+        if wp.with_match_head(|matches| matches.iter().any(|cur| cur.mit_id == id)) {
             semsg!(gettext(c"E801: ID already taken: %lld"), i64::from(id),);
             return -1;
         }
@@ -289,13 +289,13 @@ fn match_add(
         }
     }
 
-    let insert_idx = wp
-        .w_match_head
-        .borrow()
-        .iter()
-        .position(|cur| prio < cur.mit_priority)
-        .unwrap_or(wp.w_match_head.borrow().len());
-    wp.w_match_head.borrow_mut().insert(insert_idx, m);
+    wp.with_match_head_mut(|matches| {
+        let insert_idx = matches
+            .iter()
+            .position(|cur| prio < cur.mit_priority)
+            .unwrap_or(matches.len());
+        matches.insert(insert_idx, m);
+    });
 
     redraw_later(Some(wp), rtype);
     id
@@ -314,18 +314,15 @@ fn match_delete(wp: &WinInfoInfo, id: i32, perr: bool) -> bool {
         }
         return false;
     }
-    let Some(idx) = wp
-        .w_match_head
-        .borrow()
-        .iter()
-        .position(|cur| cur.mit_id == id)
-    else {
+    let Some(cur) = wp.with_match_head_mut(|matches| {
+        let idx = matches.iter().position(|cur| cur.mit_id == id)?;
+        Some(matches.remove(idx))
+    }) else {
         if perr {
             semsg!(gettext(c"E803: ID not found: %lld"), i64::from(id));
         }
         return false;
     };
-    let cur = wp.w_match_head.borrow_mut().remove(idx);
     if cur.mit_toplnum != 0 {
         redraw_win_range_later(wp, cur.mit_toplnum, cur.mit_botlnum);
         rtype = UPD_VALID;
@@ -336,34 +333,37 @@ fn match_delete(wp: &WinInfoInfo, id: i32, perr: bool) -> bool {
 
 /// Delete all matches in the match list of window `wp` (`clear_matches`).
 pub fn clear_matches(wp: &WinInfoInfo) {
-    wp.w_match_head.borrow_mut().clear();
+    wp.with_match_head_mut(Vec::clear);
     redraw_later(Some(wp), UPD_SOME_VALID);
 }
 
 /// Get match from ID `id` in window `wp` (`get_match`).
 fn get_match(wp: &WinInfoInfo, id: i32) -> Option<(i32, Option<std::ffi::CString>)> {
-    wp.w_match_head
-        .borrow()
-        .iter()
-        .find(|cur| cur.mit_id == id)
-        .map(|cur| (cur.mit_hlg_id, cur.mit_pattern.clone()))
+    wp.with_match_head(|matches| {
+        matches
+            .iter()
+            .find(|cur| cur.mit_id == id)
+            .map(|cur| (cur.mit_hlg_id, cur.mit_pattern.clone()))
+    })
 }
 
 /// Init for calling `prepare_search_hl()` (`init_search_hl`).
 pub fn init_search_hl(wp: &WinInfoInfo, search_hl: &mut SynMatch) {
     let buf = wp.w_buffer.get();
-    for cur in &mut *wp.w_match_head.borrow_mut() {
-        cur.mit_hl.rm = cur.mit_match.clone();
-        cur.mit_hl.attr = if cur.mit_hlg_id == 0 {
-            0
-        } else {
-            syn_id2attr(cur.mit_hlg_id)
-        };
-        cur.mit_hl.buf = buf.clone();
-        cur.mit_hl.lnum = 0;
-        cur.mit_hl.first_lnum = 0;
-        cur.mit_hl.tm = profile_setlimit(opt_vars().p_rdt.get());
-    }
+    wp.with_match_head_mut(|matches| {
+        for cur in matches {
+            cur.mit_hl.rm = cur.mit_match.clone();
+            cur.mit_hl.attr = if cur.mit_hlg_id == 0 {
+                0
+            } else {
+                syn_id2attr(cur.mit_hlg_id)
+            };
+            cur.mit_hl.buf = buf.clone();
+            cur.mit_hl.lnum = 0;
+            cur.mit_hl.first_lnum = 0;
+            cur.mit_hl.tm = profile_setlimit(opt_vars().p_rdt.get());
+        }
+    });
     search_hl.buf = wp.w_buffer.get();
     search_hl.lnum = 0;
     search_hl.first_lnum = 0;
@@ -426,73 +426,54 @@ fn next_search_hl_pos(
     false
 }
 
-enum ShlRef<'a> {
-    Match(std::cell::Ref<'a, SynMatch>),
-    Search(&'a SynMatch),
-}
-
-impl std::ops::Deref for ShlRef<'_> {
-    type Target = SynMatch;
-    #[inline]
-    fn deref(&self) -> &SynMatch {
-        match self {
-            Self::Match(r) => r,
-            Self::Search(s) => s,
-        }
+#[inline]
+fn find_match(v: &[Matchitem], idx_hint: usize, id: i32) -> Option<&Matchitem> {
+    if let Some(m) = v.get(idx_hint)
+        && m.mit_id == id
+    {
+        return Some(m);
     }
+    v.iter().find(|m| m.mit_id == id)
 }
 
-enum ShlRefMut<'a> {
-    Match(std::cell::RefMut<'a, SynMatch>),
-    Search(&'a mut SynMatch),
-}
-
-impl std::ops::Deref for ShlRefMut<'_> {
-    type Target = SynMatch;
-    #[inline]
-    fn deref(&self) -> &SynMatch {
-        match self {
-            Self::Match(r) => r,
-            Self::Search(s) => s,
-        }
+#[inline]
+fn find_match_mut(v: &mut [Matchitem], idx_hint: usize, id: i32) -> Option<&mut Matchitem> {
+    if v.get(idx_hint).is_some_and(|m| m.mit_id == id) {
+        return Some(&mut v[idx_hint]);
     }
+    v.iter_mut().find(|m| m.mit_id == id)
 }
 
-impl std::ops::DerefMut for ShlRefMut<'_> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut SynMatch {
-        match self {
-            Self::Match(r) => r,
-            Self::Search(s) => s,
-        }
+#[inline]
+fn match_key_at(wp: &WinInfoInfo, idx: usize) -> Option<(usize, i32)> {
+    wp.with_match_head(|v| v.get(idx).map(|m| (idx, m.mit_id)))
+}
+
+#[inline]
+fn with_shl<R>(
+    wp: &WinInfoInfo,
+    search_hl: &SynMatch,
+    match_key: Option<(usize, i32)>,
+    f: impl FnOnce(&SynMatch) -> R,
+) -> Option<R> {
+    match match_key {
+        Some((idx, id)) => wp.with_match_head(|v| find_match(v, idx, id).map(|m| f(&m.mit_hl))),
+        None => Some(f(search_hl)),
     }
 }
 
 #[inline]
-fn get_shl<'a>(
-    wp: &'a WinInfoInfo,
-    search_hl: &'a SynMatch,
-    match_idx: Option<usize>,
-) -> ShlRef<'a> {
-    match match_idx {
-        Some(idx) => ShlRef::Match(std::cell::Ref::map(wp.w_match_head.borrow(), |v| {
-            &v[idx].mit_hl
-        })),
-        None => ShlRef::Search(search_hl),
-    }
-}
-
-#[inline]
-fn get_shl_mut<'a>(
-    wp: &'a WinInfoInfo,
-    search_hl: &'a mut SynMatch,
-    match_idx: Option<usize>,
-) -> ShlRefMut<'a> {
-    match match_idx {
-        Some(idx) => ShlRefMut::Match(std::cell::RefMut::map(wp.w_match_head.borrow_mut(), |v| {
-            &mut v[idx].mit_hl
-        })),
-        None => ShlRefMut::Search(search_hl),
+fn with_shl_mut<R>(
+    wp: &WinInfoInfo,
+    search_hl: &mut SynMatch,
+    match_key: Option<(usize, i32)>,
+    f: impl FnOnce(&mut SynMatch) -> R,
+) -> Option<R> {
+    match match_key {
+        Some((idx, id)) => {
+            wp.with_match_head_mut(|v| find_match_mut(v, idx, id).map(|m| f(&mut m.mit_hl)))
+        }
+        None => Some(f(search_hl)),
     }
 }
 
@@ -502,64 +483,84 @@ fn next_search_hl(
     search_hl: &mut SynMatch,
     lnum: Linenr,
     mincol: Colnr,
-    match_idx: Option<usize>,
+    match_key: Option<(usize, i32)>,
 ) {
     let mut matchcol: Colnr;
     let mut nmatched: i32 = 0;
-    let called_emsg_before = g_st().msg.called_emsg.get();
+    let called_emsg_before = msg_state().called_emsg.get();
 
-    if (lnum < g_st().search.search_global.first_line.get()
-        || lnum > g_st().search.search_global.last_line.get())
-        && match_idx.is_none()
+    if (lnum < search_state().search_global.first_line.get()
+        || lnum > search_state().search_global.last_line.get())
+        && match_key.is_none()
     {
-        get_shl_mut(win, search_hl, match_idx).lnum = 0;
+        with_shl_mut(win, search_hl, match_key, |shl| shl.lnum = 0);
         return;
     }
 
-    {
-        let mut shl = get_shl_mut(win, search_hl, match_idx);
+    let Some(early_return) = with_shl_mut(win, search_hl, match_key, |shl| {
         if shl.lnum != 0 {
             let l = shl.lnum + shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
             if lnum > l {
                 shl.lnum = 0;
             } else if lnum < l || shl.rm.endpos[0].col > mincol {
-                return;
+                return true;
             }
         }
+        false
+    }) else {
+        return;
+    };
+    if early_return {
+        return;
     }
 
     loop {
+        let Some((shl_tm, shl_lnum, start_col, end_lnum, end_col, shl_buf)) =
+            with_shl(win, search_hl, match_key, |shl| {
+                (
+                    shl.tm,
+                    shl.lnum,
+                    shl.rm.startpos[0].col,
+                    shl.rm.endpos[0].lnum,
+                    shl.rm.endpos[0].col,
+                    shl.buf.clone(),
+                )
+            })
+        else {
+            break;
+        };
+        if profile_passed_limit(shl_tm) {
+            with_shl_mut(win, search_hl, match_key, |shl| shl.lnum = 0);
+            break;
+        }
+        if shl_lnum == 0 {
+            matchcol = 0;
+        } else if !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_SEARCH)
+            || (end_lnum == 0 && end_col <= start_col)
         {
-            let mut shl = get_shl_mut(win, search_hl, match_idx);
-            if profile_passed_limit(shl.tm) {
-                shl.lnum = 0;
+            matchcol = start_col;
+            let line_slice = crate::memline::ml_get_buf_slice(shl_buf.borrow(), lnum);
+            if (matchcol as usize) >= line_slice.len() {
+                with_shl_mut(win, search_hl, match_key, |shl| shl.lnum = 0);
                 break;
             }
-            if shl.lnum == 0 {
-                matchcol = 0;
-            } else if !crate::strings::vim_haschr(&opt_vars().p_cpo.as_cstr(), K_CPO_SEARCH)
-                || (shl.rm.endpos[0].lnum == 0 && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
-            {
-                matchcol = shl.rm.startpos[0].col;
-                let line_slice = crate::memline::ml_get_buf_slice(shl.buf.borrow(), lnum);
-                if (matchcol as usize) >= line_slice.len() {
-                    shl.lnum = 0;
-                    break;
-                }
-                matchcol += crate::mbyte::utfc_slice2len(&line_slice[matchcol as usize..]) as Colnr;
-            } else {
-                matchcol = shl.rm.endpos[0].col;
-            }
-
-            shl.lnum = lnum;
+            matchcol += crate::mbyte::utfc_slice2len(&line_slice[matchcol as usize..]) as Colnr;
+        } else {
+            matchcol = end_col;
         }
 
-        let has_regprog = !get_shl(win, search_hl, match_idx).rm.regprog.is_null();
+        if with_shl_mut(win, search_hl, match_key, |shl| shl.lnum = lnum).is_none() {
+            break;
+        }
+
+        let has_regprog =
+            with_shl(win, search_hl, match_key, |shl| !shl.rm.regprog.is_null()).unwrap_or(false);
         if has_regprog {
             let mut timed_out: i32 = 0;
-            let (mut rm, shl_buf, shl_tm) = {
-                let mut shl = get_shl_mut(win, search_hl, match_idx);
+            let Some((mut rm, shl_buf, shl_tm)) = with_shl_mut(win, search_hl, match_key, |shl| {
                 (std::mem::take(&mut shl.rm), shl.buf.clone(), shl.tm)
+            }) else {
+                break;
             };
             nmatched = vim_regexec_multi(
                 &mut rm,
@@ -570,42 +571,65 @@ fn next_search_hl(
                 Some(shl_tm),
                 Some(&mut timed_out),
             );
-            let mut shl = get_shl_mut(win, search_hl, match_idx);
-            shl.rm = rm;
-            if g_st().msg.called_emsg.get() > called_emsg_before
-                || g_st().input.got_int.get()
-                || timed_out != 0
-            {
-                if match_idx.is_none() {
+            let mut rm_opt = Some(rm);
+            let should_break = with_shl_mut(win, search_hl, match_key, |shl| {
+                shl.rm = rm_opt.take().unwrap();
+                if msg_state().called_emsg.get() > called_emsg_before
+                    || input_state().got_int.get()
+                    || timed_out != 0
+                {
+                    if match_key.is_none() {
+                        shl.rm.free_prog();
+                        set_no_hlsearch(true);
+                    }
                     shl.rm.free_prog();
-                    set_no_hlsearch(true);
+                    shl.lnum = 0;
+                    input_state().got_int.set(false);
+                    true
+                } else {
+                    false
                 }
-                shl.rm.free_prog();
-                shl.lnum = 0;
-                g_st().input.got_int.set(false);
+            });
+            if let Some(mut orphan_rm) = rm_opt {
+                orphan_rm.free_prog();
                 break;
             }
-        } else if let Some(idx) = match_idx {
-            let cur = &mut win.w_match_head.borrow_mut()[idx];
-            nmatched = i32::from(next_search_hl_pos(
-                &mut cur.mit_hl,
-                lnum,
-                &mut cur.mit_pos,
-                &mut cur.mit_pos_cur,
-                matchcol,
-            ));
+            if should_break.unwrap_or(true) {
+                break;
+            }
+        } else if let Some((idx, id)) = match_key {
+            let Some(matched) = win.with_match_head_mut(|matches| {
+                find_match_mut(matches, idx, id).map(|cur| {
+                    i32::from(next_search_hl_pos(
+                        &mut cur.mit_hl,
+                        lnum,
+                        &mut cur.mit_pos,
+                        &mut cur.mit_pos_cur,
+                        matchcol,
+                    ))
+                })
+            }) else {
+                break;
+            };
+            nmatched = matched;
         }
-        let mut shl = get_shl_mut(win, search_hl, match_idx);
-        if nmatched == 0 {
-            shl.lnum = 0;
-            break;
-        }
-        if shl.rm.startpos[0].lnum > 0
-            || shl.rm.startpos[0].col >= mincol
-            || nmatched > 1
-            || shl.rm.endpos[0].col > mincol
-        {
-            shl.lnum += shl.rm.startpos[0].lnum;
+        let done = with_shl_mut(win, search_hl, match_key, |shl| {
+            if nmatched == 0 {
+                shl.lnum = 0;
+                true
+            } else if shl.rm.startpos[0].lnum > 0
+                || shl.rm.startpos[0].col >= mincol
+                || nmatched > 1
+                || shl.rm.endpos[0].col > mincol
+            {
+                shl.lnum += shl.rm.startpos[0].lnum;
+                true
+            } else {
+                false
+            }
+        })
+        .unwrap_or(true);
+        if done {
             break;
         }
     }
@@ -614,23 +638,26 @@ fn next_search_hl(
 /// Advance to the match in window `wp` line `lnum` or past it (`prepare_search_hl`).
 pub fn prepare_search_hl(wp: &WinInfoInfo, search_hl: &mut SynMatch, lnum: Linenr) {
     let mut idx = 0usize;
-    let len = wp.w_match_head.borrow().len();
     let mut shl_flag = false;
 
-    while idx < len || !shl_flag {
-        let match_idx = if !shl_flag {
+    while idx < wp.match_head_len() || !shl_flag {
+        let match_key = if !shl_flag {
             shl_flag = true;
             None
         } else {
-            Some(idx)
+            let Some(key) = match_key_at(wp, idx) else {
+                break;
+            };
+            Some(key)
         };
-        let is_search_hl = match_idx.is_none();
-        let should_prep = {
-            let shl = get_shl(wp, search_hl, match_idx);
+        let is_search_hl = match_key.is_none();
+        let should_prep = with_shl(wp, search_hl, match_key, |shl| {
             !shl.rm.regprog.is_null() && shl.lnum == 0 && re_multiline(&shl.rm.regprog) != 0
-        };
+        })
+        .unwrap_or(false);
         if should_prep {
-            let mut first_lnum = get_shl(wp, search_hl, match_idx).first_lnum;
+            let mut first_lnum =
+                with_shl(wp, search_hl, match_key, |shl| shl.first_lnum).unwrap_or(0);
             if first_lnum == 0 {
                 first_lnum = lnum;
                 while first_lnum > wp.w_topline.get() {
@@ -639,30 +666,47 @@ pub fn prepare_search_hl(wp: &WinInfoInfo, search_hl: &mut SynMatch, lnum: Linen
                     }
                     first_lnum -= 1;
                 }
-                get_shl_mut(wp, search_hl, match_idx).first_lnum = first_lnum;
+                with_shl_mut(wp, search_hl, match_key, |shl| shl.first_lnum = first_lnum);
             }
-            if let Some(m_idx) = match_idx {
-                wp.w_match_head.borrow_mut()[m_idx].mit_pos_cur = 0;
+            if let Some((m_idx, m_id)) = match_key {
+                wp.with_match_head_mut(|matches| {
+                    if let Some(m) = find_match_mut(matches, m_idx, m_id) {
+                        m.mit_pos_cur = 0;
+                    }
+                });
             }
             let mut pos_inprogress = true;
             let mut n: Colnr = 0;
-            while get_shl(wp, search_hl, match_idx).first_lnum < lnum
-                && (!get_shl(wp, search_hl, match_idx).rm.regprog.is_null()
-                    || (match_idx.is_some() && pos_inprogress))
+            while with_shl(wp, search_hl, match_key, |shl| {
+                shl.first_lnum < lnum
+                    && (!shl.rm.regprog.is_null() || (match_key.is_some() && pos_inprogress))
+            })
+            .unwrap_or(false)
             {
-                let cur_first_lnum = get_shl(wp, search_hl, match_idx).first_lnum;
-                next_search_hl(wp, search_hl, cur_first_lnum, n, match_idx);
+                let Some(cur_first_lnum) = with_shl(wp, search_hl, match_key, |shl| shl.first_lnum)
+                else {
+                    break;
+                };
+                next_search_hl(wp, search_hl, cur_first_lnum, n, match_key);
 
-                pos_inprogress =
-                    match_idx.is_some_and(|m_idx| wp.w_match_head.borrow()[m_idx].mit_pos_cur != 0);
+                pos_inprogress = match_key.is_some_and(|(m_idx, m_id)| {
+                    wp.with_match_head(|matches| {
+                        find_match(matches, m_idx, m_id).is_some_and(|m| m.mit_pos_cur != 0)
+                    })
+                });
 
-                let mut shl = get_shl_mut(wp, search_hl, match_idx);
-                if shl.lnum != 0 {
-                    shl.first_lnum = shl.lnum + shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
-                    n = shl.rm.endpos[0].col;
-                } else {
-                    shl.first_lnum += 1;
-                    n = 0;
+                if with_shl_mut(wp, search_hl, match_key, |shl| {
+                    if shl.lnum != 0 {
+                        shl.first_lnum = shl.lnum + shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
+                        n = shl.rm.endpos[0].col;
+                    } else {
+                        shl.first_lnum += 1;
+                        n = 0;
+                    }
+                })
+                .is_none()
+                {
+                    break;
                 }
             }
         }
@@ -692,8 +736,7 @@ pub fn prepare_search_hl_line(
     search_attr_from_match: &mut bool,
 ) -> bool {
     let mut idx = 0usize;
-    let len = wp.w_match_head.borrow().len();
-    if len == 0 && search_hl.rm.regprog.is_null() {
+    if wp.match_head_is_empty() && search_hl.rm.regprog.is_null() {
         search_hl.startcol = MAXCOL;
         search_hl.endcol = MAXCOL;
         search_hl.attr_cur = 0;
@@ -705,32 +748,37 @@ pub fn prepare_search_hl_line(
     let mut shl_flag = false;
     let mut area_highlighting = false;
 
-    while idx < len || !shl_flag {
-        let match_idx = if !shl_flag {
+    while idx < wp.match_head_len() || !shl_flag {
+        let match_key = if !shl_flag {
             shl_flag = true;
             None
         } else {
-            Some(idx)
+            let Some(key) = match_key_at(wp, idx) else {
+                break;
+            };
+            Some(key)
         };
-        let is_search_hl = match_idx.is_none();
-        {
-            let mut shl = get_shl_mut(wp, search_hl, match_idx);
+        let is_search_hl = match_key.is_none();
+        with_shl_mut(wp, search_hl, match_key, |shl| {
             shl.startcol = MAXCOL;
             shl.endcol = MAXCOL;
             shl.attr_cur = 0;
             shl.is_addpos = false;
             shl.has_cursor = false;
-        }
-        if let Some(m_idx) = match_idx {
-            wp.w_match_head.borrow_mut()[m_idx].mit_pos_cur = 0;
+        });
+        if let Some((m_idx, m_id)) = match_key {
+            wp.with_match_head_mut(|matches| {
+                if let Some(m) = find_match_mut(matches, m_idx, m_id) {
+                    m.mit_pos_cur = 0;
+                }
+            });
         }
 
-        next_search_hl(wp, search_hl, lnum, mincol, match_idx);
+        next_search_hl(wp, search_hl, lnum, mincol, match_key);
 
-        let shl_lnum = get_shl(wp, search_hl, match_idx).lnum;
+        let shl_lnum = with_shl(wp, search_hl, match_key, |shl| shl.lnum).unwrap_or(0);
         if shl_lnum != 0 && shl_lnum <= lnum {
-            {
-                let mut shl = get_shl_mut(wp, search_hl, match_idx);
+            with_shl_mut(wp, search_hl, match_key, |shl| {
                 shl.startcol = if shl.lnum == lnum {
                     shl.rm.startpos[0].col
                 } else {
@@ -741,15 +789,16 @@ pub fn prepare_search_hl_line(
                 } else {
                     MAXCOL
                 };
-            }
+            });
 
             if is_search_hl {
                 check_cur_search_hl(wp, search_hl);
             }
 
-            let (startcol, endcol) = {
-                let shl = get_shl(wp, search_hl, match_idx);
-                (shl.startcol, shl.endcol)
+            let Some((startcol, endcol)) =
+                with_shl(wp, search_hl, match_key, |shl| (shl.startcol, shl.endcol))
+            else {
+                break;
             };
             if startcol == endcol {
                 let line_cstr = ml_get_buf(&wp.buf(), lnum);
@@ -760,14 +809,15 @@ pub fn prepare_search_hl_line(
                 } else {
                     1
                 };
-                get_shl_mut(wp, search_hl, match_idx).endcol += step;
+                with_shl_mut(wp, search_hl, match_key, |shl| shl.endcol += step);
             }
-            let mut shl = get_shl_mut(wp, search_hl, match_idx);
-            if shl.startcol < mincol {
-                shl.attr_cur = shl.attr;
-                *search_attr = shl.attr;
-                *search_attr_from_match = !is_search_hl;
-            }
+            with_shl_mut(wp, search_hl, match_key, |shl| {
+                if shl.startcol < mincol {
+                    shl.attr_cur = shl.attr;
+                    *search_attr = shl.attr;
+                    *search_attr_from_match = !is_search_hl;
+                }
+            });
             area_highlighting = true;
         }
         if !is_search_hl {
@@ -790,33 +840,47 @@ pub fn update_search_hl(
     search_attr_from_match: &mut bool,
 ) -> i32 {
     let mut idx = 0usize;
-    let len = wp.w_match_head.borrow().len();
-    if len == 0 && search_hl.rm.regprog.is_null() {
+    if wp.match_head_is_empty() && search_hl.rm.regprog.is_null() {
         *search_attr_from_match = false;
         return search_hl.attr_cur;
     }
     let mut shl_flag = false;
 
-    while idx < len || !shl_flag {
-        let match_idx = if !shl_flag
-            && (idx >= len || wp.w_match_head.borrow()[idx].mit_priority > SEARCH_HL_PRIORITY)
-        {
+    while idx < wp.match_head_len() || !shl_flag {
+        let match_key = if !shl_flag
+            && wp.with_match_head(|matches| {
+                matches
+                    .get(idx)
+                    .is_none_or(|m| m.mit_priority > SEARCH_HL_PRIORITY)
+            }) {
             shl_flag = true;
             None
         } else {
-            Some(idx)
+            let Some(key) = match_key_at(wp, idx) else {
+                break;
+            };
+            Some(key)
         };
-        let is_search_hl = match_idx.is_none();
-        if let Some(m_idx) = match_idx {
-            wp.w_match_head.borrow_mut()[m_idx].mit_pos_cur = 0;
+        let is_search_hl = match_key.is_none();
+        if let Some((m_idx, m_id)) = match_key {
+            wp.with_match_head_mut(|matches| {
+                if let Some(m) = find_match_mut(matches, m_idx, m_id) {
+                    m.mit_pos_cur = 0;
+                }
+            });
         }
         let mut pos_inprogress = true;
-        while !get_shl(wp, search_hl, match_idx).rm.regprog.is_null()
-            || (match_idx.is_some() && pos_inprogress)
+        while with_shl(wp, search_hl, match_key, |shl| {
+            !shl.rm.regprog.is_null() || (match_key.is_some() && pos_inprogress)
+        })
+        .unwrap_or(false)
         {
-            let (startcol, endcol, has_cursor, attr) = {
-                let shl = get_shl(wp, search_hl, match_idx);
-                (shl.startcol, shl.endcol, shl.has_cursor, shl.attr)
+            let Some((startcol, endcol, has_cursor, attr)) =
+                with_shl(wp, search_hl, match_key, |shl| {
+                    (shl.startcol, shl.endcol, shl.has_cursor, shl.attr)
+                })
+            else {
+                break;
             };
             if startcol != MAXCOL && col >= startcol && col < endcol {
                 let next_col = col
@@ -826,51 +890,62 @@ pub fn update_search_hl(
                         })
                     });
                 if endcol < next_col {
-                    get_shl_mut(wp, search_hl, match_idx).endcol = next_col;
+                    with_shl_mut(wp, search_hl, match_key, |shl| shl.endcol = next_col);
                 }
                 if is_search_hl && has_cursor {
                     let attr_cur = win_hl_attr(wp, HLF_LC as i32);
                     search_hl.attr_cur = attr_cur;
                     if attr_cur != attr {
-                        g_st().search.search_hl_has_cursor_lnum.set(lnum);
+                        search_state().search_hl_has_cursor_lnum.set(lnum);
                     }
                 } else {
-                    get_shl_mut(wp, search_hl, match_idx).attr_cur = attr;
+                    with_shl_mut(wp, search_hl, match_key, |shl| shl.attr_cur = attr);
                 }
-                if let Some(m_idx) = match_idx
-                    && syn_name2id(c"Conceal") == wp.w_match_head.borrow()[m_idx].mit_hlg_id
-                {
-                    *has_match_conc = if col == startcol { 2 } else { 1 };
-                    *match_conc = wp.w_match_head.borrow()[m_idx].mit_conceal_char;
+                if let Some((m_idx, m_id)) = match_key {
+                    let conceal_id = syn_name2id(c"Conceal");
+                    let hlg_conc = wp.with_match_head(|matches| {
+                        find_match(matches, m_idx, m_id).map(|m| (m.mit_hlg_id, m.mit_conceal_char))
+                    });
+                    if let Some((hlg_id, conceal_char)) = hlg_conc
+                        && conceal_id == hlg_id
+                    {
+                        *has_match_conc = if col == startcol { 2 } else { 1 };
+                        *match_conc = conceal_char;
+                    } else {
+                        *has_match_conc = 0;
+                    }
                 } else {
                     *has_match_conc = 0;
                 }
             } else if col == endcol {
-                get_shl_mut(wp, search_hl, match_idx).attr_cur = 0;
+                with_shl_mut(wp, search_hl, match_key, |shl| shl.attr_cur = 0);
 
-                next_search_hl(wp, search_hl, lnum, col, match_idx);
+                next_search_hl(wp, search_hl, lnum, col, match_key);
 
-                pos_inprogress =
-                    match_idx.is_some_and(|m_idx| wp.w_match_head.borrow()[m_idx].mit_pos_cur != 0);
+                pos_inprogress = match_key.is_some_and(|(m_idx, m_id)| {
+                    wp.with_match_head(|matches| {
+                        find_match(matches, m_idx, m_id).is_some_and(|m| m.mit_pos_cur != 0)
+                    })
+                });
 
-                if get_shl(wp, search_hl, match_idx).lnum == lnum {
-                    {
-                        let mut shl = get_shl_mut(wp, search_hl, match_idx);
+                if with_shl(wp, search_hl, match_key, |shl| shl.lnum).unwrap_or(0) == lnum {
+                    with_shl_mut(wp, search_hl, match_key, |shl| {
                         shl.startcol = shl.rm.startpos[0].col;
                         shl.endcol = if shl.rm.endpos[0].lnum == 0 {
                             shl.rm.endpos[0].col
                         } else {
                             MAXCOL
                         };
-                    }
+                    });
 
                     if is_search_hl {
                         check_cur_search_hl(wp, search_hl);
                     }
 
-                    let (new_startcol, new_endcol) = {
-                        let shl = get_shl(wp, search_hl, match_idx);
-                        (shl.startcol, shl.endcol)
+                    let Some((new_startcol, new_endcol)) =
+                        with_shl(wp, search_hl, match_key, |shl| (shl.startcol, shl.endcol))
+                    else {
+                        break;
                     };
                     if new_startcol == new_endcol {
                         let end_off = new_endcol as usize;
@@ -883,7 +958,7 @@ pub fn update_search_hl(
                                 }
                             })
                         });
-                        get_shl_mut(wp, search_hl, match_idx).endcol += step;
+                        with_shl_mut(wp, search_hl, match_key, |shl| shl.endcol += step);
                     }
                     continue;
                 }
@@ -899,22 +974,29 @@ pub fn update_search_hl(
     let mut search_attr = search_hl.attr_cur;
     idx = 0;
     shl_flag = false;
-    while idx < len || !shl_flag {
-        let match_idx = if !shl_flag
-            && (idx >= len || wp.w_match_head.borrow()[idx].mit_priority > SEARCH_HL_PRIORITY)
-        {
+    while idx < wp.match_head_len() || !shl_flag {
+        let match_key = if !shl_flag
+            && wp.with_match_head(|matches| {
+                matches
+                    .get(idx)
+                    .is_none_or(|m| m.mit_priority > SEARCH_HL_PRIORITY)
+            }) {
             shl_flag = true;
             None
         } else {
-            Some(idx)
+            let Some(key) = match_key_at(wp, idx) else {
+                break;
+            };
+            Some(key)
         };
-        let is_search_hl = match_idx.is_none();
-        let shl = get_shl(wp, search_hl, match_idx);
-        if shl.attr_cur != 0 {
-            search_attr = shl.attr_cur;
-            *on_last_col = col + 1 >= shl.endcol;
-            *search_attr_from_match = !is_search_hl;
-        }
+        let is_search_hl = match_key.is_none();
+        with_shl(wp, search_hl, match_key, |shl| {
+            if shl.attr_cur != 0 {
+                search_attr = shl.attr_cur;
+                *on_last_col = col + 1 >= shl.endcol;
+                *search_attr_from_match = !is_search_hl;
+            }
+        });
         if !is_search_hl {
             idx += 1;
         }
@@ -945,15 +1027,13 @@ pub fn get_prevcol_hl_flag(wp: &WinInfoInfo, search_hl: &mut SynMatch, curcol: C
     {
         return true;
     }
-    for cur in &*wp.w_match_head.borrow() {
-        if !cur.mit_hl.is_addpos
-            && (prevcol == cur.mit_hl.startcol
-                || (prevcol > cur.mit_hl.startcol && cur.mit_hl.endcol == MAXCOL))
-        {
-            return true;
-        }
-    }
-    false
+    wp.with_match_head(|matches| {
+        matches.iter().any(|cur| {
+            !cur.mit_hl.is_addpos
+                && (prevcol == cur.mit_hl.startcol
+                    || (prevcol > cur.mit_hl.startcol && cur.mit_hl.endcol == MAXCOL))
+        })
+    })
 }
 
 /// Get highlighting for the char after the text in `char_attr` (`get_search_match_hl`).
@@ -964,23 +1044,29 @@ pub fn get_search_match_hl(
     char_attr: &mut i32,
 ) {
     let mut idx = 0usize;
-    let len = wp.w_match_head.borrow().len();
     let mut shl_flag = false;
 
-    while idx < len || !shl_flag {
-        let match_idx = if !shl_flag
-            && (idx >= len || wp.w_match_head.borrow()[idx].mit_priority > SEARCH_HL_PRIORITY)
-        {
+    while idx < wp.match_head_len() || !shl_flag {
+        let match_key = if !shl_flag
+            && wp.with_match_head(|matches| {
+                matches
+                    .get(idx)
+                    .is_none_or(|m| m.mit_priority > SEARCH_HL_PRIORITY)
+            }) {
             shl_flag = true;
             None
         } else {
-            Some(idx)
+            let Some(key) = match_key_at(wp, idx) else {
+                break;
+            };
+            Some(key)
         };
-        let is_search_hl = match_idx.is_none();
-        let shl = get_shl(wp, search_hl, match_idx);
-        if col - 1 == shl.startcol && (is_search_hl || !shl.is_addpos) {
-            *char_attr = shl.attr;
-        }
+        let is_search_hl = match_key.is_none();
+        with_shl(wp, search_hl, match_key, |shl| {
+            if col - 1 == shl.startcol && (is_search_hl || !shl.is_addpos) {
+                *char_attr = shl.attr;
+            }
+        });
         if !is_search_hl {
             idx += 1;
         }
@@ -1032,45 +1118,47 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         return;
     };
 
-    for cur in &*win.w_match_head.borrow() {
-        let dict = tv_dict_alloc();
-        if cur.mit_match.regprog.is_null() {
-            for (i, llpos) in cur.mit_pos.iter().enumerate() {
-                if llpos.lnum == 0 {
-                    break;
+    win.with_match_head(|matches| {
+        for cur in matches {
+            let dict = tv_dict_alloc();
+            if cur.mit_match.regprog.is_null() {
+                for (i, llpos) in cur.mit_pos.iter().enumerate() {
+                    if llpos.lnum == 0 {
+                        break;
+                    }
+                    let l = tv_list_alloc(1 + if llpos.col > 0 { 2 } else { 0 });
+                    tv_list_append_number(&l, llpos.lnum as Varnumber);
+                    if llpos.col > 0 {
+                        tv_list_append_number(&l, llpos.col as Varnumber);
+                        tv_list_append_number(&l, llpos.len as Varnumber);
+                    }
+                    let mut buf = [0u8; 30];
+                    let len = format_to_buf!(&mut buf, c"pos%d", (i + 1) as i32);
+                    let _ = len;
+                    tv_dict_add_list(
+                        &dict,
+                        std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
+                        Some(&l),
+                    );
                 }
-                let l = tv_list_alloc(1 + if llpos.col > 0 { 2 } else { 0 });
-                tv_list_append_number(&l, llpos.lnum as Varnumber);
-                if llpos.col > 0 {
-                    tv_list_append_number(&l, llpos.col as Varnumber);
-                    tv_list_append_number(&l, llpos.len as Varnumber);
-                }
-                let mut buf = [0u8; 30];
-                let len = format_to_buf!(&mut buf, c"pos%d", (i + 1) as i32);
-                let _ = len;
-                tv_dict_add_list(
-                    &dict,
-                    std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
-                    Some(&l),
-                );
+            } else {
+                tv_dict_add_str(&dict, c"pattern", cur.mit_pattern.as_deref());
             }
-        } else {
-            tv_dict_add_str(&dict, c"pattern", cur.mit_pattern.as_deref());
-        }
-        let group_name = syn_id2name(cur.mit_hlg_id);
-        tv_dict_add_str(&dict, c"group", Some(&group_name));
-        tv_dict_add_nr(&dict, c"priority", cur.mit_priority as Varnumber);
-        tv_dict_add_nr(&dict, c"id", cur.mit_id as Varnumber);
+            let group_name = syn_id2name(cur.mit_hlg_id);
+            tv_dict_add_str(&dict, c"group", Some(&group_name));
+            tv_dict_add_nr(&dict, c"priority", cur.mit_priority as Varnumber);
+            tv_dict_add_nr(&dict, c"id", cur.mit_id as Varnumber);
 
-        if cur.mit_conceal_char != 0 {
-            let mut buf = [0u8; MB_MAXCHAR + 1];
-            let buflen = utf_char2bytes(cur.mit_conceal_char, &mut buf) as usize;
-            buf[buflen] = 0;
-            tv_dict_add_str_len(&dict, c"conceal", Some(&buf[..buflen]));
-        }
+            if cur.mit_conceal_char != 0 {
+                let mut buf = [0u8; MB_MAXCHAR + 1];
+                let buflen = utf_char2bytes(cur.mit_conceal_char, &mut buf) as usize;
+                buf[buflen] = 0;
+                tv_dict_add_str_len(&dict, c"conceal", Some(&buf[..buflen]));
+            }
 
-        tv_list_append_dict(rettv.vval.v_list_ref(), Some(&dict));
-    }
+            tv_list_append_dict(rettv.vval.v_list_ref(), Some(&dict));
+        }
+    });
 }
 
 /// `setmatches()` function (`f_setmatches`).

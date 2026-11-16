@@ -462,16 +462,14 @@ mod tests {
             }
             assert_eq!(ht.ht_used.get(), 50);
             // Duplicate key returns FAIL
-            crate::globals::g_st()
-                .msg
+            crate::globals::msg_state()
                 .emsg_skip
-                .set(crate::globals::g_st().msg.emsg_skip.get() + (1));
+                .set(crate::globals::msg_state().emsg_skip.get() + (1));
             let first_di = &items[0];
             assert!(!hash_add(ht, first_di));
-            crate::globals::g_st()
-                .msg
+            crate::globals::msg_state()
                 .emsg_skip
-                .set(crate::globals::g_st().msg.emsg_skip.get() - (1));
+                .set(crate::globals::msg_state().emsg_skip.get() - (1));
 
             for (k, di) in keys.iter().zip(&items) {
                 let hi = hash_find(ht, k.as_c_str());

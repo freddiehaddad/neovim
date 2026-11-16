@@ -210,16 +210,17 @@ fn extmark_push_savepos(
     let Some(uh) = u_force_get_undo_header(buf) else {
         return;
     };
-    crate::undo::uhp_mut(buf, uh)
-        .uh_extmark
-        .push(ExtmarkUndoObject::SavePos(ExtmarkSavePos {
-            mark,
-            undo_row,
-            undo_col,
-            redo_row,
-            redo_col,
-            invalidated: false,
-        }));
+    crate::undo::with_uhp_mut(buf, uh, |h| {
+        h.uh_extmark
+            .push(ExtmarkUndoObject::SavePos(ExtmarkSavePos {
+                mark,
+                undo_row,
+                undo_col,
+                redo_row,
+                redo_col,
+                invalidated: false,
+            }));
+    });
 }
 
 /// Create or update an extmark (`extmark_set`).
@@ -248,14 +249,15 @@ pub fn extmark_set(
     let flags = mt_flags(right_gravity, no_undo, invalidate, decor.is_ext()) | decor_flags;
     let mut revised_in_place = false;
     if id == 0 {
-        let mut ns_map = buf.b_extmark_ns.borrow_mut();
-        let ns = ns_map.entry(ns_id).or_insert(0);
-        *ns += 1;
-        id = *ns;
+        buf.with_extmark_ns_mut(|ns_map| {
+            let ns = ns_map.entry(ns_id).or_insert(0);
+            *ns += 1;
+            id = *ns;
+        });
     } else {
         let mut itr = MarkTreeIter::new();
         let old_mark =
-            marktree_lookup_ns(&buf.b_marktree.borrow(), ns_id, id, false, Some(&mut itr));
+            buf.with_marktree(|mt| marktree_lookup_ns(mt, ns_id, id, false, Some(&mut itr)));
         if old_mark.id != 0 {
             created = false;
             if !no_undo
@@ -277,15 +279,21 @@ pub fn extmark_set(
                 debug_assert!(itr.x.is_some());
                 if old_mark.pos.row == row && old_mark.pos.col == col {
                     if !mt_invalid(old_mark) && mt_decor_any(old_mark) {
-                        buf.b_marktree.borrow_mut().key_mut(&itr).flags &= !MT_FLAG_EXTERNAL_MASK;
+                        buf.with_marktree_mut(|mt| {
+                            mt.key_mut(&itr).flags &= !MT_FLAG_EXTERNAL_MASK;
+                        });
                         buf_decor_remove(buf, row, row, col, mt_decor(old_mark), true);
                     }
-                    buf.b_marktree.borrow_mut().key_mut(&itr).flags |= flags;
-                    buf.b_marktree.borrow_mut().key_mut(&itr).decor_data = decor.data;
-                    marktree_revise_meta(&mut buf.b_marktree.borrow_mut(), &itr, old_mark);
+                    buf.with_marktree_mut(|mt| {
+                        mt.key_mut(&itr).flags |= flags;
+                        mt.key_mut(&itr).decor_data = decor.data;
+                        marktree_revise_meta(mt, &itr, old_mark);
+                    });
                     revised_in_place = true;
                 } else {
-                    marktree_del_itr(&mut buf.b_marktree.borrow_mut(), &mut itr, false);
+                    buf.with_marktree_mut(|mt| {
+                        marktree_del_itr(mt, &mut itr, false);
+                    });
                     if !mt_invalid(old_mark) {
                         buf_decor_remove(
                             buf,
@@ -299,9 +307,10 @@ pub fn extmark_set(
                 }
             }
         } else {
-            let mut ns_map = buf.b_extmark_ns.borrow_mut();
-            let ns = ns_map.entry(ns_id).or_insert(0);
-            *ns = (*ns).max(id);
+            buf.with_extmark_ns_mut(|ns_map| {
+                let ns = ns_map.entry(ns_id).or_insert(0);
+                *ns = (*ns).max(id);
+            });
         }
     }
 
@@ -314,13 +323,9 @@ pub fn extmark_set(
             decor_data: decor.data,
         };
 
-        marktree_put(
-            &mut buf.b_marktree.borrow_mut(),
-            mark,
-            end_row,
-            end_col,
-            end_right_gravity,
-        );
+        buf.with_marktree_mut(|mt| {
+            marktree_put(mt, mark, end_row, end_col, end_right_gravity);
+        });
         decor_state_invalidate(buf);
 
         if created && !no_undo && !buf.b_u_synced.get() {
@@ -358,7 +363,7 @@ pub fn extmark_set(
 /// Moves a raw mark back to a recorded position (`extmark_setraw`).
 fn extmark_setraw(buf: &FileBuf, mark: u64, row: i32, col: Colnr, revive: bool) {
     let mut itr = MarkTreeIter::new();
-    let key = marktree_lookup(&buf.b_marktree.borrow(), mark, Some(&mut itr));
+    let key = buf.with_marktree(|mt| marktree_lookup(mt, mark, Some(&mut itr)));
     let move_ = key.pos.row != row || key.pos.col != col;
     let invalid = revive && mt_invalid(key);
     if key.pos.row < 0 || (!move_ && !invalid) {
@@ -372,16 +377,18 @@ fn extmark_setraw(buf: &FileBuf, mark: u64, row: i32, col: Colnr, revive: bool) 
     let mut row1: i32 = 0;
     let mut row2: i32 = 0;
     let mut altitr = itr;
-    let alt = marktree_get_alt(&buf.b_marktree.borrow(), key, Some(&mut altitr));
+    let alt = buf.with_marktree(|mt| marktree_get_alt(mt, key, Some(&mut altitr)));
 
     if invalid {
-        buf.b_marktree.borrow_mut().key_mut(&itr).flags &= !MT_FLAG_INVALID;
-        buf.b_marktree.borrow_mut().key_mut(&altitr).flags &= !MT_FLAG_INVALID;
-        marktree_revise_meta(
-            &mut buf.b_marktree.borrow_mut(),
-            if mt_end(key) { &altitr } else { &itr },
-            if mt_end(key) { alt } else { key },
-        );
+        buf.with_marktree_mut(|mt| {
+            mt.key_mut(&itr).flags &= !MT_FLAG_INVALID;
+            mt.key_mut(&altitr).flags &= !MT_FLAG_INVALID;
+            marktree_revise_meta(
+                mt,
+                if mt_end(key) { &altitr } else { &itr },
+                if mt_end(key) { alt } else { key },
+            );
+        });
     } else if !mt_invalid(key)
         && (key.flags & MT_FLAG_DECOR_SIGNTEXT) != 0
         && buf.b_signcols.autom.get()
@@ -398,7 +405,7 @@ fn extmark_setraw(buf: &FileBuf, mark: u64, row: i32, col: Colnr, revive: bool) 
     }
 
     if move_ {
-        marktree_move(&mut buf.b_marktree.borrow_mut(), &mut itr, row, col);
+        buf.with_marktree_mut(|mt| marktree_move(mt, &mut itr, row, col));
     }
 
     if invalid {
@@ -425,7 +432,7 @@ fn extmark_setraw(buf: &FileBuf, mark: u64, row: i32, col: Colnr, revive: bool) 
 /// Remove an extmark in `ns_id` by `id` (`extmark_del_id`).
 pub fn extmark_del_id(buf: &FileBuf, ns_id: u32, id: u32) -> bool {
     let mut itr = MarkTreeIter::new();
-    let key = marktree_lookup_ns(&buf.b_marktree.borrow(), ns_id, id, false, Some(&mut itr));
+    let key = buf.with_marktree(|mt| marktree_lookup_ns(mt, ns_id, id, false, Some(&mut itr)));
     if key.id != 0 {
         extmark_del(buf, &mut itr, key, false);
     }
@@ -437,14 +444,16 @@ pub fn extmark_del(buf: &FileBuf, itr: &mut MarkTreeIter, mut key: MTKey, restor
     debug_assert!(key.pos.row >= 0);
 
     let mut key2 = key;
-    let other = marktree_del_itr(&mut buf.b_marktree.borrow_mut(), itr, false);
+    let other = buf.with_marktree_mut(|mt| marktree_del_itr(mt, itr, false));
     if other != 0 {
-        key2 = marktree_lookup(&buf.b_marktree.borrow(), other, Some(itr));
+        key2 = buf.with_marktree(|mt| marktree_lookup(mt, other, Some(itr)));
         debug_assert!(key2.pos.row >= 0);
-        marktree_del_itr(&mut buf.b_marktree.borrow_mut(), itr, false);
-        if restore {
-            marktree_itr_get(&buf.b_marktree.borrow(), key.pos.row, key.pos.col, itr);
-        }
+        buf.with_marktree_mut(|mt| {
+            marktree_del_itr(mt, itr, false);
+            if restore {
+                marktree_itr_get(mt, key.pos.row, key.pos.col, itr);
+            }
+        });
     }
 
     if mt_decor_any(key) {
@@ -477,14 +486,14 @@ pub fn extmark_clear(
     u_row: i32,
     u_col: Colnr,
 ) -> bool {
-    if buf.b_extmark_ns.borrow().is_empty() {
+    if buf.extmark_ns_is_empty() {
         return false;
     }
 
     mc_ns_clearing(buf, ns_id);
 
     let all_ns = ns_id == 0;
-    if !all_ns && !buf.b_extmark_ns.borrow().contains_key(&ns_id) {
+    if !all_ns && !buf.extmark_ns_contains(ns_id) {
         return false;
     }
 
@@ -492,9 +501,9 @@ pub fn extmark_clear(
     let mut marks_cleared_all = l_row == 0 && l_col == 0;
 
     let mut itr = MarkTreeIter::new();
-    marktree_itr_get(&buf.b_marktree.borrow(), l_row, l_col, &mut itr);
+    buf.with_marktree(|mt| marktree_itr_get(mt, l_row, l_col, &mut itr));
     loop {
-        let mark = marktree_itr_current(&buf.b_marktree.borrow(), &itr);
+        let mark = buf.with_marktree(|mt| marktree_itr_current(mt, &itr));
         if mark.pos.row < 0
             || mark.pos.row > u_row
             || (mark.pos.row == u_row && mark.pos.col > u_col)
@@ -508,16 +517,18 @@ pub fn extmark_clear(
             marks_cleared_any = true;
             extmark_del(buf, &mut itr, mark, true);
         } else {
-            marktree_itr_next(&buf.b_marktree.borrow(), &mut itr);
+            buf.with_marktree(|mt| marktree_itr_next(mt, &mut itr));
         }
     }
 
     if marks_cleared_all {
-        if all_ns {
-            buf.b_extmark_ns.borrow_mut().clear();
-        } else {
-            buf.b_extmark_ns.borrow_mut().remove(&ns_id);
-        }
+        buf.with_extmark_ns_mut(|ns_map| {
+            if all_ns {
+                ns_map.clear();
+            } else {
+                ns_map.remove(&ns_id);
+            }
+        });
     }
 
     if marks_cleared_any {
@@ -543,47 +554,49 @@ pub fn extmark_get(
     let mut array = ExtmarkInfoArray::new();
     let mut itr = MarkTreeIter::new();
 
-    if overlap {
-        if !marktree_itr_get_overlap(&buf.b_marktree.borrow(), l_row, l_col, &mut itr) {
-            return array;
+    buf.with_marktree(|mt| {
+        if overlap {
+            if !marktree_itr_get_overlap(mt, l_row, l_col, &mut itr) {
+                return;
+            }
+
+            while (array.len() as i64) < amount {
+                let mut pair = MTPair::new();
+                if !marktree_itr_step_overlap(mt, &mut itr, &mut pair) {
+                    break;
+                }
+                push_mark(&mut array, ns_id, type_filter, pair);
+            }
+        } else {
+            marktree_itr_get_ext(
+                mt,
+                MTPos {
+                    row: l_row,
+                    col: l_col,
+                },
+                &mut itr,
+                false,
+                false,
+                None,
+                None,
+            );
         }
 
         while (array.len() as i64) < amount {
-            let mut pair = MTPair::new();
-            if !marktree_itr_step_overlap(&buf.b_marktree.borrow(), &mut itr, &mut pair) {
+            let mark = marktree_itr_current(mt, &itr);
+            if mark.pos.row < 0
+                || mark.pos.row > u_row
+                || (mark.pos.row == u_row && mark.pos.col > u_col)
+            {
                 break;
             }
-            push_mark(&mut array, ns_id, type_filter, pair);
+            if !mt_end(mark) {
+                let end = marktree_get_alt(mt, mark, None);
+                push_mark(&mut array, ns_id, type_filter, mtpair_from(mark, end));
+            }
+            marktree_itr_next(mt, &mut itr);
         }
-    } else {
-        marktree_itr_get_ext(
-            &buf.b_marktree.borrow(),
-            MTPos {
-                row: l_row,
-                col: l_col,
-            },
-            &mut itr,
-            false,
-            false,
-            None,
-            None,
-        );
-    }
-
-    while (array.len() as i64) < amount {
-        let mark = marktree_itr_current(&buf.b_marktree.borrow(), &itr);
-        if mark.pos.row < 0
-            || mark.pos.row > u_row
-            || (mark.pos.row == u_row && mark.pos.col > u_col)
-        {
-            break;
-        }
-        if !mt_end(mark) {
-            let end = marktree_get_alt(&buf.b_marktree.borrow(), mark, None);
-            push_mark(&mut array, ns_id, type_filter, mtpair_from(mark, end));
-        }
-        marktree_itr_next(&buf.b_marktree.borrow(), &mut itr);
-    }
+    });
     array
 }
 
@@ -606,14 +619,16 @@ fn push_mark(array: &mut ExtmarkInfoArray, ns_id: u32, type_filter: ExtmarkType,
 
 /// Lookup an extmark by id (`extmark_from_id`).
 pub fn extmark_from_id(buf: &FileBuf, ns_id: u32, id: u32) -> MTPair {
-    let mark = marktree_lookup_ns(&buf.b_marktree.borrow(), ns_id, id, false, None);
-    if mark.id == 0 {
-        return mtpair_from(mark, mark);
-    }
-    debug_assert!(mark.pos.row >= 0);
-    let end = marktree_get_alt(&buf.b_marktree.borrow(), mark, None);
+    buf.with_marktree(|mt| {
+        let mark = marktree_lookup_ns(mt, ns_id, id, false, None);
+        if mark.id == 0 {
+            return mtpair_from(mark, mark);
+        }
+        debug_assert!(mark.pos.row >= 0);
+        let end = marktree_get_alt(mt, mark, None);
 
-    mtpair_from(mark, end)
+        mtpair_from(mark, end)
+    })
 }
 
 /// Creates or updates point extmark (`extmark_set_pos`).
@@ -663,28 +678,30 @@ pub fn extmark_get_pos(buf: &FileBuf, ns_id: u32, id: u32, pos: &mut CursorPos) 
 /// Free extmarks from the buffer (`extmark_free_all`).
 pub fn extmark_free_all(buf: &FileBuf) {
     let mut itr = MarkTreeIter::new();
-    marktree_itr_get(&buf.b_marktree.borrow(), 0, 0, &mut itr);
-    loop {
-        let mark = marktree_itr_current(&buf.b_marktree.borrow(), &itr);
-        if mark.pos.row < 0 {
-            break;
+    buf.with_marktree_mut(|mt| {
+        marktree_itr_get(mt, 0, 0, &mut itr);
+        loop {
+            let mark = marktree_itr_current(mt, &itr);
+            if mark.pos.row < 0 {
+                break;
+            }
+
+            if !(mt_paired(mark) && mt_end(mark)) {
+                decor_free(mt_decor(mark));
+            }
+
+            marktree_itr_next(mt, &mut itr);
         }
 
-        if !(mt_paired(mark) && mt_end(mark)) {
-            decor_free(mt_decor(mark));
-        }
-
-        marktree_itr_next(&buf.b_marktree.borrow(), &mut itr);
-    }
-
-    marktree_clear(&mut buf.b_marktree.borrow_mut());
+        marktree_clear(mt);
+    });
 
     buf.b_signcols.max.set(0);
     for c in &buf.b_signcols.count {
         c.set(0);
     }
 
-    buf.b_extmark_ns.borrow_mut().clear();
+    buf.with_extmark_ns_mut(|ns_map| ns_map.clear());
 }
 
 /// Invalidate extmarks between range and copy to undo header (`extmark_splice_delete`).
@@ -704,9 +721,9 @@ pub fn extmark_splice_delete(
         None
     };
     let mut itr = MarkTreeIter::new();
-    marktree_itr_get(&buf.b_marktree.borrow(), l_row, l_col, &mut itr);
+    buf.with_marktree(|mt| marktree_itr_get(mt, l_row, l_col, &mut itr));
     loop {
-        let mark = marktree_itr_current(&buf.b_marktree.borrow(), &itr);
+        let mark = buf.with_marktree(|mt| marktree_itr_current(mt, &itr));
         if mark.pos.row < 0 || mark.pos.row > u_row {
             break;
         }
@@ -725,7 +742,7 @@ pub fn extmark_splice_delete(
         let mut invalidated = false;
         if !only_copy && !mt_invalid(mark) && mt_invalidate(mark) && !mt_end(mark) {
             let mut enditr = itr;
-            let endpos = marktree_get_altpos(&buf.b_marktree.borrow(), mark, Some(&mut enditr));
+            let endpos = buf.with_marktree(|mt| marktree_get_altpos(mt, mark, Some(&mut enditr)));
             if (!mt_paired(mark) && mark.pos.row < u_row)
                 || (mt_paired(mark)
                     && (mark.pos.row > l_row || (mark.pos.row == l_row && mark.pos.col >= l_col))
@@ -737,9 +754,11 @@ pub fn extmark_splice_delete(
                 } else {
                     copy = true;
                     invalidated = true;
-                    buf.b_marktree.borrow_mut().key_mut(&itr).flags |= MT_FLAG_INVALID;
-                    buf.b_marktree.borrow_mut().key_mut(&enditr).flags |= MT_FLAG_INVALID;
-                    marktree_revise_meta(&mut buf.b_marktree.borrow_mut(), &itr, mark);
+                    buf.with_marktree_mut(|mt| {
+                        mt.key_mut(&itr).flags |= MT_FLAG_INVALID;
+                        mt.key_mut(&enditr).flags |= MT_FLAG_INVALID;
+                        marktree_revise_meta(mt, &itr, mark);
+                    });
                     buf_decor_remove(
                         buf,
                         mark.pos.row,
@@ -767,13 +786,13 @@ pub fn extmark_splice_delete(
             if let Some(uvp) = uvp.as_deref_mut() {
                 uvp.push(ExtmarkUndoObject::SavePos(pos));
             } else if let Some(uh) = uhp {
-                crate::undo::uhp_mut(buf, uh)
-                    .uh_extmark
-                    .push(ExtmarkUndoObject::SavePos(pos));
+                crate::undo::with_uhp_mut(buf, uh, |h| {
+                    h.uh_extmark.push(ExtmarkUndoObject::SavePos(pos));
+                });
             }
         }
 
-        marktree_itr_next(&buf.b_marktree.borrow(), &mut itr);
+        buf.with_marktree(|mt| marktree_itr_next(mt, &mut itr));
     }
 }
 
@@ -867,7 +886,7 @@ pub fn extmark_adjust(
     amount_after: Linenr,
     undo: ExtmarkOp,
 ) {
-    if g_st().workspace.curbuf_splice_pending.get() != 0 {
+    if workspace_state().curbuf_splice_pending.get() != 0 {
         return;
     }
     let start_byte = ml_find_line_or_offset(buf, line1, None, true) as Bcount;
@@ -978,15 +997,9 @@ pub fn extmark_splice_impl(
         buf.b_prev_line_count.set(0);
     }
 
-    marktree_splice(
-        &mut buf.b_marktree.borrow_mut(),
-        start_row,
-        start_col,
-        old_row,
-        old_col,
-        new_row,
-        new_col,
-    );
+    buf.with_marktree_mut(|mt| {
+        marktree_splice(mt, start_row, start_col, old_row, old_col, new_row, new_col);
+    });
 
     if old_row > 0 || new_row > 0 {
         let row2 = (buf.b_ml.ml_line_count.get() - 1).min(start_row + new_row);
@@ -998,51 +1011,50 @@ pub fn extmark_splice_impl(
             return;
         };
 
-        let mut merged = false;
-        if old_row == 0
-            && new_row == 0
-            && let Some(ExtmarkUndoObject::Splice(splice)) =
-                crate::undo::uhp_mut(buf, uh).uh_extmark.last_mut()
-            && splice.start_row == start_row
-            && splice.old_row == 0
-            && splice.new_row == 0
-        {
-            if old_col == 0
-                && start_col >= splice.start_col
-                && start_col <= splice.start_col + splice.new_col
+        crate::undo::with_uhp_mut(buf, uh, |h| {
+            let mut merged = false;
+            if old_row == 0
+                && new_row == 0
+                && let Some(ExtmarkUndoObject::Splice(splice)) = h.uh_extmark.last_mut()
+                && splice.start_row == start_row
+                && splice.old_row == 0
+                && splice.new_row == 0
             {
-                splice.new_col += new_col;
-                splice.new_byte += new_byte;
-                merged = true;
-            } else if new_col == 0 && start_col == splice.start_col + splice.new_col {
-                splice.old_col += old_col;
-                splice.old_byte += old_byte;
-                merged = true;
-            } else if new_col == 0 && start_col + old_col == splice.start_col {
-                splice.start_col = start_col;
-                splice.start_byte = start_byte;
-                splice.old_col += old_col;
-                splice.old_byte += old_byte;
-                merged = true;
+                if old_col == 0
+                    && start_col >= splice.start_col
+                    && start_col <= splice.start_col + splice.new_col
+                {
+                    splice.new_col += new_col;
+                    splice.new_byte += new_byte;
+                    merged = true;
+                } else if new_col == 0 && start_col == splice.start_col + splice.new_col {
+                    splice.old_col += old_col;
+                    splice.old_byte += old_byte;
+                    merged = true;
+                } else if new_col == 0 && start_col + old_col == splice.start_col {
+                    splice.start_col = start_col;
+                    splice.start_byte = start_byte;
+                    splice.old_col += old_col;
+                    splice.old_byte += old_byte;
+                    merged = true;
+                }
             }
-        }
 
-        if !merged {
-            let splice = ExtmarkSplice {
-                start_row,
-                start_col,
-                old_row,
-                old_col,
-                new_row,
-                new_col,
-                start_byte,
-                old_byte,
-                new_byte,
-            };
-            crate::undo::uhp_mut(buf, uh)
-                .uh_extmark
-                .push(ExtmarkUndoObject::Splice(splice));
-        }
+            if !merged {
+                let splice = ExtmarkSplice {
+                    start_row,
+                    start_col,
+                    old_row,
+                    old_col,
+                    new_row,
+                    new_col,
+                    start_byte,
+                    old_byte,
+                    new_byte,
+                };
+                h.uh_extmark.push(ExtmarkUndoObject::Splice(splice));
+            }
+        });
     }
 }
 
@@ -1099,15 +1111,11 @@ pub fn extmark_move_region(
     let row2 = start_row.max(new_row) + extent_row;
     buf_signcols_count_range(buf, row1, row2, 0, K_TRUE);
 
-    marktree_move_region(
-        &mut buf.b_marktree.borrow_mut(),
-        start_row,
-        start_col,
-        extent_row,
-        extent_col,
-        new_row,
-        new_col,
-    );
+    buf.with_marktree_mut(|mt| {
+        marktree_move_region(
+            mt, start_row, start_col, extent_row, extent_col, new_row, new_col,
+        );
+    });
 
     buf_signcols_count_range(buf, row1, row2, 0, K_NONE);
 
@@ -1140,9 +1148,9 @@ pub fn extmark_move_region(
             extent_byte,
             new_byte,
         };
-        crate::undo::uhp_mut(buf, uh)
-            .uh_extmark
-            .push(ExtmarkUndoObject::Move(move_));
+        crate::undo::with_uhp_mut(buf, uh, |h| {
+            h.uh_extmark.push(ExtmarkUndoObject::Move(move_));
+        });
     }
 }
 

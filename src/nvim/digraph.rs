@@ -1639,23 +1639,19 @@ pub fn get_digraph_for_char(val: i32) -> Option<[u8; 3]> {
 
 /// Get a digraph (`get_digraph`).
 pub fn get_digraph(cmdline: bool) -> i32 {
-    g_st()
-        .input
+    input_state()
         .no_mapping
-        .set(g_st().input.no_mapping.get() + (1));
-    g_st()
-        .input
+        .set(input_state().no_mapping.get() + (1));
+    input_state()
         .allow_keys
-        .set(g_st().input.allow_keys.get() + (1));
+        .set(input_state().allow_keys.get() + (1));
     let c = plain_vgetc();
-    g_st()
-        .input
+    input_state()
         .no_mapping
-        .set(g_st().input.no_mapping.get() - (1));
-    g_st()
-        .input
+        .set(input_state().no_mapping.get() - (1));
+    input_state()
         .allow_keys
-        .set(g_st().input.allow_keys.get() - (1));
+        .set(input_state().allow_keys.get() - (1));
 
     if c == ESC {
         return i32::from(NUL);
@@ -1666,29 +1662,25 @@ pub fn get_digraph(cmdline: bool) -> i32 {
     }
 
     if cmdline {
-        if char2cells(c) == 1 && c < 128 && g_st().cmdline.cmdline_star.get() == 0 {
+        if char2cells(c) == 1 && c < 128 && cmdline_state().cmdline_star.get() == 0 {
             putcmdline(c as u8, true);
         }
     } else {
         add_to_showcmd(c);
     }
-    g_st()
-        .input
+    input_state()
         .no_mapping
-        .set(g_st().input.no_mapping.get() + (1));
-    g_st()
-        .input
+        .set(input_state().no_mapping.get() + (1));
+    input_state()
         .allow_keys
-        .set(g_st().input.allow_keys.get() + (1));
+        .set(input_state().allow_keys.get() + (1));
     let cc = plain_vgetc();
-    g_st()
-        .input
+    input_state()
         .no_mapping
-        .set(g_st().input.no_mapping.get() - (1));
-    g_st()
-        .input
+        .set(input_state().no_mapping.get() - (1));
+    input_state()
         .allow_keys
-        .set(g_st().input.allow_keys.get() - (1));
+        .set(input_state().allow_keys.get() - (1));
 
     if cc != ESC {
         return digraph_get(c, cc, true);
@@ -1800,7 +1792,7 @@ pub fn putdigraph(mut rem: &[u8]) {
 }
 
 fn digraph_header(msg: &CStr) {
-    if g_st().msg.msg_col.get() > 0 {
+    if msg_state().msg_col.get() > 0 {
         msg_putchar(b'\n' as i32);
     }
     msg_outtrans(msg, HLF_CM, false);
@@ -1814,7 +1806,7 @@ pub fn listdigraphs(use_headers: bool) {
     msg_putchar(b'\n' as i32);
 
     for dp in DIGRAPHDEFAULT {
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             break;
         }
         let tmp = DigraphEntry {
@@ -1838,7 +1830,7 @@ pub fn listdigraphs(use_headers: bool) {
 
     let user_digraphs = DIGR_STATE.with(|st| st.user_digraphs.borrow().clone());
     for dp in &user_digraphs {
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             break;
         }
         if previous >= 0 && use_headers {
@@ -1868,7 +1860,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
 
     if list_all {
         for dp in DIGRAPHDEFAULT {
-            if g_st().input.got_int.get() {
+            if input_state().got_int.get() {
                 break;
             }
             let tmp = DigraphEntry {
@@ -1883,7 +1875,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
     }
 
     for dp in &user_digraphs {
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             break;
         }
         digraph_getlist_appendpair(dp, rettv.vval.v_list_ref());
@@ -1913,12 +1905,12 @@ fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
         }
         *previous = dp.result;
     }
-    if g_st().msg.msg_col.get() > g_st().screen.columns_global.get() - list_width {
+    if msg_state().msg_col.get() > screen_state().columns_global.get() - list_width {
         msg_putchar(b'\n' as i32);
     }
 
-    if g_st().msg.msg_col.get() % list_width != 0 {
-        msg_advance((g_st().msg.msg_col.get() / list_width + 1) * list_width);
+    if msg_state().msg_col.get() % list_width != 0 {
+        msg_advance((msg_state().msg_col.get() / list_width + 1) * list_width);
     }
 
     buf[0] = dp.char1;
@@ -2132,7 +2124,7 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
     keymap_unload();
 
     curbuf().b_kmap_state.set(0);
-    curbuf().b_kmap_ga.borrow_mut().clear();
+    curbuf().clear_kmap();
 
     let save_cpo = opt_vars().p_cpo.replace(OptString::from_cstr(c"C"));
 
@@ -2155,19 +2147,17 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
                 std::ffi::CString::new(from_slice),
                 std::ffi::CString::new(to_slice),
             ) {
-                curbuf().b_kmap_ga.borrow_mut().push(Kmap { from, to });
+                curbuf().with_kmap_mut(|kmap| kmap.push(Kmap { from, to }));
             }
         }
     }
 
-    let kmap_len = curbuf().b_kmap_ga.borrow().len();
+    let kmap_len = curbuf().kmap_len();
     for idx in 0..kmap_len {
-        {
-            let cb = curbuf();
-            let kmaps = cb.b_kmap_ga.borrow();
+        curbuf().with_kmap(|kmaps| {
             let kp = &kmaps[idx];
             format_to_buf!(&mut buf, c"<buffer> %s %s", &kp.from, &kp.to,);
-        }
+        });
         do_map(
             MAPTYPE_MAP,
             std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
@@ -2194,14 +2184,12 @@ fn keymap_unload() {
 
     let save_cpo = opt_vars().p_cpo.replace(OptString::from_cstr(c"C"));
 
-    let kmap_len = curbuf().b_kmap_ga.borrow().len();
+    let kmap_len = curbuf().kmap_len();
     for idx in 0..kmap_len {
-        {
-            let cb = curbuf();
-            let kmaps = cb.b_kmap_ga.borrow();
+        curbuf().with_kmap(|kmaps| {
             let entry = &kmaps[idx];
             format_to_buf!(&mut buf, c"<buffer> %s", &entry.from);
-        }
+        });
         do_map(
             MAPTYPE_UNMAP,
             std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
@@ -2209,7 +2197,7 @@ fn keymap_unload() {
             false,
         );
     }
-    curbuf().b_kmap_ga.borrow_mut().clear();
+    curbuf().clear_kmap();
 
     opt_vars().p_cpo.set(save_cpo);
 
@@ -2225,16 +2213,17 @@ pub fn get_keymap_str(wp: &WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
         return 0;
     }
 
-    let old_curbuf = g_st().workspace.curbuf.get();
+    let old_curbuf = workspace_state().curbuf.get();
     let old_curwin = curwin();
 
-    g_st().workspace.curbuf.set(wp.w_buffer.get());
+    workspace_state().curbuf.set(wp.w_buffer.get());
     set_curwin(wp);
-    g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() + (1));
-    let s = eval_to_string(b"b:keymap_name", false, false);
+    let s = {
+        let _skip_emsg = msg_state().skip_emsg();
+        eval_to_string(b"b:keymap_name", false, false)
+    };
     let mut p_cstr = s.as_deref().unwrap_or(c"");
-    g_st().msg.emsg_skip.set(g_st().msg.emsg_skip.get() - (1));
-    g_st().workspace.curbuf.set(old_curbuf);
+    workspace_state().curbuf.set(old_curbuf);
     set_curwin(old_curwin);
     let kmap_rc;
     if p_cstr.is_empty() {

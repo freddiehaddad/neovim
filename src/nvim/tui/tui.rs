@@ -369,7 +369,7 @@ pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeSt
     let mut is_set = false;
     match state {
         K_TERM_MODE_NOT_RECOGNIZED | K_TERM_MODE_PERMANENTLY_RESET => {
-            if !g_st().exc.nvim_testing.get() && min_log_level() <= LOGLVL_WRN {
+            if !exc_state().nvim_testing.get() && min_log_level() <= LOGLVL_WRN {
                 logmsg!(
                     LOGLVL_WRN,
                     None,
@@ -386,7 +386,7 @@ pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeSt
             if state == K_TERM_MODE_PERMANENTLY_SET || state == K_TERM_MODE_SET {
                 is_set = true;
             }
-            if !g_st().exc.nvim_testing.get() && min_log_level() <= LOGLVL_WRN {
+            if !exc_state().nvim_testing.get() && min_log_level() <= LOGLVL_WRN {
                 logmsg!(
                     LOGLVL_WRN,
                     None,
@@ -730,7 +730,11 @@ fn apply_termdefs(tui: &mut TUIData) {
         let chunks_arr = Array::from_slice(&mut chunks);
         let mut args_items = [array_obj(chunks_arr), boolean_obj(true), dict_obj(opts)];
         let args = Array::from_slice(&mut args_items[..3]);
-        rpc_send_event(g_st().screen.ui_client_channel_id.get(), c"nvim_echo", args);
+        rpc_send_event(
+            screen_state().ui_client_channel_id.get(),
+            c"nvim_echo",
+            args,
+        );
     }
     api_free_object(rv);
 }
@@ -839,7 +843,7 @@ fn terminfo_start(tui: &mut TUIData) {
         || terminfo_is_term_family(term, c"win32con")
         || terminfo_is_term_family(term, c"interix");
     tui.bce = tui.ti.back_color_erase;
-    g_st().screen.t_colors.set(tui.ti.max_colors);
+    screen_state().t_colors.set(tui.ti.max_colors);
 
     terminfo_out(tui, K_TERM_ENTER_CA_MODE);
     terminfo_out(tui, K_TERM_KEYPAD_XMIT);
@@ -966,16 +970,16 @@ fn terminfo_disable(tui: &mut TUIData) {
 }
 
 fn terminfo_stop(tui: &mut TUIData) {
-    if g_st().screen.ui_client_exit_status.get() == 0
-        && g_st().screen.ui_client_error_exit.get() > 0
+    if screen_state().ui_client_exit_status.get() == 0
+        && screen_state().ui_client_error_exit.get() > 0
     {
-        g_st()
-            .screen
+        screen_state()
             .ui_client_exit_status
-            .set(g_st().screen.ui_client_error_exit.get());
+            .set(screen_state().ui_client_error_exit.get());
     }
 
-    if g_st().screen.ui_client_exit_status.get() == g_st().screen.ui_client_error_exit.get().max(0)
+    if screen_state().ui_client_exit_status.get()
+        == screen_state().ui_client_error_exit.get().max(0)
     {
         cursor_goto(tui, tui.height - 1, 0);
         terminfo_out(tui, K_TERM_EXIT_CA_MODE);
@@ -1746,7 +1750,7 @@ fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
 
 pub fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: Integer) {
     #[cfg(unix)]
-    if tui.out_isatty && tui.is_starting && !g_st().exc.stdin_isatty.get() {
+    if tui.out_isatty && tui.is_starting && !exc_state().stdin_isatty.get() {
         let ret = tui.sync_out.set_tty_mode(UV_TTY_MODE_NORMAL);
         if ret != 0 && min_log_level() <= LOGLVL_ERR {
             logmsg!(
@@ -2017,7 +2021,11 @@ fn show_verbose_terminfo(tui: &mut TUIData) {
     let opts = Dict::from_slice(&mut opts_items[..1]);
     let mut args_items = [array_obj(chunks), boolean_obj(true), dict_obj(opts)];
     let args = Array::from_slice(&mut args_items[..3]);
-    rpc_send_event(g_st().screen.ui_client_channel_id.get(), c"nvim_echo", args);
+    rpc_send_event(
+        screen_state().ui_client_channel_id.get(),
+        c"nvim_echo",
+        args,
+    );
     drop(str_bytes);
 }
 
@@ -2131,11 +2139,11 @@ pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
         tui.print_attr_id = -1;
         invalidate(tui, 0, tui.grid.height, 0, tui.grid.width);
 
-        if g_st().screen.ui_client_channel_id.get() != 0 {
+        if screen_state().ui_client_channel_id.get() != 0 {
             let mut args_items = [cstr_as_obj(Some(c"rgb")), boolean_obj(value.data.boolean())];
             let args = Array::from_slice(&mut args_items[..2]);
             rpc_send_event(
-                g_st().screen.ui_client_channel_id.get(),
+                screen_state().ui_client_channel_id.get(),
                 c"nvim_ui_set_option",
                 args,
             );

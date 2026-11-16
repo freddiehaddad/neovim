@@ -111,8 +111,7 @@ fn env_name_valid(bytes: &[u8]) -> bool {
 }
 
 pub fn env_init() {
-    g_st()
-        .exc
+    exc_state()
         .nvim_testing
         .set(os_env_exists(c"NVIM_TEST", false));
 }
@@ -882,10 +881,10 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
             if let Some(vim_path_cstr) = vim_path_cstr {
                 if vimruntime {
                     let _ = os_setenv(c"VIMRUNTIME", vim_path_cstr.as_c_str(), 1);
-                    g_st().exc.didset_vimruntime.set(true);
+                    exc_state().didset_vimruntime.set(true);
                 } else {
                     let _ = os_setenv(c"VIM", vim_path_cstr.as_c_str(), 1);
-                    g_st().exc.didset_vim.set(true);
+                    exc_state().didset_vim.set(true);
                 }
                 Some(vim_path_cstr)
             } else {
@@ -1107,9 +1106,9 @@ pub fn vim_unsetenv_ext(var: &CStr) {
     let _ = os_unsetenv(var);
     let var_bytes = var.to_bytes();
     if var_bytes.eq_ignore_ascii_case(b"VIM") {
-        g_st().exc.didset_vim.set(false);
+        exc_state().didset_vim.set(false);
     } else if var_bytes.eq_ignore_ascii_case(b"VIMRUNTIME") {
-        g_st().exc.didset_vimruntime.set(false);
+        exc_state().didset_vimruntime.set(false);
     }
 }
 
@@ -1119,10 +1118,11 @@ pub fn vim_setenv_ext(name: &CStr, val: &CStr) {
     let name_bytes = name.to_bytes();
     if name_bytes.eq_ignore_ascii_case(b"HOME") {
         init_homedir();
-    } else if g_st().exc.didset_vim.get() && name_bytes.eq_ignore_ascii_case(b"VIM") {
-        g_st().exc.didset_vim.set(false);
-    } else if g_st().exc.didset_vimruntime.get() && name_bytes.eq_ignore_ascii_case(b"VIMRUNTIME") {
-        g_st().exc.didset_vimruntime.set(false);
+    } else if exc_state().didset_vim.get() && name_bytes.eq_ignore_ascii_case(b"VIM") {
+        exc_state().didset_vim.set(false);
+    } else if exc_state().didset_vimruntime.get() && name_bytes.eq_ignore_ascii_case(b"VIMRUNTIME")
+    {
+        exc_state().didset_vimruntime.set(false);
     }
 }
 

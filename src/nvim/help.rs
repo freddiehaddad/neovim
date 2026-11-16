@@ -44,7 +44,7 @@ pub fn ex_help(eap: &mut Exarg) {
     let mut wp: Option<crate::globals::WinPtr>;
     let mut empty_fnum: i32 = 0;
     let mut alt_fnum: i32 = 0;
-    let old_key_typed = g_st().input.key_typed.get();
+    let old_key_typed = input_state().key_typed.get();
 
     let mut lang: Option<std::ffi::CString> = None;
     let arg_owned: Option<std::ffi::CString>;
@@ -162,8 +162,8 @@ pub fn ex_help(eap: &mut Exarg) {
 
     // Re-use an existing help window or open a new one.
     let mut early_ret = false;
-    if !bt_help(curwin().buf_opt().as_deref()) || g_st().cmdline.cmod_tab() != 0 {
-        if g_st().cmdline.cmod_tab() != 0 {
+    if !bt_help(curwin().buf_opt().as_deref()) || cmdline_state().cmod_tab() != 0 {
+        if cmdline_state().cmod_tab() != 0 {
             wp = None;
         } else {
             wp = None;
@@ -183,8 +183,8 @@ pub fn ex_help(eap: &mut Exarg) {
             early_ret = true;
         } else {
             let mut n = WSP_HELP;
-            if g_st().cmdline.cmod_split() == 0
-                && curwin().w_width.get() != g_st().screen.columns_global.get()
+            if cmdline_state().cmod_split() == 0
+                && curwin().w_width.get() != screen_state().columns_global.get()
                 && curwin().w_width.get() < 80
             {
                 n |= if opt_vars().p_sb.get() {
@@ -211,7 +211,7 @@ pub fn ex_help(eap: &mut Exarg) {
                     None,
                 );
 
-                if (g_st().cmdline.cmod_flags() & CMOD_KEEPALT) == 0 {
+                if (cmdline_state().cmod_flags() & CMOD_KEEPALT) == 0 {
                     curwin().w_alt_fnum.set(alt_fnum);
                 }
                 empty_fnum = curbuf().b_fnum.get();
@@ -220,8 +220,8 @@ pub fn ex_help(eap: &mut Exarg) {
     }
 
     if !early_ret {
-        g_st().edit.restart_edit.set(0);
-        g_st().input.key_typed.set(old_key_typed);
+        edit_state().restart_edit.set(0);
+        input_state().key_typed.set(old_key_typed);
 
         do_tag(None, &tag, DT_HELP, 1, false, true);
 
@@ -235,7 +235,7 @@ pub fn ex_help(eap: &mut Exarg) {
 
         if alt_fnum != 0
             && curwin().w_alt_fnum.get() == empty_fnum
-            && (g_st().cmdline.cmod_flags() & CMOD_KEEPALT) == 0
+            && (cmdline_state().cmod_flags() & CMOD_KEEPALT) == 0
         {
             curwin().w_alt_fnum.set(alt_fnum);
         }

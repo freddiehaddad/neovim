@@ -277,7 +277,7 @@ use crate::lua::converter::LUA_NOREF;
 #[inline]
 pub fn win_hl_attr(wp: &WinInfoInfo, hlf: i32) -> i32 {
     if let Some(ref tbl) = wp.w_ns_hl_attr.get()
-        && g_st().screen.ns_hl_fast.get() < 0
+        && screen_state().ns_hl_fast.get() < 0
     {
         tbl[hlf as usize].get()
     } else {
@@ -290,7 +290,7 @@ pub fn hl_attr(n: i32) -> i32 {
     if let Some(ref tbl) = hl_st(|st| st.hl_attr_active.get()) {
         tbl[n as usize].get()
     } else {
-        g_st().screen.highlight_attr[n as usize].get()
+        screen_state().highlight_attr[n as usize].get()
     }
 }
 
@@ -380,7 +380,7 @@ pub fn ui_send_all_hls(ui: &mut RemoteUI) {
         remote_ui_hl_group_set(
             ui,
             cstr_as_string(hlf_name_ptr(hlf)),
-            Integer::from(g_st().screen.highlight_attr[hlf].get()),
+            Integer::from(screen_state().highlight_attr[hlf].get()),
         );
     }
 }
@@ -453,10 +453,10 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
     }
 
     if *ns_hl < 0 {
-        if g_st().screen.ns_hl_active.get() <= 0 {
+        if screen_state().ns_hl_active.get() <= 0 {
             return -1;
         }
-        *ns_hl = g_st().screen.ns_hl_active.get();
+        *ns_hl = screen_state().ns_hl_active.get();
     }
 
     let ns_id = *ns_hl;
@@ -555,18 +555,18 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
 
 pub fn hl_check_ns() -> bool {
     let ns_hl_win = hl_st(|st| st.ns_hl_win.get());
-    let ns = if g_st().screen.ns_hl_fast.get() > 0 {
-        g_st().screen.ns_hl_fast.get()
+    let ns = if screen_state().ns_hl_fast.get() > 0 {
+        screen_state().ns_hl_fast.get()
     } else if ns_hl_win >= 0 {
         ns_hl_win
     } else {
-        g_st().screen.ns_hl_global.get()
+        screen_state().ns_hl_global.get()
     };
-    if g_st().screen.ns_hl_active.get() == ns {
+    if screen_state().ns_hl_active.get() == ns {
         return false;
     }
 
-    g_st().screen.ns_hl_active.set(ns);
+    screen_state().ns_hl_active.set(ns);
     hl_st(|st| st.hl_attr_active.set(None));
     if ns > 0 {
         update_ns_hl(ns);
@@ -619,7 +619,7 @@ pub fn hl_get_ui_attr(ns_id: i32, idx: i32, final_id: i32, mut optional: bool) -
             attrs.hl_blend = opt_vars().p_pb.get() as i32;
         }
         if pum_drawn() {
-            g_st().screen.must_redraw_pum.set(true);
+            screen_state().must_redraw_pum.set(true);
         }
     }
 
@@ -669,7 +669,7 @@ pub fn update_window_hl(wp: &WinInfoInfo, invalid: bool) {
     }
     wp.w_hl_needs_update.set(0);
 
-    let float_win = wp.w_floating.get() && !wp.w_config.borrow().external;
+    let float_win = wp.w_floating.get() && !wp.config_external();
     if float_win && hl_def_get(HLF_NFLOAT) != 0 && ns_id > 0 {
         wp.w_hl_attr_normal.set(hl_def_get(HLF_NFLOAT));
     } else if hl_def_get(HLF_NONE) > 0 {
@@ -678,7 +678,7 @@ pub fn update_window_hl(wp: &WinInfoInfo, invalid: bool) {
         wp.w_hl_attr_normal.set(if hl_attr(HLF_NFLOAT as i32) > 0 {
             hl_attr(HLF_NFLOAT as i32)
         } else {
-            g_st().screen.highlight_attr[HLF_NFLOAT].get()
+            screen_state().highlight_attr[HLF_NFLOAT].get()
         });
     } else {
         wp.w_hl_attr_normal.set(0);
@@ -691,23 +691,22 @@ pub fn update_window_hl(wp: &WinInfoInfo, invalid: bool) {
         ));
     }
 
-    wp.w_config.borrow_mut().shadow = false;
-    if wp.w_floating.get() && wp.w_config.borrow().border {
+    wp.with_config_mut(|cfg| cfg.shadow = false);
+    if wp.w_floating.get() && wp.config_border() {
         for i in 0..8 {
             let mut attr = hl_def_get(HLF_BORDER);
-            if wp.w_config.borrow().border_hl_ids[i] != 0 {
-                attr = hl_get_ui_attr(
-                    ns_id,
-                    HLF_BORDER as i32,
-                    wp.w_config.borrow().border_hl_ids[i],
-                    false,
-                );
+            let hl_id = wp.with_config(|cfg| cfg.border_hl_ids[i]);
+            if hl_id != 0 {
+                attr = hl_get_ui_attr(ns_id, HLF_BORDER as i32, hl_id, false);
             }
             attr = hl_apply_winblend(wp.w_onebuf_opt.wo_winbl.get() as i32, attr);
-            if syn_attr2entry(attr).hl_blend > 0 {
-                wp.w_config.borrow_mut().shadow = true;
-            }
-            wp.w_config.borrow_mut().border_attr[i] = attr;
+            let has_blend = syn_attr2entry(attr).hl_blend > 0;
+            wp.with_config_mut(|cfg| {
+                if has_blend {
+                    cfg.shadow = true;
+                }
+                cfg.border_attr[i] = attr;
+            });
         }
     }
 
@@ -760,7 +759,7 @@ pub fn update_ns_hl(ns_id: i32) {
 }
 
 pub fn win_bg_attr(wp: &WinInfoInfo) -> i32 {
-    if g_st().screen.ns_hl_fast.get() < 0 {
+    if screen_state().ns_hl_fast.get() < 0 {
         let local = if wp == curwin() {
             wp.w_hl_attr_normal.get()
         } else {
@@ -865,7 +864,7 @@ pub fn clear_hl_tables(reinit: bool) {
             st.urls.borrow_mut().clear();
         });
         highlight_init();
-        for slot in &g_st().screen.highlight_attr_last {
+        for slot in &screen_state().highlight_attr_last {
             slot.set(-1);
         }
         highlight_attr_set_all();
@@ -990,13 +989,13 @@ pub fn hl_combine_attr(char_attr: i32, prim_attr: i32) -> i32 {
 
 fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
     if attrs.rgb_bg_color == -1 {
-        attrs.rgb_bg_color = g_st().screen.normal_bg.get();
+        attrs.rgb_bg_color = screen_state().normal_bg.get();
     }
     if attrs.rgb_fg_color == -1 {
-        attrs.rgb_fg_color = g_st().screen.normal_fg.get();
+        attrs.rgb_fg_color = screen_state().normal_fg.get();
     }
     if attrs.rgb_sp_color == -1 {
-        attrs.rgb_sp_color = g_st().screen.normal_sp.get();
+        attrs.rgb_sp_color = screen_state().normal_sp.get();
     }
     let dark = opt_vars().p_bg.first_byte() == b'd';
     if attrs.rgb_fg_color == -1 {

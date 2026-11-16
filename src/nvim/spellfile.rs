@@ -725,7 +725,7 @@ fn tree_count_words(byts: &[u8], idxs: &mut [Idx]) {
     curi[0] = 1;
     wordcount[0] = 0;
     let mut depth: isize = 0;
-    while depth >= 0 && !g_st().input.got_int.get() {
+    while depth >= 0 && !input_state().got_int.get() {
         let d = depth as usize;
         if curi[d] > i32::from(byts[arridx[d] as usize]) {
             idxs[arridx[d] as usize] = wordcount[d];
@@ -1711,7 +1711,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
         af_comp: crate::memory::fx_hashmap(),
     };
 
-    while !vim_fgets(&mut rline, &fd) && !g_st().input.got_int.get() {
+    while !vim_fgets(&mut rline, &fd) && !input_state().got_int.get() {
         line_breakcheck();
         lnum += 1;
 
@@ -2797,7 +2797,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
         semsg!(gettext(c"E760: No word count in %s"), fname);
     }
 
-    while !vim_fgets(&mut line, &fd) && !g_st().input.got_int.get() {
+    while !vim_fgets(&mut line, &fd) && !input_state().got_int.get() {
         line_breakcheck();
         lnum += 1;
         if line[0] == b'#' || line[0] == b'/' {
@@ -2872,8 +2872,8 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
                 msg_start();
                 msg_outtrans_long(crate::memory::bytes_as_cstr(&message), 0);
                 msg_clr_eos();
-                g_st().msg.msg_didout.set(false);
-                g_st().msg.msg_col.set(0);
+                msg_state().msg_didout.set(false);
+                msg_state().msg_col.set(0);
                 ui_flush();
             }
         }
@@ -3373,7 +3373,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
         format_to_buf!(&mut iobuff, gettext(c"Reading word file %s..."), fname,);
         spell_message(&*spin, crate::memory::bytes_as_cstr(&iobuff));
 
-        while !vim_fgets(&mut rline, &fd) && !g_st().input.got_int.get() {
+        while !vim_fgets(&mut rline, &fd) && !input_state().got_int.get() {
             line_breakcheck();
             lnum += 1;
 
@@ -3787,8 +3787,8 @@ fn tree_add_word(
             msg_start();
             msg_puts(gettext(MSG_COMPRESSING));
             msg_clr_eos();
-            g_st().msg.msg_didout.set(false);
-            g_st().msg.msg_col.set(0);
+            msg_state().msg_didout.set(false);
+            msg_state().msg_col.set(0);
             ui_flush();
         }
 
@@ -3892,7 +3892,7 @@ fn node_compress(
 
     let mut np = Some(node);
     while let Some(np_idx) = np {
-        if g_st().input.got_int.get() {
+        if input_state().got_int.get() {
             break;
         }
         len += 1;
@@ -4516,7 +4516,7 @@ fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
     wordcount[0] = 0;
 
     let mut depth: isize = 0;
-    while depth >= 0 && !g_st().input.got_int.get() {
+    while depth >= 0 && !input_state().got_int.get() {
         let d = depth as usize;
         if curi[d] > i32::from(slang.sl_fbyts[arridx[d] as usize]) {
             slang.sl_fidxs[arridx[d] as usize] = wordcount[d];
@@ -4885,7 +4885,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                 );
             }
 
-            if !error && !g_st().input.got_int.get() {
+            if !error && !input_state().got_int.get() {
                 spell_message(&spin, gettext(MSG_COMPRESSING));
                 let foldroot = spin.si_foldroot;
                 wordtree_compress(&mut spin, foldroot, c"case-folded");
@@ -4895,7 +4895,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                 wordtree_compress(&mut spin, prefroot, c"prefixes");
             }
 
-            if !error && !g_st().input.got_int.get() {
+            if !error && !input_state().got_int.get() {
                 let mut iobuff = [0u8; IOSIZE];
                 format_to_buf!(
                     &mut iobuff,
@@ -4927,7 +4927,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
 
             spin.si_nodes.clear();
 
-            if spin.si_sugtime != 0 && !error && !g_st().input.got_int.get() {
+            if spin.si_sugtime != 0 && !error && !input_state().got_int.get() {
                 spell_make_sugfile(&mut spin, crate::memory::bytes_as_cstr(&wfname_buf));
             }
         }

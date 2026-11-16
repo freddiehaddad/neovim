@@ -378,29 +378,29 @@ pub fn ex_profile(eap: &mut Exarg) {
     if len == 5 && &arg_bytes[..5] == b"start" && !e.is_empty() {
         let fname = expand_env_save_opt(e.as_cstr(), true, None);
         prof_st(|st| *st.profile_fname.borrow_mut() = Some(fname));
-        g_st().exc.do_profiling.set(PROF_YES);
+        exc_state().do_profiling.set(PROF_YES);
         profile_set_wait(profile_zero());
         set_vim_var_nr(VV_PROFILING, 1);
-    } else if g_st().exc.do_profiling.get() == PROF_NONE {
+    } else if exc_state().do_profiling.get() == PROF_NONE {
         emsg(c"E750: First use \":profile start {fname}\"");
     } else if arg_bytes == b"stop" {
         profile_dump();
-        g_st().exc.do_profiling.set(PROF_NONE);
+        exc_state().do_profiling.set(PROF_NONE);
         set_vim_var_nr(VV_PROFILING, 0);
         profile_reset();
     } else if arg_bytes == b"pause" {
-        if g_st().exc.do_profiling.get() == PROF_YES {
+        if exc_state().do_profiling.get() == PROF_YES {
             let now = profile_start();
             prof_st(|st| st.pause_time.set(now));
         }
-        g_st().exc.do_profiling.set(PROF_PAUSED);
+        exc_state().do_profiling.set(PROF_PAUSED);
     } else if arg_bytes == b"continue" {
-        if g_st().exc.do_profiling.get() == PROF_PAUSED {
+        if exc_state().do_profiling.get() == PROF_PAUSED {
             let elapsed = profile_end(prof_st(|st| st.pause_time.get()));
             prof_st(|st| st.pause_time.set(elapsed));
             profile_set_wait(profile_add(profile_get_wait(), elapsed));
         }
-        g_st().exc.do_profiling.set(PROF_YES);
+        exc_state().do_profiling.set(PROF_YES);
     } else if arg_bytes == b"dump" {
         profile_dump();
     } else {
@@ -459,8 +459,8 @@ pub fn prof_input_end() {
 
 /// Returns `true` when a function defined in the current script should be profiled (`prof_def_func`).
 pub fn prof_def_func() -> bool {
-    if g_st().exc.current_sctx.get().sc_sid > 0 {
-        with_script_item(g_st().exc.current_sctx.get().sc_sid, |si| si.sn_pr_force)
+    if exc_state().current_sctx.get().sc_sid > 0 {
+        with_script_item(exc_state().current_sctx.get().sc_sid, |si| si.sn_pr_force)
     } else {
         false
     }
@@ -724,8 +724,8 @@ pub fn profile_init(si: &mut Scriptitem) {
 /// Save time when starting to invoke another script or function (`script_prof_save`).
 pub fn script_prof_save(tm: &mut Proftime) {
     {
-        if script_id_valid(g_st().exc.current_sctx.get().sc_sid) {
-            with_script_item_mut(g_st().exc.current_sctx.get().sc_sid, |si| {
+        if script_id_valid(exc_state().current_sctx.get().sc_sid) {
+            with_script_item_mut(exc_state().current_sctx.get().sc_sid, |si| {
                 if si.sn_prof_on {
                     let prev_nest = si.sn_pr_nest;
                     si.sn_pr_nest += 1;
@@ -743,11 +743,11 @@ pub fn script_prof_save(tm: &mut Proftime) {
 
 /// Count time spent in children after invoking another script or function (`script_prof_restore`).
 pub fn script_prof_restore(tm: &Proftime) {
-    if !script_id_valid(g_st().exc.current_sctx.get().sc_sid) {
+    if !script_id_valid(exc_state().current_sctx.get().sc_sid) {
         return;
     }
 
-    with_script_item_mut(g_st().exc.current_sctx.get().sc_sid, |si| {
+    with_script_item_mut(exc_state().current_sctx.get().sc_sid, |si| {
         if si.sn_prof_on {
             si.sn_pr_nest -= 1;
             if si.sn_pr_nest == 0 {
@@ -837,11 +837,11 @@ pub fn profile_dump() {
 
 /// Called when starting to read a script line (`script_line_start`).
 pub fn script_line_start() {
-    if !script_id_valid(g_st().exc.current_sctx.get().sc_sid) {
+    if !script_id_valid(exc_state().current_sctx.get().sc_sid) {
         return;
     }
     let slnum = sourcing_lnum();
-    with_script_item_mut(g_st().exc.current_sctx.get().sc_sid, |si| {
+    with_script_item_mut(exc_state().current_sctx.get().sc_sid, |si| {
         if si.sn_prof_on && slnum >= 1 {
             si.sn_prl_idx = slnum - 1;
             if si.sn_prl_ga.len() < slnum as usize {
@@ -864,10 +864,10 @@ pub fn script_line_start() {
 
 /// Called when actually executing a script line (`script_line_exec`).
 pub fn script_line_exec() {
-    if !script_id_valid(g_st().exc.current_sctx.get().sc_sid) {
+    if !script_id_valid(exc_state().current_sctx.get().sc_sid) {
         return;
     }
-    with_script_item_mut(g_st().exc.current_sctx.get().sc_sid, |si| {
+    with_script_item_mut(exc_state().current_sctx.get().sc_sid, |si| {
         if si.sn_prof_on && si.sn_prl_idx >= 0 {
             si.sn_prl_execed = 1;
         }
@@ -876,10 +876,10 @@ pub fn script_line_exec() {
 
 /// Called when done with a script line (`script_line_end`).
 pub fn script_line_end() {
-    if !script_id_valid(g_st().exc.current_sctx.get().sc_sid) {
+    if !script_id_valid(exc_state().current_sctx.get().sc_sid) {
         return;
     }
-    with_script_item_mut(g_st().exc.current_sctx.get().sc_sid, |si| {
+    with_script_item_mut(exc_state().current_sctx.get().sc_sid, |si| {
         if si.sn_prof_on && si.sn_prl_idx >= 0 && (si.sn_prl_idx as usize) < si.sn_prl_ga.len() {
             if si.sn_prl_execed != 0 {
                 let prl_idx = si.sn_prl_idx as usize;

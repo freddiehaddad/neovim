@@ -270,7 +270,7 @@ pub fn try_wrap_err<T, F: FnOnce() -> Result<T, Error>>(f: F) -> Result<T, Error
 pub fn with_script_context<R, F: FnOnce() -> R>(channel_id: u64, f: F) -> R {
     let save_current_sctx = api_set_sctx(channel_id);
     let res = f();
-    g_st().exc.current_sctx.set(save_current_sctx);
+    exc_state().current_sctx.set(save_current_sctx);
     res
 }
 
@@ -323,50 +323,50 @@ pub fn error_set(e: &Error) -> bool {
 
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
 pub fn try_enter(tstate: &mut TryState) {
-    let saved_msg_list = g_st().exc.replace_msg_list(Some(Vec::new()));
-    let saved_excp = g_st().exc.current_exception.take();
+    let saved_msg_list = exc_state().replace_msg_list(Some(Vec::new()));
+    let saved_excp = exc_state().current_exception.take();
 
     *tstate = TryState {
         current_exception: saved_excp,
         msg_list: saved_msg_list,
-        got_int: i32::from(g_st().input.got_int.get()),
-        did_throw: g_st().exc.did_throw.get(),
-        need_rethrow: i32::from(g_st().exc.need_rethrow.get()),
-        did_emsg: g_st().msg.did_emsg.get(),
+        got_int: i32::from(input_state().got_int.get()),
+        did_throw: exc_state().did_throw.get(),
+        need_rethrow: i32::from(exc_state().need_rethrow.get()),
+        did_emsg: msg_state().did_emsg.get(),
     };
-    g_st().input.got_int.set(false);
-    g_st().exc.did_throw.set(false);
-    g_st().exc.need_rethrow.set(false);
-    g_st().msg.did_emsg.set(0);
-    g_st().exc.trylevel.set(g_st().exc.trylevel.get() + (1));
+    input_state().got_int.set(false);
+    exc_state().did_throw.set(false);
+    exc_state().need_rethrow.set(false);
+    msg_state().did_emsg.set(0);
+    exc_state().trylevel.set(exc_state().trylevel.get() + (1));
 }
 
 /// Ends a `try_enter` block; returns error message if any (`try_leave`).
 pub fn try_leave(tstate: &TryState) -> Result<(), Error> {
-    debug_assert!(g_st().exc.trylevel.get() > 0);
-    g_st().exc.trylevel.set(g_st().exc.trylevel.get() - (1));
+    debug_assert!(exc_state().trylevel.get() > 0);
+    exc_state().trylevel.set(exc_state().trylevel.get() - (1));
 
-    g_st().msg.did_emsg.set(0);
-    g_st().exc.force_abort.set(false);
+    msg_state().did_emsg.set(0);
+    exc_state().force_abort.set(false);
 
     let mut res = Ok(());
-    if g_st().input.got_int.get() {
-        if g_st().exc.did_throw.get() {
+    if input_state().got_int.get() {
+        if exc_state().did_throw.get() {
             discard_current_exception();
         }
         res = Err(api_error!(
             ErrorType::ErrorTypeException,
             c"Keyboard interrupt",
         ));
-        g_st().input.got_int.set(false);
-    } else if g_st().exc.has_nonempty_msg_list() {
-        let msgs = g_st().exc.take_msg_list().unwrap();
+        input_state().got_int.set(false);
+    } else if exc_state().has_nonempty_msg_list() {
+        let msgs = exc_state().take_msg_list().unwrap();
         let throw_bytes = msgs[msgs[0].throw_idx].msg.as_bytes();
         let throw_slice = &throw_bytes[msgs[0].throw_off.min(throw_bytes.len())..];
         let msg = get_error_exception_string(throw_slice, None);
         res = Err(api_error!(ErrorType::ErrorTypeException, c"%s", &msg));
-    } else if g_st().exc.did_throw.get() || g_st().exc.need_rethrow.get() {
-        if let Some(excp) = g_st().exc.current_exception.get().clone() {
+    } else if exc_state().did_throw.get() || exc_state().need_rethrow.get() {
+        if let Some(excp) = exc_state().current_exception.get().clone() {
             res = Err(if !excp.throw_name.as_bytes().is_empty() {
                 if excp.throw_lnum != 0 {
                     api_error!(
@@ -391,15 +391,14 @@ pub fn try_leave(tstate: &TryState) -> Result<(), Error> {
         discard_current_exception();
     }
 
-    g_st().exc.set_msg_list(tstate.msg_list.clone());
-    g_st()
-        .exc
+    exc_state().set_msg_list(tstate.msg_list.clone());
+    exc_state()
         .current_exception
         .set(tstate.current_exception.clone());
-    g_st().input.got_int.set(tstate.got_int != 0);
-    g_st().exc.did_throw.set(tstate.did_throw);
-    g_st().exc.need_rethrow.set(tstate.need_rethrow != 0);
-    g_st().msg.did_emsg.set(tstate.did_emsg);
+    input_state().got_int.set(tstate.got_int != 0);
+    exc_state().did_throw.set(tstate.did_throw);
+    exc_state().need_rethrow.set(tstate.need_rethrow != 0);
+    msg_state().did_emsg.set(tstate.did_emsg);
     res
 }
 
@@ -542,12 +541,12 @@ pub fn dict_set_var(
 
 pub fn find_buffer_by_handle(buffer: Buffer) -> Result<crate::globals::BufPtr, Error> {
     if buffer == 0 {
-        let b = g_st().workspace.curbuf.get();
+        let b = workspace_state().curbuf.get();
         if !b.is_null() {
             return Ok(b);
         }
     }
-    let rv = g_st().workspace.find_buffer(buffer).unwrap_or_default();
+    let rv = workspace_state().find_buffer(buffer).unwrap_or_default();
     if rv.is_null() {
         return Err(api_error!(
             ErrorType::ErrorTypeValidation,
@@ -565,7 +564,7 @@ pub fn find_window_by_handle(window: Window) -> Result<WinPtr, Error> {
             return Ok(w);
         }
     }
-    let rv = g_st().workspace.find_window(window).unwrap_or_default();
+    let rv = workspace_state().find_window(window).unwrap_or_default();
     if rv.is_null() {
         return Err(api_error!(
             ErrorType::ErrorTypeValidation,
@@ -587,12 +586,12 @@ pub extern "C" fn find_window_by_handle_ffi(
 
 pub fn find_tab_by_handle(tabpage: Tabpage) -> Result<crate::globals::TabpagePtr, Error> {
     if tabpage == 0 {
-        let t = g_st().workspace.curtab.get();
+        let t = workspace_state().curtab.get();
         if !t.is_null() {
             return Ok(t);
         }
     }
-    let rv = g_st().workspace.find_tabpage(tabpage).unwrap_or_default();
+    let rv = workspace_state().find_tabpage(tabpage).unwrap_or_default();
     if rv.is_null() {
         return Err(api_error!(
             ErrorType::ErrorTypeValidation,
@@ -1272,31 +1271,31 @@ pub fn get_default_stl_hl(
 }
 
 pub fn api_set_sctx(channel_id: u64) -> Sctx {
-    let old_current_sctx = g_st().exc.current_sctx.get();
+    let old_current_sctx = exc_state().current_sctx.get();
     if channel_id != VIML_INTERNAL_CALL {
         {
-            let mut v = g_st().exc.current_sctx.get();
+            let mut v = exc_state().current_sctx.get();
             v.sc_lnum = 0;
-            g_st().exc.current_sctx.set(v);
+            exc_state().current_sctx.set(v);
         }
         if channel_id == LUA_INTERNAL_CALL {
-            if !script_is_lua(g_st().exc.current_sctx.get().sc_sid) {
+            if !script_is_lua(exc_state().current_sctx.get().sc_sid) {
                 {
-                    let mut v = g_st().exc.current_sctx.get();
+                    let mut v = exc_state().current_sctx.get();
                     v.sc_sid = SID_LUA;
-                    g_st().exc.current_sctx.set(v);
+                    exc_state().current_sctx.set(v);
                 }
             }
         } else {
             {
-                let mut v = g_st().exc.current_sctx.get();
+                let mut v = exc_state().current_sctx.get();
                 v.sc_sid = SID_API_CLIENT;
-                g_st().exc.current_sctx.set(v);
+                exc_state().current_sctx.set(v);
             }
             {
-                let mut v = g_st().exc.current_sctx.get();
+                let mut v = exc_state().current_sctx.get();
                 v.sc_chan = channel_id;
-                g_st().exc.current_sctx.set(v);
+                exc_state().current_sctx.set(v);
             }
         }
     }

@@ -117,14 +117,14 @@ fn get_maxbacktrace_level(sname: Option<&CStr>) -> i32 {
 }
 
 fn do_checkbacktracelevel() {
-    if g_st().exc.debug_backtrace_level.get() < 0 {
-        g_st().exc.debug_backtrace_level.set(0);
+    if exc_state().debug_backtrace_level.get() < 0 {
+        exc_state().debug_backtrace_level.set(0);
         msg(c"frame is zero", 0);
     } else {
         let sname = estack_sfile(ESTACK_NONE);
         let max = get_maxbacktrace_level(sname.as_deref());
-        if g_st().exc.debug_backtrace_level.get() > max {
-            g_st().exc.debug_backtrace_level.set(max);
+        if exc_state().debug_backtrace_level.get() > max {
+            exc_state().debug_backtrace_level.set(max);
             smsg!(0, c"frame at highest level: %d", max);
         }
     }
@@ -133,12 +133,11 @@ fn do_checkbacktracelevel() {
 fn do_setdebugtracelevel(arg: &[u8]) {
     let level = crate::charset::parse_i64_prefix(arg) as i32;
     if arg.first() == Some(&b'+') || level < 0 {
-        g_st()
-            .exc
+        exc_state()
             .debug_backtrace_level
-            .set(g_st().exc.debug_backtrace_level.get() + (level));
+            .set(exc_state().debug_backtrace_level.get() + (level));
     } else {
-        g_st().exc.debug_backtrace_level.set(level);
+        exc_state().debug_backtrace_level.set(level);
     }
     do_checkbacktracelevel();
 }
@@ -150,7 +149,7 @@ fn do_showbacktrace(cmd: &CStr) {
         let mut sname_vec: Vec<u8> = sname_cstr.into_bytes_with_nul();
         let mut i: i32 = 0;
         let mut start = 0usize;
-        while !g_st().input.got_int.get() {
+        while !input_state().got_int.get() {
             let rem = &sname_vec[start..];
             let str_len = rem.iter().position(|&b| b == 0).unwrap_or(rem.len());
             let next_off = rem[..str_len].windows(2).position(|w| w == b"..");
@@ -158,7 +157,7 @@ fn do_showbacktrace(cmd: &CStr) {
                 sname_vec[start + off] = 0;
             }
             let cur_cstr = CStr::from_bytes_until_nul(&sname_vec[start..]).unwrap_or(c"");
-            if i == max - g_st().exc.debug_backtrace_level.get() {
+            if i == max - exc_state().debug_backtrace_level.get() {
                 smsg!(0, c"->%d %s", max - i, cur_cstr);
             } else {
                 smsg!(0, c"  %d %s", max - i, cur_cstr);
@@ -184,36 +183,34 @@ fn do_showbacktrace(cmd: &CStr) {
 /// Interactive debug mode loop (`do_debug`).
 pub fn do_debug(cmd: &CStr) {
     {
-        let save_msg_scroll = g_st().msg.msg_scroll.get();
-        let save_state = g_st().edit.state_global.get();
-        let save_did_emsg = g_st().msg.did_emsg.get();
-        let save_cmd_silent = g_st().msg.cmd_silent.get();
-        let save_msg_silent = g_st().msg.msg_silent.get();
-        let save_emsg_silent = g_st().msg.emsg_silent.get();
-        let save_redir_off = g_st().msg.redir_off.get();
+        let save_msg_scroll = msg_state().msg_scroll.get();
+        let save_state = edit_state().state_global.get();
+        let save_did_emsg = msg_state().did_emsg.get();
+        let save_cmd_silent = msg_state().cmd_silent.get();
+        let save_msg_silent = msg_state().msg_silent.get();
+        let save_emsg_silent = msg_state().emsg_silent.get();
+        let save_redir_off = msg_state().redir_off.get();
         let mut typeaheadbuf = Tasave::new();
         let mut typeahead_saved = false;
         let mut save_ignore_script = false;
         let mut cmdline_cstr: Option<CString>;
 
-        g_st()
-            .screen
+        screen_state()
             .redrawing_disabled
-            .set(g_st().screen.redrawing_disabled.get() + (1));
-        g_st()
-            .msg
+            .set(screen_state().redrawing_disabled.get() + (1));
+        msg_state()
             .no_wait_return
-            .set(g_st().msg.no_wait_return.get() + (1));
-        g_st().msg.did_emsg.set(0);
-        g_st().msg.cmd_silent.set(false);
-        g_st().msg.msg_silent.set(0);
-        g_st().msg.emsg_silent.set(0);
-        g_st().msg.redir_off.set(true);
+            .set(msg_state().no_wait_return.get() + (1));
+        msg_state().did_emsg.set(0);
+        msg_state().cmd_silent.set(false);
+        msg_state().msg_silent.set(0);
+        msg_state().emsg_silent.set(0);
+        msg_state().redir_off.set(true);
 
-        g_st().edit.state_global.set(MODE_NORMAL);
-        g_st().exc.debug_mode.set(true);
+        edit_state().state_global.set(MODE_NORMAL);
+        exc_state().debug_mode.set(true);
 
-        if !g_st().exc.debug_did_msg.get() {
+        if !exc_state().debug_did_msg.get() {
             msg(c"Entering Debug mode.  Type \"cont\" to continue.", 0);
         }
         if let Some(oldval) = DBG_STATE.with(|st| st.debug_oldval.borrow_mut().take()) {
@@ -233,20 +230,20 @@ pub fn do_debug(cmd: &CStr) {
         }
 
         loop {
-            g_st().msg.msg_scroll.set(1);
-            g_st().msg.need_wait_return.set(false);
+            msg_state().msg_scroll.set(1);
+            msg_state().need_wait_return.set(false);
 
-            let save_ex_normal_busy = g_st().input.ex_normal_busy.get();
-            g_st().input.ex_normal_busy.set(0);
+            let save_ex_normal_busy = input_state().ex_normal_busy.get();
+            input_state().ex_normal_busy.set(0);
             if !DBG_STATE.with(|st| st.debug_greedy.get()) {
                 save_typeahead(&mut typeaheadbuf);
                 typeahead_saved = true;
-                save_ignore_script = g_st().input.ignore_script.get();
-                g_st().input.ignore_script.set(true);
+                save_ignore_script = input_state().ignore_script.get();
+                input_state().ignore_script.set(true);
             }
 
-            let n = g_st().exc.debug_break_level.get();
-            g_st().exc.debug_break_level.set(-1);
+            let n = exc_state().debug_break_level.get();
+            exc_state().debug_break_level.set(-1);
 
             cmdline_cstr = getcmdline_prompt(
                 b'>' as i32,
@@ -259,14 +256,14 @@ pub fn do_debug(cmd: &CStr) {
                 None,
             );
 
-            g_st().exc.debug_break_level.set(n);
+            exc_state().debug_break_level.set(n);
             if typeahead_saved {
                 restore_typeahead(&mut typeaheadbuf);
-                g_st().input.ignore_script.set(save_ignore_script);
+                input_state().ignore_script.set(save_ignore_script);
             }
-            g_st().input.ex_normal_busy.set(save_ex_normal_busy);
+            input_state().ex_normal_busy.set(save_ex_normal_busy);
 
-            g_st().cmdline.cmdline_row.set(g_st().msg.msg_row.get());
+            cmdline_state().cmdline_row.set(msg_state().msg_row.get());
             msg_starthere();
             if let Some(cmdline_cstr) = cmdline_cstr.as_deref() {
                 let mut p_cstr = crate::charset::skipwhite(cmdline_cstr);
@@ -319,30 +316,28 @@ pub fn do_debug(cmd: &CStr) {
                 if cur_last != 0 {
                     match cur_last {
                         CMD_CONT => {
-                            g_st().exc.debug_break_level.set(-1);
+                            exc_state().debug_break_level.set(-1);
                         }
                         CMD_NEXT => {
-                            g_st()
-                                .exc
+                            exc_state()
                                 .debug_break_level
-                                .set(g_st().exc.ex_nesting_level.get());
+                                .set(exc_state().ex_nesting_level.get());
                         }
                         CMD_STEP => {
-                            g_st().exc.debug_break_level.set(9999);
+                            exc_state().debug_break_level.set(9999);
                         }
                         CMD_FINISH => {
-                            g_st()
-                                .exc
+                            exc_state()
                                 .debug_break_level
-                                .set(g_st().exc.ex_nesting_level.get() - 1);
+                                .set(exc_state().ex_nesting_level.get() - 1);
                         }
                         CMD_QUIT => {
-                            g_st().input.got_int.set(true);
-                            g_st().exc.debug_break_level.set(-1);
+                            input_state().got_int.set(true);
+                            exc_state().debug_break_level.set(-1);
                         }
                         CMD_INTERRUPT => {
-                            g_st().input.got_int.set(true);
-                            g_st().exc.debug_break_level.set(9999);
+                            input_state().got_int.set(true);
+                            exc_state().debug_break_level.set(9999);
                             DBG_STATE.with(|st| st.last_cmd.set(CMD_STEP));
                         }
                         CMD_BACKTRACE => {
@@ -359,75 +354,69 @@ pub fn do_debug(cmd: &CStr) {
                             continue;
                         }
                         CMD_UP => {
-                            g_st()
-                                .exc
+                            exc_state()
                                 .debug_backtrace_level
-                                .set(g_st().exc.debug_backtrace_level.get() + (1));
+                                .set(exc_state().debug_backtrace_level.get() + (1));
                             do_checkbacktracelevel();
                             continue;
                         }
                         CMD_DOWN => {
-                            g_st()
-                                .exc
+                            exc_state()
                                 .debug_backtrace_level
-                                .set(g_st().exc.debug_backtrace_level.get() - (1));
+                                .set(exc_state().debug_backtrace_level.get() - (1));
                             do_checkbacktracelevel();
                             continue;
                         }
                         _ => {}
                     }
-                    g_st().exc.debug_backtrace_level.set(0);
+                    exc_state().debug_backtrace_level.set(0);
                     break;
                 }
 
-                let n2 = g_st().exc.debug_break_level.get();
-                g_st().exc.debug_break_level.set(-1);
+                let n2 = exc_state().debug_break_level.get();
+                exc_state().debug_break_level.set(-1);
                 do_cmdline(
                     Some(cmdline_cstr.to_bytes()),
                     crate::cmdexpand::LineGetter::ExLine,
                     DOCMD_VERBOSE | DOCMD_EXCRESET,
                 );
-                g_st().exc.debug_break_level.set(n2);
+                exc_state().debug_break_level.set(n2);
             }
-            g_st()
-                .msg
+            msg_state()
                 .lines_left
-                .set(g_st().screen.rows_global.get() - 1);
+                .set(screen_state().rows_global.get() - 1);
         }
 
-        g_st()
-            .screen
+        screen_state()
             .redrawing_disabled
-            .set(g_st().screen.redrawing_disabled.get() - (1));
-        g_st()
-            .msg
+            .set(screen_state().redrawing_disabled.get() - (1));
+        msg_state()
             .no_wait_return
-            .set(g_st().msg.no_wait_return.get() - (1));
+            .set(msg_state().no_wait_return.get() - (1));
         redraw_all_later(UPD_NOT_VALID);
-        g_st().msg.need_wait_return.set(false);
-        g_st().msg.msg_scroll.set(save_msg_scroll);
-        g_st()
-            .msg
+        msg_state().need_wait_return.set(false);
+        msg_state().msg_scroll.set(save_msg_scroll);
+        msg_state()
             .lines_left
-            .set(g_st().screen.rows_global.get() - 1);
-        g_st().edit.state_global.set(save_state);
-        g_st().exc.debug_mode.set(false);
-        g_st().msg.did_emsg.set(save_did_emsg);
-        g_st().msg.cmd_silent.set(save_cmd_silent);
-        g_st().msg.msg_silent.set(save_msg_silent);
-        g_st().msg.emsg_silent.set(save_emsg_silent);
-        g_st().msg.redir_off.set(save_redir_off);
+            .set(screen_state().rows_global.get() - 1);
+        edit_state().state_global.set(save_state);
+        exc_state().debug_mode.set(false);
+        msg_state().did_emsg.set(save_did_emsg);
+        msg_state().cmd_silent.set(save_cmd_silent);
+        msg_state().msg_silent.set(save_msg_silent);
+        msg_state().emsg_silent.set(save_emsg_silent);
+        msg_state().redir_off.set(save_redir_off);
 
-        g_st().exc.debug_did_msg.set(true);
+        exc_state().debug_did_msg.set(true);
     }
 }
 
 /// `:debug` command (`ex_debug`).
 pub fn ex_debug(eap: &mut Exarg) {
-    let save = g_st().exc.debug_break_level.get();
-    g_st().exc.debug_break_level.set(9999);
+    let save = exc_state().debug_break_level.get();
+    exc_state().debug_break_level.set(9999);
     do_cmdline_cmd(eap.arg.as_bytes());
-    g_st().exc.debug_break_level.set(save);
+    exc_state().debug_break_level.set(save);
 }
 
 /// Check if a breakpoint or debug break level was hit (`dbg_check_breakpoint`).
@@ -461,7 +450,7 @@ pub fn dbg_check_breakpoint(eap: &mut Exarg) {
                 *st.debug_skipped_name.borrow_mut() = Some(bp_name_cstr);
             });
         }
-    } else if g_st().exc.ex_nesting_level.get() <= g_st().exc.debug_break_level.get() {
+    } else if exc_state().ex_nesting_level.get() <= exc_state().debug_break_level.get() {
         if !eap.skip {
             do_debug(eap.cmd.as_cstr());
         } else {
@@ -478,8 +467,8 @@ pub fn dbg_check_skipped(eap: &mut Exarg) -> bool {
     if !DBG_STATE.with(|st| st.debug_skipped.get()) {
         return false;
     }
-    let prev_got_int = g_st().input.got_int.get();
-    g_st().input.got_int.set(false);
+    let prev_got_int = input_state().got_int.get();
+    input_state().got_int.set(false);
     DBG_STATE.with(|st| {
         let skipped = st.debug_skipped_name.borrow_mut().take();
         *st.debug_breakpoint_name.borrow_mut() = skipped;
@@ -487,18 +476,15 @@ pub fn dbg_check_skipped(eap: &mut Exarg) -> bool {
     eap.skip = false;
     dbg_check_breakpoint(eap);
     eap.skip = true;
-    g_st()
-        .input
+    input_state()
         .got_int
-        .set(g_st().input.got_int.get() | (prev_got_int));
+        .set(input_state().got_int.get() | (prev_got_int));
     true
 }
 
 fn eval_expr_no_emsg(name: &CStr) -> Option<TypVal> {
-    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() + (1));
-    let tv = eval_expr(name.to_bytes(), None);
-    g_st().msg.emsg_off.set(g_st().msg.emsg_off.get() - (1));
-    tv
+    let _emsg_off = msg_state().suppress_emsg();
+    eval_expr(name.to_bytes(), None)
 }
 
 fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
@@ -609,7 +595,9 @@ pub fn ex_breakadd(eap: &mut Exarg) {
                     n
                 });
                 bp.dbg_nr = nr;
-                g_st().exc.debug_tick.set(g_st().exc.debug_tick.get() + (1));
+                exc_state()
+                    .debug_tick
+                    .set(exc_state().debug_tick.get() + (1));
             }
             DBG_STATE.with(|st| {
                 if is_prof {
@@ -634,7 +622,9 @@ pub fn ex_breakadd(eap: &mut Exarg) {
                 st.has_expr_breakpoint.set(true);
             }
         });
-        g_st().exc.debug_tick.set(g_st().exc.debug_tick.get() + (1));
+        exc_state()
+            .debug_tick
+            .set(exc_state().debug_tick.get() + (1));
     }
 }
 
@@ -732,7 +722,9 @@ pub fn ex_breakdel(eap: &mut Exarg) {
         };
         drop(removed);
         if eap.cmdidx == Cmdidx::CmdBreakdel {
-            g_st().exc.debug_tick.set(g_st().exc.debug_tick.get() + (1));
+            exc_state()
+                .debug_tick
+                .set(exc_state().debug_tick.get() + (1));
         }
         if !del_all {
             break;
@@ -832,18 +824,17 @@ fn debuggy_find(
                 && bp.dbg_type != DBG_EXPR
                 && (is_prof || (bp.dbg_lnum > after && (lnum == 0 || bp.dbg_lnum < lnum)))
             {
-                let prev_got_int = g_st().input.got_int.get();
-                g_st().input.got_int.set(false);
+                let prev_got_int = input_state().got_int.get();
+                input_state().got_int.set(false);
                 if vim_regexec_prog(bp.dbg_prog.as_deref(), false, name.to_bytes(), 0) {
                     lnum = bp.dbg_lnum;
                     if let Some(ref mut p) = fp {
                         **p = bp.dbg_forceit;
                     }
                 }
-                g_st()
-                    .input
+                input_state()
                     .got_int
-                    .set(g_st().input.got_int.get() | (prev_got_int));
+                    .set(input_state().got_int.get() | (prev_got_int));
                 None
             } else if bp.dbg_type == DBG_EXPR {
                 Some(bp.dbg_name.clone())
