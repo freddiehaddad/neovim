@@ -473,6 +473,15 @@ pub fn ui_attach_impl(ui_rc: &std::rc::Rc<std::cell::RefCell<RemoteUI>>, chanid:
     if !sent {
         ui_send_all_hls(&mut ui_rc.borrow_mut());
     }
+
+    // Resend window grids; the new UI has never seen their contents.
+    if ui_ext[K_UIMULTIGRID] {
+        for tp in for_all_tabpages_ptr() {
+            for wp in for_all_windows_in_tab_ptr(&tp) {
+                wp.w_grid_alloc.valid.set(false);
+            }
+        }
+    }
     ui_refresh();
 
     do_autocmd_uienter(chanid, true);
