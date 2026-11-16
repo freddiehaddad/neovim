@@ -239,7 +239,7 @@ jobs:
           - test: oldtest
             build: { runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.build.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 30
     env:
       # The setup action adds this to PATH for neovim-ruby-host.
       BIN_DIR: ${{ github.workspace }}/.deps/bin
@@ -344,7 +344,7 @@ jobs:
     if: needs.changes.outputs.test == 'true'
     name: windows release ${{ matrix.test }}
     runs-on: windows-2025
-    timeout-minutes: 45
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -385,7 +385,6 @@ jobs:
 
       - if: ${{ matrix.test == 'functionaltest' }}
         name: functionaltest
-        timeout-minutes: 20
         env:
           TEST_TIMEOUT: 600
         run: |
