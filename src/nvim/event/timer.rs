@@ -1,72 +1,10 @@
 //! Shared timer storage and deferred cleanup, independent of the native driver.
 
-use super::owned::CallbackHandle;
-use std::ffi::c_void;
-use std::rc::Rc;
+use super::owned::SharedCallbackHandle;
 
 pub const TIMER_HANDLE_WORDS: usize = 32;
 
-struct TimerState<T: 'static> {
-    native: CallbackHandle<Self, TIMER_HANDLE_WORDS>,
-    data: T,
-}
-
-pub struct TimerHandle<T: 'static>(Rc<TimerState<T>>);
-
-impl<T: 'static> Clone for TimerHandle<T> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<T: 'static> TimerHandle<T> {
-    pub fn new(data: T) -> Self {
-        Self(Rc::new(TimerState {
-            native: CallbackHandle::new(),
-            data,
-        }))
-    }
-
-    pub fn data(&self) -> &T {
-        &self.0.data
-    }
-
-    pub fn as_ptr(&self) -> *mut c_void {
-        self.0.native.as_ptr()
-    }
-
-    pub fn can_initialize(&self) -> bool {
-        self.0.native.is_uninitialized()
-    }
-
-    pub fn is_active(&self) -> bool {
-        self.0.native.is_active()
-    }
-
-    /// The native timer must have been initialized in this handle's storage.
-    pub unsafe fn register(&self) {
-        assert!(
-            self.can_initialize(),
-            "timer storage cannot be reinitialized"
-        );
-        unsafe { self.0.native.register(self.0.clone()) };
-    }
-
-    /// `handle` must carry this timer type's live native registration.
-    pub unsafe fn from_callback(handle: *mut c_void) -> Self {
-        Self(unsafe { CallbackHandle::<TimerState<T>, TIMER_HANDLE_WORDS>::callback_owner(handle) })
-    }
-
-    pub fn begin_close(&self) -> bool {
-        self.0.native.begin_close()
-    }
-
-    /// Call only from the native close callback. This handle retains the state
-    /// while the registration is released.
-    pub unsafe fn finish_close(&self) {
-        drop(unsafe { self.0.native.finish_close() });
-    }
-}
+pub type TimerHandle<T> = SharedCallbackHandle<T, TIMER_HANDLE_WORDS>;
 
 pub struct TimerCloseEvent<T: 'static> {
     timer: TimerHandle<T>,
@@ -75,10 +13,7 @@ pub struct TimerCloseEvent<T: 'static> {
 
 impl<T: 'static> TimerCloseEvent<T> {
     pub fn new(timer: TimerHandle<T>, cleanup: fn(&T)) -> Self {
-        assert!(
-            timer.0.native.is_closed(),
-            "native timer close is incomplete"
-        );
+        assert!(timer.is_closed(), "native timer close is incomplete");
         Self { timer, cleanup }
     }
 }
@@ -93,6 +28,7 @@ impl<T: 'static> Drop for TimerCloseEvent<T> {
 mod tests {
     use super::*;
     use std::cell::{Cell, RefCell};
+    use std::rc::Rc;
 
     #[test]
     fn callback_owner_survives_native_close_and_handle_moves() {

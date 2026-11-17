@@ -102,6 +102,77 @@ impl<T, const WORDS: usize> Default for CallbackHandle<T, WORDS> {
     }
 }
 
+struct CallbackState<T: 'static, const WORDS: usize> {
+    native: CallbackHandle<Self, WORDS>,
+    data: T,
+}
+
+pub struct SharedCallbackHandle<T: 'static, const WORDS: usize>(Rc<CallbackState<T, WORDS>>);
+
+impl<T: 'static, const WORDS: usize> Clone for SharedCallbackHandle<T, WORDS> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T: 'static, const WORDS: usize> SharedCallbackHandle<T, WORDS> {
+    pub fn new(data: T) -> Self {
+        Self(Rc::new(CallbackState {
+            native: CallbackHandle::new(),
+            data,
+        }))
+    }
+
+    pub fn data(&self) -> &T {
+        &self.0.data
+    }
+
+    pub fn as_ptr(&self) -> *mut c_void {
+        self.0.native.as_ptr()
+    }
+
+    pub fn can_initialize(&self) -> bool {
+        self.0.native.is_uninitialized()
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.0.native.is_active()
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.0.native.is_closed()
+    }
+
+    /// # Safety
+    /// The native handle must be initialized in this storage. Its callbacks
+    /// must recover this registration type on the owning thread.
+    pub unsafe fn register(&self) {
+        assert!(
+            self.can_initialize(),
+            "native storage cannot be reinitialized"
+        );
+        unsafe { self.0.native.register(self.0.clone()) };
+    }
+
+    /// # Safety
+    /// `handle` must carry this type's live native registration, and the caller
+    /// must run on its owning thread.
+    pub unsafe fn from_callback(handle: *mut c_void) -> Self {
+        Self(unsafe { CallbackHandle::<CallbackState<T, WORDS>, WORDS>::callback_owner(handle) })
+    }
+
+    pub fn begin_close(&self) -> bool {
+        self.0.native.begin_close()
+    }
+
+    /// # Safety
+    /// Call only after native use has finished, from the native close callback.
+    /// This handle retains the state while the registration is released.
+    pub unsafe fn finish_close(&self) {
+        drop(unsafe { self.0.native.finish_close() });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,5 +227,28 @@ mod tests {
         assert!(!owner.handle.begin_close());
         drop(owner);
         assert_eq!(drops.get(), 1);
+    }
+
+    #[test]
+    fn native_bytes_remain_mutable_while_shared_metadata_is_borrowed() {
+        fn native_write(handle: &SharedCallbackHandle<usize, 80>, pointer: *mut c_void) {
+            let metadata = handle.data();
+            unsafe {
+                pointer
+                    .byte_add(size_of::<*const c_void>())
+                    .cast::<u8>()
+                    .write(2);
+            }
+            assert_eq!(*metadata, 7);
+            let callback = unsafe { SharedCallbackHandle::<usize, 80>::from_callback(pointer) };
+            assert_eq!(*callback.data(), 7);
+        }
+
+        let handle = SharedCallbackHandle::new(7);
+        let pointer = handle.as_ptr();
+        unsafe { handle.register() };
+        native_write(&handle, pointer);
+        assert!(handle.begin_close());
+        unsafe { handle.finish_close() };
     }
 }
