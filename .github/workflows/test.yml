@@ -170,6 +170,22 @@ jobs:
       - name: cargo test
         run: cargo xtask unittest
 
+  event-lifetimes:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Miri
+        run: rustup toolchain install nightly-2026-11-16 --profile minimal --component miri --component rust-src
+
+      - name: Check callback ownership
+        run: cargo +nightly-2026-11-16 miri test -p event-lifetimes-tests
+
   lint:
     needs: changes
     runs-on: ubuntu-24.04-arm
@@ -402,7 +418,7 @@ jobs:
         run: cargo xtask oldtest --release
 
   ci-gate:
-    needs: [changes, lint, lintrust, posix, windows]
+    needs: [changes, lint, lintrust, event-lifetimes, posix, windows]
     if: always()
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
@@ -412,6 +428,7 @@ jobs:
           CHANGES_RESULT: ${{ needs.changes.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           LINTRUST_RESULT: ${{ needs.lintrust.result }}
+          EVENT_LIFETIMES_RESULT: ${{ needs.event-lifetimes.result }}
           POSIX_RESULT: ${{ needs.posix.result }}
           WINDOWS_RESULT: ${{ needs.windows.result }}
         run: |
@@ -419,9 +436,9 @@ jobs:
             echo "::error::Required job failed (changes=$CHANGES_RESULT, lint=$LINT_RESULT)"
             exit 1
           fi
-          for result in "$LINTRUST_RESULT" "$POSIX_RESULT" "$WINDOWS_RESULT"; do
+          for result in "$LINTRUST_RESULT" "$EVENT_LIFETIMES_RESULT" "$POSIX_RESULT" "$WINDOWS_RESULT"; do
             if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
-              echo "::error::CI job did not succeed (lintrust=$LINTRUST_RESULT, posix=$POSIX_RESULT, windows=$WINDOWS_RESULT)"
+              echo "::error::CI job did not succeed (lintrust=$LINTRUST_RESULT, event-lifetimes=$EVENT_LIFETIMES_RESULT, posix=$POSIX_RESULT, windows=$WINDOWS_RESULT)"
               exit 1
             fi
           done
