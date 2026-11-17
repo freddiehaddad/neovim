@@ -107,13 +107,23 @@ The `event-lifetimes-tests` package imports production ownership, read-buffer, i
 
 ## Reentrant Timer Ownership
 
-The timer adapters use shared, thread-confined `TimerHandle` state with private native storage. `TimeWatcher` and `UvRawTimer` wrappers can move without moving the registered handle. Callbacks retain an owner and copy the callback metadata before dispatch; they never manufacture an exclusive watcher reference that conflicts with self-stop or nested event processing.
+The timer adapters use shared, thread-confined `TimerHandle` state with private native storage. `TimerHandle` is the timer-sized alias of the common `SharedCallbackHandle` allocation primitive. `TimeWatcher` and `UvRawTimer` wrappers can move without moving the registered handle. Callbacks retain an owner and copy the callback metadata before dispatch; they never manufacture an exclusive watcher reference that conflicts with self-stop or nested event processing.
 
 Freeing an allocation through a live `&mut` function argument is not an ownership transfer. Timer close callbacks instead release their native registration while an owned handle remains alive. Queued tick events retain that handle, and `TimerCloseEvent` retains it through internal cleanup whether dispatched or cancelled. The scoped `WaitTimer` guard and unique `UvRawTimer` owner request close on drop; they do not free storage that libuv may still use.
 
 Shutdown closes native handles before clearing timer registry owners and their callbacks. This cleanup occurs while Vimscript and Lua are still available, rather than relying on thread-local destruction or skipping cleanup when exiting.
 
 The ownership change does not replace the scheduler. Vimscript timer IDs, repeat/pause/stop behavior, callback activity, and close ordering remain distinct from physical ownership. The watcher adapter still updates cached loop time before starting; the TUI raw-timer adapter retains its separate timing policy.
+
+## Owned Socket Listeners
+
+`SocketWatcher` is a unique RAII owner containing its address, an optional owned resolver result, and a shared `SocketHandle`. The server registry stores these owners by value: moving an owner does not move its native allocation. Callbacks recover shared state through `SharedCallbackHandle`, not a self-pointer into the watcher. Dropping the owner requests native close, while the native registration and any queued connection events keep storage alive until it is no longer needed.
+
+Opaque C handles are accessed through raw pointers at the FFI boundary. A Rust reference to `c_void` (including an alias such as `uv_stream_t`) is not a valid representation of arbitrary native bytes. Likewise, a native resolver allocation is owned data, not an `&'static mut` reference: `AddrInfo` takes and clears the result pointer and releases the list once on every exit path.
+
+Stale Unix-socket recovery still closes the failed handle and waits for close completion before binding again. The retry gets a fresh native allocation, so old callback owners cannot refer to a repurposed handle. Queue association is fixed for each native lifetime; queued connection events are ignored after listener closure, and cancellation releases their owners without accepting a connection. Listener shutdown does not close previously accepted client streams.
+
+Keep the externally visible server behavior separate from ownership: endpoint parsing, address-family ordering, duplicate-address errors, live-socket protection, `serverlist()`, `v:servername`, and deferred `ChanOpen` delivery retain their existing policies. Native lifecycle tests exercise movement, failed binds, close-before-dispatch, cancellation, stale retries, and loop shutdown; Miri checks the shared Rust allocation primitive, not the native listener adapter.
 
 ## Where Things Stand & What's Next
 
@@ -123,5 +133,5 @@ Compatibility remains the primary invariant, not a conclusion inferred from test
 
 Further modernization should enforce one concrete invariant at a time: validated representations, bounded borrows around callbacks, and explicit ownership at remaining FFI boundaries. Generational IDs or parser redesigns need a demonstrated benefit beyond the guarantees already provided by shared handles and slice-based APIs.
 
-Published performance measurements and their upstream revision are in [README.md](README.md#performance). Ownership refactors do not imply a speedup: compare relevant release workloads against the unchanged port, including process waits, persistent RPC traffic, and stream draining.
+Published performance measurements and their upstream revision are in [README.md](README.md#performance). Ownership refactors do not imply a speedup: compare relevant release workloads against the unchanged port, including process waits, persistent RPC traffic, stream draining, timer lifecycles, and listener/connection lifecycles.
 

@@ -60,7 +60,7 @@ cargo xtask benchmark --nvim-bin /path/to/upstream/build/bin/nvim
 
 ### Event ownership and reentrancy
 
-The `event-lifetimes-tests` package compiles the production callback-registration, read-buffer, inbox, and timer-ownership modules without the editor's C dependencies:
+The `event-lifetimes-tests` package compiles the production callback-registration/shared-storage, read-buffer, inbox, and timer-ownership modules without the editor's C dependencies. The shared storage primitive is used by both timers and socket listeners; native listener adapters are covered separately by native unit and functional tests:
 
 ```bash
 cargo test -p event-lifetimes-tests
@@ -72,7 +72,7 @@ CI repeats the Miri command with `MIRIFLAGS=-Zmiri-tree-borrows` to check both b
 
 Match the CI test environment when comparing results. On Windows, Node-provider fixtures need `require('neovim')` to resolve from the test directory (CI uses `npm link neovim`), and timezone-sensitive cases can be run with `TZ=UTC`. The DOS 8.3 filesystem cases invoke `fsutil` and require suitable volume settings/permissions. Record baseline prerequisite failures rather than weakening assertions or silently changing shared-machine settings.
 
-Blocking test-client RPC requests use a runner-side deadline (`TEST_TIMEOUT`, in seconds; default 600). Individual hang-sensitive cases can set their session's `request_timeout` in milliseconds. Late responses must not interrupt subsequent requests.
+Blocking test-client RPC requests use a runner-side deadline (`TEST_TIMEOUT`, in seconds; default 600). Individual hang-sensitive cases can set their session's `request_timeout` in milliseconds. TCP test clients also wait for connection completion before starting RPC, using `TEST_TIMEOUT` to bound the connect wait and closing the socket on failure. Late responses or connection callbacks must not interrupt subsequent requests.
 
 For before/after process and channel measurements, preserve the baseline binary and run the same workload with each binary on the same host. Build the current test fixtures first; `--nvim-bin` changes the editor under test, while fixture executables are resolved from `NVIM_TEST_BUILD_DIR`:
 
@@ -84,6 +84,8 @@ cargo xtask benchmark --release test/benchmark/event_spec.lua
 The workload measures synchronous process waits, persistent RPC round trips, and stream draining. Repeat and interleave runs; do not treat unrelated startup or regex benchmarks as evidence about event-path overhead. `--nvim-bin` also works with `functionaltest` for behavioral comparisons.
 
 For timer ownership changes, use `test/benchmark/timer_spec.lua` with the same commands. It measures timer creation/cancellation, zero-delay callback dispatch, and Vimscript `wait()` timer cleanup over 100,000 operations, with warmups and native/deferred close processing. These are targeted lifecycle workloads, not measurements of interactive editor latency.
+
+For listener ownership changes, use `test/benchmark/socket_spec.lua`. It measures 5,000 TCP listener create/close operations, draining native closes in bounded batches, plus 1,000 TCP and 1,000 pipe/Unix-socket connection/RPC/close operations. Connection workloads include test-client and RPC overhead and wait for server-side channel cleanup; they are end-to-end lifecycle measurements, not isolated allocation timings. Compare identical scripts with preserved baseline and changed binaries.
 
 ## Build Options
 

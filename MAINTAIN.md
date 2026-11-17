@@ -83,9 +83,13 @@ Do not translate upstream raw pointers into long-lived Rust mutable references w
 
 `CallbackHandle` registrations have distinct initialization, active, closing, and closed states. Never free native storage at the `uv_close` call: release its retained owner in the close callback. Failure and cancellation paths need the same treatment. The cross-thread inbox accepts only owned, thread-safe messages and serializes notification with shutdown.
 
-Timer adapters use the shared `TimerHandle` primitive, not movable native structs with self-pointers. Queued ticks retain their watcher; deferred `TimerCloseEvent` cleanup runs even when its queue is cancelled. `WaitTimer` and the unique `UvRawTimer` owner request closure on drop. Native timer storage is initialized once, and timer registry cleanup follows native loop closure but precedes Vimscript/Lua destruction.
+Timer adapters use `TimerHandle`, the timer-sized alias of `SharedCallbackHandle`, not movable native structs with self-pointers. Queued ticks retain their watcher; deferred `TimerCloseEvent` cleanup runs even when its queue is cancelled. `WaitTimer` and the unique `UvRawTimer` owner request closure on drop. Native timer storage is initialized once, and timer registry cleanup follows native loop closure but precedes Vimscript/Lua destruction.
 
 Do not merge scheduling policies when porting timer changes: the Vimscript/wait/terminal watcher refreshes loop time before starting, while the TUI's `UvRawTimer` uses the existing cached loop time. Preserve repeat counts, zero-timeout restart behavior, pause/stop semantics, and callback/close ordering independently of Rust ownership.
+
+RPC listeners have a unique `SocketWatcher` close guard and shared `SocketHandle` callback storage. The registry stores the owners by value, and native callbacks/events retain shared storage rather than pointers into those owners. Native close unregisters and releases the retained allocation; a queued connection cannot accept after logical close. Accepted client streams remain independent of listener shutdown.
+
+Preserve stale Unix-socket recovery's close-before-retry ordering, but allocate fresh native storage for the retry. Keep endpoint parsing, duplicate-address results, address-family ordering, live-socket protection, and server-name updates unchanged. Resolver lists use an owned `AddrInfo` guard that takes and clears the native result pointer; do not reintroduce borrowed static references or manual cleanup on only selected branches. Opaque native handle aliases such as `uv_stream_t = c_void` must remain raw pointers, never Rust references.
 
 On Windows, identify a TTY by its initialized native handle type, not a process stream's `fd` label, and stop reading before resetting its mode during close. A mode change can otherwise hand a new buffer to a console worker while Rust is dispatching an owned read batch. ConPTY output must still drain after logical close, so read resumption is gated by the native handle's active phase and requested read state.
 
@@ -98,9 +102,11 @@ cargo test -p event-lifetimes-tests
 cargo +nightly-2026-11-16 miri test -p event-lifetimes-tests
 cargo xtask functionaltest --release test/functional/core/job_spec.lua test/functional/core/channels_spec.lua
 cargo xtask functionaltest --release test/functional/vimscript/timer_spec.lua test/functional/vimscript/wait_spec.lua
+cargo xtask functionaltest --release test/functional/core/server_spec.lua test/functional/api/server_requests_spec.lua test/functional/api/server_notifications_spec.lua
 cargo xtask oldtest --release test_timers.vim
 cargo xtask benchmark --release test/benchmark/event_spec.lua
 cargo xtask benchmark --release test/benchmark/timer_spec.lua
+cargo xtask benchmark --release test/benchmark/socket_spec.lua
 ```
 
 Run affected functional cases and full CI-equivalent suites on Windows and Linux before publication. WSL tests need a native Linux checkout for POSIX permissions and Unix sockets. Compare the same tests and benchmarks against a preserved baseline binary using `--nvim-bin`; record pre-existing failures and skips separately. Miri exercises the production Rust ownership primitives with controlled callbacks, not the external C libraries; CI also runs with `MIRIFLAGS=-Zmiri-tree-borrows`.
