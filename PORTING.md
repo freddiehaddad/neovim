@@ -125,6 +125,16 @@ Stale Unix-socket recovery still closes the failed handle and waits for close co
 
 Keep the externally visible server behavior separate from ownership: endpoint parsing, address-family ordering, duplicate-address errors, live-socket protection, `serverlist()`, `v:servername`, and deferred `ChanOpen` delivery retain their existing policies. Native lifecycle tests exercise movement, failed binds, close-before-dispatch, cancellation, stale retries, and loop shutdown; Miri checks the shared Rust allocation primitive, not the native listener adapter.
 
+## Owned Signal Watchers
+
+`SignalWatcher` owns a shared, address-stable native allocation through a unique close guard. Its queue and editor/TUI destination are fixed at construction. Native callbacks retain an owner and copy the delivered signal number and routing values; they do not follow a wrapper self-pointer or mutate a Rust `signum` field. Shared start/stop calls therefore do not invalidate callback pointers when the owner moves or is borrowed again.
+
+Stopping a watcher is not closing it: stop permits a later restart, while close is final and releases its native registration only on close completion. Unsupported starts return errors and leave the initialized resource closable. The OS watcher collection is optional, so help/error paths can stop before initialization, and operations retain a group snapshot outside its registry borrow. Teardown preserves the existing stop, process-wide ignore, then native-close order. The TUI owns its initialized resize watcher separately.
+
+`Event::Signal` remains a self-contained value payload. Already queued events retain their existing delivery behavior after watcher close; they do not need to keep the native allocation alive. Deadly-signal rejection, autowrite policy, platform support, and editor/TUI routing remain separate from resource ownership. Rust callbacks run on the libuv loop thread, not in the raw asynchronous OS signal handler.
+
+The lifetime test package imports the production signal adapter with a controlled native driver. Both Miri models check real adapter code for ordinary dispatch, moves, reentrant close completion, failure, restart, and shutdown. Native tests and existing signal/TUI suites separately cover real libuv and platform behavior; the controlled driver sends no OS signals.
+
 ## Where Things Stand & What's Next
 
 The tracked editor implementation is Rust (`edition = "2024"`), with external C libraries built separately as dependencies. Editor graph objects already use shared `Rc` handles and interior mutability; they should not be described as unported raw-pointer lists.

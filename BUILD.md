@@ -60,7 +60,7 @@ cargo xtask benchmark --nvim-bin /path/to/upstream/build/bin/nvim
 
 ### Event ownership and reentrancy
 
-The `event-lifetimes-tests` package compiles the production callback-registration/shared-storage, read-buffer, inbox, and timer-ownership modules without the editor's C dependencies. The shared storage primitive is used by both timers and socket listeners; native listener adapters are covered separately by native unit and functional tests:
+The `event-lifetimes-tests` package compiles the production callback-registration/shared-storage, read-buffer, inbox, and timer-ownership modules without the editor's C dependencies. Its signal integration tests import the actual production signal adapter and supply a deterministic native driver. The shared storage primitive is used by timers, listeners, and signals; real native behavior remains covered separately by native unit and functional tests:
 
 ```bash
 cargo test -p event-lifetimes-tests
@@ -68,7 +68,7 @@ rustup toolchain install nightly-2026-11-16 --profile minimal --component miri -
 cargo +nightly-2026-11-16 miri test -p event-lifetimes-tests
 ```
 
-CI repeats the Miri command with `MIRIFLAGS=-Zmiri-tree-borrows` to check both borrowing models. Miri checks Rust-side memory behavior, not libuv or Lua. Keep the native functional and legacy suites, including release builds on Windows and Linux. When using WSL, run those suites from a native Linux filesystem: tests create files and Unix sockets in and around the checkout, so moving only the Cargo target directory is insufficient. Use a separate dependency/staging tree for each platform; copied Windows parser DLLs can be selected before Linux parsers and fail to load.
+CI repeats the Miri command with `MIRIFLAGS=-Zmiri-tree-borrows` to check both borrowing models. Miri checks Rust-side memory behavior, including the signal adapter's init/start/callback/close sequence with controlled callbacks, not libuv, Lua, or OS signal semantics. Keep the native functional and legacy suites, including release builds on Windows and Linux. When using WSL, run those suites from a native Linux filesystem: tests create files and Unix sockets in and around the checkout, so moving only the Cargo target directory is insufficient. Use a separate dependency/staging tree for each platform; copied Windows parser DLLs can be selected before Linux parsers and fail to load.
 
 Match the CI test environment when comparing results. On Windows, Node-provider fixtures need `require('neovim')` to resolve from the test directory (CI uses `npm link neovim`), and timezone-sensitive cases can be run with `TZ=UTC`. The DOS 8.3 filesystem cases invoke `fsutil` and require suitable volume settings/permissions. Record baseline prerequisite failures rather than weakening assertions or silently changing shared-machine settings.
 
@@ -83,9 +83,13 @@ cargo xtask benchmark --release test/benchmark/event_spec.lua
 
 The workload measures synchronous process waits, persistent RPC round trips, and stream draining. Repeat and interleave runs; do not treat unrelated startup or regex benchmarks as evidence about event-path overhead. `--nvim-bin` also works with `functionaltest` for behavioral comparisons.
 
+For functional comparisons, preserve the executable basename (`nvim` / `nvim.exe`) in separate baseline/current directories. Renaming the binary changes some CLI diagnostics and TUI titles, creating unrelated expectation failures.
+
 For timer ownership changes, use `test/benchmark/timer_spec.lua` with the same commands. It measures timer creation/cancellation, zero-delay callback dispatch, and Vimscript `wait()` timer cleanup over 100,000 operations, with warmups and native/deferred close processing. These are targeted lifecycle workloads, not measurements of interactive editor latency.
 
 For listener ownership changes, use `test/benchmark/socket_spec.lua`. It measures 5,000 TCP listener create/close operations, draining native closes in bounded batches, plus 1,000 TCP and 1,000 pipe/Unix-socket connection/RPC/close operations. Connection workloads include test-client and RPC overhead and wait for server-side channel cleanup; they are end-to-end lifecycle measurements, not isolated allocation timings. Compare identical scripts with preserved baseline and changed binaries.
+
+For signal ownership changes, `test/benchmark/signal_spec.lua` measures 10,000 acknowledged POSIX signal deliveries plus autocommand dispatch, after warmup. It signals only the test-owned editor and waits for each delivery, rather than assuming signal bursts cannot coalesce; it is not a raw syscall benchmark and is skipped on Windows. Also compare startup and the event/timer/socket workloads to detect broader registration-bookkeeping costs.
 
 ## Build Options
 

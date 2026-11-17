@@ -91,6 +91,10 @@ RPC listeners have a unique `SocketWatcher` close guard and shared `SocketHandle
 
 Preserve stale Unix-socket recovery's close-before-retry ordering, but allocate fresh native storage for the retry. Keep endpoint parsing, duplicate-address results, address-family ordering, live-socket protection, and server-name updates unchanged. Resolver lists use an owned `AddrInfo` guard that takes and clears the native result pointer; do not reintroduce borrowed static references or manual cleanup on only selected branches. Opaque native handle aliases such as `uv_stream_t = c_void` must remain raw pointers, never Rust references.
 
+Signal watchers also use retained shared native storage, with unique close guards and immutable editor/TUI routing metadata. There is no Rust `signum` mirror: callbacks use the delivered number. Preserve restart after stop, errors for unsupported starts, and early stop before initialization. OS teardown still stops watchers, installs the existing ignore policy, then requests native close; release registry borrows before native operations.
+
+Queued signal events already contain copied values and remain independent of watcher storage. Do not retain source handles unnecessarily or suppress already queued signals merely because a watcher closed. Keep global deadly-signal/autowrite policy in `os/signal.rs`; libuv callbacks execute on the loop thread and must not be confused with raw POSIX signal handlers.
+
 On Windows, identify a TTY by its initialized native handle type, not a process stream's `fd` label, and stop reading before resetting its mode during close. A mode change can otherwise hand a new buffer to a console worker while Rust is dispatching an owned read batch. ConPTY output must still drain after logical close, so read resumption is gated by the native handle's active phase and requested read state.
 
 Final cleanup cancels queued requests before dropping channel registry owners or the Lua/Vimscript runtimes. This includes shared oneshot payloads in resize queues: dropping only one queue entry can leave a request holding its channel alive. Keep channel owners alive, without registry borrows, until cancellation completes.
@@ -103,13 +107,15 @@ cargo +nightly-2026-11-16 miri test -p event-lifetimes-tests
 cargo xtask functionaltest --release test/functional/core/job_spec.lua test/functional/core/channels_spec.lua
 cargo xtask functionaltest --release test/functional/vimscript/timer_spec.lua test/functional/vimscript/wait_spec.lua
 cargo xtask functionaltest --release test/functional/core/server_spec.lua test/functional/api/server_requests_spec.lua test/functional/api/server_notifications_spec.lua
+cargo xtask functionaltest --release test/functional/autocmd/signal_spec.lua test/functional/core/startup_spec.lua test/functional/terminal/tui_spec.lua
 cargo xtask oldtest --release test_timers.vim
 cargo xtask benchmark --release test/benchmark/event_spec.lua
 cargo xtask benchmark --release test/benchmark/timer_spec.lua
 cargo xtask benchmark --release test/benchmark/socket_spec.lua
+cargo xtask benchmark --release test/benchmark/signal_spec.lua
 ```
 
-Run affected functional cases and full CI-equivalent suites on Windows and Linux before publication. WSL tests need a native Linux checkout for POSIX permissions and Unix sockets. Compare the same tests and benchmarks against a preserved baseline binary using `--nvim-bin`; record pre-existing failures and skips separately. Miri exercises the production Rust ownership primitives with controlled callbacks, not the external C libraries; CI also runs with `MIRIFLAGS=-Zmiri-tree-borrows`.
+Run affected functional cases and full CI-equivalent suites on Windows and Linux before publication. WSL tests need a native Linux checkout for POSIX permissions and Unix sockets. Compare the same tests and benchmarks against a preserved baseline binary using `--nvim-bin`; preserve the executable basename and record pre-existing failures and skips separately. Miri exercises production ownership primitives and the actual signal adapter with a controlled native driver, not the external C libraries; CI also runs with `MIRIFLAGS=-Zmiri-tree-borrows`.
 
 Versioning and Releases
 -----------------------
