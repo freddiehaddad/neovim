@@ -12,6 +12,15 @@ local load_adjust = n.load_adjust
 local retry = t.retry
 local pcall_err = t.pcall_err
 
+local function bound_requests()
+  local session = n.get_session()
+  local previous_timeout = session.request_timeout
+  session.request_timeout = 10000
+  t.finally(function()
+    session.request_timeout = previous_timeout
+  end)
+end
+
 describe('timers', function()
   before_each(function()
     clear()
@@ -280,6 +289,67 @@ describe('timers', function()
     retry(nil, load_adjust(150), function()
       eq(1, eval('g:val'))
     end)
+  end)
+
+  it('retains a self-stopped callback through nested polling and GC', function()
+    bound_requests()
+    eq(
+      { { 'enter', 'nested', 'return' }, {} },
+      exec_lua(function()
+        local order = {}
+        local outer = vim.fn.timer_start(0, function(id)
+          order[#order + 1] = 'enter'
+          vim.fn.timer_stop(id)
+          vim.fn.timer_stop(id)
+          vim.fn.timer_pause(id, 1)
+          vim.fn.timer_pause(id, 0)
+          local nested = false
+          vim.fn.timer_start(0, function()
+            order[#order + 1] = 'nested'
+            nested = true
+          end)
+          collectgarbage('collect')
+          assert(vim.wait(2000, function()
+            return nested
+          end, 1))
+          order[#order + 1] = 'return'
+        end, { ['repeat'] = -1 })
+        assert(vim.wait(3000, function()
+          return #order == 3
+        end, 1))
+        return { order, vim.fn.timer_info(outer) }
+      end)
+    )
+  end)
+
+  it('does not deliver an already queued tick after another callback stops it', function()
+    bound_requests()
+    eq(
+      { 0, true, {} },
+      exec_lua(function()
+        local stopped, finished
+        local calls = 0
+        vim.fn.timer_start(0, function()
+          vim.fn.timer_stop(stopped)
+          local nested = false
+          vim.fn.timer_start(0, function()
+            nested = true
+          end)
+          assert(vim.wait(2000, function()
+            return nested
+          end, 1))
+          finished = true
+        end)
+        stopped = vim.fn.timer_start(0, function()
+          calls = calls + 1
+        end, { ['repeat'] = -1 })
+        vim.uv.run('nowait')
+        assert(vim.wait(3000, function()
+          return finished
+        end, 1))
+        return { calls, finished, vim.fn.timer_info(stopped) }
+      end)
+    )
   end)
 
   it("doesn't mess up the cmdline", function()
