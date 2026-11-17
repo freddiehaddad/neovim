@@ -314,8 +314,8 @@ use crate::os::signal::SIGWINCH;
 use crate::os::signal::os_suspend_process;
 
 #[inline]
-fn tui_loop(_tui: &mut TUIData) -> &'static mut Loop {
-    crate::event::r#loop::main_loop_ptr()
+fn tui_loop(_tui: &TUIData) -> &'static Loop {
+    crate::event::r#loop::main_loop()
 }
 
 #[inline]
@@ -343,7 +343,7 @@ pub fn tui_start(
         tui.startup_delay_timer.start(after_startup_cb, 100, 0);
     });
 
-    loop_poll_events(crate::event::r#loop::main_loop_ptr(), 1);
+    loop_poll_events(crate::event::r#loop::main_loop(), 1);
     crate::ui_client::with_tui(|tui| {
         *width = tui.width;
         *height = tui.height;
@@ -995,11 +995,7 @@ fn tui_terminal_start(tui: &mut TUIData) {
     tui.print_attr_id = -1;
     terminfo_start(tui);
     if !tui.input.has_loop {
-        tinput_init(
-            &mut tui.input,
-            crate::event::r#loop::main_loop_ptr(),
-            &tui.ti,
-        );
+        tinput_init(&mut tui.input, crate::event::r#loop::main_loop(), &tui.ti);
     }
     tui_guess_size(tui);
     tinput_start(&mut tui.input);
@@ -1039,7 +1035,7 @@ pub fn tui_stop() {
     }
 
     let wait_start = os_hrtime();
-    let events = loop_queues(crate::event::r#loop::main_loop_ptr()).events;
+    let events = loop_queues(crate::event::r#loop::main_loop()).events.get();
     let timeout_ms: i64 = EXIT_TIMEOUT_MS;
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining: i64 = timeout_ms;
@@ -1051,7 +1047,7 @@ pub fn tui_stop() {
         if !events.is_null() && !multiqueue_empty(events.borrow()) {
             multiqueue_process_events(events);
         } else {
-            loop_poll_events(crate::event::r#loop::main_loop_ptr(), remaining);
+            loop_poll_events(crate::event::r#loop::main_loop(), remaining);
         }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
@@ -2903,7 +2899,7 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option
 }
 
 fn tui_init_stty_erase(input: &mut TermInput) {
-    if let Some(erase_ch) = stream_get_stty_erase(input.in_fd, &mut input.read_stream.s) {
+    if let Some(erase_ch) = stream_get_stty_erase(input.in_fd, &input.read_stream.s) {
         let buf = [erase_ch, 0];
         TUI_MOD_STATE.with(|st| st.stty_erase_buf.set(buf));
         #[cfg(unix)]

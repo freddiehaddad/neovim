@@ -1433,8 +1433,8 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDictOpenTerm) -> Result<Integer
     };
 
     let chan = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
-    chan.internal.cb = cb;
-    chan.internal.closed = false;
+    chan.internal
+        .set(crate::channel::InternalState { cb, closed: false });
     let topts = TerminalOptions {
         chan_id: chan.id,
         width: (curwin().w_view_width.get() - win_col_off(&curwin())).max(0) as u16,
@@ -1448,18 +1448,18 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDictOpenTerm) -> Result<Integer
         read_buffer_into(Some(&b), 1, line_count, &mut contents);
     }
 
-    channel_incref(chan);
+    channel_incref(&chan);
 
-    chan.term = terminal_alloc(&b, topts);
+    chan.term.set(terminal_alloc(&b, topts));
 
-    terminal_open(chan.term, &b);
+    terminal_open(chan.term.get(), &b);
 
-    if !chan.term.is_null() {
-        terminal_check_size(chan.term);
+    if !chan.term.get().is_null() {
+        terminal_check_size(chan.term.get());
     }
 
     let chan_id = chan.id;
-    channel_decref(chan);
+    channel_decref(&chan);
 
     if !contents.is_empty() {
         let mut error = None;
@@ -2040,13 +2040,15 @@ pub fn nvim_chan_set(
     validate_int(channel.is_some(), c"chan", chan)?;
     let channel = channel.unwrap();
     if (config.is_set_chan_set & (1u64 << KEYSET_OPTIDX_CHAN_SET_DETACH)) != 0 {
-        channel.detach = config.detach;
+        channel.detach.set(config.detach);
     }
     if (config.is_set_chan_set & (1u64 << KEYSET_OPTIDX_CHAN_SET_TRUST)) != 0 {
-        channel.trust = config.trust;
+        channel.trust.set(config.trust);
     }
     if (config.is_set_chan_set & (1u64 << KEYSET_OPTIDX_CHAN_SET_ADDR)) != 0 {
-        channel.addr = (config.addr.size > 0).then(|| config.addr.to_cstring());
+        channel
+            .addr
+            .set((config.addr.size > 0).then(|| config.addr.to_cstring()));
     }
     if (config.is_set_chan_set
         & ((1u64 << KEYSET_OPTIDX_CHAN_SET_DETACH)
@@ -2054,7 +2056,7 @@ pub fn nvim_chan_set(
             | (1u64 << KEYSET_OPTIDX_CHAN_SET_ADDR)))
         != 0
     {
-        channel_event(channel, EVENT_CHANINFO);
+        channel_event(&channel, EVENT_CHANINFO);
     }
     Ok(())
 }

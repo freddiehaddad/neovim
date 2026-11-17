@@ -420,8 +420,8 @@ fn tv_get_float_chk(tv: &TypVal) -> Option<TvFloat> {
 }
 
 #[inline]
-fn proc_is_stopped(proc_: &mut Proc) -> bool {
-    proc_.status >= 0 || proc_.stopped_time != 0
+fn proc_is_stopped(proc_: &Proc) -> bool {
+    proc_.status.get() >= 0 || proc_.stopped_time.get() != 0
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal
@@ -1573,7 +1573,7 @@ pub fn f_chansend(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     #[cfg(not(windows))]
     let crlf = false;
     #[cfg(windows)]
-    let crlf = find_channel(id).is_some_and(|chan| !chan.term.is_null());
+    let crlf = find_channel(id).is_some_and(|chan| !chan.term.get().is_null());
 
     let input = if argvars[1].v_type == VarType::VarBlob {
         let b = argvars[1].vval.v_blob();
@@ -3378,7 +3378,7 @@ pub fn f_gettagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 }
 
 pub(crate) fn dummy_timer_due_cb(tw: &mut TimeWatcher) {
-    if crate::event::r#loop::main_loop_ptr().closing {
+    if crate::event::r#loop::main_loop().closing.get() {
         time_watcher_stop(tw);
         time_watcher_close(tw);
     }
@@ -3407,7 +3407,7 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     } else {
         200
     };
-    let tw = WaitTimer::start(crate::event::r#loop::main_loop_ptr(), interval as u64);
+    let tw = WaitTimer::start(crate::event::r#loop::main_loop(), interval as u64);
 
     let mut argv = tv_initial_value();
     let mut exprval = tv_initial_value();
@@ -3435,11 +3435,11 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         || input_state().got_int.get())
         && !expired
     {
-        let events = loop_queues(crate::event::r#loop::main_loop_ptr()).events;
+        let events = loop_queues(crate::event::r#loop::main_loop()).events.get();
         if !events.is_null() && !multiqueue_empty(events.borrow()) {
             multiqueue_process_events(events);
         } else {
-            loop_poll_events(crate::event::r#loop::main_loop_ptr(), remaining);
+            loop_poll_events(crate::event::r#loop::main_loop(), remaining);
         }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
@@ -4119,7 +4119,7 @@ pub fn f_jobpid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let Some(data) = find_job(argvars[0].vval.v_number() as u64, true) else {
         return;
     };
-    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(data.uv.proc_.pid));
+    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(data.uv.proc_.pid.get()));
 }
 
 /// "jobresize(job, width, height)" function
@@ -4142,13 +4142,13 @@ pub fn f_jobresize(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         return;
     };
 
-    if data.uv.proc_.r#type != K_PROC_TYPE_PTY {
+    if data.uv.proc_.r#type.get() != K_PROC_TYPE_PTY {
         emsg(gettext(E_CHANNOTPTY));
         return;
     }
 
     pty_proc_resize(
-        &mut data.uv.proc_,
+        &data.uv.proc_,
         argvars[1].vval.v_number() as u16,
         argvars[2].vval.v_number() as u16,
     );
@@ -4449,32 +4449,32 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         return;
     };
     if !term {
-        channel_create_event(chan_ref);
+        channel_create_event(&chan_ref);
     } else {
         if rettv.vval.v_number() <= 0 {
             return;
         }
 
-        let pid = chan_ref.uv.proc_.pid;
+        let pid = chan_ref.uv.proc_.pid.get();
         let buf = workspace_state().curbuf.get();
 
         buf.b_p_swf.set(false);
         if buf.b_ml.ml_mfp.borrow().is_none() && !ml_open(&buf) {
-            proc_stop(&mut chan_ref.uv.proc_);
+            proc_stop(&chan_ref.uv.proc_);
 
-            channel_decref(chan_ref);
+            channel_decref(&chan_ref);
 
             return;
         }
 
-        channel_incref(&mut *chan_ref);
+        channel_incref(&chan_ref);
 
-        channel_terminal_alloc(&buf, &mut *chan_ref);
+        channel_terminal_alloc(&buf, &chan_ref);
 
         'term_done: {
             apply_autocmds(EVENT_BUFFILEPRE, None, None, false, Some(&buf));
 
-            if chan_ref.term.is_null() || terminal_buf(chan_ref.term.borrow()) == 0 {
+            if chan_ref.term.get().is_null() || terminal_buf(chan_ref.term.get().borrow()) == 0 {
                 break 'term_done;
             }
 
@@ -4498,7 +4498,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             setfname(&buf, Some(fname_cstr.as_c_str()), None, true);
             apply_autocmds(EVENT_BUFFILEPOST, None, None, false, Some(&buf));
 
-            if chan_ref.term.is_null() || terminal_buf(chan_ref.term.borrow()) == 0 {
+            if chan_ref.term.get().is_null() || terminal_buf(chan_ref.term.get().borrow()) == 0 {
                 break 'term_done;
             }
 
@@ -4527,16 +4527,16 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             );
             buf.b_locked.set(buf.b_locked.get() - (1));
 
-            if chan_ref.term.is_null() || terminal_buf(chan_ref.term.borrow()) == 0 {
+            if chan_ref.term.get().is_null() || terminal_buf(chan_ref.term.get().borrow()) == 0 {
                 break 'term_done;
             }
 
-            terminal_open(chan_ref.term, &buf);
+            terminal_open(chan_ref.term.get(), &buf);
         }
 
-        channel_create_event(&mut *chan_ref);
+        channel_create_event(&chan_ref);
 
-        channel_decref(chan_ref);
+        channel_decref(&chan_ref);
     }
 }
 
@@ -4558,10 +4558,10 @@ pub fn f_jobstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     };
 
     let mut error = None;
-    if data.is_rpc {
+    if data.is_rpc.get() {
         channel_close(data.id, K_CHANNEL_PART_RPC_CONST, Some(&mut error));
     }
-    proc_stop(&mut data.uv.proc_);
+    proc_stop(&data.uv.proc_);
     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
     if let Some(err) = error {
         emsg(err);
@@ -4586,7 +4586,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let args = argvars[0].vval.v_list();
     let len = tv_list_len(args.opt()) as usize;
     let mut jobs: Vec<Option<u64>> = vec![None; len];
-    let waiting_jobs = multiqueue_new(Some(crate::event::r#loop::main_loop_ptr()));
+    let waiting_jobs = multiqueue_new(Some(crate::event::r#loop::main_loop()));
 
     for (i, arg) in crate::eval::typval::list_iter_ptr(tv_list_first(args.opt())).enumerate() {
         let tv = arg.tv();
@@ -4600,16 +4600,16 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             jobs[i] = None;
             continue;
         };
-        if proc_is_stopped(&mut chan.uv.proc_) {
-            proc_wait(&mut chan.uv.proc_, -1, None);
+        if proc_is_stopped(&chan.uv.proc_) {
+            proc_wait(&chan.uv.proc_, -1, None);
             jobs[i] = None;
         } else {
             let chan_id = chan.id;
             jobs[i] = Some(chan_id);
 
-            channel_incref(chan);
+            channel_incref(&chan);
 
-            if chan.uv.proc_.status < 0 {
+            if chan.uv.proc_.status.get() < 0 {
                 let events = chan.events;
 
                 multiqueue_process_events(events);
@@ -4643,7 +4643,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         let Some(job) = crate::msgpack_rpc::channel::find_channel_opt(id) else {
             continue;
         };
-        let status = proc_wait(&mut job.uv.proc_, remaining, Some(waiting_jobs));
+        let status = proc_wait(&job.uv.proc_, remaining, Some(waiting_jobs));
         if status < 0 {
             break;
         }
@@ -4668,13 +4668,13 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         multiqueue_replace_parent(
             events,
-            loop_queues(crate::event::r#loop::main_loop_ptr()).events,
+            loop_queues(crate::event::r#loop::main_loop()).events.get(),
         );
 
-        let status = job.uv.proc_.status;
+        let status = job.uv.proc_.status.get();
         tv_list_append_number(&rv, Varnumber::from(status));
 
-        channel_decref(job);
+        channel_decref(&job);
     }
 
     multiqueue_free(waiting_jobs);

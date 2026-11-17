@@ -6096,7 +6096,7 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         {
-            crate::main_init::ensure_test_editor_init();
+            let _editor = crate::main_init::test_editor();
             crate::globals::msg_state()
                 .emsg_skip
                 .set(msg_state().emsg_skip.get() + (1));
@@ -6203,7 +6203,7 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         {
-            crate::main_init::ensure_test_editor_init();
+            let _editor = crate::main_init::test_editor();
             crate::globals::msg_state()
                 .emsg_skip
                 .set(msg_state().emsg_skip.get() + (1));
@@ -6271,7 +6271,7 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         {
-            crate::main_init::ensure_test_editor_init();
+            let _editor = crate::main_init::test_editor();
             crate::globals::msg_state()
                 .emsg_skip
                 .set(msg_state().emsg_skip.get() + (1));

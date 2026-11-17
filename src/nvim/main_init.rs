@@ -307,12 +307,12 @@ fn strnicmp_ascii(a: &[u8], b: &[u8]) -> bool {
 }
 
 pub fn event_init() {
-    loop_init(crate::event::r#loop::main_loop_ptr());
+    loop_init(crate::event::r#loop::main_loop());
     env_init();
-    let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
+    let queues = loop_queues(crate::event::r#loop::main_loop());
     screen_state()
         .resize_events
-        .set(multiqueue_new_child(queues.events));
+        .set(multiqueue_new_child(queues.events.get()));
 
     autocmd_init();
     signal_init();
@@ -323,21 +323,21 @@ pub fn event_init() {
 }
 
 fn event_teardown() -> bool {
-    let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
-    if queues.events.is_null() {
+    let queues = loop_queues(crate::event::r#loop::main_loop());
+    if queues.events.get().is_null() {
         return true;
     }
 
-    multiqueue_process_events(queues.events);
-    loop_poll_events(crate::event::r#loop::main_loop_ptr(), 0);
+    multiqueue_process_events(queues.events.get());
+    loop_poll_events(crate::event::r#loop::main_loop(), 0);
     server_teardown();
     channel_teardown();
-    proc_teardown(crate::event::r#loop::main_loop_ptr());
+    proc_teardown(crate::event::r#loop::main_loop());
     timer_teardown();
     signal_teardown();
     terminal_teardown();
 
-    loop_close(crate::event::r#loop::main_loop_ptr(), true)
+    loop_close(crate::event::r#loop::main_loop(), true)
 }
 
 fn early_init(paramp: &mut Mparm) {
@@ -2558,16 +2558,35 @@ fn check_swap_exists_action() {
 }
 
 #[cfg(test)]
-pub(crate) fn ensure_test_editor_init() {
-    static INIT: std::sync::Once = std::sync::Once::new();
+#[must_use]
+pub(crate) struct TestEditorGuard {
+    loop_: &'static crate::event::r#loop::Loop,
+}
+
+#[cfg(test)]
+impl Drop for TestEditorGuard {
+    fn drop(&mut self) {
+        assert!(std::ptr::eq(self.loop_, crate::event::r#loop::main_loop()));
+        let exiting = exc_state().exiting.replace(true);
+        let closed = event_teardown();
+        crate::msgpack_rpc::channel::rpc_free_all_mem();
+        crate::channel::channel_free_all_mem();
+        exc_state().exiting.set(exiting);
+        assert!(closed, "test editor left native handles open");
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn test_editor() -> TestEditorGuard {
     thread_local! {
         static THREAD_VARS_INIT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     }
-    INIT.call_once(|| {
+    assert!(
+        !THREAD_VARS_INIT.replace(true),
+        "one editor fixture per test thread"
+    );
+    {
         event_init();
-    });
-    if !THREAD_VARS_INIT.get() {
-        THREAD_VARS_INIT.set(true);
         exc_state().headless_mode.set(true);
         cmdline_state().silent_mode.set(true);
         estack_init();
@@ -2587,6 +2606,9 @@ pub(crate) fn ensure_test_editor_init() {
         qf_init_stack();
         set_init_2(true);
         crate::highlight_group::init_highlight(true, false);
+    }
+    TestEditorGuard {
+        loop_: crate::event::r#loop::main_loop(),
     }
 }
 
@@ -2617,7 +2639,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        ensure_test_editor_init();
+        let _editor = test_editor();
         let c_args: Vec<std::ffi::CString> = [
             "nvim",
             "-dn",

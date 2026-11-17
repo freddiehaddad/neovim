@@ -377,6 +377,58 @@ describe('channels', function()
     eq({ 'notification', 'exit', { 3, 0 } }, next_msg())
   end)
 
+  it('closes console RPC input while output is draining', function()
+    skip(not is_os('win'), 'Windows TTY mode transition')
+    local session = get_session()
+    local previous_timeout = session.request_timeout
+    finally(function()
+      session.request_timeout = previous_timeout
+    end)
+    session.request_timeout = 20000
+    local exits = exec_lua(function(program)
+      local statuses = {}
+      for _ = 1, 4 do
+        local output = ''
+        local id = vim.fn.jobstart({
+          program,
+          '-u',
+          'NONE',
+          '-i',
+          'NONE',
+          '--headless',
+          '--cmd',
+          [[lua vim.fn.stdioopen({ rpc = true }); vim.fn.chansend(vim.v.stderr, 'ready\n')]],
+        }, {
+          pty = true,
+          on_stdout = function(_, lines)
+            output = output .. table.concat(lines, '\n')
+          end,
+        })
+        assert(id > 0)
+        local success, status = pcall(function()
+          assert(
+            vim.wait(5000, function()
+              local text = output:gsub('\27%[[%d;?]*[%a~]', ''):gsub('\27%][^\7]*\7', '')
+              return text:find('ready', 1, true) ~= nil
+            end),
+            vim.inspect(output)
+          )
+          -- An invalid RPC header closes the TTY while unread console input remains.
+          vim.fn.chansend(id, '!' .. string.rep('x', 8192) .. '\n')
+          return vim.fn.jobwait({ id }, 5000)[1]
+        end)
+        if not success or status < 0 then
+          vim.fn.jobstop(id)
+          vim.fn.jobwait({ id }, 5000)
+        end
+        assert(success, status)
+        statuses[#statuses + 1] = status
+      end
+      return statuses
+    end, nvim_prog)
+    eq({ 1, 1, 1, 1 }, exits)
+  end)
+
   it('stdio channel works with stdout redirected to file #30509', function()
     t.write_file(
       'Xstdio_write.vim',

@@ -5335,7 +5335,7 @@ fn open_cmdwin() -> i32 {
     get_cmdline_info().cmdpos.set(0);
 
     loop_schedule_deferred(
-        crate::event::r#loop::main_loop_ptr(),
+        crate::event::r#loop::main_loop(),
         Event::CmdwinOpen {
             firstc: ft,
             content,

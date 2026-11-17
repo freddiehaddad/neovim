@@ -7599,7 +7599,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        crate::main_init::ensure_test_editor_init();
+        let _editor = crate::main_init::test_editor();
         msg_state().msg_silent.set(msg_state().msg_silent.get() + 1);
         qf_init_stack();
         let _ = crate::ex_docmd::do_cmdline_cmd(b"silent! augroup QfReentrancyTest | autocmd! | autocmd BufNew * call getqflist({'items': 0}) | augroup END");

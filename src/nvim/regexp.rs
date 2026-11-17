@@ -5103,7 +5103,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        crate::main_init::ensure_test_editor_init();
+        let _editor = crate::main_init::test_editor();
 
         let prog = vim_regcomp(b"^\\s*fn\\s\\+\\(\\w\\+\\)_item_[0-9]\\+$", RE_MAGIC).unwrap();
         let b_chartab = curbuf().b_chartab.get();

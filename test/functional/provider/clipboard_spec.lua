@@ -206,6 +206,31 @@ describe('clipboard', function()
     eq('', eval('provider#clipboard#Error()'))
   end)
 
+  it('visual unnamedplus paste waits for an external provider', function()
+    local path = t.tmpname()
+    t.finally(function()
+      os.remove(path)
+    end)
+    local shell = n.testprg('shell-test')
+    local copy = { shell, 'CLIPBOARD_COPY', path }
+    local paste = { shell, 'CLIPBOARD_PASTE', path }
+    api.nvim_set_var('clipboard', {
+      name = 'process-wait-fixture',
+      copy = { ['+'] = copy, ['*'] = copy },
+      paste = { ['+'] = paste, ['*'] = paste },
+      cache_enabled = 0,
+    })
+    command('set clipboard=unnamedplus')
+    api.nvim_buf_set_lines(0, 0, -1, false, { 'alpha beta' })
+    feed('gg0yiw')
+    t.retry(nil, 3000, function()
+      eq({ 'alpha' }, n.fn.readfile(path))
+    end)
+    feed('wviwp')
+    expect('alpha alpha')
+    assert(n.fn.getreg('+') ~= '')
+  end)
+
   it('pbcopy/pbpaste use UTF-8 if $LANG has no codeset #11432', function()
     t.skip(not t.is_os('mac'), 'N/A pbcopy provider is only used on macOS')
     local dir = t.tmpname(false)

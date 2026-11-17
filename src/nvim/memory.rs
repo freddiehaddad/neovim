@@ -324,6 +324,8 @@ pub fn free_all_mem() {
 
         msg_hist_clear(0);
 
+        // Queued requests retain channels and their Lua/Vimscript callbacks.
+        rpc_free_all_mem();
         channel_free_all_mem();
         eval_clear();
         api_extmark_free_all_mem();
@@ -349,7 +351,6 @@ pub fn free_all_mem() {
         ui_free_all_mem();
         ui_comp_free_all_mem();
         nlua_free_all_mem();
-        rpc_free_all_mem();
         autocmd_free_all_mem();
     }
 }

@@ -19,8 +19,7 @@ use crate::eval::funcs::{find_internal_func, find_internal_func_lua};
 use crate::eval::typval::{TypVal, TypvalVval, VarType, tv_clear};
 use crate::eval::userfunc::{FCERR_NONE, FCERR_OTHER, Funcexe, call_func, register_luafunc};
 use crate::event::r#loop::{
-    loop_poll_events, loop_queues, loop_schedule_deferred, uv_thread_equal_safe,
-    uv_thread_self_safe,
+    loop_poll_events, loop_queues, uv_thread_equal_safe, uv_thread_self_safe,
 };
 use crate::event::multiqueue::{
     Event, MultiQueue, multiqueue_empty, multiqueue_process_events, multiqueue_put_event,
@@ -120,6 +119,8 @@ pub struct ExDocmdCookie {
 }
 
 static MAIN_THREAD: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static LUA_THREAD_SENDER: std::sync::Mutex<Option<crate::event::r#loop::ThreadSender>> =
+    std::sync::Mutex::new(None);
 
 pub(crate) struct LuaExecutorState {
     pub(crate) active_lstate: std::cell::Cell<*mut lua_State>,
@@ -127,6 +128,7 @@ pub(crate) struct LuaExecutorState {
     global_lstate: std::cell::Cell<*mut lua_State>,
     require_ref: std::cell::Cell<LuaRef>,
     global_refs: std::cell::Cell<NluaRefState>,
+    thread_sender: crate::globals::CloneCell<Option<crate::event::r#loop::ThreadSender>>,
 }
 
 impl LuaExecutorState {
@@ -141,6 +143,7 @@ impl LuaExecutorState {
                 empty_dict_ref: LUA_NOREF,
                 ref_count: 0,
             }),
+            thread_sender: crate::globals::CloneCell::new(None),
         }
     }
 }
@@ -424,9 +427,9 @@ extern "C-unwind" fn nlua_fast_cfpcall(
         }
 
         let msg = nlua_get_error(lstate).map(|(s, _)| s.to_owned());
-        let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
+        let queues = loop_queues(crate::event::r#loop::main_loop());
         put_event(
-            queues.events.opt(),
+            queues.events.get().opt(),
             Event::NluaLuvError {
                 msg,
                 kind: K_CALLBACK,
@@ -478,7 +481,7 @@ fn nlua_luv_thread_common_cfpcall(
             nlua_exit_thread_on_oom(lstate);
         }
         let msg = nlua_get_error(lstate).map(|(s, _)| s.to_owned());
-        let ev = Event::NluaLuvError {
+        let ev = crate::event::r#loop::ThreadEvent::LuaError {
             msg,
             kind: if is_callback {
                 K_THREAD_CALLBACK
@@ -486,7 +489,7 @@ fn nlua_luv_thread_common_cfpcall(
                 K_THREAD
             },
         };
-        loop_schedule_deferred(crate::event::r#loop::main_loop_ptr(), ev);
+        send_worker_event(ev);
         lua_pop(lstate, 1);
         -status
     } else {
@@ -577,15 +580,15 @@ extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> i32 {
     }
 
     lua_pushnil_safe(lstate);
-    if crate::event::r#loop::main_loop_ptr().closing {
+    if crate::event::r#loop::main_loop().closing.get() {
         lua_push_bytes(lstate, b"main loop is closing");
         return 2;
     }
 
     let cb = nlua_ref_global(lstate, 1);
-    let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
+    let queues = loop_queues(crate::event::r#loop::main_loop());
     put_event(
-        queues.events.opt(),
+        queues.events.get().opt(),
         Event::NluaSchedule {
             cb,
             ns_id: screen_state().ui_event_ns_id.get(),
@@ -599,16 +602,16 @@ extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> i32 {
     let timeout = luaL_checkinteger_safe(lstate, 1) as i64;
     let fast_only = lua_toboolean_safe(lstate, 2);
 
-    let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
+    let queues = loop_queues(crate::event::r#loop::main_loop());
     let loop_events = if fast_only {
-        queues.fast_events
+        queues.fast_events.get()
     } else {
-        queues.events
+        queues.events.get()
     };
     if !loop_events.is_null() && !multiqueue_empty(loop_events) {
         multiqueue_process_events(loop_events);
     } else {
-        loop_poll_events(crate::event::r#loop::main_loop_ptr(), timeout);
+        loop_poll_events(crate::event::r#loop::main_loop(), timeout);
     }
 
     0
@@ -759,7 +762,7 @@ fn nlua_common_vim_init(lstate: *mut lua_State, is_thread: bool) {
     luv_init_vim(
         lstate,
         is_thread,
-        crate::event::r#loop::main_loop_ptr(),
+        (!is_thread).then(crate::event::r#loop::main_loop),
         nlua_fast_cfpcall,
         nlua_luv_thread_cfpcall,
         nlua_luv_thread_cb_cfpcall,
@@ -959,6 +962,11 @@ fn nlua_state_init(lstate: *mut lua_State) -> bool {
 }
 
 pub fn nlua_init(argv: &[CString], lua_arg0: i32) {
+    let previous = LUA_THREAD_SENDER
+        .lock()
+        .unwrap()
+        .replace(crate::event::r#loop::main_loop().thread_sender());
+    drop(previous);
     let lstate = luaL_newstate_safe();
     if lstate.is_null() {
         fprintf!(
@@ -987,7 +995,15 @@ pub fn nlua_init(argv: &[CString], lua_arg0: i32) {
 }
 
 extern "C-unwind" fn nlua_thread_acquire_vm() -> *mut lua_State {
+    let sender = LUA_THREAD_SENDER.lock().unwrap().clone();
+    NLUA_STATE.with(|state| state.thread_sender.set(sender));
     nlua_init_state(true)
+}
+
+fn send_worker_event(event: crate::event::r#loop::ThreadEvent) {
+    if let Some(sender) = NLUA_STATE.with(|state| state.thread_sender.get()) {
+        sender.send(event);
+    }
 }
 
 fn nlua_init_state(thread: bool) -> *mut lua_State {
@@ -1106,13 +1122,12 @@ extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
     lua_pop(lstate, 1);
 
     if is_thread {
-        loop_schedule_deferred(
-            crate::event::r#loop::main_loop_ptr(),
-            Event::NluaPrint(msg_str),
-        );
+        send_worker_event(crate::event::r#loop::ThreadEvent::LuaPrint(
+            msg_str.as_bytes().to_vec(),
+        ));
     } else if NLUA_STATE.with(|s| s.in_fast_callback.get()) != 0 {
-        let queues = loop_queues(crate::event::r#loop::main_loop_ptr());
-        put_event(queues.events.opt(), Event::NluaPrint(msg_str));
+        let queues = loop_queues(crate::event::r#loop::main_loop());
+        put_event(queues.events.get().opt(), Event::NluaPrint(msg_str));
     } else {
         nlua_print_event(msg_str);
     }

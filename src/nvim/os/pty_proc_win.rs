@@ -3,7 +3,9 @@
 #[cfg(windows)]
 use crate::eval::typval::{TvDict, tv_dict_to_env};
 #[cfg(windows)]
-use crate::event::r#loop::{Loop, loop_schedule_fast, uv_req_size, uv_run, uv_translate_sys_error};
+use crate::event::r#loop::{
+    Loop, ThreadEvent, ThreadSender, uv_req_size, uv_run, uv_translate_sys_error,
+};
 #[cfg(windows)]
 use crate::log::logmsg;
 #[cfg(windows)]
@@ -18,15 +20,11 @@ use std::ffi::{CStr, c_void};
 use std::ptr;
 
 #[cfg(windows)]
-use crate::event::multiqueue::Event;
-#[cfg(windows)]
-use crate::event::proc::{Proc, PtyProc};
+use crate::event::proc::PtyProc;
 #[cfg(windows)]
 use crate::event::stream::{Stream, uv_stream_t};
 #[cfg(windows)]
-use crate::os::pty_conpty_win::{
-    Conpty, os_conpty_init, os_conpty_set_size, os_conpty_spawn, os_has_conpty_working,
-};
+use crate::os::pty_conpty_win::{Conpty, os_conpty_init, os_conpty_spawn, os_has_conpty_working};
 
 #[cfg(any(test, windows))]
 /// Emulate quote_cmd_arg of libuv and quotes command line argument.
@@ -82,6 +80,15 @@ mod win_impl {
     type WaitOrTimerCallback =
         Option<unsafe extern "system" fn(lp_parameter: *mut c_void, timer_or_wait_fired: BOOLEAN)>;
 
+    pub struct FinishContext {
+        sender: ThreadSender,
+        channel: u64,
+    }
+
+    fn into_thread_context<T: Send + Sync>(value: T) -> *mut T {
+        Box::into_raw(Box::new(value))
+    }
+
     use crate::event::r#loop::{UV_REQ, UV_RUN_ONCE};
     use crate::log::LOGLVL_ERR;
     use crate::os::fs::UV_ENOENT;
@@ -130,25 +137,18 @@ mod win_impl {
     }
 
     unsafe extern "system" fn pty_proc_terminate_cb(context: *mut c_void, _unused: BOOLEAN) {
-        let proc_ = context.cast::<Proc>();
-        loop_schedule_fast(
-            crate::event::r#loop::main_loop_ptr(),
-            Event::PtyProcFinish(proc_),
-        );
+        let context = unsafe { &*context.cast::<FinishContext>() };
+        context.sender.send(ThreadEvent::PtyFinish(context.channel));
     }
 
-    pub(crate) fn pty_proc_close_console(stream: &mut Stream) {
+    pub(crate) fn pty_proc_close_console(stream: &Stream) {
         unsafe {
-            let ptyproc = stream.internal_data.as_proc();
-            let proc_ = &raw mut *ptyproc;
-            let r_out = &raw mut (*proc_).out;
-            let r_fields = r_out;
-            let ptail = ptyproc;
-            let Some(conpty) = ptail.conpty.take() else {
+            let ptyproc = stream.internal_data.get().as_proc();
+            let Some(conpty) = ptyproc.take_conpty() else {
                 return;
             };
-            if (*r_fields).num_bytes == 0 {
-                TerminateProcess(ptail.proc_handle, 0);
+            if ptyproc.out.num_bytes.get() == 0 {
+                TerminateProcess(ptyproc.proc_handle.get(), 0);
             }
             let mut tid: uv_thread_t = 0;
             uv_thread_create(
@@ -156,27 +156,27 @@ mod win_impl {
                 Some(os_conpty_free_thread),
                 Box::into_raw(conpty).cast(),
             );
-            while !ptr::read_volatile(&raw const (*r_fields).did_eof)
+            while !ptyproc.out.did_eof.get()
                 && WaitForSingleObject(tid as HANDLE, 0) == WAIT_TIMEOUT
             {
-                uv_run(
-                    (&raw mut crate::event::r#loop::main_loop_ptr().uv).cast(),
-                    UV_RUN_ONCE,
-                );
+                uv_run(crate::event::r#loop::main_loop().uv_ptr(), UV_RUN_ONCE);
             }
             uv_thread_detach(&raw mut tid);
         }
     }
 
     /// @returns zero on success, or negative error code.
-    pub fn pty_proc_spawn(ptyproc: &mut PtyProc) -> i32 {
+    pub fn pty_proc_spawn(ptyproc: &PtyProc) -> i32 {
         unsafe {
-            let proc_ = &raw mut *ptyproc;
-            let hdr = &mut *proc_;
+            let proc_ = ptyproc;
+            let hdr = proc_;
             let ptail = proc_;
-            let s_in = &mut (*proc_).r#in;
-            let r_out = &mut (*proc_).out;
-            let r_err = &mut (*proc_).err;
+            let s_in = &proc_.r#in;
+            let r_out = &proc_.out;
+            let r_err = &proc_.err;
+            let argv = hdr.argv.get();
+            let proc_cwd = hdr.cwd.get();
+            let proc_env = hdr.env.get();
             let mut status: i32;
             let mut conpty_object: Option<Box<Conpty>> = None;
             let mut in_name: Option<std::ffi::CString> = None;
@@ -190,45 +190,49 @@ mod win_impl {
             let mut env: Vec<u16> = Vec::new();
             let mut emsg: Option<&CStr> = None;
 
-            debug_assert!(r_err.s.closed);
+            debug_assert!(r_err.s.closed.get());
 
             'cleanup: {
                 if !os_has_conpty_working() {
                     status = UV_ENOSYS;
                     break 'cleanup;
                 }
-                conpty_object =
-                    os_conpty_init(&mut in_name, &mut out_name, (*ptail).width, (*ptail).height);
+                conpty_object = os_conpty_init(
+                    &mut in_name,
+                    &mut out_name,
+                    ptail.width.get(),
+                    ptail.height.get(),
+                );
                 if conpty_object.is_none() {
                     status = UV_ENOSYS;
                     break 'cleanup;
                 }
 
-                if !s_in.closed {
+                if !s_in.closed.get() {
                     let mut buf = vec![0u64; uv_req_size(UV_CONNECT).div_ceil(8)];
                     let in_req = buf.as_mut_ptr().cast();
                     in_req_buf = Some(buf);
                     uv_pipe_connect(
                         in_req,
-                        (&raw mut s_in.uv).cast(),
+                        s_in.uv.as_ptr(),
                         in_name.as_ref().unwrap().as_ptr(),
                         Some(pty_proc_connect_cb),
                     );
                 }
 
-                if !r_out.s.closed {
+                if !r_out.s.closed.get() {
                     let mut buf = vec![0u64; uv_req_size(UV_CONNECT).div_ceil(8)];
                     let out_req = buf.as_mut_ptr().cast();
                     out_req_buf = Some(buf);
                     uv_pipe_connect(
                         out_req,
-                        (&raw mut r_out.s.uv).cast(),
+                        r_out.s.uv.as_ptr(),
                         out_name.as_ref().unwrap().as_ptr(),
                         Some(pty_proc_connect_cb),
                     );
                 }
 
-                if let Some(ref hdr_cwd) = hdr.cwd {
+                if let Some(ref hdr_cwd) = proc_cwd {
                     status = utf8_to_utf16(hdr_cwd.to_bytes(), -1, &mut cwd);
                     if status != 0 {
                         emsg = Some(c"utf8_to_utf16(proc->cwd) failed");
@@ -236,7 +240,7 @@ mod win_impl {
                     }
                 }
 
-                let arg0 = &hdr.argv.as_slice()[0];
+                let arg0 = &argv[0];
                 let is_cmdexe = os_shell_is_cmdexe(arg0);
                 if is_cmdexe {
                     let mut path: Option<std::ffi::CString> = None;
@@ -252,14 +256,14 @@ mod win_impl {
                         break 'cleanup;
                     }
                 }
-                status = build_cmd_line(hdr.argv.as_slice(), &mut cmd_line, is_cmdexe);
+                status = build_cmd_line(&argv, &mut cmd_line, is_cmdexe);
                 if status != 0 {
                     emsg = Some(c"build_cmd_line failed");
                     break 'cleanup;
                 }
 
-                if !hdr.env.is_null() {
-                    status = build_env_block(hdr.env.opt(), &mut env);
+                if !proc_env.is_null() {
+                    status = build_env_block(proc_env.opt(), &mut env);
                 }
 
                 if status != 0 {
@@ -279,33 +283,36 @@ mod win_impl {
                     status = GetLastError() as i32;
                     break 'cleanup;
                 }
-                hdr.pid = GetProcessId(proc_handle) as i32;
+                hdr.pid.set(GetProcessId(proc_handle) as i32);
 
+                while in_req_buf.as_deref().is_some_and(connect_req_has_handle)
+                    || out_req_buf.as_deref().is_some_and(connect_req_has_handle)
+                {
+                    uv_run(crate::event::r#loop::main_loop().uv_ptr(), UV_RUN_ONCE);
+                }
+
+                r_out.s.close_console.set(true);
+                ptail.set_conpty(conpty_object.take());
+                ptail.proc_handle.set(proc_handle);
+                proc_handle = ptr::null_mut();
+
+                // Publish completion only after initialization and pipe polling.
+                let context = into_thread_context(FinishContext {
+                    sender: crate::event::r#loop::main_loop().thread_sender(),
+                    channel: ptyproc.chan_id.get(),
+                });
+                ptyproc.finish_context.set(context);
                 if RegisterWaitForSingleObject(
-                    &raw mut (*ptail).finish_wait,
-                    proc_handle,
+                    ptail.finish_wait.as_ptr(),
+                    ptail.proc_handle.get(),
                     Some(pty_proc_terminate_cb),
-                    ptail.cast(),
+                    context.cast(),
                     INFINITE,
                     WT_EXECUTEDEFAULT | WT_EXECUTEONLYONCE,
                 ) == 0
                 {
                     std::process::abort();
                 }
-
-                while in_req_buf.as_deref().is_some_and(connect_req_has_handle)
-                    || out_req_buf.as_deref().is_some_and(connect_req_has_handle)
-                {
-                    uv_run(
-                        (&raw mut crate::event::r#loop::main_loop_ptr().uv).cast(),
-                        UV_RUN_ONCE,
-                    );
-                }
-
-                r_out.s.close_console = true;
-                (*ptail).conpty = conpty_object.take();
-                (*ptail).proc_handle = proc_handle;
-                proc_handle = ptr::null_mut();
             }
 
             if status != 0 {
@@ -316,7 +323,7 @@ mod win_impl {
                     line!() as i32,
                     true,
                     c"pty_proc_spawn(%s): %s: error code: %d",
-                    &hdr.argv.as_slice()[0],
+                    &argv[0],
                     emsg,
                     status,
                 );
@@ -334,38 +341,43 @@ mod win_impl {
         }
     }
 
-    pub fn pty_proc_tty_name(_ptyproc: &mut PtyProc) -> Option<&CStr> {
-        Some(c"?")
+    pub fn pty_proc_tty_name(_ptyproc: &PtyProc) -> Option<std::ffi::CString> {
+        Some(c"?".to_owned())
     }
 
-    pub fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {
-        if let Some(ref conpty) = ptyproc.conpty {
-            os_conpty_set_size(conpty, width, height);
-        }
+    pub fn pty_proc_resize(ptyproc: &PtyProc, width: u16, height: u16) {
+        ptyproc.resize_conpty(width, height);
     }
 
-    pub fn pty_proc_resume(_ptyproc: &mut PtyProc) {}
+    pub fn pty_proc_resume(_ptyproc: &PtyProc) {}
 
-    pub fn pty_proc_flush_master(_ptyproc: &mut PtyProc) {}
+    pub fn pty_proc_flush_master(_ptyproc: &PtyProc) {}
 
-    pub fn pty_proc_close(ptyproc: &mut PtyProc) {
+    pub fn pty_proc_close(ptyproc: &PtyProc) {
         pty_proc_close_master(ptyproc);
 
-        if !ptyproc.finish_wait.is_null() {
-            unsafe { UnregisterWaitEx(ptyproc.finish_wait, ptr::null_mut()) };
-            ptyproc.finish_wait = ptr::null_mut();
+        let wait = ptyproc.finish_wait.replace(ptr::null_mut());
+        if !wait.is_null() {
+            // Wait for the worker callback before releasing its notification context.
+            assert_ne!(unsafe { UnregisterWaitEx(wait, (-1isize) as HANDLE) }, 0);
         }
-        if !ptyproc.proc_handle.is_null() {
-            unsafe { CloseHandle(ptyproc.proc_handle) };
-            ptyproc.proc_handle = ptr::null_mut();
+        let context = ptyproc.finish_context.replace(ptr::null_mut());
+        if !context.is_null() {
+            drop(unsafe { Box::from_raw(context) });
+        }
+        if !ptyproc.proc_handle.get().is_null() {
+            unsafe { CloseHandle(ptyproc.proc_handle.get()) };
+            ptyproc.proc_handle.set(ptr::null_mut());
         }
 
-        crate::event::proc::proc_decref(ptyproc);
+        if ptyproc.is_spawned() {
+            crate::event::proc::proc_decref(ptyproc);
+        }
     }
 
-    pub fn pty_proc_close_master(_ptyproc: &mut PtyProc) {}
+    pub fn pty_proc_close_master(_ptyproc: &PtyProc) {}
 
-    pub fn pty_proc_teardown(_loop_: &mut Loop) {}
+    pub fn pty_proc_teardown(_loop_: &Loop) {}
 
     unsafe extern "C" fn pty_proc_connect_cb(req: *mut uv_connect_t, status: i32) {
         unsafe {
@@ -379,21 +391,24 @@ mod win_impl {
         }
     }
 
-    pub fn pty_proc_finish(ptyproc: &mut PtyProc) {
+    pub fn pty_proc_finish(ptyproc: &PtyProc) {
+        if ptyproc.closed.get() || ptyproc.proc_handle.get().is_null() {
+            return;
+        }
         unsafe {
-            let proc_ = &raw mut *ptyproc;
-            let hdr = &mut *proc_;
+            let proc_ = ptyproc;
+            let hdr = proc_;
             let ptail = proc_;
 
             let mut exit_code: DWORD = 0;
-            GetExitCodeProcess((*ptail).proc_handle, &mut exit_code);
-            hdr.status = if hdr.exit_signal != 0 {
-                128 + i32::from(hdr.exit_signal)
+            GetExitCodeProcess(ptail.proc_handle.get(), &mut exit_code);
+            hdr.status.set(if hdr.exit_signal.get() != 0 {
+                128 + i32::from(hdr.exit_signal.get())
             } else {
                 exit_code as i32
-            };
+            });
 
-            crate::event::proc::on_proc_exit(&mut *proc_);
+            crate::event::proc::on_proc_exit(proc_);
         }
     }
 

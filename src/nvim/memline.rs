@@ -4828,7 +4828,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        crate::main_init::ensure_test_editor_init();
+        let _editor = crate::main_init::test_editor();
         let saved_curbuf = workspace_state().curbuf.get();
         let buf = FileBuf::new_rc();
         buf.b_p_swf.set(false);

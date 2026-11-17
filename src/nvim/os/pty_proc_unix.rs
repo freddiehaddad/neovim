@@ -5,7 +5,7 @@ use crate::eval::typval::tv_dict_to_env;
 #[cfg(unix)]
 use crate::event::libuv_proc::proc_get_exepath;
 #[cfg(unix)]
-use crate::event::r#loop::{uv_disable_stdio_inheritance, uv_handle_get_loop, uv_strerror};
+use crate::event::r#loop::{uv_disable_stdio_inheritance, uv_strerror};
 #[cfg(unix)]
 use crate::log::logmsg;
 #[cfg(unix)]
@@ -67,7 +67,7 @@ pub const fn wtermsig(stat: i32) -> i32 {
 #[cfg(unix)]
 mod unix_impl {
     use super::*;
-    use crate::event::r#loop::{Loop, loop_children_watcher, loop_queues, uv_signal_t};
+    use crate::event::r#loop::{Loop, loop_children_watcher, uv_signal_t};
     use crate::event::proc::PtyProc;
     use crate::event::stream::uv_pipe_t;
 
@@ -275,7 +275,7 @@ mod unix_impl {
     }
 
     /// @returns zero on success, or negative error code
-    pub fn pty_proc_spawn(ptyproc: &mut PtyProc) -> i32 {
+    pub fn pty_proc_spawn(ptyproc: &PtyProc) -> i32 {
         unsafe {
             let termios_default = TERMIOS_DEFAULT.get_or_init(|| {
                 let mut t = termios::ZERO;
@@ -283,35 +283,38 @@ mod unix_impl {
                 t
             });
 
-            let proc_ = &raw mut *ptyproc;
+            let proc_ = ptyproc;
             let hdr = proc_;
             let ptail = proc_;
-            let s_in = &mut (*proc_).r#in;
-            let r_out = &mut (*proc_).out;
-            let r_err = &mut (*proc_).err;
-            debug_assert!(r_err.s.closed);
+            let s_in = &proc_.r#in;
+            let r_out = &proc_.out;
+            let r_err = &proc_.err;
+            debug_assert!(r_err.s.closed.get());
             uv_signal_start(
-                loop_children_watcher(crate::event::r#loop::main_loop_ptr()),
+                loop_children_watcher(crate::event::r#loop::main_loop()),
                 Some(chld_handler),
                 SIGCHLD,
             );
-            (*ptail).winsize = winsize {
-                ws_row: (*ptail).height,
-                ws_col: (*ptail).width,
+            let size = winsize {
+                ws_row: ptail.height.get(),
+                ws_col: ptail.width.get(),
                 ws_xpixel: 0,
                 ws_ypixel: 0,
             };
+            ptail.winsize.set(size);
             uv_disable_stdio_inheritance();
-            let prog = proc_get_exepath(&*proc_);
-            debug_assert!(!(*hdr).env.is_null());
-            let new_env = tv_dict_to_env((*hdr).env.opt());
+            let prog = proc_get_exepath(proc_);
+            let env = hdr.env.get();
+            let argv = hdr.argv.get();
+            let cwd = hdr.cwd.get();
+            debug_assert!(!env.is_null());
+            let new_env = tv_dict_to_env(env.opt());
             let mut new_env_ptrs: Vec<*mut u8> = new_env
                 .iter()
                 .map(|s| s.as_ptr().cast_mut().cast())
                 .chain(std::iter::once(ptr::null_mut()))
                 .collect();
-            let argv_ptrs: Vec<*mut u8> = (*hdr)
-                .argv
+            let argv_ptrs: Vec<*mut u8> = argv
                 .iter()
                 .map(|s| s.as_ptr().cast_mut().cast())
                 .chain(std::iter::once(ptr::null_mut()))
@@ -321,7 +324,7 @@ mod unix_impl {
                 &raw mut master,
                 ptr::null_mut(),
                 &raw const *termios_default,
-                &raw const (*ptail).winsize,
+                &raw const size,
             );
 
             if pid < 0 {
@@ -347,7 +350,7 @@ mod unix_impl {
                 signal(SIGTERM, SIG_DFL);
                 signal(SIGALRM, SIG_DFL);
 
-                if let Some(ref cwd) = (*hdr).cwd {
+                if let Some(ref cwd) = cwd {
                     let err = uv_chdir(cwd.as_ptr());
                     if err != 0 {
                         logmsg!(
@@ -428,21 +431,21 @@ mod unix_impl {
                     break 'error;
                 }
 
-                if !s_in.closed {
-                    status = set_duplicating_descriptor(master, &mut *(&raw mut s_in.uv).cast());
+                if !s_in.closed.get() {
+                    status = set_duplicating_descriptor(master, s_in.uv.as_ptr());
                     if status != 0 {
                         break 'error;
                     }
                 }
-                if !r_out.s.closed {
-                    status = set_duplicating_descriptor(master, &mut *(&raw mut r_out.s.uv).cast());
+                if !r_out.s.closed.get() {
+                    status = set_duplicating_descriptor(master, r_out.s.uv.as_ptr());
                     if status != 0 {
                         break 'error;
                     }
                 }
 
-                (*ptail).tty_fd = master;
-                (*hdr).pid = pid;
+                ptail.tty_fd.set(master);
+                hdr.pid.set(pid);
                 return 0;
             }
 
@@ -453,34 +456,35 @@ mod unix_impl {
         }
     }
 
-    pub fn pty_proc_tty_name(ptyproc: &mut PtyProc) -> Option<&std::ffi::CStr> {
-        let p = unsafe { ptsname(ptyproc.tty_fd) };
-        (!p.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(p.cast()) })
+    pub fn pty_proc_tty_name(ptyproc: &PtyProc) -> Option<std::ffi::CString> {
+        let p = unsafe { ptsname(ptyproc.tty_fd.get()) };
+        (!p.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(p.cast()).to_owned() })
     }
 
-    pub fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {
+    pub fn pty_proc_resize(ptyproc: &PtyProc, width: u16, height: u16) {
         unsafe {
-            ptyproc.winsize = winsize {
+            let size = winsize {
                 ws_row: height,
                 ws_col: width,
                 ws_xpixel: 0,
                 ws_ypixel: 0,
             };
-            ioctl(ptyproc.tty_fd, TIOCSWINSZ, &raw const ptyproc.winsize);
+            ptyproc.winsize.set(size);
+            ioctl(ptyproc.tty_fd.get(), TIOCSWINSZ, &raw const size);
         }
     }
 
-    pub fn pty_proc_resume(ptyproc: &mut PtyProc) {
+    pub fn pty_proc_resume(ptyproc: &PtyProc) {
         unsafe {
-            killpg(ptyproc.pid, SIGCONT);
+            killpg(ptyproc.pid.get(), SIGCONT);
         }
     }
 
-    pub fn pty_proc_flush_master(ptyproc: &mut PtyProc) {
+    pub fn pty_proc_flush_master(ptyproc: &PtyProc) {
         #[cfg(target_os = "linux")]
         unsafe {
             let mut pfd = pollfd {
-                fd: ptyproc.tty_fd,
+                fd: ptyproc.tty_fd.get(),
                 events: POLLIN,
                 revents: 0,
             };
@@ -495,19 +499,21 @@ mod unix_impl {
         let _ = ptyproc;
     }
 
-    pub fn pty_proc_close(ptyproc: &mut PtyProc) {
+    pub fn pty_proc_close(ptyproc: &PtyProc) {
         pty_proc_close_master(ptyproc);
-        crate::event::proc::proc_decref(ptyproc);
-    }
-
-    pub fn pty_proc_close_master(ptyproc: &mut PtyProc) {
-        if ptyproc.tty_fd >= 0 {
-            close(ptyproc.tty_fd);
-            ptyproc.tty_fd = -1;
+        if ptyproc.is_spawned() {
+            crate::event::proc::proc_decref(ptyproc);
         }
     }
 
-    pub fn pty_proc_teardown(loop_: &mut Loop) {
+    pub fn pty_proc_close_master(ptyproc: &PtyProc) {
+        if ptyproc.tty_fd.get() >= 0 {
+            close(ptyproc.tty_fd.get());
+            ptyproc.tty_fd.set(-1);
+        }
+    }
+
+    pub fn pty_proc_teardown(loop_: &Loop) {
         unsafe {
             uv_signal_stop(loop_children_watcher(loop_));
         }
@@ -541,7 +547,7 @@ mod unix_impl {
         }
     }
 
-    fn set_duplicating_descriptor(fd: i32, pipe: &mut uv_pipe_t) -> i32 {
+    fn set_duplicating_descriptor(fd: i32, pipe: *mut uv_pipe_t) -> i32 {
         unsafe {
             let fd_dup = dup(fd);
             if fd_dup < 0 {
@@ -596,20 +602,17 @@ mod unix_impl {
         }
     }
 
-    unsafe extern "C" fn chld_handler(handle: *mut uv_signal_t, _signum: i32) {
+    unsafe extern "C" fn chld_handler(_handle: *mut uv_signal_t, _signum: i32) {
         unsafe {
             let mut stat: i32 = 0;
-            let uv_loop = uv_handle_get_loop(handle.cast());
-            let loop_ = *uv_loop.cast::<*mut Loop>();
-            let qc = loop_queues(&mut *loop_);
-
-            for &proc_ in &qc.children {
-                let hdr = proc_;
-                let proc_t = proc_;
-
+            for proc_ in crate::event::r#loop::main_loop().children() {
                 let mut pid: i32;
                 loop {
-                    pid = waitpid((*hdr).pid, &raw mut stat, WNOHANG | WUNTRACED | WCONTINUED);
+                    pid = waitpid(
+                        proc_.pid.get(),
+                        &raw mut stat,
+                        WNOHANG | WUNTRACED | WCONTINUED,
+                    );
                     if !(pid < 0 && os_errno() == EINTR) {
                         break;
                     }
@@ -620,31 +623,30 @@ mod unix_impl {
                 }
 
                 if wifstopped(stat) {
-                    if (*hdr).chan_id != 0
+                    if proc_.chan_id.get() != 0
                         && let Some(chan) =
-                            crate::msgpack_rpc::channel::find_channel_opt((*hdr).chan_id)
+                            crate::msgpack_rpc::channel::find_channel_opt(proc_.chan_id.get())
                     {
-                        crate::channel::channel_proc_state_cb(&mut *proc_, true, chan);
+                        crate::channel::channel_proc_state_cb(&proc_, true, &chan);
                     }
                     continue;
                 }
                 if wifcontinued(stat) {
-                    if (*hdr).chan_id != 0
+                    if proc_.chan_id.get() != 0
                         && let Some(chan) =
-                            crate::msgpack_rpc::channel::find_channel_opt((*hdr).chan_id)
+                            crate::msgpack_rpc::channel::find_channel_opt(proc_.chan_id.get())
                     {
-                        crate::channel::channel_proc_state_cb(&mut *proc_, false, chan);
+                        crate::channel::channel_proc_state_cb(&proc_, false, &chan);
                     }
                     continue;
                 }
 
                 if wifexited(stat) {
-                    (*hdr).status = wexitstatus(stat);
+                    proc_.status.set(wexitstatus(stat));
                 } else if wifsignaled(stat) {
-                    (*hdr).status = 128 + wtermsig(stat);
+                    proc_.status.set(128 + wtermsig(stat));
                 }
-                let _ = proc_t;
-                crate::event::proc::on_proc_exit(&mut *proc_);
+                crate::event::proc::on_proc_exit(&proc_);
             }
         }
     }

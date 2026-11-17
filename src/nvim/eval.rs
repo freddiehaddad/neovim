@@ -4178,9 +4178,13 @@ pub fn garbage_collect(testing: bool) -> bool {
     abort = abort || set_ref_in_functions(copy_id);
 
     {
-        for ct in crate::event::r#loop::main_loop_ptr().channels.values_mut() {
-            set_ref_in_callback_reader(&mut ct.on_data, copy_id, None, None);
-            set_ref_in_callback_reader(&mut ct.on_stderr, copy_id, None, None);
+        for ct in crate::event::r#loop::main_loop().channels() {
+            ct.with_reader(false, |reader| {
+                set_ref_in_callback_reader(reader, copy_id, None, None)
+            });
+            ct.with_reader(true, |reader| {
+                set_ref_in_callback_reader(reader, copy_id, None, None)
+            });
             set_ref_in_callback(&ct.on_exit, copy_id, None, None);
         }
     }
@@ -5026,7 +5030,7 @@ pub fn set_ref_in_callback(
 }
 
 fn set_ref_in_callback_reader(
-    reader: &mut CallbackReader,
+    reader: &CallbackReader,
     copy_id: i32,
     mut ht_stack: Option<&mut HtStack>,
     mut list_stack: Option<&mut ListStack>,
@@ -5161,12 +5165,12 @@ pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
     {
         let mut watcher = timer.watcher.borrow_mut();
         time_watcher_init(
-            crate::event::r#loop::main_loop_ptr(),
+            crate::event::r#loop::main_loop(),
             &mut watcher,
             TimeWatcherData::EvalTimer(timer_id),
         );
         watcher.events =
-            multiqueue_new_child(loop_queues(crate::event::r#loop::main_loop_ptr()).events);
+            multiqueue_new_child(loop_queues(crate::event::r#loop::main_loop()).events.get());
         watcher.blockable = true;
         time_watcher_start(&mut watcher, timeout as u64, timeout as u64);
     }
@@ -6523,13 +6527,13 @@ pub fn common_job_callbacks(
     false
 }
 
-pub fn find_job(id: u64, show_error: bool) -> Option<&'static mut Channel> {
+pub fn find_job(id: u64, show_error: bool) -> Option<std::rc::Rc<Channel>> {
     let data = find_channel(id);
     let is_stopped = if let Some(ref d) = data
         && d.streamtype == K_CHANNEL_STREAM_PROC
     {
         let hdr = &d.uv.proc_;
-        hdr.status >= 0 || hdr.stopped_time != 0
+        hdr.status.get() >= 0 || hdr.stopped_time.get() != 0
     } else {
         true
     };
@@ -7027,7 +7031,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        crate::main_init::ensure_test_editor_init();
+        let _editor = crate::main_init::test_editor();
 
         let mut rettv = tv_initial_value();
         let mut evalarg = Evalarg {
@@ -7059,7 +7063,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        crate::main_init::ensure_test_editor_init();
+        let _editor = crate::main_init::test_editor();
 
         let mut rettv = tv_initial_value();
         let mut evalarg = Evalarg {

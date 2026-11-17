@@ -5558,7 +5558,7 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         {
-            crate::main_init::ensure_test_editor_init();
+            let _editor = crate::main_init::test_editor();
             let _skip_emsg = msg_state().skip_emsg();
 
             assert!(!buf_valid(None));

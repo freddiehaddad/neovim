@@ -346,7 +346,7 @@ pub struct Terminal {
 
 impl Terminal {
     #[inline]
-    fn channel_mut(&self) -> &'static mut crate::channel::Channel {
+    fn channel_mut(&self) -> std::rc::Rc<crate::channel::Channel> {
         crate::msgpack_rpc::channel::find_channel_opt(self.opts.chan_id).unwrap()
     }
 
@@ -414,7 +414,7 @@ fn with_vterm_mut<R>(id: TermId, f: impl FnOnce(&mut VTerm) -> R) -> R {
             }
         });
         if let Some(chan) = chan {
-            channel_term_write(&bytes, chan);
+            channel_term_write(&bytes, &chan);
         }
     }
     rv
@@ -475,7 +475,7 @@ fn refresh_timer_events() -> MultiQueue {
 
 #[inline]
 fn main_loop_events() -> MultiQueue {
-    loop_queues(crate::event::r#loop::main_loop_ptr()).events
+    loop_queues(crate::event::r#loop::main_loop()).events.get()
 }
 
 #[inline]
@@ -591,7 +591,7 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
         }
     });
     if let Some(chan) = should_close {
-        channel_term_close(chan);
+        channel_term_close(&chan);
     }
 }
 
@@ -715,11 +715,11 @@ fn on_apc(frag: VTermStringFragment, term_id: Option<&mut TermId>) -> i32 {
 }
 
 pub fn terminal_init() {
-    let events = multiqueue_new_child(loop_queues(crate::event::r#loop::main_loop_ptr()).events);
+    let events = multiqueue_new_child(loop_queues(crate::event::r#loop::main_loop()).events.get());
     REFRESH_TIMER.with(|cell| {
         let mut timer = cell.borrow_mut();
         time_watcher_init(
-            crate::event::r#loop::main_loop_ptr(),
+            crate::event::r#loop::main_loop(),
             &mut timer,
             TimeWatcherData::TerminalRefresh,
         );
@@ -1024,7 +1024,7 @@ pub fn terminal_close(term_id: TermId, status: i32) {
             }
         });
         if let Some(chan) = should_close {
-            channel_term_close(chan);
+            channel_term_close(&chan);
         }
     } else if !only_destroy {
         for wp in for_all_windows_ptr() {
@@ -1308,7 +1308,7 @@ pub fn terminal_enter() -> bool {
             (t.buf_handle, t.channel_mut())
         });
 
-        channel_term_close(chan);
+        channel_term_close(&chan);
 
         if buf_handle != 0 {
             do_buffer(DOBUF_WIPE, DOBUF_FIRST, FORWARD, buf_handle, 1);
@@ -1369,7 +1369,7 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
                 t.destroy = true;
                 t.channel_mut()
             });
-            channel_term_close(chan);
+            channel_term_close(&chan);
             s.close = false;
         }
 
@@ -1495,7 +1495,7 @@ fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
             }
             if with_term(s.term, |t| t.suspended) {
                 let chan = with_term(s.term, |t| t.channel_mut());
-                channel_term_resume(chan);
+                channel_term_resume(&chan);
                 terminal_set_state(s.term, false);
                 return 1;
             }
@@ -1512,8 +1512,8 @@ fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
     1
 }
 
-pub fn terminal_destroy(chan: &mut crate::channel::Channel) {
-    let term_id = chan.term;
+pub fn terminal_destroy(chan: &crate::channel::Channel) {
+    let term_id = chan.term.get();
     if term_id.is_null() {
         return;
     }
@@ -1542,7 +1542,7 @@ pub fn terminal_destroy(chan: &mut crate::channel::Channel) {
             unblock_autocmds();
         }
 
-        chan.term = TermId::NULL;
+        chan.term.set(TermId::NULL);
 
         let idx = (term_id.0 - 1) as usize;
         let removed_term = TERMINALS.with(|terms| terms.borrow_mut()[idx].take());
@@ -1567,7 +1567,7 @@ fn terminal_send(term_id: TermId, data: &[u8]) {
         Some(term.channel_mut())
     });
     if let Some(chan) = chan {
-        channel_term_write(data, chan);
+        channel_term_write(data, &chan);
     }
 }
 
@@ -2559,7 +2559,7 @@ fn refresh_size(term_id: TermId) -> bool {
         term.invalid_end = height;
         term.channel_mut()
     });
-    channel_term_resize(width as u16, height as u16, chan);
+    channel_term_resize(width as u16, height as u16, &chan);
     true
 }
 
@@ -2603,7 +2603,7 @@ fn adjust_scrollback(term: &mut Terminal, buf: &FileBuf) {
 
 fn refresh_scrollback(term_id: TermId, buf: &FileBuf) {
     let chan = with_term(term_id, |t| t.channel_mut());
-    channel_term_read_pause(true, chan);
+    channel_term_read_pause(true, &chan);
 
     let mut width: i32 = 0;
     let mut height: i32 = 0;
@@ -2655,7 +2655,7 @@ fn refresh_scrollback(term_id: TermId, buf: &FileBuf) {
     });
 
     let chan = with_term(term_id, |t| t.channel_mut());
-    channel_term_read_pause(false, chan);
+    channel_term_read_pause(false, &chan);
 }
 
 fn refresh_screen(term_id: TermId, buf: &FileBuf) {

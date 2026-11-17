@@ -26,8 +26,6 @@ pub type uv_timer_t = c_void;
 #[allow(non_camel_case_types)]
 pub type uv_async_t = c_void;
 #[allow(non_camel_case_types)]
-pub type uv_mutex_t = c_void;
-#[allow(non_camel_case_types)]
 pub type uv_connect_t = c_void;
 #[allow(non_camel_case_types)]
 pub type uv_fs_t = c_void;
@@ -187,11 +185,6 @@ unsafe extern "C" {
     pub fn uv_stop(loop_: *mut uv_loop_t);
     pub fn uv_update_time(loop_: *mut uv_loop_t);
     pub fn uv_walk(loop_: *mut uv_loop_t, walk_cb: uv_walk_cb, arg: *mut c_void);
-
-    pub fn uv_mutex_init(handle: *mut uv_mutex_t) -> i32;
-    pub fn uv_mutex_destroy(handle: *mut uv_mutex_t);
-    pub fn uv_mutex_lock(handle: *mut uv_mutex_t);
-    pub fn uv_mutex_unlock(handle: *mut uv_mutex_t);
 
     pub fn uv_async_init(
         loop_: *mut uv_loop_t,

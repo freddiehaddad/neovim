@@ -15,13 +15,13 @@ pub enum Event {
         signum: i32,
         is_tui: bool,
     },
-    RStreamRead(*mut crate::event::rstream::RStream),
+    RStreamRead(crate::event::rstream::ReadEvent),
     SocketConnection {
         watcher: *mut crate::event::socket::SocketWatcher,
         status: i32,
     },
-    ProcCloseHandles(*mut crate::event::proc::Proc),
-    ProcClose(*mut crate::event::proc::Proc),
+    ProcCloseHandles(crate::event::proc::Proc),
+    ProcClose(crate::event::proc::Proc),
     ProcExit(i32),
     AutoCmdDeferred(Box<crate::autocmd::AutoCmdEvent>),
     AutoCmdOptionSetModified {
@@ -30,7 +30,7 @@ pub enum Event {
     },
     AutoCmdVimResume,
     ChannelFree(u64),
-    ChannelFreeBox(Box<crate::channel::Channel>),
+    ChannelFreeOwned(Rc<crate::channel::Channel>),
     ChannelCallback(u64),
     ChannelTermDelayedFree(u64),
     ChannelSetInfo {
@@ -56,7 +56,7 @@ pub enum Event {
     MsgSemsgMultiline(CString),
     CursorHold,
     #[cfg(windows)]
-    PtyProcFinish(*mut crate::event::proc::Proc),
+    PtyProcFinish(crate::event::proc::Proc),
     ShellOutData {
         str_copy: Vec<u8>,
         fd: i32,
@@ -95,7 +95,7 @@ impl Event {
             }
             Self::LoopDeferred(event) => {
                 crate::event::r#loop::loop_deferred_event(
-                    crate::event::r#loop::main_loop_ptr(),
+                    crate::event::r#loop::main_loop(),
                     *event,
                 );
             }
@@ -109,16 +109,16 @@ impl Event {
                 crate::event::signal::signal_event(signum, is_tui);
             }
             Self::RStreamRead(stream) => {
-                crate::event::rstream::read_event(unsafe { &mut *stream });
+                crate::event::rstream::read_event(stream);
             }
             Self::SocketConnection { watcher, status } => {
                 crate::event::socket::connection_event(unsafe { &mut *watcher }, status);
             }
             Self::ProcCloseHandles(proc_) => {
-                crate::event::proc::proc_close_handles(unsafe { &mut *proc_ });
+                crate::event::proc::proc_close_handles(&proc_);
             }
             Self::ProcClose(proc_) => {
-                crate::event::proc::proc_close_event(unsafe { &mut *proc_ });
+                crate::event::proc::proc_close_event(&proc_);
             }
             Self::ProcExit(status) => crate::event::proc::exit_event(status),
             Self::AutoCmdDeferred(ev) => crate::autocmd::deferred_event(*ev),
@@ -127,26 +127,26 @@ impl Event {
             }
             Self::AutoCmdVimResume => crate::autocmd::vimresume_event(),
             Self::ChannelFree(chan_id) => crate::channel::free_channel_event(chan_id),
-            Self::ChannelFreeBox(boxed) => drop(boxed),
+            Self::ChannelFreeOwned(owned) => drop(owned),
             Self::ChannelCallback(chan_id) => {
                 if let Some(chan) = crate::msgpack_rpc::channel::find_channel_opt(chan_id) {
-                    crate::channel::on_channel_event(chan);
+                    crate::channel::on_channel_event(&chan);
                 }
             }
             Self::ChannelTermDelayedFree(chan_id) => {
                 if let Some(chan) = crate::msgpack_rpc::channel::find_channel_opt(chan_id) {
-                    crate::channel::term_delayed_free(chan);
+                    crate::channel::term_delayed_free(&chan);
                 }
             }
             Self::ChannelSetInfo { chan_id, event } => {
                 if let Some(chan) = crate::msgpack_rpc::channel::find_channel_opt(chan_id) {
-                    crate::channel::set_info_event(chan, event);
+                    crate::channel::set_info_event(&chan, event);
                 }
             }
             Self::RpcRequest(ev) => crate::msgpack_rpc::channel::request_event(*ev),
             Self::RpcInternalRead { chan_id, buffer } => {
                 if let Some(chan) = crate::msgpack_rpc::channel::find_channel_opt(chan_id) {
-                    crate::msgpack_rpc::channel::internal_read_event(chan, buffer);
+                    crate::msgpack_rpc::channel::internal_read_event(&chan, buffer);
                 }
             }
             Self::RpcClose(chan_id) => crate::msgpack_rpc::channel::rpc_close_event(chan_id),
@@ -164,7 +164,7 @@ impl Event {
             Self::CursorHold => crate::os::input::cursorhold_event(),
             #[cfg(windows)]
             Self::PtyProcFinish(proc_) => {
-                crate::os::pty_proc_win::pty_proc_finish(unsafe { &mut *proc_ });
+                crate::os::pty_proc_win::pty_proc_finish(&proc_);
             }
             Self::ShellOutData { str_copy, fd } => {
                 crate::os::shell::out_data_event(str_copy, fd);
@@ -264,7 +264,7 @@ fn multiqueue_new_inner(parent: MultiQueue, notify_main_loop: bool) -> MultiQueu
 }
 
 /// Create a new root (parentless) `MultiQueue` (`multiqueue_new`).
-pub fn multiqueue_new(notify_loop: Option<&mut crate::event::r#loop::Loop>) -> MultiQueue {
+pub fn multiqueue_new(notify_loop: Option<&crate::event::r#loop::Loop>) -> MultiQueue {
     multiqueue_new_inner(MultiQueue::NULL, notify_loop.is_some())
 }
 
@@ -374,7 +374,7 @@ pub fn multiqueue_get(this: MultiQueue) -> Event {
 /// Enqueue `event` into `this` (`multiqueue_put_event`).
 pub fn multiqueue_put_event(this: MultiQueue, event: Event) {
     if multiqueue_push(this, event) {
-        crate::event::r#loop::loop_on_put(crate::event::r#loop::main_loop_ptr());
+        crate::event::r#loop::loop_on_put(crate::event::r#loop::main_loop());
     }
 }
 

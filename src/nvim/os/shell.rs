@@ -9,7 +9,7 @@ use crate::charset::{ascii_iswhite, backslash_halve};
 use crate::errors::*;
 use crate::eval::vars::{VV_SHELL_ERROR, set_vim_var_nr};
 use crate::event::r#loop::{
-    NS_PER_SEC, loop_poll_events, loop_queues, main_loop_ptr, uv_err_name, uv_strerror,
+    NS_PER_SEC, loop_poll_events, loop_queues, main_loop, uv_err_name, uv_strerror,
 };
 use crate::event::multiqueue::{
     Event, multiqueue_empty, multiqueue_free, multiqueue_new_child, multiqueue_put_event,
@@ -799,24 +799,24 @@ fn do_os_system(
     let mut prog = [0u8; MAXPATHL];
     crate::memory::copy_bytes_to_c_buf(&mut prog, argv[0].as_bytes());
 
-    let mloop = main_loop_ptr();
+    let mloop = main_loop();
     let mut uvproc = LibuvProc::new();
     let proc_ = &mut uvproc.proc_;
-    proc_.r#type = K_PROC_TYPE_UV;
-    proc_.status = -1;
-    proc_.out.s.fd = STDOUT_FILENO;
-    proc_.err.s.fd = STDERR_FILENO;
+    proc_.r#type.set(K_PROC_TYPE_UV);
+    proc_.status.set(-1);
+    proc_.out.s.fd.set(STDOUT_FILENO);
+    proc_.err.s.fd.set(STDERR_FILENO);
 
-    let qc = loop_queues(&mut *mloop);
-    let events = multiqueue_new_child(qc.events);
-    proc_.events = events;
-    proc_.argv = argv;
-    proc_.interrupt = true; // Send CTRL-C as SIGINT to the child. #8678
+    let qc = loop_queues(mloop);
+    let events = multiqueue_new_child(qc.events.get());
+    proc_.events.set(events);
+    proc_.argv.set(argv);
+    proc_.interrupt.set(true); // Send CTRL-C as SIGINT to the child. #8678
 
     'end: {
         let status = proc_spawn(proc_, has_input, true, true);
         if status != 0 {
-            loop_poll_events(&mut *mloop, 0);
+            loop_poll_events(mloop, 0);
             if !silent {
                 msg_puts(gettext(c"\nshell failed to start: "));
                 msg_outtrans(uv_strerror(status), 0, false);
@@ -827,9 +827,9 @@ fn do_os_system(
             break 'end;
         }
 
-        let s_in = &mut proc_.r#in;
-        let r_out = &mut proc_.out;
-        let r_err = &mut proc_.err;
+        let s_in = &proc_.r#in;
+        let r_out = &proc_.out;
+        let r_err = &proc_.err;
         if has_input {
             wstream_init(s_in, 0);
         }
@@ -1019,8 +1019,8 @@ fn out_data_append_to_screen(output: &[u8], count: &mut usize, fd: i32, eof: boo
     str_copy.extend_from_slice(&output[..*count]);
     str_copy.push(0);
     if ui_has(K_UIMESSAGES) {
-        let qc = loop_queues(&mut *main_loop_ptr());
-        multiqueue_put_event(qc.fast_events, Event::ShellOutData { str_copy, fd });
+        let qc = loop_queues(main_loop());
+        multiqueue_put_event(qc.fast_events.get(), Event::ShellOutData { str_copy, fd });
     } else {
         out_data_event(str_copy, fd);
     }
@@ -1141,7 +1141,7 @@ fn write_output(output: &mut Vec<u8>, eof: bool) -> usize {
     base
 }
 
-pub(crate) fn shell_write_cb(stream: &mut Stream, status: i32) {
+pub(crate) fn shell_write_cb(stream: &Stream, status: i32) {
     if status != 0 {
         msg_schedule_semsg!(
             gettext(c"E5677: Error writing input to shell-command: %s"),

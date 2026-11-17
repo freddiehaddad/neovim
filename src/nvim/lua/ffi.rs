@@ -977,7 +977,7 @@ unsafe extern "C-unwind" fn luv_thread_cfcpcall_trampoline(
 pub fn luv_init_vim(
     lstate: *mut lua_State,
     is_thread: bool,
-    main_loop: &mut crate::event::r#loop::Loop,
+    main_loop: Option<&crate::event::r#loop::Loop>,
     fast_cb: extern "C-unwind" fn(*mut lua_State, i32, i32, i32) -> i32,
     thread_cb: extern "C-unwind" fn(*mut lua_State, i32, i32, i32) -> i32,
     thread_cb_cfpcall: extern "C-unwind" fn(*mut lua_State, i32, i32, i32) -> i32,
@@ -988,7 +988,7 @@ pub fn luv_init_vim(
             luv_set_thread(lstate, Some(thread_cb));
             luv_set_cthread(lstate, Some(luv_thread_cfcpcall_trampoline));
         } else {
-            luv_set_loop(lstate, std::ptr::from_mut(main_loop).cast());
+            luv_set_loop(lstate, main_loop.unwrap().uv_ptr());
             luv_set_callback(lstate, Some(fast_cb));
         }
         let _ = luaopen_luv(lstate);

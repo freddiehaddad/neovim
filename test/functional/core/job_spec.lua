@@ -777,6 +777,27 @@ describe('jobs', function()
     }, result)
   end)
 
+  it('retains short-lived PTY processes through completion', function()
+    eq(
+      8,
+      exec_lua(function(shell)
+        local exits = 0
+        for _ = 1, 8 do
+          local id = vim.fn.jobstart({ shell, 'EXIT', '7' }, {
+            pty = true,
+            on_exit = function(_, status)
+              assert(status == 7)
+              exits = exits + 1
+            end,
+          })
+          assert(id > 0)
+          assert(vim.fn.jobwait({ id }, 5000)[1] == 7)
+        end
+        return exits
+      end, testprg('shell-test'))
+    )
+  end)
+
   it('jobstart() works with partial functions', function()
     source([[
     function PrintArgs(a1, a2, id, data, event)

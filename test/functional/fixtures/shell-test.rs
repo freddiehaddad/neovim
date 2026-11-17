@@ -1,7 +1,7 @@
 //! Fake shell fixture for functional tests (`test/functional/fixtures/shell-test.c`).
 
 use std::env;
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, Read, Write};
 use std::process;
 use std::thread;
 use std::time::Duration;
@@ -44,6 +44,10 @@ fn help() {
     println!("    Like REP, but print as fast as possible and then exit immediately.");
     println!("  shell-test DRAIN N");
     println!("    Writes N numbered lines to both output streams and exits with status 17.");
+    println!("  shell-test CLIPBOARD_COPY PATH");
+    println!("    Stores stdin in PATH.");
+    println!("  shell-test CLIPBOARD_PASTE PATH");
+    println!("    Writes PATH to stdout.");
     println!("  shell-test INTERACT");
     println!("    Prints \"interact $ \" to stderr, and waits for \"exit\" input.");
     println!("  shell-test HOLD");
@@ -91,6 +95,18 @@ fn run(args: &[String]) -> i32 {
 
     if args.len() >= 2 {
         match args[1].as_str() {
+            "CLIPBOARD_COPY" => {
+                let Some(path) = args.get(2) else { return 4 };
+                let mut bytes = Vec::new();
+                io::stdin().read_to_end(&mut bytes).unwrap();
+                std::fs::write(path, bytes).unwrap();
+            }
+            "CLIPBOARD_PASTE" => {
+                let Some(path) = args.get(2) else { return 4 };
+                io::stdout()
+                    .write_all(&std::fs::read(path).unwrap())
+                    .unwrap();
+            }
             "-t" => {
                 if args.len() < 3 {
                     eprintln!("Missing prompt text for -t option");

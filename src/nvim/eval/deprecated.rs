@@ -162,9 +162,9 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
     match res {
         Err(err) => {
-            let mut name: Option<&std::ffi::CStr> = None;
+            let mut name: Option<std::ffi::CString> = None;
             if let Some(chan) = find_channel(chan_id) {
-                name = get_client_info(chan, c"name");
+                name = get_client_info(&chan, c"name");
             }
             if let Some(name) = name {
                 semsg_multiline!(
@@ -261,7 +261,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         rettv.vval.v_number_mut(),
     );
     if let Some(chan) = chan {
-        channel_create_event(chan);
+        channel_create_event(&chan);
     }
 }
 

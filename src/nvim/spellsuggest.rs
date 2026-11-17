@@ -3388,7 +3388,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        crate::main_init::ensure_test_editor_init();
+        let _editor = crate::main_init::test_editor();
 
         // Exact match, insertion, deletion, substitution, case-fold, and adjacent swap (cols[c_prev2])
         assert_eq!(spell_edit_score_map(None, b"hello", b"hello"), 0);

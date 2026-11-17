@@ -39,14 +39,14 @@ impl Default for TimeWatcher {
 }
 
 #[inline]
-pub fn loop_fast_events(loop_: &mut Loop) -> MultiQueue {
-    loop_.fast_events
+pub fn loop_fast_events(loop_: &Loop) -> MultiQueue {
+    loop_.fast_events.get()
 }
 
 pub struct WaitTimer(*mut TimeWatcher);
 
 impl WaitTimer {
-    pub fn start(loop_: &mut Loop, interval: u64) -> Self {
+    pub fn start(loop_: &Loop, interval: u64) -> Self {
         let tw = Box::into_raw(Box::new(TimeWatcher::new()));
         unsafe {
             time_watcher_init(loop_, &mut *tw, TimeWatcherData::WaitDummy);
@@ -63,9 +63,9 @@ impl WaitTimer {
     }
 }
 
-pub fn time_watcher_init(loop_: &mut Loop, watcher: &mut TimeWatcher, data: TimeWatcherData) {
+pub fn time_watcher_init(loop_: &Loop, watcher: &mut TimeWatcher, data: TimeWatcherData) {
     unsafe {
-        uv_timer_init((&raw mut loop_.uv).cast(), (&raw mut watcher.uv).cast());
+        uv_timer_init(loop_.uv_ptr(), (&raw mut watcher.uv).cast());
         *(&raw mut watcher.uv).cast::<*mut TimeWatcher>() = watcher;
         watcher.data = data;
         watcher.events = loop_fast_events(loop_);
@@ -165,11 +165,11 @@ impl UvRawTimer {
         }
     }
 
-    pub fn init(&mut self, loop_: &mut Loop) {
+    pub fn init(&mut self, loop_: &Loop) {
         let th: *mut uv_timer_t = (&raw mut self.handle).cast();
         let self_ptr: *mut Self = self;
         unsafe {
-            uv_timer_init((&raw mut *loop_).cast(), th);
+            uv_timer_init(loop_.uv_ptr(), th);
             *th.cast::<*mut Self>() = self_ptr;
         }
     }

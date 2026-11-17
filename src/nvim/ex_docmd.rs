@@ -9645,8 +9645,8 @@ fn ex_restart(eap: &mut Exarg) {
     }
 
     if let Some(chan) = crate::msgpack_rpc::channel::find_channel_opt(chan_id) {
-        proc_stop(&mut chan.uv.proc_);
-        if proc_wait(&mut chan.uv.proc_, -1, None) < 0 {
+        proc_stop(&chan.uv.proc_);
+        if proc_wait(&chan.uv.proc_, -1, None) < 0 {
             let _ = emsg(c"killing new nvim server failed");
         }
     }
@@ -10326,8 +10326,8 @@ fn ex_detach(eap: &mut Exarg) {
 
     if eap.forceit {
         if let Some(chan_ref) = find_channel(screen_state().current_ui.get()) {
-            chan_ref.detach = true;
-            channel_event(chan_ref, EVENT_CHANINFO);
+            chan_ref.detach.set(true);
+            channel_event(&chan_ref, EVENT_CHANINFO);
         }
         let _ = msg(
             gettext(c"Nvim will continue running if the UI disconnects"),
@@ -10444,7 +10444,7 @@ fn ex_connect(eap: &mut Exarg) {
             }
         }
         if !crate::event::socket::socket_alive(
-            crate::event::r#loop::main_loop_ptr(),
+            crate::event::r#loop::main_loop(),
             is_tcp,
             addr.as_cstr(),
             &mut error,
@@ -10460,7 +10460,7 @@ fn ex_connect(eap: &mut Exarg) {
         // remote-ssh: UI reconnects through same tunnel, relinked to `addr` (vim.net._ssh.relink()).
         if !is_tcp
             && let Some(chan_addr) =
-                find_channel(screen_state().current_ui.get()).and_then(|c| c.addr.clone())
+                find_channel(screen_state().current_ui.get()).and_then(|c| c.addr.get())
         {
             let mut argvars = [
                 TypVal {
@@ -11108,7 +11108,7 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
     }
 
     ui_flush();
-    let events = loop_queues(crate::event::r#loop::main_loop_ptr()).events;
+    let events = loop_queues(crate::event::r#loop::main_loop()).events.get();
     let timeout_ms = msec;
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
@@ -11117,7 +11117,7 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
         if !events.is_null() && !multiqueue_empty(events.borrow()) {
             multiqueue_process_events(events);
         } else {
-            loop_poll_events(crate::event::r#loop::main_loop_ptr(), remaining);
+            loop_poll_events(crate::event::r#loop::main_loop(), remaining);
         }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
@@ -13012,7 +13012,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        crate::main_init::ensure_test_editor_init();
+        let _editor = crate::main_init::test_editor();
         assert_eq!(cmd_exists(&b"editextra"[..4]), 2);
         assert_eq!(cmd_exists(b"editextra"), 0);
         assert!(do_cmdline_cmd(&b"let g:ut_ex_subslice = 4299"[..25]));

@@ -1217,7 +1217,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        crate::main_init::ensure_test_editor_init();
+        let _editor = crate::main_init::test_editor();
         let mut score = 0;
         let mut pos = [0u32; FUZZY_MATCH_MAX_LEN];
         assert!(fuzzy_match_slice(
@@ -1235,7 +1235,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        crate::main_init::ensure_test_editor_init();
+        let _editor = crate::main_init::test_editor();
 
         let candidates: Vec<String> = (0..400)
             .map(|i| format!("src/nvim/module_{i:03}/drawline_helper_{i}.rs"))
@@ -1300,7 +1300,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        crate::main_init::ensure_test_editor_init();
+        let _editor = crate::main_init::test_editor();
 
         let in_list = tv_list_alloc(2500);
         for i in 0..2500 {

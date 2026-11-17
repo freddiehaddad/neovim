@@ -114,9 +114,8 @@ pub fn remote_ui_disconnect(channel_id: u64, send_error_exit: bool) -> Result<()
         let send_srv = crate::eval::vars::get_vim_var_str(crate::eval::vars::VV_SEND_SERVER);
         let chan_opt = find_channel_opt(channel_id);
         // Client may reattach via this address.
-        let addr: &CStr = chan_opt
-            .and_then(|chan| chan.addr.as_deref())
-            .unwrap_or(send_srv.as_ref());
+        let address = chan_opt.and_then(|chan| chan.addr.get());
+        let addr = address.as_deref().unwrap_or(send_srv.as_ref());
         let mut args_items: [Object; 2] = [integer_obj(0), cstr_as_obj(Some(addr))];
         let args = Array::from_slice(&mut args_items[..2]);
         let mut ui = ui_rc.borrow_mut();
@@ -126,7 +125,7 @@ pub fn remote_ui_disconnect(channel_id: u64, send_error_exit: bool) -> Result<()
     CONNECTED_UIS.with(|cell| cell.borrow_mut().remove(&channel_id));
     ui_detach_impl(&ui_rc, channel_id);
     if let Some(chan) = find_channel_opt(channel_id) {
-        chan.rpc.has_ui = false;
+        chan.rpc.has_ui.set(false);
     }
     Ok(())
 }
@@ -143,7 +142,7 @@ pub fn ui_detach_channel(chan: u64) -> Result<(), Error> {
     };
     #[cfg(windows)]
     let detach_stdio = c.streamtype == K_CHANNEL_STREAM_STDIO;
-    c.detach = true;
+    c.detach.set(true);
     remote_ui_disconnect(chan, true)?;
     channel_close(chan, K_CHANNEL_PART_ALL, None);
     #[cfg(windows)]
@@ -187,11 +186,11 @@ pub fn remote_ui_free_all_mem() {
 // DLLEXPORT void remote_ui_wait_for_attach(void);
 pub fn remote_ui_wait_for_attach() {
     while ui_active() == 0 {
-        let events = loop_queues(crate::event::r#loop::main_loop_ptr()).events;
+        let events = loop_queues(crate::event::r#loop::main_loop()).events.get();
         if !multiqueue_empty(events.borrow()) {
             multiqueue_process_events(events);
         } else {
-            loop_poll_events(crate::event::r#loop::main_loop_ptr(), -1);
+            loop_poll_events(crate::event::r#loop::main_loop(), -1);
 
             multiqueue_process_events(events);
         }
@@ -298,7 +297,7 @@ pub fn nvim_ui_attach(
     ui_attach_impl(&ui_rc, channel_id);
 
     if let Some(chan) = find_channel_opt(channel_id) {
-        chan.rpc.has_ui = true;
+        chan.rpc.has_ui.set(true);
     }
 
     may_trigger_vim_suspend_resume(false);
@@ -373,12 +372,13 @@ pub fn remote_ui_restart(listen_addr: NvimString, reuse_addr: bool) {
     for ui_rc in ui_rcs {
         let mut ui = ui_rc.borrow_mut();
         let chan = find_channel_opt(ui.channel_id).unwrap();
-        let addr = chan.addr.as_deref();
+        let address = chan.addr.get();
+        let addr = address.as_deref();
         let mut cfg_items: [KeyValuePair; 2] = [const { KeyValuePair::new() }; 2];
         let mut chan_config = Dict::from_buf(&mut cfg_items);
         *chan_config.next_slot_mut() = KeyValuePair {
             key: cstr_as_string(Some(c"detach")),
-            value: boolean_obj(chan.detach),
+            value: boolean_obj(chan.detach.get()),
         };
         chan_config.size += 1;
         if let Some(addr_cstr) = addr {

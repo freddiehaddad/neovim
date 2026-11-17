@@ -6,7 +6,7 @@ use crate::autocmd::{
     EVENT_CURSORHOLD, EVENT_CURSORHOLDI, PROF_YES, apply_autocmds, trigger_cursorhold,
 };
 use crate::eval::vars::{VV_USERACTIVE, set_vim_var_nr};
-use crate::event::r#loop::{loop_poll_events, main_loop_events, main_loop_ptr};
+use crate::event::r#loop::{loop_poll_events, main_loop, main_loop_events};
 use crate::event::multiqueue::{
     Event, MultiQueue, multiqueue_empty, multiqueue_process_events, multiqueue_put_event,
 };
@@ -299,7 +299,7 @@ pub fn os_breakcheck() {
         return;
     }
 
-    loop_poll_events(&mut *main_loop_ptr(), 0);
+    loop_poll_events(main_loop(), 0);
 }
 
 /// Check for CTRL-C pressed, but only once in a while.
@@ -629,7 +629,7 @@ fn inbuf_poll(ms: i32, events_opt: Option<MultiQueue>) -> bool {
 
     if ms == 0 {
         osi_st(|st| st.polling.set(PollState::Input));
-        loop_poll_events(&mut *main_loop_ptr(), 0);
+        loop_poll_events(main_loop(), 0);
         osi_st(|st| st.polling.set(PollState::None));
         return os_input_ready(events_opt);
     }
@@ -658,7 +658,7 @@ fn inbuf_poll(ms: i32, events_opt: Option<MultiQueue>) -> bool {
     while !(os_input_ready(events_opt) || input_state().got_int.get() || input_unanswerable())
         && !expired
     {
-        loop_poll_events(&mut *main_loop_ptr(), remaining);
+        loop_poll_events(main_loop(), remaining);
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
             expired = remaining <= 0;

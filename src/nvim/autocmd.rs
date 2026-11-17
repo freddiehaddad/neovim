@@ -1623,7 +1623,7 @@ fn event_name2nr_hash(s: &[u8]) -> Option<usize> {
 }
 
 pub fn autocmd_init() {
-    let events = loop_queues(crate::event::r#loop::main_loop_ptr()).events;
+    let events = loop_queues(crate::event::r#loop::main_loop()).events.get();
     AU_STATE.with(|s| s.deferred_events.set(multiqueue_new_child(events)));
 }
 
@@ -4096,7 +4096,7 @@ pub fn may_trigger_vim_suspend_resume(suspend: bool) {
         AU_STATE.with(|s| s.pending_vimresume.set(K_TRUE));
     } else if !suspend && AU_STATE.with(|s| s.pending_vimresume.get()) == K_TRUE {
         AU_STATE.with(|s| s.pending_vimresume.set(K_NONE));
-        let events = loop_queues(crate::event::r#loop::main_loop_ptr()).events;
+        let events = loop_queues(crate::event::r#loop::main_loop()).events.get();
         multiqueue_put_event(events, Event::AutoCmdVimResume);
     }
 }

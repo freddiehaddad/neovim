@@ -86,7 +86,7 @@ pub struct TermInput {
 }
 
 impl TermInput {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             in_fd: 0,
             paste: 0,
@@ -203,7 +203,7 @@ const fn kitty_key_name(key: i32) -> Option<&'static str> {
     }
 }
 
-pub fn tinput_init(input: &mut TermInput, loop_: &mut Loop, ti: &TerminfoEntry) {
+pub fn tinput_init(input: &mut TermInput, loop_: &Loop, ti: &TerminfoEntry) {
     assert!(!input.has_loop);
     input.has_loop = true;
 
@@ -214,7 +214,7 @@ pub fn tinput_init(input: &mut TermInput, loop_: &mut Loop, ti: &TerminfoEntry) 
         input.ttimeoutlen = opt_vars().p_ttm.get();
     }
 
-    rstream_init_fd(loop_, &mut input.read_stream, input.in_fd);
+    rstream_init_fd(loop_, &input.read_stream, input.in_fd);
 
     input.tk = termkey_new_abstract(
         Some(ti),
@@ -235,17 +235,17 @@ pub fn tinput_init(input: &mut TermInput, loop_: &mut Loop, ti: &TerminfoEntry) 
 pub fn tinput_destroy(input: &mut TermInput) {
     input.timer_handle.close();
     input.bg_query_timer.close();
-    rstream_may_close(&mut input.read_stream);
+    rstream_may_close(&input.read_stream);
     input.tk = None;
     input.has_loop = false;
 }
 
 pub fn tinput_start(input: &mut TermInput) {
-    rstream_start(&mut input.read_stream, StreamCbData::Input);
+    rstream_start(&input.read_stream, StreamCbData::Input);
 }
 
 pub fn tinput_stop(input: &mut TermInput) {
-    rstream_stop(&mut input.read_stream);
+    rstream_stop(&input.read_stream);
     input.timer_handle.stop();
     input.bg_query_timer.stop();
 }
@@ -498,11 +498,11 @@ fn tk_getkeys(tui: &mut TUIData, force: bool) {
 
 fn tinput_timer_cb() {
     crate::ui_client::with_tui_mut(|tui| {
-        let size = rstream_available(&mut tui.input.read_stream);
+        let size = rstream_available(&tui.input.read_stream);
         if size != 0 {
-            let bytes = tui.input.read_stream.read_slice().to_vec();
+            let bytes = tui.input.read_stream.read_snapshot();
             let consumed = handle_raw_buffer(tui, true, &bytes);
-            rstream_consume(&mut tui.input.read_stream, consumed);
+            rstream_consume(&tui.input.read_stream, consumed);
         }
         tk_getkeys(tui, true);
         tinput_flush(&mut tui.input);
@@ -800,7 +800,7 @@ pub(crate) fn tinput_read_cb(bytes: &[u8], tui: &mut TUIData, eof: bool) -> usiz
     tinput_flush(&mut tui.input);
 
     if eof {
-        loop_schedule_fast(crate::event::r#loop::main_loop_ptr(), Event::TInputDone);
+        loop_schedule_fast(crate::event::r#loop::main_loop(), Event::TInputDone);
         return consumed;
     }
 

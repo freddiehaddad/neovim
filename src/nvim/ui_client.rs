@@ -129,7 +129,7 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
     let Some(channel) = channel else {
         return 0;
     };
-    channel.trust = false;
+    channel.trust.set(false);
 
     if screen_state().ui_client_forward_stdin.get() {
         close(0);
@@ -325,7 +325,7 @@ pub fn ui_client_run(server_addr: Option<&CStr>) -> ! {
         if !multiqueue_empty(events) {
             multiqueue_process_events(events);
         } else {
-            loop_poll_events(crate::event::r#loop::main_loop_ptr(), -1);
+            loop_poll_events(crate::event::r#loop::main_loop(), -1);
             multiqueue_process_events(crate::event::r#loop::main_loop_events());
         }
     }
@@ -448,7 +448,7 @@ pub fn ui_client_event_grid_line(_args: Array) {
     std::process::abort()
 }
 
-pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
+pub fn ui_client_event_raw_line(g: &GridLineEvent) {
     let grid = g.args[0];
     let row = g.args[1];
     let startcol = g.args[2];
@@ -500,7 +500,9 @@ pub fn ui_client_event_connect(args: Array) {
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();
     multiqueue_put_event(
-        loop_queues(crate::event::r#loop::main_loop_ptr()).fast_events,
+        loop_queues(crate::event::r#loop::main_loop())
+            .fast_events
+            .get(),
         Event::UiClientConnect(server_addr),
     );
     screen_state().ui_client_channel_id.set(u64::MAX);

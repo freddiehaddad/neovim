@@ -31,9 +31,9 @@ impl Default for SignalWatcher {
     }
 }
 
-pub fn signal_watcher_init(loop_: &mut Loop, watcher: &mut SignalWatcher) {
+pub fn signal_watcher_init(loop_: &Loop, watcher: &mut SignalWatcher) {
     unsafe {
-        uv_signal_init((&raw mut loop_.uv).cast(), (&raw mut watcher.uv).cast());
+        uv_signal_init(loop_.uv_ptr(), (&raw mut watcher.uv).cast());
         *(&raw mut watcher.uv).cast::<*mut SignalWatcher>() = watcher;
         watcher.is_tui = false;
         watcher.events = loop_fast_events(loop_);

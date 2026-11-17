@@ -5,11 +5,15 @@ use crate::event::r#loop::{
     uv_loop_init, uv_loop_t, uv_pipe_init, uv_pipe_open, uv_run,
 };
 #[cfg(windows)]
-use crate::event::r#loop::{uv_handle_size, uv_tty_init, uv_tty_set_mode};
+use crate::event::r#loop::{uv_handle_get_type, uv_handle_size, uv_tty_init, uv_tty_set_mode};
 use crate::event::multiqueue::MultiQueue;
+use crate::event::owned::CallbackHandle;
+use crate::event::read_buffer::ReadBuffer;
 use crate::globals::exc_state;
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, logmsg, min_log_level};
+use std::cell::{Cell, RefCell};
 use std::ffi::c_void;
+use std::rc::Rc;
 
 pub const UV_NAMED_PIPE: i32 = 7;
 #[cfg(windows)]
@@ -59,15 +63,17 @@ impl StreamCbData {
             Self::None => None,
             Self::ChannelData(chan_id) => {
                 let chan = crate::msgpack_rpc::channel::find_channel_opt(chan_id)?;
-                Some(crate::channel::on_channel_data(buf, chan, eof))
+                Some(crate::channel::on_channel_data(buf, &chan, eof))
             }
             Self::ChannelStderr(chan_id) => {
                 let chan = crate::msgpack_rpc::channel::find_channel_opt(chan_id)?;
-                Some(crate::channel::on_job_stderr(buf, chan, eof))
+                Some(crate::channel::on_job_stderr(buf, &chan, eof))
             }
             Self::ChannelRpc(chan_id) => {
                 let chan = crate::msgpack_rpc::channel::find_channel_opt(chan_id)?;
-                Some(crate::msgpack_rpc::channel::receive_msgpack(buf, chan, eof))
+                Some(crate::msgpack_rpc::channel::receive_msgpack(
+                    buf, &chan, eof,
+                ))
             }
             Self::ShellBuf => Some(crate::os::shell::system_data_cb(buf, eof)),
             Self::ShellOut => Some(crate::os::shell::out_data_cb(stream_fd, buf, eof)),
@@ -78,12 +84,13 @@ impl StreamCbData {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Default)]
 pub enum StreamInternalData {
+    #[default]
     None,
     Channel(u64),
-    Proc(*mut crate::event::proc::Proc),
-    Closed(*mut bool),
+    Proc(crate::event::proc::Proc),
+    Closed(Rc<Cell<bool>>),
 }
 
 impl StreamInternalData {
@@ -91,63 +98,105 @@ impl StreamInternalData {
 
     #[cfg(windows)]
     #[inline]
-    pub fn as_proc(self) -> &'static mut crate::event::proc::Proc {
+    pub fn as_proc(&self) -> crate::event::proc::Proc {
         match self {
-            Self::Proc(p) => unsafe { &mut *p },
+            Self::Proc(p) => p.clone(),
             _ => unreachable!(),
         }
     }
 }
 
-#[repr(C, align(8))]
-pub struct UvStreamHandle(pub [u8; 640]);
+#[cfg(test)]
+pub type UvStreamHandle = crate::event::owned::RawHandle<80>;
 
-#[repr(C)]
-pub struct Stream {
-    pub closed: bool,
-    pub uv: UvStreamHandle,
-    pub has_uvstream: bool,
-    pub fd: i32,
-    pub fpos: i64,
-    pub cb_data: StreamCbData,
-    pub is_rstream: bool,
+#[derive(Clone)]
+pub struct Stream(Rc<StreamState>);
+
+pub struct StreamState {
+    pub closed: Cell<bool>,
+    pub uv: CallbackHandle<StreamState, 80>,
+    pub has_uvstream: Cell<bool>,
+    pub fd: Cell<i32>,
+    pub fpos: Cell<i64>,
+    pub cb_data: Cell<StreamCbData>,
+    pub is_rstream: Cell<bool>,
     #[cfg(windows)]
-    pub close_console: bool,
-    pub internal_data: StreamInternalData,
-    pub pending_reqs: usize,
-    pub events: MultiQueue,
-    pub notify_write: bool,
-    pub curmem: usize,
-    pub maxmem: usize,
+    pub close_console: Cell<bool>,
+    pub internal_data: crate::globals::CloneCell<StreamInternalData>,
+    pub pending_reqs: Cell<usize>,
+    pub events: Cell<MultiQueue>,
+    pub notify_write: Cell<bool>,
+    pub curmem: Cell<usize>,
+    pub maxmem: Cell<usize>,
+    pub did_eof: Cell<bool>,
+    pub want_read: Cell<bool>,
+    pub pending_read: Cell<bool>,
+    pub paused_full: Cell<bool>,
+    pub num_bytes: Cell<usize>,
+    read_buffer: RefCell<ReadBuffer>,
+}
+
+impl std::ops::Deref for Stream {
+    type Target = StreamState;
+
+    fn deref(&self) -> &StreamState {
+        &self.0
+    }
 }
 
 impl Stream {
-    pub const fn new() -> Self {
-        Self {
-            closed: false,
-            uv: UvStreamHandle([0; 640]),
-            has_uvstream: false,
-            fd: -1,
-            fpos: 0,
-            cb_data: StreamCbData::NONE,
-            is_rstream: false,
+    pub fn new() -> Self {
+        Self(Rc::new(StreamState {
+            closed: Cell::new(false),
+            uv: CallbackHandle::new(),
+            has_uvstream: Cell::new(false),
+            fd: Cell::new(-1),
+            fpos: Cell::new(0),
+            cb_data: Cell::new(StreamCbData::NONE),
+            is_rstream: Cell::new(false),
             #[cfg(windows)]
-            close_console: false,
-            internal_data: StreamInternalData::NONE,
-            pending_reqs: 0,
-            events: MultiQueue::NULL,
-            notify_write: false,
-            curmem: 0,
-            maxmem: 0,
-        }
+            close_console: Cell::new(false),
+            internal_data: crate::globals::CloneCell::new(StreamInternalData::NONE),
+            pending_reqs: Cell::new(0),
+            events: Cell::new(MultiQueue::NULL),
+            notify_write: Cell::new(false),
+            curmem: Cell::new(0),
+            maxmem: Cell::new(0),
+            did_eof: Cell::new(false),
+            want_read: Cell::new(false),
+            pending_read: Cell::new(false),
+            paused_full: Cell::new(false),
+            num_bytes: Cell::new(0),
+            read_buffer: RefCell::new(ReadBuffer::default()),
+        }))
     }
 
     #[inline]
-    pub fn uvstream_mut(&mut self) -> Option<&mut uv_stream_t> {
-        if self.has_uvstream {
-            Some(unsafe { &mut *(&raw mut self.uv).cast() })
+    pub fn uvstream(&self) -> Option<*mut uv_stream_t> {
+        if self.has_uvstream.get() {
+            Some(self.uv.as_ptr())
         } else {
             None
+        }
+    }
+
+    pub(super) unsafe fn from_callback(handle: *mut c_void) -> Self {
+        Self(unsafe { CallbackHandle::<StreamState, 80>::callback_owner(handle) })
+    }
+
+    pub(super) fn with_read<R>(&self, f: impl FnOnce(&ReadBuffer) -> R) -> R {
+        f(&self.read_buffer.borrow())
+    }
+
+    pub(super) fn with_read_mut<R>(&self, f: impl FnOnce(&mut ReadBuffer) -> R) -> R {
+        f(&mut self.read_buffer.borrow_mut())
+    }
+
+    pub fn finish_request(&self) {
+        self.pending_reqs
+            .set(self.pending_reqs.get().checked_sub(1).unwrap());
+        if self.closed.get() && self.pending_reqs.get() == 0 {
+            stream_close_handle(self);
         }
     }
 }
@@ -174,25 +223,30 @@ pub fn stream_set_blocking(fd: i32, blocking: bool) -> i32 {
     }
 }
 
-pub fn stream_init(loop_: Option<&mut Loop>, stream: &mut Stream, fd: i32, has_uvstream: bool) {
+/// With no loop, the caller must have initialized the native handle first.
+pub(super) unsafe fn stream_init(
+    loop_: Option<&Loop>,
+    stream: &Stream,
+    fd: i32,
+    has_uvstream: bool,
+) {
+    assert!(stream.uv.can_initialize());
+    assert_eq!(stream.pending_reqs.get(), 0);
     assert!(if !has_uvstream {
         fd >= 0 && loop_.is_some()
     } else {
         fd < 0 && loop_.is_none()
     });
-    let uv_ptr: *mut c_void = (&raw mut stream.uv).cast();
-    stream.has_uvstream = has_uvstream;
+    let uv_ptr = stream.uv.as_ptr();
+    stream.has_uvstream.set(has_uvstream);
 
     if fd >= 0 {
-        let loop_ptr: *mut uv_loop_t = (&raw mut loop_.unwrap().uv).cast();
+        let loop_ptr = loop_.unwrap().uv_ptr();
         let h_type = unsafe { uv_guess_handle(fd) };
-        stream.fd = fd;
+        stream.fd.set(fd);
 
         if h_type == UV_FILE {
             unsafe { uv_idle_init(loop_ptr, uv_ptr.cast()) };
-            unsafe {
-                *uv_ptr.cast::<*mut Stream>() = stream;
-            }
         } else {
             #[cfg(windows)]
             if h_type == UV_TTY {
@@ -209,12 +263,12 @@ pub fn stream_init(loop_: Option<&mut Loop>, stream: &mut Stream, fd: i32, has_u
                     dw_mode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
                     unsafe { SetConsoleMode(tty_handle, dw_mode) };
                 }
-                stream.has_uvstream = true;
+                stream.has_uvstream.set(true);
             } else {
                 assert!(h_type == UV_NAMED_PIPE || h_type == UV_TTY);
                 unsafe { uv_pipe_init(loop_ptr, uv_ptr.cast(), 0) };
                 unsafe { uv_pipe_open(uv_ptr.cast(), fd) };
-                stream.has_uvstream = true;
+                stream.has_uvstream.set(true);
             }
 
             #[cfg(not(windows))]
@@ -222,30 +276,26 @@ pub fn stream_init(loop_: Option<&mut Loop>, stream: &mut Stream, fd: i32, has_u
                 assert!(h_type == UV_NAMED_PIPE || h_type == UV_TTY);
                 unsafe { uv_pipe_init(loop_ptr, uv_ptr.cast(), 0) };
                 unsafe { uv_pipe_open(uv_ptr.cast(), fd) };
-                stream.has_uvstream = true;
+                stream.has_uvstream.set(true);
             }
         }
     }
 
-    if stream.has_uvstream {
-        unsafe {
-            *(&raw mut stream.uv).cast::<*mut Stream>() = stream;
-        }
-    }
-
-    stream.fpos = 0;
-    stream.internal_data = StreamInternalData::NONE;
-    stream.curmem = 0;
-    stream.maxmem = 0;
-    stream.pending_reqs = 0;
-    stream.notify_write = false;
-    stream.is_rstream = false;
-    stream.closed = false;
-    stream.events = MultiQueue::NULL;
+    unsafe { stream.uv.register(stream.0.clone()) };
+    crate::event::r#loop::main_loop().register_handle(uv_ptr, close_registered);
+    stream.fpos.set(0);
+    stream.internal_data.set(StreamInternalData::NONE);
+    stream.curmem.set(0);
+    stream.maxmem.set(0);
+    stream.pending_reqs.set(0);
+    stream.notify_write.set(false);
+    stream.is_rstream.set(false);
+    stream.closed.set(false);
+    stream.events.set(MultiQueue::NULL);
 }
 
-pub fn stream_may_close(stream: &mut Stream) {
-    if stream.closed {
+pub fn stream_may_close(stream: &Stream) {
+    if stream.closed.replace(true) {
         return;
     }
     if min_log_level() <= LOGLVL_DBG {
@@ -259,23 +309,30 @@ pub fn stream_may_close(stream: &mut Stream) {
             std::ptr::from_ref(stream).addr(),
         );
     }
-    stream.closed = true;
-
     #[cfg(windows)]
     unsafe {
-        if uv_guess_handle(stream.fd) == UV_TTY {
-            uv_tty_set_mode((&raw mut stream.uv).cast(), UV_TTY_MODE_NORMAL);
+        if stream.uv.is_active() && uv_handle_get_type(stream.uv.as_ptr()) == UV_TTY {
+            if stream.is_rstream.get() {
+                stream.want_read.set(false);
+                // Changing TTY mode restarts reading unless it is stopped first.
+                // A normal-mode worker must not lease a new buffer during close.
+                crate::event::r#loop::uv_read_stop(stream.uv.as_ptr());
+            }
+            uv_tty_set_mode(stream.uv.as_ptr(), UV_TTY_MODE_NORMAL);
         }
     }
 
-    if stream.pending_reqs == 0 {
+    if stream.pending_reqs.get() == 0 {
         stream_close_handle(stream);
     }
 }
 
-pub fn stream_close_handle(stream: &mut Stream) {
-    let handle: *mut uv_handle_t = if stream.has_uvstream {
-        let uv_s: *mut uv_stream_t = (&raw mut stream.uv).cast();
+pub fn stream_close_handle(stream: &Stream) {
+    if !stream.uv.is_active() {
+        return;
+    }
+    let handle: *mut uv_handle_t = if stream.has_uvstream.get() {
+        let uv_s: *mut uv_stream_t = stream.uv.as_ptr();
         let queued = unsafe { uv_stream_get_write_queue_size(uv_s) };
         if !exc_state().exiting.get() && queued > 0 {
             logmsg!(
@@ -291,44 +348,46 @@ pub fn stream_close_handle(stream: &mut Stream) {
         }
         uv_s.cast()
     } else {
-        (&raw mut stream.uv).cast()
+        stream.uv.as_ptr()
     };
 
     assert!(!handle.is_null());
 
     #[cfg(windows)]
-    if stream.close_console {
-        stream.pending_reqs += 1;
+    if stream.close_console.get() {
+        stream.pending_reqs.set(stream.pending_reqs.get() + 1);
         crate::os::pty_proc_win::pty_proc_close_console(stream);
-        stream.pending_reqs -= 1;
+        stream.pending_reqs.set(stream.pending_reqs.get() - 1);
     }
-    if unsafe { uv_is_closing(handle) } == 0 {
+    if stream.uv.begin_close() {
+        unsafe { uv_close(handle, Some(close_cb)) };
+    }
+}
+
+unsafe fn close_registered(handle: *mut c_void) {
+    let stream = unsafe { Stream::from_callback(handle) };
+    stream.closed.set(true);
+    if stream.uv.begin_close() {
         unsafe { uv_close(handle, Some(close_cb)) };
     }
 }
 
 unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
-    unsafe {
-        let stream = *handle.cast::<*mut Stream>();
-        if !stream.is_null() {
-            if (*stream).is_rstream {
-                crate::event::rstream::rstream_close_cb(&mut *stream);
-            }
-            let internal_data = (*stream).internal_data;
-            match internal_data {
-                StreamInternalData::None => {}
-                StreamInternalData::Channel(chan_id) => {
-                    if let Some(chan) = crate::msgpack_rpc::channel::find_channel_opt(chan_id) {
-                        crate::channel::channel_decref(chan);
-                    }
-                }
-                StreamInternalData::Proc(proc_) => {
-                    crate::event::proc::proc_decref(&mut *proc_);
-                }
-                StreamInternalData::Closed(closed_ptr) => *closed_ptr = true,
+    let stream = unsafe { Stream::from_callback(handle) };
+    let buffer = stream.with_read_mut(std::mem::take);
+    drop(buffer);
+    match stream.internal_data.take() {
+        StreamInternalData::None => {}
+        StreamInternalData::Channel(chan_id) => {
+            if let Some(chan) = crate::msgpack_rpc::channel::find_channel_opt(chan_id) {
+                crate::channel::channel_decref(&chan);
             }
         }
+        StreamInternalData::Proc(proc_) => crate::event::proc::proc_decref(&proc_),
+        StreamInternalData::Closed(closed) => closed.set(true),
     }
+    crate::event::r#loop::main_loop().unregister_handle(handle);
+    drop(unsafe { stream.uv.finish_close() });
 }
 
 #[repr(C)]
@@ -429,7 +488,7 @@ impl Default for UvSyncOutput {
     }
 }
 
-pub fn stream_get_stty_erase(in_fd: i32, stream: &mut Stream) -> Option<u8> {
+pub fn stream_get_stty_erase(in_fd: i32, stream: &Stream) -> Option<u8> {
     #[cfg(unix)]
     {
         let _ = stream;
@@ -443,7 +502,7 @@ pub fn stream_get_stty_erase(in_fd: i32, stream: &mut Stream) -> Option<u8> {
     #[cfg(windows)]
     {
         let _ = in_fd;
-        let uv_ptr = &raw mut stream.uv;
+        let uv_ptr = stream.uv.as_ptr();
         let mut dw_mode: u32 = 0;
         if unsafe { crate::event::r#loop::uv_handle_get_type(uv_ptr.cast()) } == UV_TTY {
             let tty_handle = unsafe {
