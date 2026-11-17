@@ -1060,8 +1060,13 @@ end
 ---
 --- @param name (string) Name of the test program.
 function M.testprg(name)
+  if name == 'nvim' then
+    return M.nvim_prog
+  end
   local ext = is_os('win') and '.exe' or ''
-  return ('%s/%s%s'):format(M.nvim_dir, name, ext)
+  local build_dir = os.getenv('NVIM_TEST_BUILD_DIR')
+  local fixture_dir = build_dir and vim.fs.joinpath(build_dir, 'bin') or M.nvim_dir
+  return ('%s/%s%s'):format(fixture_dir, name, ext)
 end
 
 --- Returns a valid, platform-independent Nvim listen address.
