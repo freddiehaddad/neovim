@@ -26,19 +26,20 @@ Ensure the `upstream` remote points to `https://github.com/neovim/neovim.git`:
 ```bash
 git remote add upstream https://github.com/neovim/neovim.git 2>/dev/null || true
 git fetch upstream master
-git log --oneline 54eac81f8f..upstream/master
+git log --oneline 4fb996ce73..upstream/master
 ```
 
 ### 2. Mapping upstream files to this repository
 
-Because the codebase was ported module-for-module and function-for-function, upstream changes map 1:1:
+Module responsibilities generally follow upstream. Internal ownership and layouts intentionally differ; port behavior, not C pointer lifetimes or struct layouts:
 
 | Upstream path (`neovim/neovim`) | Path in this repository | How to port |
 |---|---|---|
 | `src/nvim/<path>.c`, `src/nvim/<path>.h`, `src/nvim/<path>_defs.h` | `src/nvim/<path>.rs` | Locate the matching function/struct by name in `src/nvim/<path>.rs` and port the logic to idiomatic Rust. |
 | `src/nvim/memline.c`, `src/nvim/memline_defs.h` | `src/nvim/memline.rs` | In-memory buffer lines live in `Memline::ml_chunks` (`Vec<LineChunk>`, 400–800 `Send + Sync` `LineEntry`s per chunk with `start_lnum`, `totalsize`, and cached `swap_blocks`); 4KB `PointerBlock`/`DataBlock` pages are serialized on demand in `ml_sync_swap_blocks` during `.swp` sync/preserve and read during `ml_recover`. |
 | `src/nvim/regexp.c`, `src/nvim/regexp_nfa.c`, `src/nvim/regexp_bt.c` | `src/nvim/regexp.rs`, `src/nvim/regexp_nfa.rs`, `src/nvim/regexp_bt.rs` | Compiled `NfaRegprog` and `BtRegprog` are immutable (`Send + Sync`); per-run NFA execution lists (`lastlist_buf`, `rec_listbuf`) live in thread-local `RegexpNfaState` so pure single-line searches (`ml_try_mark_global_lines`, `ml_try_vimgrep_lines`) can run across worker threads via `std::thread::scope`. |
-| `src/nvim/globals.h` | `src/nvim/globals.rs` (`EditorState` subsystems) or module `thread_local!` | Single-module globals live in their owning module's `thread_local!` state; cross-module globals live in one of the 9 `EditorState` domain subsystems (see table below). |
+| `src/nvim/globals.h` | `src/nvim/globals.rs` (domain subsystems) or module `thread_local!` | Single-module globals live in their owning module's `thread_local!` state; cross-module globals live in one of the 9 decentralized domain subsystems (see table below). |
+| `src/nvim/event/**`, process/channel code | `src/nvim/event/`, `src/nvim/channel.rs`, `src/nvim/msgpack_rpc/channel.rs` | Use shared `Proc`/`Stream` handles, `Rc<Channel>` lookup, and shared main-thread loop access. Preserve logical reference counts and event timing separately from Rust allocation lifetimes. Native callback registrations retain storage until their close callbacks finish. |
 | `src/nvim/version.c` (`patches_*` arrays) | `src/nvim/version.rs` (`PATCHES_*` slices & `NUM_PATCHES`) | Add newly merged Vim patch numbers to the matching `PATCHES_*` slice and increment `NUM_PATCHES`. |
 | `cmake.deps/deps.txt` | `deps.txt` | Update the corresponding `*_URL` and `*_SHA256` entries in `deps.txt`. |
 | `runtime/**` | `runtime/**` | Apply changes directly (`git show <sha> -- runtime/`). |
@@ -67,14 +68,35 @@ Cross-module state from upstream `src/nvim/globals.h` is partitioned into 9 dece
 After porting upstream commits:
 
 1. Run `cargo xtask lintrust` (`cargo clippy --workspace --all-targets -- -D warnings`).
-2. Run `cargo test` to verify all Rust unit tests pass.
+2. Run `cargo xtask unittest` to verify the Rust library unit tests pass.
 3. Run the affected functional and legacy tests:
    ```bash
-   cargo xtask functionaltest <path/to/spec.lua>
-   cargo xtask oldtest <test_name>
+   cargo xtask functionaltest --release <path/to/spec.lua>
+   cargo xtask oldtest --release <test_name>
    ```
 4. If `:help` documentation was modified, run `cargo xtask lintdoc`.
 5. Update the **Last synced upstream commit** SHA in this section of `MAINTAIN.md` and commit.
+
+### Event-boundary changes
+
+Do not translate upstream raw pointers into long-lived Rust mutable references when callbacks can access the same object. The process, stream, channel, and loop interfaces deliberately use shared owners and interior mutability. Parser and reader state must be released before dispatch; queued work owns its payload and the storage it needs.
+
+`CallbackHandle` registrations have distinct initialization, active, closing, and closed states. Never free native storage at the `uv_close` call: release its retained owner in the close callback. Failure and cancellation paths need the same treatment. The cross-thread inbox accepts only owned, thread-safe messages and serializes notification with shutdown.
+
+On Windows, identify a TTY by its initialized native handle type, not a process stream's `fd` label, and stop reading before resetting its mode during close. A mode change can otherwise hand a new buffer to a console worker while Rust is dispatching an owned read batch. ConPTY output must still drain after logical close, so read resumption is gated by the native handle's active phase and requested read state.
+
+Final cleanup releases request-owned queues before channels and the Lua/Vimscript runtimes. A shared Rust owner must not outlive a foreign runtime needed by its destructor.
+
+For these changes, supplement the normal suites with:
+
+```bash
+cargo test -p event-lifetimes-tests
+cargo +nightly-2026-11-16 miri test -p event-lifetimes-tests
+cargo xtask functionaltest --release test/functional/core/job_spec.lua test/functional/core/channels_spec.lua
+cargo xtask benchmark --release test/benchmark/event_spec.lua
+```
+
+Run affected functional cases and full CI-equivalent suites on Windows and Linux before publication. WSL tests need a native Linux checkout for POSIX permissions and Unix sockets. Compare the same tests and benchmarks against a preserved baseline binary using `--nvim-bin`; record pre-existing failures and skips separately. Miri exercises the production Rust ownership primitives with controlled callbacks, not the external C libraries.
 
 Versioning and Releases
 -----------------------
@@ -151,6 +173,6 @@ Automation (CI)
 
 * CI jobs are defined in `.github/workflows/`:
     * `test.yml`: Runs `cargo fmt --check`, `cargo xtask lintrust`, `cargo xtask unittest`, `cargo xtask lintlua`, `cargo xtask linterrcodes`, `cargo xtask lintcommit`, `cargo xtask doc`, `cargo xtask lintdoc`, and full functional/legacy/install test suites across Linux, macOS, and Windows.
-    * `test_bsd.yml`: Verifies FreeBSD and OpenBSD builds via `cargo xtask build`.
+    * `test.yml` also checks the FFI-free event lifetime package under a pinned Miri toolchain; the CI gate requires that job when Rust changes.
     * `release.yml`: Builds and publishes Linux `.tar.gz`/`.appimage`, macOS `.tar.gz`, and Windows `.zip`/`.msi` release assets via `cargo xtask dist`.
-    * `codeql.yml` & `zizmor.yml`: Static security analysis for Rust code and GitHub Actions workflows.
+    * `zizmor.yml`: Static analysis of GitHub Actions workflows.

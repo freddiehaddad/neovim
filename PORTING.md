@@ -86,18 +86,31 @@ Early in the port, hand-written `#[repr(C)]` definitions for `libuv` handles (`u
 
 ---
 
+## Reentrant Process and Channel Ownership
+
+The process-waiting refactor addresses the ownership contract, not just the spelling of pointer parameters:
+
+- `Proc` and `Stream` own shared Rust state. Callback-mutated scalars use interior mutability, and polling does not retain exclusive references to processes, streams, channels, or the loop.
+- `CallbackHandle` retains an address-stable allocation from native registration until the native close callback. Queued reads and writes also retain their owners. Starting close and completing close are separate operations, including on initialization failure.
+- Channel lookup returns `Rc<Channel>`. These physical owners do not replace Neovim's logical reference counts or determine when channel cleanup and process-exit callbacks occur.
+- RPC decoding produces owned messages before dispatch. Stream dispatch owns each read batch, so nested polling cannot overwrite the active callback's borrowed bytes. Ordinary read dispatch reuses its allocation.
+- The main-thread loop is not a globally accessible mutable reference. Worker notifications contain owned data or IDs, not editor pointers or `Rc` values; the inbox synchronizes wakeups with shutdown.
+
+The FFI implementation still requires explicit unsafe contracts. In particular, libuv's opaque `data` points to the registered state, not to the Rust handle wrapper. Callbacks recover that state through the typed ownership helper. Other FFI wrappers must still be reviewed according to their own lifetime and reentrancy requirements; this refactor is not a claim that every external boundary is proven sound.
+
+Native read-buffer lifetimes must also be respected. Windows TTY mode changes can restart reading and allocate a buffer for a console worker, so closing a readable TTY stops reading before resetting its mode. Identify the TTY by its initialized native handle type: process pipes can carry stdout/stderr labels that refer to a different handle in the parent. An owned callback batch does not permit replacing an allocation still leased to native I/O.
+
+Logical stream closure precedes native handle closure. In particular, ConPTY shutdown must keep draining output until the console worker finishes. Read resumption checks the native handle's active phase and the requested read state, not just the logical closed flag.
+
+The `event-lifetimes-tests` package imports the production ownership, read-buffer, and inbox modules without linking libuv or Lua. Its tests can run under Miri. Native functional tests remain necessary for real callbacks, platform-specific process teardown, error paths, and compatibility. Runner-side RPC deadlines bound hang-sensitive tests; a timer inside a stuck editor cannot serve as its watchdog.
+
 ## Where Things Stand & What's Next
 
-Today, the repository contains **zero `.c` or `.h` files**:
-- **406,000+ lines of Rust** (`edition = "2024"`, down from 460K+ after idiomatization, with ~80% in safe Rust and `c_char` confined exclusively to the 3 external C FFI boundary modules)
-- **405/405 functional and legacy test suites passing** in both `debug` and `--release` modes, plus **257 native Rust unit test suites**
-- **1.1× to 2.3× faster** than upstream C Nightly across startup, UTF-8 screen layout, regex search, virtual line motion, and autocmd dispatch
-- **Continuously synced** 1:1 with upstream `neovim/neovim` commits leading up to the `0.13.0` release
+The tracked editor implementation is Rust (`edition = "2024"`), with external C libraries built separately as dependencies. Editor graph objects already use shared `Rc` handles and interior mutability; they should not be described as unported raw-pointer lists.
 
-### Post-0.13.0 Roadmap
+Compatibility remains the primary invariant, not a conclusion inferred from test counts. CI runs Rust unit tests and functional/legacy suites across multiple platforms and optimized configurations. See [BUILD.md](BUILD.md) for current commands, [AGENTS.md](AGENTS.md) for implementation rules, and [MAINTAIN.md](MAINTAIN.md) for the recorded upstream synchronization point.
 
-While `0.13.0` is still under active development upstream, the codebase intentionally preserves upstream's 1:1 module and function structure so incoming PRs and bugfixes can be ported cleanly. Once `0.13.0` is released, two architectural refactors can eliminate the remaining C-style patterns (~20% of the codebase) without sacrificing `runtime/` or API compatibility:
+Further modernization should enforce one concrete invariant at a time: validated representations, bounded borrows around callbacks, and explicit ownership at remaining FFI boundaries. Generational IDs or parser redesigns need a demonstrated benefit beyond the guarantees already provided by shared handles and slice-based APIs.
 
-1. **Generational arena handles (`WinId`, `BufId`, `TabId`)**: Replace intrusive raw-pointer doubly-linked lists (`firstwin`, `firstbuf`, `curwin`, `curbuf`) with index-based handles so re-entrant autocommands and Lua callbacks can never invalidate a live reference.
-2. **Slice-based parser cursors**: Convert pointer-advancing parsers (`eval.rs`, `ex_docmd.rs`, `regexp.rs`) and `ml_get` buffer line accessors from raw byte pointers to safe `&[u8]` slice cursors.
+Published performance measurements and their upstream revision are in [README.md](README.md#performance). Ownership refactors do not imply a speedup: compare relevant release workloads against the unchanged port, including process waits, persistent RPC traffic, and stream draining.
 

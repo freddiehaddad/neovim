@@ -20,7 +20,7 @@ cargo xtask install
   cargo xtask build --release
   ./target/nvim-build/bin/nvim
   ```
-  `cargo xtask build` compiles the workspace binaries (`nvim`, `nvim-tee`, `xxd`) and stages a complete runnable tree (including generated helptags and syntax files) in `target/nvim-build/`.
+  `cargo xtask build` compiles the application binaries (`nvim`, `tee`, `xxd`) and test fixtures, and stages a runnable tree (including generated helptags and syntax files) in `target/nvim-build/`.
 
 ## `cargo xtask` Commands
 
@@ -33,7 +33,7 @@ cargo xtask install
 | `cargo xtask doc` | Regenerate `:help` documentation and Lua `_meta` type definitions |
 | `cargo xtask lint` | Run all linters (`lintrust`, `lintlua`, `linterrcodes`, `lintdoc`) |
 | `cargo xtask format` | Format Rust (`cargo fmt`) and Lua (`stylua`) source files |
-| `cargo xtask unittest` | Run Rust unit tests (`cargo test`) |
+| `cargo xtask unittest [--release]` | Run Rust library unit tests (`cargo test --lib`) |
 | `cargo xtask functionaltest [args...]` | Run the Lua functional test suite (or a single `_spec.lua` file) |
 | `cargo xtask oldtest [args...]` | Run the legacy Vim test suite (or a single `test_<name>`) |
 | `cargo xtask benchmark [--release]` | Run the performance benchmark suite in `test/benchmark/` |
@@ -43,7 +43,7 @@ cargo xtask install
 
 ```bash
 # Rust unit tests
-cargo test
+cargo xtask unittest
 
 # Full functional test suite or a single spec file (add --release to test the optimized binary)
 cargo xtask functionaltest
@@ -58,9 +58,34 @@ cargo xtask benchmark --release
 cargo xtask benchmark --nvim-bin /path/to/upstream/build/bin/nvim
 ```
 
+### Event ownership and reentrancy
+
+The `event-lifetimes-tests` package compiles the production callback-registration, read-buffer, and inbox modules without the editor's C dependencies:
+
+```bash
+cargo test -p event-lifetimes-tests
+rustup toolchain install nightly-2026-11-16 --profile minimal --component miri --component rust-src
+cargo +nightly-2026-11-16 miri test -p event-lifetimes-tests
+```
+
+Miri checks Rust-side memory behavior, not libuv or Lua. Keep the native functional and legacy suites, including release builds on Windows and Linux. When using WSL, run those suites from a native Linux filesystem: tests create files and Unix sockets in and around the checkout, so moving only the Cargo target directory is insufficient. Use a separate dependency/staging tree for each platform; copied Windows parser DLLs can be selected before Linux parsers and fail to load.
+
+Match the CI test environment when comparing results. On Windows, Node-provider fixtures need `require('neovim')` to resolve from the test directory (CI uses `npm link neovim`), and timezone-sensitive cases can be run with `TZ=UTC`. The DOS 8.3 filesystem cases invoke `fsutil` and require suitable volume settings/permissions. Record baseline prerequisite failures rather than weakening assertions or silently changing shared-machine settings.
+
+Blocking test-client RPC requests use a runner-side deadline (`TEST_TIMEOUT`, in seconds; default 600). Individual hang-sensitive cases can set their session's `request_timeout` in milliseconds. Late responses must not interrupt subsequent requests.
+
+For before/after process and channel measurements, preserve the baseline binary and run the same workload with each binary on the same host. Build the current test fixtures first; `--nvim-bin` changes the editor under test, while fixture executables are resolved from `NVIM_TEST_BUILD_DIR`:
+
+```bash
+cargo xtask benchmark --nvim-bin <baseline-binary> test/benchmark/event_spec.lua
+cargo xtask benchmark --release test/benchmark/event_spec.lua
+```
+
+The workload measures synchronous process waits, persistent RPC round trips, and stream draining. Repeat and interleave runs; do not treat unrelated startup or regex benchmarks as evidence about event-path overhead. `--nvim-bin` also works with `functionaltest` for behavioral comparisons.
+
 ## Build Options
 
-- **Debug vs. Release**: `cargo build` and `cargo xtask build` default to the `dev` profile for fast incremental builds. Pass `--release` for full optimization (`opt-level = 3`, `lto = "thin"`, `codegen-units = 1`). `cargo xtask install` and `cargo xtask dist` build `--release` by default.
+- **Debug vs. Release**: `cargo build` and `cargo xtask build` default to the `dev` profile for fast incremental builds. Pass `--release` for full optimization (`opt-level = 3`, with `lto = "thin"` configured in `Cargo.toml`). `cargo xtask install` and `cargo xtask dist` build `--release` by default.
 - **PUC Lua 5.1 instead of LuaJIT**:
   ```bash
   cargo xtask build --prefer-lua
