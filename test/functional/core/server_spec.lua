@@ -21,6 +21,14 @@ local function clear_serverlist()
   end
 end
 
+local function bound_requests(session)
+  local previous_timeout = session.request_timeout
+  session.request_timeout = 10000
+  finally(function()
+    session.request_timeout = previous_timeout
+  end)
+end
+
 after_each(function()
   check_close()
   os.remove(testlog)
@@ -67,6 +75,48 @@ describe('server', function()
     eq('', eval('$NVIM_LISTEN_ADDRESS'))
     eq(1, eval("serverstop('" .. s .. "')"))
     eq('', eval('$NVIM_LISTEN_ADDRESS'))
+  end)
+
+  for _, transport in ipairs({ 'tcp', 'pipe' }) do
+    it('keeps accepted ' .. transport .. ' connections alive after serverstop()', function()
+      clear()
+      bound_requests(n.get_session())
+      local address = transport == 'tcp' and fn.serverstart('127.0.0.1:0') or fn.serverstart()
+      local client = n.connect(address)
+      bound_requests(client)
+      finally(function()
+        client:close()
+      end)
+
+      local ok, result = client:request('nvim_eval', '6 * 7')
+      eq(true, ok)
+      eq(42, result)
+      eq(1, fn.serverstop(address))
+      eq(false, vim.list_contains(fn.serverlist(), address))
+      n.exec_lua("vim.uv.run('nowait')")
+
+      ok, result = client:request('nvim_eval', '7 * 8')
+      eq(true, ok)
+      eq(56, result)
+    end)
+  end
+
+  it('keeps the original TCP listener usable after a duplicate bind fails', function()
+    clear({ env = { NVIM_LOG_FILE = testlog } })
+    bound_requests(n.get_session())
+    local address = fn.serverstart('127.0.0.1:0')
+    matches('Failed to start server', pcall_err(fn.serverstart, address))
+    eq(true, vim.list_contains(fn.serverlist(), address))
+
+    local client = n.connect(address)
+    bound_requests(client)
+    finally(function()
+      client:close()
+    end)
+    local ok, result = client:request('nvim_eval', '6 * 7')
+    eq(true, ok)
+    eq(42, result)
+    eq(1, fn.serverstop(address))
   end)
 
   it('sets v:servername at startup or if all servers were stopped', function()

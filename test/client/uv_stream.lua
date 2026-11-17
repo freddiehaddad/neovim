@@ -98,9 +98,32 @@ function SocketStream.connect(host, port)
     _socket = socket,
     _stream_error = nil,
   }, SocketStream)
-  uv.tcp_connect(socket, host, port, function(err)
-    self._stream_error = self._stream_error or err
+  local complete = false
+  local timer = assert(uv.new_timer())
+  timer:start(1000 * (tonumber(os.getenv('TEST_TIMEOUT')) or 600), 0, function()
+    if not complete then
+      self._stream_error = 'TCP connection timed out'
+      complete = true
+    end
   end)
+  local ok, request, err = pcall(uv.tcp_connect, socket, host, port, function(connect_error)
+    if not complete then
+      self._stream_error = connect_error
+      complete = true
+    end
+  end)
+  if not ok or not request then
+    self._stream_error = ok and err or request
+    complete = true
+  end
+  while not complete do
+    uv.run('once')
+  end
+  close_handle(timer)
+  if self._stream_error then
+    close_handle(socket)
+    error(self._stream_error)
+  end
   return self
 end
 
