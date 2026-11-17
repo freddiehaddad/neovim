@@ -425,6 +425,68 @@ pub fn packer_take_string(buffer: &mut PackerBuffer) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::private::helpers::{
+        array_obj, boolean_obj, buffer_obj, dict_obj, float_obj, integer_obj, nil_obj, string_obj,
+        tabpage_obj, window_obj,
+    };
+    use crate::api::private::validate::{Dict, KeyValuePair};
+    use crate::msgpack_rpc::unpacker::unpack;
+
+    fn encode(mut object: Object) -> Vec<u8> {
+        let mut packer = packer_string_buffer();
+        mpack_object(&mut object, &mut packer);
+        packer_take_string(&mut packer)
+    }
+
+    #[test]
+    fn object_wire_types_preserve_handles_and_empty_values() {
+        let cases = [
+            (nil_obj(), vec![0xc0]),
+            (
+                Object {
+                    obj_type: ObjectType::ObjectTypeUnset,
+                    data: ObjectData::Integer(0),
+                },
+                vec![0xc0],
+            ),
+            (boolean_obj(false), vec![0xc2]),
+            (boolean_obj(true), vec![0xc3]),
+            (integer_obj(42), vec![0x2a]),
+            (buffer_obj(42), vec![0xd4, 0x00, 0x2a]),
+            (window_obj(42), vec![0xd4, 0x01, 0x2a]),
+            (tabpage_obj(42), vec![0xd4, 0x02, 0x2a]),
+            (float_obj(-0.0), vec![0xcb, 0x80, 0, 0, 0, 0, 0, 0, 0]),
+            (string_obj(NvimString::empty_cstr()), vec![0xa0]),
+            (array_obj(Array::new()), vec![0x90]),
+            (dict_obj(Dict::new()), vec![0x80]),
+        ];
+        for (object, expected) in cases {
+            let bytes = encode(object);
+            assert_eq!(bytes, expected);
+            assert_eq!(encode(unpack(&bytes).unwrap()), expected);
+        }
+    }
+
+    #[test]
+    fn nested_objects_preserve_binary_strings_and_container_types() {
+        let mut values = [
+            string_obj(NvimString::from_bytes(b"a\0b")),
+            array_obj(Array::new()),
+            dict_obj(Dict::new()),
+            buffer_obj(7),
+        ];
+        let mut pairs = [KeyValuePair {
+            key: NvimString::from_static_cstr(c"values"),
+            value: array_obj(Array::from_slice(&mut values)),
+        }];
+        let object = dict_obj(Dict::from_slice(&mut pairs));
+        let expected = vec![
+            0x81, 0xa6, b'v', b'a', b'l', b'u', b'e', b's', 0x94, 0xa3, b'a', 0, b'b', 0x90, 0x80,
+            0xd4, 0, 7,
+        ];
+        assert_eq!(encode(object), expected);
+        assert_eq!(encode(unpack(&expected).unwrap()), expected);
+    }
 
     #[test]
     fn packs_integers_floats_and_strings() {
