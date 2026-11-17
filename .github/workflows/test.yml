@@ -96,7 +96,7 @@ jobs:
                 run_lua=true
                 run_test=true
                 ;;
-              test/*.rs)
+              test/*.rs|test/event-lifetimes/Cargo.toml)
                 run_rust=true
                 run_test=true
                 ;;
