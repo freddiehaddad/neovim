@@ -35,7 +35,7 @@ cargo xtask install
 | `cargo xtask format` | Format Rust (`cargo fmt`) and Lua (`stylua`) source files |
 | `cargo xtask unittest [--release]` | Run Rust library unit tests (`cargo test --lib`) |
 | `cargo xtask functionaltest [args...]` | Run the Lua functional test suite (or a single `_spec.lua` file) |
-| `cargo xtask oldtest [args...]` | Run the legacy Vim test suite (or a single `test_<name>`) |
+| `cargo xtask oldtest [args...]` | Run the legacy Vim test suite (or a single `test_<name>.vim`) |
 | `cargo xtask benchmark [--release]` | Run the performance benchmark suite in `test/benchmark/` |
 | `cargo xtask clean` / `distclean` | Remove `target/` (`distclean` also removes cached `.deps/`) |
 
@@ -51,7 +51,7 @@ cargo xtask functionaltest --release test/functional/api/version_spec.lua
 
 # Legacy Vim test suite or a single test
 cargo xtask oldtest
-cargo xtask oldtest --release test_syntax
+cargo xtask oldtest --release test_syntax.vim
 
 # Performance benchmarks (Rust --release or custom upstream C binary)
 cargo xtask benchmark --release
@@ -60,7 +60,7 @@ cargo xtask benchmark --nvim-bin /path/to/upstream/build/bin/nvim
 
 ### Event ownership and reentrancy
 
-The `event-lifetimes-tests` package compiles the production callback-registration, read-buffer, and inbox modules without the editor's C dependencies:
+The `event-lifetimes-tests` package compiles the production callback-registration, read-buffer, inbox, and timer-ownership modules without the editor's C dependencies:
 
 ```bash
 cargo test -p event-lifetimes-tests
@@ -68,7 +68,7 @@ rustup toolchain install nightly-2026-11-16 --profile minimal --component miri -
 cargo +nightly-2026-11-16 miri test -p event-lifetimes-tests
 ```
 
-Miri checks Rust-side memory behavior, not libuv or Lua. Keep the native functional and legacy suites, including release builds on Windows and Linux. When using WSL, run those suites from a native Linux filesystem: tests create files and Unix sockets in and around the checkout, so moving only the Cargo target directory is insufficient. Use a separate dependency/staging tree for each platform; copied Windows parser DLLs can be selected before Linux parsers and fail to load.
+CI repeats the Miri command with `MIRIFLAGS=-Zmiri-tree-borrows` to check both borrowing models. Miri checks Rust-side memory behavior, not libuv or Lua. Keep the native functional and legacy suites, including release builds on Windows and Linux. When using WSL, run those suites from a native Linux filesystem: tests create files and Unix sockets in and around the checkout, so moving only the Cargo target directory is insufficient. Use a separate dependency/staging tree for each platform; copied Windows parser DLLs can be selected before Linux parsers and fail to load.
 
 Match the CI test environment when comparing results. On Windows, Node-provider fixtures need `require('neovim')` to resolve from the test directory (CI uses `npm link neovim`), and timezone-sensitive cases can be run with `TZ=UTC`. The DOS 8.3 filesystem cases invoke `fsutil` and require suitable volume settings/permissions. Record baseline prerequisite failures rather than weakening assertions or silently changing shared-machine settings.
 
@@ -82,6 +82,8 @@ cargo xtask benchmark --release test/benchmark/event_spec.lua
 ```
 
 The workload measures synchronous process waits, persistent RPC round trips, and stream draining. Repeat and interleave runs; do not treat unrelated startup or regex benchmarks as evidence about event-path overhead. `--nvim-bin` also works with `functionaltest` for behavioral comparisons.
+
+For timer ownership changes, use `test/benchmark/timer_spec.lua` with the same commands. It measures timer creation/cancellation, zero-delay callback dispatch, and Vimscript `wait()` timer cleanup over 100,000 operations, with warmups and native/deferred close processing. These are targeted lifecycle workloads, not measurements of interactive editor latency.
 
 ## Build Options
 

@@ -103,7 +103,17 @@ Native read-buffer lifetimes must also be respected. Windows TTY mode changes ca
 
 Logical stream closure precedes native handle closure. In particular, ConPTY shutdown must keep draining output until the console worker finishes. Read resumption checks the native handle's active phase and the requested read state, not just the logical closed flag.
 
-The `event-lifetimes-tests` package imports the production ownership, read-buffer, and inbox modules without linking libuv or Lua. Its tests can run under Miri. Native functional tests remain necessary for real callbacks, platform-specific process teardown, error paths, and compatibility. Runner-side RPC deadlines bound hang-sensitive tests; a timer inside a stuck editor cannot serve as its watchdog.
+The `event-lifetimes-tests` package imports production ownership, read-buffer, inbox, and timer-lifetime code without linking libuv or Lua. CI checks it under both Miri borrowing models. Native functional tests remain necessary for real callbacks, platform-specific process teardown, error paths, and compatibility. Runner-side RPC deadlines bound hang-sensitive tests; a timer inside a stuck editor cannot serve as its watchdog.
+
+## Reentrant Timer Ownership
+
+The timer adapters use shared, thread-confined `TimerHandle` state with private native storage. `TimeWatcher` and `UvRawTimer` wrappers can move without moving the registered handle. Callbacks retain an owner and copy the callback metadata before dispatch; they never manufacture an exclusive watcher reference that conflicts with self-stop or nested event processing.
+
+Freeing an allocation through a live `&mut` function argument is not an ownership transfer. Timer close callbacks instead release their native registration while an owned handle remains alive. Queued tick events retain that handle, and `TimerCloseEvent` retains it through internal cleanup whether dispatched or cancelled. The scoped `WaitTimer` guard and unique `UvRawTimer` owner request close on drop; they do not free storage that libuv may still use.
+
+Shutdown closes native handles before clearing timer registry owners and their callbacks. This cleanup occurs while Vimscript and Lua are still available, rather than relying on thread-local destruction or skipping cleanup when exiting.
+
+The ownership change does not replace the scheduler. Vimscript timer IDs, repeat/pause/stop behavior, callback activity, and close ordering remain distinct from physical ownership. The watcher adapter still updates cached loop time before starting; the TUI raw-timer adapter retains its separate timing policy.
 
 ## Where Things Stand & What's Next
 

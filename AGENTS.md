@@ -30,12 +30,13 @@ cargo xtask functionaltest test/functional/<path>_spec.lua
 cargo xtask functionaltest --release test/functional/<path>_spec.lua
 
 # Run legacy Vim tests
-cargo xtask oldtest test_<name>
-cargo xtask oldtest --release test_<name>
+cargo xtask oldtest test_<name>.vim
+cargo xtask oldtest --release test_<name>.vim
 
 # Run performance benchmarks
 cargo xtask benchmark --release
 cargo xtask benchmark --release test/benchmark/event_spec.lua
+cargo xtask benchmark --release test/benchmark/timer_spec.lua
 ```
 
 ## Critical Rust Soundness & Architecture Invariants
@@ -65,6 +66,9 @@ Follow these rules strictly when modifying `src/nvim/`:
    - Read dispatch owns a `ReadBatch`; callbacks borrow its bytes rather than mutable stream storage. Preserve unread bytes across reentry and reuse the allocation on ordinary dispatch. Do not retain a `RefCell` guard, whole-object mutable reference, or pointer into a replaceable buffer while calling user code.
    - On Windows, identify a TTY by its initialized native handle type, not a process stream's `fd` label. Stop TTY reading before resetting its mode during close: libuv can restart reading and lease a buffer to a console worker during a mode change, and that allocation must not be replaced while the read is outstanding.
    - Distinguish logical stream closure from native handle closure. ConPTY shutdown still drains output after logical close; permit read resumption only while the native handle is active and reading is wanted, never once native close begins.
+   - `TimeWatcher` and `UvRawTimer` use shared `TimerHandle` storage; their Rust wrappers may move, but native registrations and queued events retain the stable allocation. Initialize timer storage once. Never pass an exclusive watcher reference through callback dispatch or reconstruct/free a `Box` through a borrowed watcher.
+   - `WaitTimer` and the unique `UvRawTimer` owner are `#[must_use]` RAII close guards. `TimerCloseEvent` is created only after native close completes and performs internal cleanup on drop, including queue cancellation. Finish native loop shutdown, then release timer registry owners with `timer_free_all_mem()` before destroying Vimscript/Lua state.
+   - Preserve timer scheduling policy separately from ownership: `time_watcher_start` refreshes cached loop time, while `UvRawTimer::start` retains its existing cached-time behavior. Keep repeat counts, pause/stop flags, callback activity, and timer IDs independent of physical reference counts.
 5. **Preserve NUL-termination invariants on C-string buffers and use `Memline` chunk APIs**:
    - Use `RcCStr`, `RcSlice`, `CString`, or `c"..."` literals for NUL-terminated strings; never pass `Vec::new().as_ptr()` to C functions expecting a valid NUL-terminated `*const c_char`.
    - `Memline` (`src/nvim/memline.rs`) stores in-memory buffer lines in `Vec<LineChunk>` (400–800 `LineEntry` values per chunk, each holding `RcCStr` text and a mark bit, with `start_lnum`, `totalsize`, and cached `swap_blocks`). `RcCStr` uses `Arc<CStr>`, allowing chunks to be `Send + Sync`. Dirty chunks serialize into 4KB `PointerBlock`/`DataBlock` pages when syncing `.swp` files (`ml_sync_swap_blocks`). Use `with_ml_buf_line` and `with_ml_buf_bytes_with_nul` for borrowed line slice access.
@@ -72,7 +76,7 @@ Follow these rules strictly when modifying `src/nvim/`:
    - Compiled regex programs (`NfaRegprog`, `BtRegprog` in `src/nvim/regexp.rs`) are immutable (`Send + Sync`), storing per-run NFA state (`lastlist_buf`, `rec_listbuf`) in thread-local scratch buffers so pure single-line patterns (`ml_try_mark_global_lines`, `ml_try_vimgrep_lines`), fuzzy candidate scoring (`src/nvim/fuzzy.rs`), diff `linematch` (`src/nvim/linematch.rs`), and spell soundalike scoring (`src/nvim/spellsuggest.rs`) can execute across worker threads via `std::thread::scope` while keeping autocommands, Lua callbacks, and UI updates on the main thread.
 7. **Always validate nontrivial core changes in `--release` mode**:
    - Test core changes with `cargo xtask functionaltest --release` to validate both optimized codegen and runtime `RefCell` invariants.
-   - For event/ownership changes, also run the Rust lifetime package under Miri and the affected process, channel, RPC, thread, timer, clipboard, and terminal cases on Windows and Linux. Use a native Linux checkout for WSL tests, not a Windows-mounted filesystem with different permission/socket behavior.
+   - For event/ownership changes, also run the Rust lifetime package under Miri with both the default model and `MIRIFLAGS=-Zmiri-tree-borrows`, plus affected process, channel, RPC, thread, timer, clipboard, and terminal cases on Windows and Linux. Use a native Linux checkout for WSL tests, not a Windows-mounted filesystem with different permission/socket behavior.
    - Add deterministic tests for the invariant being changed: retention through close callbacks, initialization failure, cancellation, reentry, and shutdown races as applicable. Use handshakes/barriers and test-runner deadlines, not timing-dependent sleeps or a timeout inside an editor that may be hung. Do not turn regressions into skips or weaker assertions.
    - Rust unit tests that need editor initialization must retain the `main_init::test_editor()` guard for their scope. It initializes and closes native event resources on that test's own thread; do not share one initialized loop across Rust test threads or drop its storage before native teardown.
    - Miri covers the Rust-only ownership primitives, not libuv/Lua or the entire editor. Review each remaining unsafe boundary's allocation ownership, address stability, aliasing, callback lifetime, and threading obligations. Passing CI or reducing the number of `unsafe` blocks is not a soundness proof.
