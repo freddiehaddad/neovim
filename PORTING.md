@@ -93,6 +93,7 @@ The process-waiting refactor addresses the ownership contract, not just the spel
 - `Proc` and `Stream` own shared Rust state. Callback-mutated scalars use interior mutability, and polling does not retain exclusive references to processes, streams, channels, or the loop.
 - `CallbackHandle` retains an address-stable allocation from native registration until the native close callback. Queued reads and writes also retain their owners. Starting close and completing close are separate operations, including on initialization failure.
 - Channel lookup returns `Rc<Channel>`. These physical owners do not replace Neovim's logical reference counts or determine when channel cleanup and process-exit callbacks occur.
+- Bulk cleanup cancels queued requests while channel owners and runtimes remain alive. Shared oneshot payloads are cancelled across queue aliases; relying on the channel destructor to free its own request queue would leave an ownership cycle.
 - RPC decoding produces owned messages before dispatch. Stream dispatch owns each read batch, so nested polling cannot overwrite the active callback's borrowed bytes. Ordinary read dispatch reuses its allocation.
 - The main-thread loop is not a globally accessible mutable reference. Worker notifications contain owned data or IDs, not editor pointers or `Rc` values; the inbox synchronizes wakeups with shutdown.
 

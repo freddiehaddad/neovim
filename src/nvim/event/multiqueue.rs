@@ -85,6 +85,18 @@ impl Event {
         Self::None
     }
 
+    fn cancel(self) {
+        match self {
+            Self::Oneshot(data) => {
+                if let Some(event) = data.take() {
+                    event.cancel();
+                }
+            }
+            Self::LoopDeferred(event) => event.cancel(),
+            _ => {}
+        }
+    }
+
     pub fn dispatch(self) {
         match self {
             Self::None => {}
@@ -391,6 +403,13 @@ pub fn multiqueue_process_events(this: MultiQueue) {
     while !multiqueue_empty(this) {
         let event = multiqueue_remove(this);
         event.dispatch();
+    }
+}
+
+/// Cancel queued events, including shared oneshot payloads held by other queues.
+pub fn multiqueue_cancel_events(this: MultiQueue) {
+    while !multiqueue_empty(this) {
+        multiqueue_remove(this).cancel();
     }
 }
 

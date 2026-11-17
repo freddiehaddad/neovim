@@ -1095,7 +1095,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn queued_request_releases_channel_after_registry_removal() {
+    fn request_releases_channel_after_registry_removal() {
         let queue = crate::event::multiqueue::multiqueue_new(None);
         let channel = std::rc::Rc::new(Channel::new(u64::MAX, K_CHANNEL_STREAM_INTERNAL, queue));
         let weak = std::rc::Rc::downgrade(&channel);

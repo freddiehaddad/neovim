@@ -85,7 +85,7 @@ Do not translate upstream raw pointers into long-lived Rust mutable references w
 
 On Windows, identify a TTY by its initialized native handle type, not a process stream's `fd` label, and stop reading before resetting its mode during close. A mode change can otherwise hand a new buffer to a console worker while Rust is dispatching an owned read batch. ConPTY output must still drain after logical close, so read resumption is gated by the native handle's active phase and requested read state.
 
-Final cleanup releases request-owned queues before channels and the Lua/Vimscript runtimes. A shared Rust owner must not outlive a foreign runtime needed by its destructor.
+Final cleanup cancels queued requests before dropping channel registry owners or the Lua/Vimscript runtimes. This includes shared oneshot payloads in resize queues: dropping only one queue entry can leave a request holding its channel alive. Keep channel owners alive, without registry borrows, until cancellation completes.
 
 For these changes, supplement the normal suites with:
 

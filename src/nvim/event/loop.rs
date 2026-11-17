@@ -3,8 +3,8 @@
 pub use crate::event::ffi::*;
 use crate::event::inbox::Inbox;
 use crate::event::multiqueue::{
-    Event, MultiQueue, multiqueue_free, multiqueue_new, multiqueue_new_child,
-    multiqueue_process_events, multiqueue_purge_events, multiqueue_put_event,
+    Event, MultiQueue, multiqueue_cancel_events, multiqueue_free, multiqueue_new,
+    multiqueue_new_child, multiqueue_process_events, multiqueue_purge_events, multiqueue_put_event,
 };
 use crate::event::owned::RawHandle;
 use crate::event::proc::Proc;
@@ -120,6 +120,11 @@ impl Loop {
     }
 
     pub fn clear_channels(&self) {
+        // Requests can retain their channel through its own queue or a shared resize event.
+        let owners = self.channels();
+        for channel in &owners {
+            multiqueue_cancel_events(channel.events);
+        }
         let channels = std::mem::take(&mut *self.channels.borrow_mut());
         drop(channels);
     }
@@ -417,6 +422,71 @@ mod tests {
     use crate::event::socket::UvSocketHandle;
     use crate::event::stream::{UV_NAMED_PIPE, UV_TCP, UV_TTY, UvStreamHandle};
     use crate::event::time::TimeWatcher;
+
+    #[test]
+    fn channel_cleanup_cancels_late_native_requests() {
+        unsafe extern "C" fn late_read(handle: *mut uv_timer_t) {
+            let ids = unsafe { &**handle.cast::<*const [u64; 2]>() };
+            let requests: [&[u8]; 2] = [
+                b"\x94\x00\x01\xa9nvim_eval\x91\xa11",
+                b"\x94\x00\x01\xb2nvim_ui_try_resize\x92\x50\x18",
+            ];
+            for (&id, request) in ids.iter().zip(requests) {
+                let channel = crate::msgpack_rpc::channel::find_channel_opt(id).unwrap();
+                assert_eq!(
+                    crate::msgpack_rpc::channel::receive_msgpack(request, &channel, false),
+                    request.len()
+                );
+                crate::channel::channel_decref(&channel);
+            }
+        }
+
+        let _lock = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let loop_ = main_loop();
+        loop_init(loop_);
+        let resize_events = multiqueue_new_child(loop_.events.get());
+        crate::globals::screen_state()
+            .resize_events
+            .set(resize_events);
+        let channels: [Rc<Channel>; 2] = std::array::from_fn(|_| {
+            crate::channel::channel_alloc(crate::api::vim::K_CHANNEL_STREAM_INTERNAL)
+        });
+        for channel in &channels {
+            crate::msgpack_rpc::channel::rpc_start(channel);
+            channel.rpc.closed.set(true);
+            crate::channel::channel_decref(channel);
+        }
+        let queues = channels.each_ref().map(|channel| channel.events);
+        let weak = channels.each_ref().map(Rc::downgrade);
+        let context = Box::new(channels.each_ref().map(|channel| channel.id));
+        drop(channels);
+        assert!(crate::event::multiqueue::multiqueue_empty(
+            loop_.events.get()
+        ));
+
+        let timer = Box::new(RawHandle::<32>::new());
+        unsafe {
+            assert_eq!(uv_timer_init(loop_.uv_ptr(), timer.as_ptr()), 0);
+            timer.as_ptr().cast::<*const [u64; 2]>().write(&*context);
+            assert_eq!(uv_timer_start(timer.as_ptr(), Some(late_read), 0, 0), 0);
+        }
+        assert!(loop_close(loop_, true));
+        crate::msgpack_rpc::channel::rpc_free_all_mem();
+        crate::channel::channel_free_all_mem();
+        let retained = weak.each_ref().map(|weak| weak.upgrade().is_some());
+
+        crate::globals::screen_state()
+            .resize_events
+            .set(MultiQueue::NULL);
+        multiqueue_process_events(resize_events);
+        multiqueue_free(resize_events);
+        for queue in queues {
+            multiqueue_free(queue);
+        }
+        assert_eq!(retained, [false, false]);
+    }
 
     #[test]
     fn cached_clock_tracks_native_loop_storage() {
