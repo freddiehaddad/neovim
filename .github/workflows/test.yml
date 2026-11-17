@@ -186,6 +186,11 @@ jobs:
       - name: Check callback ownership
         run: cargo +nightly-2026-11-16 miri test -p event-lifetimes-tests
 
+      - name: Check callback ownership with Tree Borrows
+        env:
+          MIRIFLAGS: -Zmiri-tree-borrows
+        run: cargo +nightly-2026-11-16 miri test -p event-lifetimes-tests
+
   lint:
     needs: changes
     runs-on: ubuntu-24.04-arm

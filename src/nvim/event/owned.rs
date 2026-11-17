@@ -48,8 +48,16 @@ impl<T, const WORDS: usize> CallbackHandle<T, WORDS> {
         matches!(self.phase.get(), Phase::Uninitialized | Phase::Closed)
     }
 
+    pub fn is_uninitialized(&self) -> bool {
+        self.phase.get() == Phase::Uninitialized
+    }
+
     pub fn is_active(&self) -> bool {
         self.phase.get() == Phase::Active
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.phase.get() == Phase::Closed
     }
 
     /// The initialized C handle must be a field of `owner`. Its first word is

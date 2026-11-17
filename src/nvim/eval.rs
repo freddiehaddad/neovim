@@ -333,7 +333,7 @@ pub type HtStack = Vec<crate::eval::typval::DictId>;
 pub type ListStack = Vec<crate::eval::typval::ListId>;
 
 pub struct VimTimer {
-    pub watcher: std::cell::RefCell<TimeWatcher>,
+    pub watcher: TimeWatcher,
     pub timer_id: i32,
     pub repeat_count: std::cell::Cell<i32>,
     pub active_calls: std::cell::Cell<i32>,
@@ -346,10 +346,11 @@ pub struct VimTimer {
 
 impl Drop for VimTimer {
     fn drop(&mut self) {
-        if crate::globals::exc_state().exiting.get() {
-            return;
-        }
-        if let Some(events) = self.watcher.get_mut().events.opt() {
+        let events = self.watcher.events().opt();
+        self.watcher
+            .set_events(crate::event::multiqueue::MultiQueue::NULL);
+        time_watcher_close(&self.watcher);
+        if let Some(events) = events {
             multiqueue_free(events);
         }
         callback_free(&self.callback);
@@ -5096,7 +5097,7 @@ pub fn add_timer_info_all(rettv: &mut TypVal) {
 }
 
 /// Invoked on the main loop.
-pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_id: u64) {
+pub fn timer_due_cb(timer_id: u64) {
     let Some(timer) = with_timers(|t| t.get(&timer_id).cloned()) else {
         return;
     };
@@ -5142,7 +5143,7 @@ pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_id: u64) {
     tv_clear(&mut rettv);
 
     if !timer.stopped.get() && timer.timeout == 0 {
-        time_watcher_start(&mut timer.watcher.borrow_mut(), 0, 0);
+        time_watcher_start(&timer.watcher, 0, 0);
     }
     timer.active_calls.set(timer.active_calls.get() - 1);
 }
@@ -5150,7 +5151,7 @@ pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
     let id = EVAL_STATE.with(|s| s.last_timer_id.get());
     EVAL_STATE.with(|s| s.last_timer_id.set(s.last_timer_id.get() + (1)));
     let timer = std::rc::Rc::new(VimTimer {
-        watcher: std::cell::RefCell::new(TimeWatcher::new()),
+        watcher: TimeWatcher::new(),
         timer_id: id as i32,
         repeat_count: std::cell::Cell::new(repeat_count),
         active_calls: std::cell::Cell::new(0),
@@ -5163,16 +5164,17 @@ pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
 
     let timer_id = timer.timer_id as u64;
     {
-        let mut watcher = timer.watcher.borrow_mut();
+        let watcher = &timer.watcher;
         time_watcher_init(
             crate::event::r#loop::main_loop(),
-            &mut watcher,
+            watcher,
             TimeWatcherData::EvalTimer(timer_id),
         );
-        watcher.events =
-            multiqueue_new_child(loop_queues(crate::event::r#loop::main_loop()).events.get());
-        watcher.blockable = true;
-        time_watcher_start(&mut watcher, timeout as u64, timeout as u64);
+        watcher.set_events(multiqueue_new_child(
+            loop_queues(crate::event::r#loop::main_loop()).events.get(),
+        ));
+        watcher.set_blockable(true);
+        time_watcher_start(watcher, timeout as u64, timeout as u64);
     }
 
     with_timers_mut(|t| {
@@ -5186,14 +5188,11 @@ pub fn timer_stop(timer: &VimTimer) {
         return;
     }
     timer.stopped.set(true);
-    {
-        let mut watcher = timer.watcher.borrow_mut();
-        time_watcher_stop(&mut watcher);
-        time_watcher_close(&mut watcher);
-    }
+    time_watcher_stop(&timer.watcher);
+    time_watcher_close(&timer.watcher);
 }
 
-pub(crate) fn timer_close_cb(_tw: &mut TimeWatcher, timer_id: u64) {
+pub(crate) fn timer_close_cb(timer_id: u64) {
     let _ = with_timers_mut(|t| t.remove(&timer_id));
 }
 
@@ -5206,6 +5205,14 @@ pub fn timer_stop_all() {
 
 pub fn timer_teardown() {
     timer_stop_all();
+}
+
+pub fn timer_free_all_mem() {
+    let timers = with_timers_mut(std::mem::take);
+    for timer in timers.values() {
+        crate::event::multiqueue::multiqueue_cancel_events(timer.watcher.events());
+    }
+    drop(timers);
 }
 
 /// Saves a TypVal as a string buffer (`None` on error, `Some(vec)` on success).

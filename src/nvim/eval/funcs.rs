@@ -3377,7 +3377,7 @@ pub fn f_gettagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     get_tagstack(&wp, rettv.vval.v_dict_ref());
 }
 
-pub(crate) fn dummy_timer_due_cb(tw: &mut TimeWatcher) {
+pub(crate) fn dummy_timer_due_cb(tw: &TimeWatcher) {
     if crate::event::r#loop::main_loop().closing.get() {
         time_watcher_stop(tw);
         time_watcher_close(tw);
@@ -8250,13 +8250,9 @@ pub fn f_timer_pause(argvars: &mut [TypVal], _unused: &mut TypVal, _fptr: EvalFu
     let paused = tv_get_bool(&argvars[1]) != 0;
     if let Some(timer) = find_timer_by_nr(tv_get_number(&argvars[0])) {
         if !timer.paused.get() && paused {
-            time_watcher_stop(&mut timer.watcher.borrow_mut());
+            time_watcher_stop(&timer.watcher);
         } else if timer.paused.get() && !paused {
-            time_watcher_start(
-                &mut timer.watcher.borrow_mut(),
-                timer.timeout as u64,
-                timer.timeout as u64,
-            );
+            time_watcher_start(&timer.watcher, timer.timeout as u64, timer.timeout as u64);
         }
         timer.paused.set(paused);
     }

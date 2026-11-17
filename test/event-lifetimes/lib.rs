@@ -7,3 +7,5 @@ mod inbox;
 mod owned;
 #[path = "../../src/nvim/event/read_buffer.rs"]
 mod read_buffer;
+#[path = "../../src/nvim/event/timer.rs"]
+mod timer;

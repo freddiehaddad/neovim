@@ -9,8 +9,8 @@ pub enum Event {
     None,
     Oneshot(Rc<Cell<Option<Box<Event>>>>),
     LoopDeferred(Box<Event>),
-    TimeWatcher(*mut crate::event::time::TimeWatcher),
-    TimeWatcherClose(*mut crate::event::time::TimeWatcher),
+    TimeWatcher(crate::event::time::TimeWatcher),
+    TimeWatcherClose(crate::event::time::TimeWatcherCloseEvent),
     Signal {
         signum: i32,
         is_tui: bool,
@@ -112,10 +112,10 @@ impl Event {
                 );
             }
             Self::TimeWatcher(watcher) => {
-                crate::event::time::time_event(unsafe { &mut *watcher });
+                crate::event::time::time_event(watcher);
             }
             Self::TimeWatcherClose(watcher) => {
-                crate::event::time::close_event(unsafe { &mut *watcher });
+                drop(watcher);
             }
             Self::Signal { signum, is_tui } => {
                 crate::event::signal::signal_event(signum, is_tui);

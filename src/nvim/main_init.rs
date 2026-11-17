@@ -337,7 +337,9 @@ fn event_teardown() -> bool {
     signal_teardown();
     terminal_teardown();
 
-    loop_close(crate::event::r#loop::main_loop(), true)
+    let closed = loop_close(crate::event::r#loop::main_loop(), true);
+    crate::eval::timer_free_all_mem();
+    closed
 }
 
 fn early_init(paramp: &mut Mparm) {

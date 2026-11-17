@@ -366,9 +366,7 @@ impl Drop for Terminal {
 }
 
 thread_local! {
-    static REFRESH_TIMER: std::cell::RefCell<TimeWatcher> = const {
-        std::cell::RefCell::new(TimeWatcher::new())
-    };
+    static REFRESH_TIMER: TimeWatcher = TimeWatcher::new();
     static REFRESH_PENDING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static INVALIDATED_TERMINALS: std::cell::RefCell<Vec<TermId>> = const {
         std::cell::RefCell::new(Vec::new())
@@ -470,7 +468,7 @@ const fn vterm_key_function(n: i32) -> VTermKey {
 
 #[inline]
 fn refresh_timer_events() -> MultiQueue {
-    REFRESH_TIMER.with(|cell| cell.borrow().events)
+    REFRESH_TIMER.with(TimeWatcher::events)
 }
 
 #[inline]
@@ -716,25 +714,24 @@ fn on_apc(frag: VTermStringFragment, term_id: Option<&mut TermId>) -> i32 {
 
 pub fn terminal_init() {
     let events = multiqueue_new_child(loop_queues(crate::event::r#loop::main_loop()).events.get());
-    REFRESH_TIMER.with(|cell| {
-        let mut timer = cell.borrow_mut();
+    REFRESH_TIMER.with(|timer| {
         time_watcher_init(
             crate::event::r#loop::main_loop(),
-            &mut timer,
+            timer,
             TimeWatcherData::TerminalRefresh,
         );
-        timer.events = events;
+        timer.set_events(events);
     });
 }
 
 pub fn terminal_teardown() {
-    REFRESH_TIMER.with(|cell| {
-        let mut timer = cell.borrow_mut();
-        time_watcher_stop(&mut timer);
-        if let Some(events) = timer.events.opt() {
+    REFRESH_TIMER.with(|timer| {
+        time_watcher_stop(timer);
+        if let Some(events) = timer.events().opt() {
             multiqueue_free(events);
         }
-        time_watcher_close(&mut timer);
+        timer.set_events(MultiQueue::NULL);
+        time_watcher_close(timer);
     });
     INVALIDATED_TERMINALS.with(|cell| cell.borrow_mut().clear());
 }
@@ -2434,8 +2431,8 @@ fn invalidate_terminal(term_id: TermId, term: &mut Terminal, start_row: i32, end
 
     invalidate_terminal_add(term_id);
     if !REFRESH_PENDING.get() {
-        REFRESH_TIMER.with(|cell| {
-            time_watcher_start(&mut cell.borrow_mut(), REFRESH_DELAY, 0);
+        REFRESH_TIMER.with(|timer| {
+            time_watcher_start(timer, REFRESH_DELAY, 0);
         });
         REFRESH_PENDING.set(true);
     }

@@ -421,7 +421,7 @@ mod tests {
     use crate::event::signal::SignalWatcher;
     use crate::event::socket::UvSocketHandle;
     use crate::event::stream::{UV_NAMED_PIPE, UV_TCP, UV_TTY, UvStreamHandle};
-    use crate::event::time::TimeWatcher;
+    use crate::event::timer::TIMER_HANDLE_WORDS;
 
     #[test]
     fn channel_cleanup_cancels_late_native_requests() {
@@ -560,7 +560,7 @@ mod tests {
             assert!(size_of_val(&loop_dummy.exit_delay_timer) >= uv_handle_size(13));
             assert!(size_of_val(&loop_dummy.async_) >= uv_handle_size(1));
             assert!(size_of_val(&SignalWatcher::new().uv) >= uv_handle_size(16));
-            assert!(size_of_val(&TimeWatcher::new().uv) >= uv_handle_size(13));
+            assert!(size_of::<RawHandle<TIMER_HANDLE_WORDS>>() >= uv_handle_size(13));
             let stream_size = uv_handle_size(UV_NAMED_PIPE)
                 .max(uv_handle_size(UV_TCP))
                 .max(uv_handle_size(UV_TTY))
