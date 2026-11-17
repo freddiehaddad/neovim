@@ -17,7 +17,7 @@ pub enum Event {
     },
     RStreamRead(crate::event::rstream::ReadEvent),
     SocketConnection {
-        watcher: *mut crate::event::socket::SocketWatcher,
+        watcher: crate::event::socket::SocketHandle,
         status: i32,
     },
     ProcCloseHandles(crate::event::proc::Proc),
@@ -124,7 +124,7 @@ impl Event {
                 crate::event::rstream::read_event(stream);
             }
             Self::SocketConnection { watcher, status } => {
-                crate::event::socket::connection_event(unsafe { &mut *watcher }, status);
+                crate::event::socket::connection_event(watcher, status);
             }
             Self::ProcCloseHandles(proc_) => {
                 crate::event::proc::proc_close_handles(&proc_);

@@ -419,7 +419,7 @@ mod tests {
     use super::*;
     use crate::event::libuv_proc::UvProcessHandle;
     use crate::event::signal::SignalWatcher;
-    use crate::event::socket::UvSocketHandle;
+    use crate::event::socket::SOCKET_HANDLE_WORDS;
     use crate::event::stream::{UV_NAMED_PIPE, UV_TCP, UV_TTY, UvStreamHandle};
     use crate::event::timer::TIMER_HANDLE_WORDS;
 
@@ -566,7 +566,7 @@ mod tests {
                 .max(uv_handle_size(UV_TTY))
                 .max(uv_handle_size(6));
             assert!(size_of::<UvStreamHandle>() >= stream_size);
-            assert!(size_of::<UvSocketHandle>() >= stream_size);
+            assert!(size_of::<RawHandle<SOCKET_HANDLE_WORDS>>() >= stream_size);
             assert!(size_of::<UvProcessHandle>() >= uv_handle_size(10));
         }
     }

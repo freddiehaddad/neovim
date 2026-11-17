@@ -5,9 +5,9 @@
 use crate::channel::channel_from_connection;
 use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str, set_vim_var_string};
 use crate::event::r#loop::uv_strerror;
+use crate::event::multiqueue::MultiQueue;
 use crate::event::socket::{
-    ADDRESS_MAX_SIZE, SocketWatcher, socket_watcher_close, socket_watcher_init,
-    socket_watcher_start,
+    ADDRESS_MAX_SIZE, SocketHandle, SocketWatcher, socket_watcher_init, socket_watcher_start,
 };
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE, TriState};
 use crate::globals::*;
@@ -27,8 +27,7 @@ const ENV_LISTEN: &CStr = c"NVIM_LISTEN_ADDRESS";
 const ENV_TEST_LOG: &CStr = c"__NVIM_TEST_LOG";
 
 struct RpcServerState {
-    #[expect(clippy::vec_box)]
-    watchers: std::cell::RefCell<Vec<Box<SocketWatcher>>>,
+    watchers: std::cell::RefCell<Vec<SocketWatcher>>,
     server_addr_count: std::cell::Cell<u32>,
 }
 
@@ -49,7 +48,7 @@ pub fn server_init(listen_addr: Option<&CStr>) -> Result<(), std::ffi::CString> 
     let mut err: Option<std::ffi::CString> = None;
     let mut owned_addr: Option<std::ffi::CString> = None;
     let mut user_arg: TriState = K_TRUE;
-    SERVER_STATE.with(|st| st.watchers.borrow_mut().clear());
+    server_teardown();
 
     if listen_addr.is_none_or(|s| s.to_bytes().is_empty()) {
         if os_env_exists(ENV_LISTEN, true) {
@@ -118,9 +117,7 @@ fn set_vservername() {
 
 pub fn server_teardown() {
     let watchers = SERVER_STATE.with(|st| std::mem::take(&mut *st.watchers.borrow_mut()));
-    for watcher in watchers {
-        socket_watcher_close(watcher);
-    }
+    drop(watchers);
 }
 
 pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
@@ -214,13 +211,16 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
     } else {
         None
     };
-    let mut watcher = Box::new(SocketWatcher::new());
     let endpoint = addr_gen.as_deref().unwrap_or(addr);
-    let mut result = socket_watcher_init(crate::event::r#loop::main_loop(), &mut watcher, endpoint);
+    let mut watcher = match socket_watcher_init(
+        crate::event::r#loop::main_loop(),
+        endpoint,
+        MultiQueue::NULL,
+    ) {
+        Ok(watcher) => watcher,
+        Err(error) => return error,
+    };
     drop(addr_gen);
-    if result < 0 {
-        return result;
-    }
 
     let already_listening = SERVER_STATE.with(|st| {
         st.watchers
@@ -239,14 +239,10 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
             watcher.addr_cstr(),
         );
 
-        watcher.free_tcp_addrinfo();
-
-        socket_watcher_close(watcher);
-
         return 2;
     }
 
-    result = socket_watcher_start(&mut watcher, MAX_CONNECTIONS);
+    let result = socket_watcher_start(&mut watcher, MAX_CONNECTIONS);
 
     if result < 0 {
         logmsg!(
@@ -259,8 +255,6 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
             uv_strerror(result),
             watcher.addr_cstr(),
         );
-
-        socket_watcher_close(watcher);
 
         return result;
     }
@@ -303,7 +297,7 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
         return false;
     };
 
-    socket_watcher_close(watcher);
+    drop(watcher);
 
     if !keep_vservername && Some(addr_bytes) == Some(get_vim_var_str(VV_SEND_SERVER).to_bytes()) {
         set_vservername();
@@ -322,7 +316,7 @@ pub fn server_address_list() -> Vec<std::ffi::CString> {
     })
 }
 
-pub(crate) fn connection_cb(watcher: &mut SocketWatcher, result: i32) {
+pub(crate) fn connection_cb(watcher: &SocketHandle, result: i32) {
     if result != 0 {
         logmsg!(
             LOGLVL_ERR,

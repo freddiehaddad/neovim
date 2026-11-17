@@ -24,7 +24,7 @@ pub mod socket;
 pub mod stream;
 #[allow(unsafe_code)]
 pub mod time;
-#[allow(unsafe_code)]
+#[cfg_attr(test, allow(unsafe_code))]
 pub mod timer;
 #[allow(unsafe_code)]
 pub mod wstream;

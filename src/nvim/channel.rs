@@ -22,7 +22,7 @@ use crate::event::rstream::{
     rstream_init, rstream_init_fd, rstream_may_close, rstream_start, rstream_start_inner,
     rstream_stop_inner,
 };
-use crate::event::socket::{SocketWatcher, socket_connect, socket_watcher_accept};
+use crate::event::socket::{SocketHandle, socket_connect, socket_watcher_accept};
 use crate::event::stream::{StreamCbData, StreamInternalData, stream_may_close};
 use crate::event::wstream::{wstream_init, wstream_init_fd, wstream_new_vec_buffer, wstream_write};
 #[cfg(not(windows))]
@@ -604,7 +604,7 @@ pub fn channel_connect(
 }
 
 /// Creates an RPC channel from a tcp/pipe socket connection.
-pub fn channel_from_connection(watcher: &mut SocketWatcher) {
+pub fn channel_from_connection(watcher: &SocketHandle) {
     let channel = channel_alloc(K_CHANNEL_STREAM_SOCKET);
     let chan_id = channel.id;
     let result = socket_watcher_accept(watcher, &channel.socket);
