@@ -1,4 +1,4 @@
-//! Exercise the production ownership primitives without linking libuv or Lua.
+//! Exercise production ownership code without linking libuv or Lua.
 #![allow(dead_code)]
 
 #[path = "../../src/nvim/event/inbox.rs"]
@@ -9,3 +9,5 @@ mod owned;
 mod read_buffer;
 #[path = "../../src/nvim/event/timer.rs"]
 mod timer;
+
+pub use owned::SharedCallbackHandle;

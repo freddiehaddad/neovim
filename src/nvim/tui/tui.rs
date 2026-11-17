@@ -15,10 +15,7 @@ use crate::event::r#loop::{
     uv_strerror,
 };
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
-use crate::event::signal::{
-    SignalWatcher, signal_watcher_close, signal_watcher_init, signal_watcher_start,
-    signal_watcher_stop,
-};
+use crate::event::signal::{SignalTarget, SignalWatcher};
 use crate::event::stream::{UvSyncOutput, stream_get_stty_erase, stream_set_blocking};
 use crate::event::time::UvRawTimer;
 use crate::event::wstream::uv_buf_t;
@@ -134,7 +131,7 @@ pub struct TUIData {
     pub ti: TerminfoEntry,
     pub term: Option<std::ffi::CString>,
     pub out_isatty: bool,
-    pub winch_handle: SignalWatcher,
+    pub winch_handle: Option<SignalWatcher>,
     pub startup_delay_timer: UvRawTimer,
     pub grid: UGrid,
     pub invalid_regions: Vec<Rect>,
@@ -200,7 +197,7 @@ impl TUIData {
             ti: TerminfoEntry::new(),
             term: None,
             out_isatty: false,
-            winch_handle: SignalWatcher::new(),
+            winch_handle: None,
             startup_delay_timer: UvRawTimer::new(),
             grid: UGrid::default(),
             invalid_regions: Vec::new(),
@@ -331,9 +328,10 @@ pub fn tui_start(
 ) {
     crate::ui_client::with_tui_mut(|tui| {
         let loop_ = tui_loop(tui);
-        signal_watcher_init(loop_, &mut tui.winch_handle);
-        tui.winch_handle.is_tui = true;
-        signal_watcher_start(&mut tui.winch_handle, SIGWINCH);
+        let watcher = SignalWatcher::new(loop_, loop_.fast_events.get(), SignalTarget::Tui)
+            .expect("uv_signal_init failed");
+        let _ = watcher.start(SIGWINCH);
+        tui.winch_handle = Some(watcher);
 
         tui.grid.cells.clear();
         tui_terminal_start(tui);
@@ -1073,8 +1071,10 @@ pub fn tui_stop() {
         tui_terminal_stop(tui);
         stream_set_blocking(tui.input.in_fd, true);
         tinput_destroy(&mut tui.input);
-        signal_watcher_stop(&mut tui.winch_handle);
-        signal_watcher_close(&mut tui.winch_handle);
+        if let Some(watcher) = tui.winch_handle.take() {
+            watcher.stop();
+            drop(watcher);
+        }
         tui.startup_delay_timer.close();
     });
 }

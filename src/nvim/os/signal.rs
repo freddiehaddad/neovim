@@ -2,10 +2,8 @@
 
 use crate::autocmd::{EVENT_SIGNAL, apply_autocmds};
 use crate::eval::vars::{VV_DYING, set_vim_var_nr};
-use crate::event::signal::{
-    SignalWatcher, signal_watcher_close, signal_watcher_init, signal_watcher_start,
-    signal_watcher_stop,
-};
+use crate::event::r#loop::Loop;
+use crate::event::signal::{SignalTarget, SignalWatcher};
 use crate::ex_cmds2::autowrite_all;
 use crate::globals::exc_state;
 use crate::log::{LOGLVL_ERR, logmsg};
@@ -17,6 +15,7 @@ use crate::strings::format_to_buf;
 use std::ffi::CStr;
 #[cfg(unix)]
 use std::ffi::c_void;
+use std::rc::Rc;
 
 #[cfg(windows)]
 use crate::os::os_win_console::os_clear_hwnd;
@@ -63,26 +62,72 @@ struct SignalWatchers {
 }
 
 impl SignalWatchers {
-    const fn new() -> Self {
-        Self {
-            spipe: SignalWatcher::new(),
-            shup: SignalWatcher::new(),
-            sint: SignalWatcher::new(),
-            squit: SignalWatcher::new(),
-            sterm: SignalWatcher::new(),
+    fn new(loop_: &'static Loop) -> Result<Self, i32> {
+        let new = || SignalWatcher::new(loop_, loop_.fast_events.get(), SignalTarget::Editor);
+        Ok(Self {
+            spipe: new()?,
+            shup: new()?,
+            sint: new()?,
+            squit: new()?,
+            sterm: new()?,
             #[cfg(unix)]
-            susr1: SignalWatcher::new(),
-            swinch: SignalWatcher::new(),
-            ststp: SignalWatcher::new(),
+            susr1: new()?,
+            swinch: new()?,
+            ststp: new()?,
             #[cfg(target_os = "linux")]
-            spwr: SignalWatcher::new(),
-        }
+            spwr: new()?,
+        })
+    }
+
+    fn start(&self) {
+        #[cfg(unix)]
+        let _ = self.spipe.start(SIGPIPE);
+        let _ = self.shup.start(SIGHUP);
+        let _ = self.sint.start(SIGINT);
+        let _ = self.squit.start(SIGQUIT);
+        let _ = self.sterm.start(SIGTERM);
+        #[cfg(unix)]
+        let _ = self.ststp.start(SIGTSTP);
+        #[cfg(target_os = "linux")]
+        let _ = self.spwr.start(SIGPWR);
+        #[cfg(unix)]
+        let _ = self.susr1.start(SIGUSR1);
+        let _ = self.swinch.start(SIGWINCH);
+    }
+
+    fn stop(&self) {
+        #[cfg(unix)]
+        self.spipe.stop();
+        self.shup.stop();
+        self.sint.stop();
+        self.squit.stop();
+        self.sterm.stop();
+        self.ststp.stop();
+        #[cfg(target_os = "linux")]
+        self.spwr.stop();
+        #[cfg(unix)]
+        self.susr1.stop();
+        self.swinch.stop();
+    }
+
+    fn close(&self) {
+        self.spipe.close();
+        self.shup.close();
+        self.sint.close();
+        self.squit.close();
+        self.sterm.close();
+        self.ststp.close();
+        #[cfg(target_os = "linux")]
+        self.spwr.close();
+        #[cfg(unix)]
+        self.susr1.close();
+        self.swinch.close();
     }
 }
 
 thread_local! {
-    static SIG_WATCHERS: std::cell::RefCell<SignalWatchers> = const {
-        std::cell::RefCell::new(SignalWatchers::new())
+    static SIG_WATCHERS: std::cell::RefCell<Option<Rc<SignalWatchers>>> = const {
+        std::cell::RefCell::new(None)
     };
     static REJECTING_DEADLY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
@@ -136,20 +181,13 @@ pub fn signal_init() {
         }
     }
 
-    SIG_WATCHERS.with(|cell| {
-        let mut s = cell.borrow_mut();
-        signal_watcher_init(crate::event::r#loop::main_loop(), &mut s.spipe);
-        signal_watcher_init(crate::event::r#loop::main_loop(), &mut s.shup);
-        signal_watcher_init(crate::event::r#loop::main_loop(), &mut s.sint);
-        signal_watcher_init(crate::event::r#loop::main_loop(), &mut s.squit);
-        signal_watcher_init(crate::event::r#loop::main_loop(), &mut s.sterm);
-        signal_watcher_init(crate::event::r#loop::main_loop(), &mut s.ststp);
-        #[cfg(target_os = "linux")]
-        signal_watcher_init(crate::event::r#loop::main_loop(), &mut s.spwr);
-        #[cfg(unix)]
-        signal_watcher_init(crate::event::r#loop::main_loop(), &mut s.susr1);
-        signal_watcher_init(crate::event::r#loop::main_loop(), &mut s.swinch);
-    });
+    let watchers = Rc::new(
+        SignalWatchers::new(crate::event::r#loop::main_loop()).expect("uv_signal_init failed"),
+    );
+    let previous = SIG_WATCHERS.with(|cell| cell.replace(Some(watchers)));
+    if let Some(previous) = previous {
+        previous.close();
+    }
     signal_start();
 }
 
@@ -165,59 +203,28 @@ fn signal_ignore_deadly() {
 }
 
 pub fn signal_teardown() {
-    signal_stop();
+    let watchers = SIG_WATCHERS.with(|cell| cell.borrow_mut().take());
+    if let Some(watchers) = &watchers {
+        watchers.stop();
+    }
     signal_ignore_deadly();
-    SIG_WATCHERS.with(|cell| {
-        let mut s = cell.borrow_mut();
-        signal_watcher_close(&mut s.spipe);
-        signal_watcher_close(&mut s.shup);
-        signal_watcher_close(&mut s.sint);
-        signal_watcher_close(&mut s.squit);
-        signal_watcher_close(&mut s.sterm);
-        signal_watcher_close(&mut s.ststp);
-        #[cfg(target_os = "linux")]
-        signal_watcher_close(&mut s.spwr);
-        #[cfg(unix)]
-        signal_watcher_close(&mut s.susr1);
-        signal_watcher_close(&mut s.swinch);
-    });
+    if let Some(watchers) = watchers {
+        watchers.close();
+    }
 }
 
 pub fn signal_start() {
-    SIG_WATCHERS.with(|cell| {
-        let mut s = cell.borrow_mut();
-        #[cfg(unix)]
-        signal_watcher_start(&mut s.spipe, SIGPIPE);
-        signal_watcher_start(&mut s.shup, SIGHUP);
-        signal_watcher_start(&mut s.sint, SIGINT);
-        signal_watcher_start(&mut s.squit, SIGQUIT);
-        signal_watcher_start(&mut s.sterm, SIGTERM);
-        #[cfg(unix)]
-        signal_watcher_start(&mut s.ststp, SIGTSTP);
-        #[cfg(target_os = "linux")]
-        signal_watcher_start(&mut s.spwr, SIGPWR);
-        #[cfg(unix)]
-        signal_watcher_start(&mut s.susr1, SIGUSR1);
-        signal_watcher_start(&mut s.swinch, SIGWINCH);
-    });
+    let watchers = SIG_WATCHERS.with(|cell| cell.borrow().clone());
+    if let Some(watchers) = watchers {
+        watchers.start();
+    }
 }
 
 pub fn signal_stop() {
-    SIG_WATCHERS.with(|cell| {
-        let mut s = cell.borrow_mut();
-        #[cfg(unix)]
-        signal_watcher_stop(&mut s.spipe);
-        signal_watcher_stop(&mut s.shup);
-        signal_watcher_stop(&mut s.sint);
-        signal_watcher_stop(&mut s.squit);
-        signal_watcher_stop(&mut s.sterm);
-        signal_watcher_stop(&mut s.ststp);
-        #[cfg(target_os = "linux")]
-        signal_watcher_stop(&mut s.spwr);
-        #[cfg(unix)]
-        signal_watcher_stop(&mut s.susr1);
-        signal_watcher_stop(&mut s.swinch);
-    });
+    let watchers = SIG_WATCHERS.with(|cell| cell.borrow().clone());
+    if let Some(watchers) = watchers {
+        watchers.stop();
+    }
 }
 
 pub fn signal_reject_deadly() {

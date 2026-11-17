@@ -418,7 +418,7 @@ unsafe extern "C" fn timer_cb(handle: *mut uv_timer_t) {
 mod tests {
     use super::*;
     use crate::event::libuv_proc::UvProcessHandle;
-    use crate::event::signal::SignalWatcher;
+    use crate::event::signal::{SIGNAL_HANDLE_WORDS, SignalTarget, SignalWatcher};
     use crate::event::socket::SOCKET_HANDLE_WORDS;
     use crate::event::stream::{UV_NAMED_PIPE, UV_TCP, UV_TTY, UvStreamHandle};
     use crate::event::timer::TIMER_HANDLE_WORDS;
@@ -550,6 +550,84 @@ mod tests {
     }
 
     #[test]
+    fn signal_owner_survives_moves_and_can_stop_and_restart() {
+        let _lock = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let _editor = crate::main_init::test_editor();
+        let loop_ = main_loop();
+        let initial_handles = loop_.owned_handles.borrow().len();
+        let watcher =
+            SignalWatcher::new(loop_, loop_.fast_events.get(), SignalTarget::Editor).unwrap();
+        let moved = vec![watcher];
+        let started = moved[0].start(crate::os::signal::SIGINT);
+        moved[0].stop();
+        assert_eq!(moved[0].start(crate::os::signal::SIGINT), started);
+        assert_eq!(loop_.owned_handles.borrow().len(), initial_handles + 1);
+        drop(moved);
+        loop_poll_events(loop_, 0);
+        assert_eq!(loop_.owned_handles.borrow().len(), initial_handles);
+    }
+
+    #[test]
+    fn signal_owner_can_outlive_native_loop_shutdown() {
+        let _lock = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let editor = crate::main_init::test_editor();
+        let loop_ = main_loop();
+        let watcher =
+            SignalWatcher::new(loop_, loop_.fast_events.get(), SignalTarget::Editor).unwrap();
+        let _ = watcher.start(crate::os::signal::SIGINT);
+        drop(editor);
+        assert!(loop_.owned_handles.borrow().is_empty());
+        assert!(watcher.start(crate::os::signal::SIGINT).is_err());
+        watcher.stop();
+        drop(watcher);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn queued_signal_payload_survives_native_close() {
+        use crate::event::multiqueue::{
+            multiqueue_empty, multiqueue_free, multiqueue_get, multiqueue_new,
+        };
+
+        // Use a signal not watched by the editor's default group.
+        #[cfg(target_os = "linux")]
+        const SIGUSR2: i32 = 12;
+        #[cfg(not(target_os = "linux"))]
+        const SIGUSR2: i32 = 31;
+
+        let _lock = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let _editor = crate::main_init::test_editor();
+        let loop_ = main_loop();
+        let events = multiqueue_new(None);
+        let watcher = SignalWatcher::new(loop_, events, SignalTarget::Editor).unwrap();
+        assert_eq!(watcher.start(SIGUSR2), Ok(()));
+        assert_eq!(
+            unsafe { crate::fileio::kill(std::process::id() as i32, SIGUSR2) },
+            0
+        );
+        let start = os_hrtime();
+        while multiqueue_empty(events) && os_hrtime() - start < NS_PER_SEC {
+            loop_poll_events(loop_, 10);
+        }
+        assert!(!multiqueue_empty(events));
+        drop(watcher);
+        loop_poll_events(loop_, 0);
+        let Event::Signal { signum, is_tui } = multiqueue_get(events) else {
+            panic!("expected signal payload");
+        };
+        assert_eq!(signum, SIGUSR2);
+        assert!(!is_tui);
+        assert!(multiqueue_empty(events));
+        multiqueue_free(events);
+    }
+
+    #[test]
     fn uv_handle_and_loop_storage_sizes_are_sufficient() {
         unsafe {
             let loop_dummy = Loop::new();
@@ -559,7 +637,7 @@ mod tests {
             assert!(size_of_val(&loop_dummy.poll_timer) >= uv_handle_size(13));
             assert!(size_of_val(&loop_dummy.exit_delay_timer) >= uv_handle_size(13));
             assert!(size_of_val(&loop_dummy.async_) >= uv_handle_size(1));
-            assert!(size_of_val(&SignalWatcher::new().uv) >= uv_handle_size(16));
+            assert!(size_of::<RawHandle<SIGNAL_HANDLE_WORDS>>() >= uv_handle_size(16));
             assert!(size_of::<RawHandle<TIMER_HANDLE_WORDS>>() >= uv_handle_size(13));
             let stream_size = uv_handle_size(UV_NAMED_PIPE)
                 .max(uv_handle_size(UV_TCP))
