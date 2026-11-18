@@ -18,7 +18,7 @@ use crate::digraph::get_keymap_str;
 use crate::drawline::{HLF_CLF, HLF_FC, MAX_STCWIDTH, fill_foldcolumn, use_cursor_line_highlight};
 use crate::drawscreen::{HLF_C, compute_foldcolumn, redrawing, w_endcol, w_endrow};
 use crate::eval::eval_to_string_safe;
-use crate::eval::typval::{TypVal, TypvalVval, VarType, Varnumber};
+use crate::eval::typval::{TvValue, TypVal, Varnumber};
 use crate::eval::vars::{
     VV_LNUM, VV_RELNUM, VV_VIRTNUM, do_unlet, get_vim_var_nr, set_internal_string_var, set_var,
     set_vim_var_nr,
@@ -1578,9 +1578,8 @@ pub fn build_stl_str_hl_slice(
 
     if fmt.is_some() && usefmt_vec.starts_with(b"%!") {
         let mut tv = TypVal {
-            v_type: VarType::VarNumber,
             v_lock: 0,
-            vval: TypvalVval::Number(Varnumber::from(wp.handle)),
+            value: TvValue::Number(Varnumber::from(wp.handle)),
         };
         set_var(b"g:statusline_winid", &mut tv, false);
 

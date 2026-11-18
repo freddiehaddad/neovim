@@ -211,8 +211,8 @@ fn match_add(
             let mut len: i32 = 1;
             let mut error = false;
 
-            if li.tv().v_type == VarType::VarList {
-                let subl = li.tv().vval.v_list();
+            if li.tv().var_type() == VarType::VarList {
+                let subl = li.tv().value.list();
                 let mut sub_iter = tv_list_iter(subl.opt());
                 let Some(subli1) = sub_iter.next() else {
                     semsg!(
@@ -253,11 +253,11 @@ fn match_add(
                 }
                 m.mit_pos[i].col = col;
                 m.mit_pos[i].len = len;
-            } else if li.tv().v_type == VarType::VarNumber {
-                if li.tv().vval.v_number() <= 0 {
+            } else if li.tv().var_type() == VarType::VarNumber {
+                if li.tv().value.number() <= 0 {
                     continue;
                 }
-                m.mit_pos[i].lnum = li.tv().vval.v_number() as Linenr;
+                m.mit_pos[i].lnum = li.tv().value.number() as Linenr;
                 m.mit_pos[i].col = 0;
                 m.mit_pos[i].len = 0;
             } else {
@@ -1078,18 +1078,18 @@ fn matchadd_dict_arg<'a>(
     conceal_char: &mut Option<std::borrow::Cow<'a, std::ffi::CStr>>,
     win: &mut crate::globals::WinPtr,
 ) -> bool {
-    if tv.v_type != VarType::VarDict {
+    if tv.var_type() != VarType::VarDict {
         emsg(gettext(E_DICTREQ));
         return false;
     }
 
-    if let Some(di) = tv_dict_find_opt(tv.vval.v_dict_opt(), c"conceal", 7) {
+    if let Some(di) = tv_dict_find_opt(tv.value.dict_opt(), c"conceal", 7) {
         *conceal_char = Some(std::borrow::Cow::Owned(
             tv_get_string(&di.tv()).into_owned(),
         ));
     }
 
-    let Some(di) = tv_dict_find_opt(tv.vval.v_dict_opt(), c"window", 6) else {
+    let Some(di) = tv_dict_find_opt(tv.value.dict_opt(), c"window", 6) else {
         return true;
     };
 
@@ -1156,7 +1156,7 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 tv_dict_add_str_len(&dict, c"conceal", Some(&buf[..buflen]));
             }
 
-            tv_list_append_dict(rettv.vval.v_list_ref(), Some(&dict));
+            tv_list_append_dict(rettv.value.list_ref(), Some(&dict));
         }
     });
 }
@@ -1166,8 +1166,8 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let mut s = crate::eval::typval::ListId::NULL;
     let win = get_optional_window(argvars, 1);
 
-    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
-    if argvars[0].v_type != VarType::VarList {
+    rettv.value = crate::eval::typval::TvValue::Number(-1);
+    if argvars[0].var_type() != VarType::VarList {
         emsg(gettext(E_LISTREQ));
         return;
     }
@@ -1175,12 +1175,12 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         return;
     };
 
-    for (li_idx, li) in (0_i32..).zip(list_iter_ptr(tv_list_first(argvars[0].vval.v_list_opt()))) {
+    for (li_idx, li) in (0_i32..).zip(list_iter_ptr(tv_list_first(argvars[0].value.list_opt()))) {
         let li_tv = li.tv();
         let Some(d) = li_tv
-            .vval
-            .v_dict_opt()
-            .filter(|_| li_tv.v_type == VarType::VarDict)
+            .value
+            .dict_opt()
+            .filter(|_| li_tv.var_type() == VarType::VarDict)
         else {
             semsg!(
                 gettext(c"E474: List item %d is either not a dictionary or an empty one",),
@@ -1204,9 +1204,9 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
     clear_matches(&win);
     let mut match_add_failed = false;
-    for li in list_iter_ptr(tv_list_first(argvars[0].vval.v_list_opt())) {
+    for li in list_iter_ptr(tv_list_first(argvars[0].value.list_opt())) {
         let mut i: i32 = 0;
-        let d_id = li.tv().vval.v_dict();
+        let d_id = li.tv().value.dict();
         let d = d_id.borrow();
         if tv_dict_find_opt(Some(d), c"pattern", 7).is_none() {
             if s.is_null() {
@@ -1224,7 +1224,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
                     -1,
                 ) {
-                    if pos_di.tv().v_type != VarType::VarList {
+                    if pos_di.tv().var_type() != VarType::VarList {
                         tv_list_unref(s.opt());
                         return;
                     }
@@ -1274,7 +1274,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
     }
     if !match_add_failed {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+        rettv.value = crate::eval::typval::TvValue::Number(0);
     }
 }
 
@@ -1290,16 +1290,16 @@ pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut conceal_char: Option<std::borrow::Cow<'_, std::ffi::CStr>> = None;
     let mut win = curwin();
 
-    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+    rettv.value = crate::eval::typval::TvValue::Number(-1);
 
     let (Some(grp), Some(pat)) = (grp, pat) else {
         return;
     };
-    if argvars[2].v_type != VarType::VarUnknown {
+    if argvars[2].var_type() != VarType::VarUnknown {
         prio = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
-        if argvars[3].v_type != VarType::VarUnknown {
+        if argvars[3].var_type() != VarType::VarUnknown {
             id = tv_get_number_chk(&argvars[3], Some(&mut error)) as i32;
-            if argvars[4].v_type != VarType::VarUnknown
+            if argvars[4].var_type() != VarType::VarUnknown
                 && !matchadd_dict_arg(&argvars[4], &mut conceal_char, &mut win)
             {
                 return;
@@ -1314,7 +1314,7 @@ pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         return;
     }
 
-    rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(
+    rettv.value = crate::eval::typval::TvValue::Number(match_add(
         &win,
         Some(grp),
         Some(pat),
@@ -1327,19 +1327,19 @@ pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// `matchaddpos()` function (`f_matchaddpos`).
 pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+    rettv.value = crate::eval::typval::TvValue::Number(-1);
 
     let mut buf = [0u8; NUMBUFLEN];
     let Some(group) = tv_get_string_buf_chk(&argvars[0], &mut buf) else {
         return;
     };
 
-    if argvars[1].v_type != VarType::VarList {
+    if argvars[1].var_type() != VarType::VarList {
         semsg!(gettext(E_LISTARG), c"matchaddpos()",);
         return;
     }
 
-    let l = argvars[1].vval.v_list_opt();
+    let l = argvars[1].value.list_opt();
     if tv_list_len(l) == 0 {
         return;
     }
@@ -1350,11 +1350,11 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let mut conceal_char: Option<std::borrow::Cow<'_, std::ffi::CStr>> = None;
     let mut win = curwin();
 
-    if argvars[2].v_type != VarType::VarUnknown {
+    if argvars[2].var_type() != VarType::VarUnknown {
         prio = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
-        if argvars[3].v_type != VarType::VarUnknown {
+        if argvars[3].var_type() != VarType::VarUnknown {
             id = tv_get_number_chk(&argvars[3], Some(&mut error)) as i32;
-            if argvars[4].v_type != VarType::VarUnknown
+            if argvars[4].var_type() != VarType::VarUnknown
                 && !matchadd_dict_arg(&argvars[4], &mut conceal_char, &mut win)
             {
                 return;
@@ -1370,8 +1370,8 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         return;
     }
 
-    let l = argvars[1].vval.v_list_opt();
-    rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(
+    let l = argvars[1].value.list_opt();
+    rettv.value = crate::eval::typval::TvValue::Number(match_add(
         &win,
         Some(group),
         None,
@@ -1391,18 +1391,18 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     if (1..=3).contains(&id) {
         if let Some((mit_hlg_id, mit_pattern)) = get_match(&curwin(), id) {
             let group_name = syn_id2name(mit_hlg_id);
-            tv_list_append_string(rettv.vval.v_list_ref(), Some(&group_name), -1);
-            tv_list_append_string(rettv.vval.v_list_ref(), mit_pattern.as_deref(), -1);
+            tv_list_append_string(rettv.value.list_ref(), Some(&group_name), -1);
+            tv_list_append_string(rettv.value.list_ref(), mit_pattern.as_deref(), -1);
         } else {
-            tv_list_append_string(rettv.vval.v_list_ref(), None, 0);
-            tv_list_append_string(rettv.vval.v_list_ref(), None, 0);
+            tv_list_append_string(rettv.value.list_ref(), None, 0);
+            tv_list_append_string(rettv.value.list_ref(), None, 0);
         }
     }
 }
 
 /// `matchdelete()` function (`f_matchdelete`).
 pub fn f_matchdelete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(
+    rettv.value = crate::eval::typval::TvValue::Number(
         if let Some(win) = get_optional_window(argvars, 1)
             && match_delete(&win, tv_get_number(&argvars[0]) as i32, true)
         {

@@ -18,9 +18,7 @@ use crate::context::INIT_FMARKV;
 use crate::cursor::{Colnr, CursorPos, Linenr};
 use crate::eval::decode::{decode_string, unpack_typval};
 use crate::eval::encode::encode_vim_to_msgpack;
-use crate::eval::typval::{
-    TypVal, TypvalVval, VarType, tv_clear, tv_copy, tv_list_alloc, tv_list_len,
-};
+use crate::eval::typval::{TypVal, VarType, tv_clear, tv_copy, tv_list_alloc, tv_list_len};
 use crate::eval::vars::{
     VAR_TYPE_BLOB, VV_OLDFILES, get_globvar_dict, get_vim_var_list, set_vim_var_list,
 };
@@ -647,9 +645,8 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
             data: ShadaEntryData::GlobalVar(ShadaGlobalVar {
                 name: None,
                 value: TypVal {
-                    v_type: VarType::VarUnknown,
                     v_lock: 0,
-                    vval: TypvalVval::NULL_STRING,
+                    value: crate::eval::typval::TvValue::Unknown,
                 },
             }),
             additional_data: None,
@@ -1724,7 +1721,7 @@ fn shada_pack_entry(
         ShadaEntryType::SDItemVariable => {
             let gv_name_opt = entry.data.global_var().name.as_deref();
             let mut gv_val = entry.data.global_var().value.clone();
-            let is_blob = gv_val.v_type == VarType::VarBlob;
+            let is_blob = gv_val.var_type() == VarType::VarBlob;
             let arr_size = 2 + u32::from(is_blob) + additional_data_len(&entry.additional_data);
             mpack_array(&mut sbuf, arr_size);
             let varname = cstr_as_string(gv_name_opt);
@@ -2620,13 +2617,13 @@ fn shada_write(
                 };
                 let name: &CStr = name_cstr;
                 let mut skip = false;
-                match vartv.v_type {
+                match vartv.var_type() {
                     VarType::VarFunc | VarType::VarPartial => {
                         tv_clear(&mut vartv);
                         skip = true;
                     }
                     VarType::VarDict => {
-                        let di = vartv.vval.v_dict();
+                        let di = vartv.value.dict();
                         let copy_id = get_copy_id();
                         if !set_ref_in_ht(Some(&di.dv_hashtab), copy_id, None)
                             && copy_id == di.dv_copy_id.get()
@@ -2636,7 +2633,7 @@ fn shada_write(
                         }
                     }
                     VarType::VarList => {
-                        let l = vartv.vval.v_list();
+                        let l = vartv.value.list();
                         let copy_id = get_copy_id();
                         if !set_ref_in_list_items(l.opt(), copy_id, None)
                             && copy_id == l.lv_copy_id.get()
@@ -4104,7 +4101,7 @@ pub fn shada_encode_gvars() -> Vec<u8> {
         let Some(name) = name else {
             break;
         };
-        if vartv.v_type != VarType::VarFunc && vartv.v_type != VarType::VarPartial {
+        if vartv.var_type() != VarType::VarFunc && vartv.var_type() != VarType::VarPartial {
             let mut tgttv = TypVal::new();
             tv_copy(&vartv, &mut tgttv);
             let mut entry = ShadaEntry {

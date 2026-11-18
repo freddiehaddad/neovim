@@ -34,17 +34,16 @@ const fn callback_reader_init() -> CallbackReader {
 
 /// "rpcnotify()" function (DEPRECATED)
 pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VarNumber;
-    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+    rettv.value = crate::eval::typval::TvValue::Number(0);
 
     if check_secure() {
         return;
     }
-    if argvars[0].v_type != VarType::VarNumber || argvars[0].vval.v_number() < 0 {
+    if argvars[0].var_type() != VarType::VarNumber || argvars[0].value.number() < 0 {
         semsg!(gettext(E_INVARG2), c"Channel id must be a positive integer",);
         return;
     }
-    if argvars[1].v_type != VarType::VarString {
+    if argvars[1].var_type() != VarType::VarString {
         semsg!(gettext(E_INVARG2), c"Event type must be a string",);
         return;
     }
@@ -53,14 +52,14 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut args = Array::from_buf(&mut args_storage);
     for tv in argvars[2..]
         .iter_mut()
-        .take_while(|tv| tv.v_type != VarType::VarUnknown)
+        .take_while(|tv| tv.var_type() != VarType::VarUnknown)
     {
         *args.next_slot_mut() = vim_to_object(tv);
         args.size += 1;
     }
 
     let ok = rpc_send_event(
-        argvars[0].vval.v_number() as u64,
+        argvars[0].value.number() as u64,
         &tv_get_string(&argvars[1]),
         args,
     );
@@ -68,23 +67,22 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         semsg!(gettext(E_INVARG2), c"Channel doesn't exist",);
         return;
     }
-    rettv.vval = crate::eval::typval::TypvalVval::Number(1);
+    rettv.value = crate::eval::typval::TvValue::Number(1);
 }
 
 /// "rpcrequest()" function (DEPRECATED)
 pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VarNumber;
-    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+    rettv.value = crate::eval::typval::TvValue::Number(0);
     let l_provider_call_nesting = super::EVAL_STATE.with(|s| s.provider_call_nesting.get());
 
     if check_secure() {
         return;
     }
-    if argvars[0].v_type != VarType::VarNumber || argvars[0].vval.v_number() <= 0 {
+    if argvars[0].var_type() != VarType::VarNumber || argvars[0].value.number() <= 0 {
         semsg!(gettext(E_INVARG2), c"Channel id must be a positive integer",);
         return;
     }
-    if argvars[1].v_type != VarType::VarString {
+    if argvars[1].var_type() != VarType::VarString {
         semsg!(gettext(E_INVARG2), c"Method name must be a string",);
         return;
     }
@@ -93,7 +91,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let mut args = Array::from_buf(&mut args_storage);
     for tv in argvars[2..]
         .iter_mut()
-        .take_while(|tv| tv.v_type != VarType::VarUnknown)
+        .take_while(|tv| tv.var_type() != VarType::VarUnknown)
     {
         *args.next_slot_mut() = vim_to_object(tv);
         args.size += 1;
@@ -135,7 +133,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         set_current_funccal(funccalp);
     }
 
-    let chan_id = argvars[0].vval.v_number() as u64;
+    let chan_id = argvars[0].value.number() as u64;
     let method = tv_get_string(&argvars[1]);
     let res = rpc_send_call(chan_id, &method, args, -1);
     if l_provider_call_nesting != 0 {
@@ -183,8 +181,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// `"rpcstart()"` function (`f_rpcstart`).
 pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VarNumber;
-    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+    rettv.value = crate::eval::typval::TvValue::Number(0);
 
     if check_secure() {
         return;
@@ -192,8 +189,8 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     let arg0 = &argvars[0];
     let arg1 = &argvars[1];
-    if arg0.v_type != VarType::VarString
-        || (arg1.v_type != VarType::VarList && arg1.v_type != VarType::VarUnknown)
+    if arg0.var_type() != VarType::VarString
+        || (arg1.var_type() != VarType::VarList && arg1.var_type() != VarType::VarUnknown)
     {
         emsg(E_INVARG);
         return;
@@ -201,13 +198,13 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     let mut args = None;
     let mut argsl: i32 = 0;
-    if arg1.v_type == VarType::VarList {
-        args = arg1.vval.v_list_opt();
+    if arg1.var_type() == VarType::VarList {
+        args = arg1.value.list_opt();
         argsl = args.map_or(0, |a| a.lv_len.get());
         for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_ptr(
             args.and_then(|a| a.first_opt()),
         )) {
-            if li.tv().v_type != VarType::VarString {
+            if li.tv().var_type() != VarType::VarString {
                 semsg!(
                     c"E5010: List item %d of the second argument is not a string",
                     i,
@@ -217,13 +214,13 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
     }
 
-    if arg0.vval.v_string_is_empty() {
+    if arg0.value.string_is_empty() {
         emsg(E_API_SPAWN_FAILED);
         return;
     }
 
     let mut argv = Vec::with_capacity((argsl as usize) + 1);
-    argv.push(arg0.vval.v_string_owned());
+    argv.push(arg0.value.string_owned());
 
     if argsl > 0
         && let Some(args) = args
@@ -248,7 +245,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         0,
         0,
         None,
-        rettv.vval.v_number_mut(),
+        rettv.value.number_mut(),
     );
     if let Some(chan) = chan {
         channel_create_event(&chan);
@@ -257,26 +254,25 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// `"rpcstop()"` function (`f_rpcstop`).
 pub fn f_rpcstop(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData) {
-    rettv.v_type = VarType::VarNumber;
-    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+    rettv.value = crate::eval::typval::TvValue::Number(0);
 
     if check_secure() {
         return;
     }
 
     let arg0 = &argvars[0];
-    if arg0.v_type != VarType::VarNumber {
+    if arg0.var_type() != VarType::VarNumber {
         emsg(E_INVARG);
         return;
     }
 
-    let id = arg0.vval.v_number() as u64;
+    let id = arg0.value.number() as u64;
     if find_job(id, false).is_some() {
         f_jobstop(argvars, rettv, fptr);
     } else {
         let mut error = None;
         let closed = channel_close(id, K_CHANNEL_PART_RPC, Some(&mut error));
-        rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(closed));
+        rettv.value = crate::eval::typval::TvValue::Number(i64::from(closed));
         if !closed && let Some(err) = error {
             emsg(err);
         }
@@ -291,7 +287,7 @@ pub fn f_last_buffer_nr(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
             n = buf.b_fnum.get();
         }
     }
-    rettv.vval = crate::eval::typval::TypvalVval::Number(n as i64);
+    rettv.value = crate::eval::typval::TvValue::Number(n as i64);
 }
 
 /// `"termopen(cmd[, cwd])"` function (`f_termopen`).
@@ -302,19 +298,19 @@ pub fn f_termopen(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData
 
     let mut must_free = false;
     let arg1 = &mut argvars[1];
-    if arg1.v_type == VarType::VarUnknown {
+    if arg1.var_type() == VarType::VarUnknown {
         must_free = true;
-        arg1.v_type = VarType::VarDict;
-        arg1.vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc());
+
+        arg1.value = crate::eval::typval::TvValue::Dict(tv_dict_alloc());
     }
 
-    if arg1.v_type != VarType::VarDict {
+    if arg1.var_type() != VarType::VarDict {
         semsg!(E_INVARG2, c"expected dictionary");
         return;
     }
 
-    let dict = arg1.vval.v_dict();
-    tv_dict_add_bool(arg1.vval.v_dict_ref(), c"term", K_BOOL_VAR_TRUE as i32);
+    let dict = arg1.value.dict();
+    tv_dict_add_bool(arg1.value.dict_ref(), c"term", K_BOOL_VAR_TRUE as i32);
     f_jobstart(argvars, rettv, fptr);
     if must_free && let Some(dict_ref) = dict.opt() {
         tv_dict_free(dict_ref);

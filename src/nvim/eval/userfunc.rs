@@ -867,9 +867,9 @@ pub fn get_lambda_tv(
 
         pt.set_func(Some(fp));
         pt.pt_refcount.set(1);
-        rettv.vval =
-            crate::eval::typval::TypvalVval::Partial(crate::eval::typval::PartialId::from(pt));
-        rettv.v_type = VarType::VarPartial;
+        rettv.value =
+            crate::eval::typval::TvValue::Partial(crate::eval::typval::PartialId::from(pt));
+
         set_eval_lavars_used(old_eval_lavars);
     }
 
@@ -899,25 +899,25 @@ pub fn deref_func_name<'a>(
         *found_var = true;
     }
 
-    if tv.v_type == VarType::VarFunc {
-        if tv.vval.v_string_is_null() {
+    if tv.var_type() == VarType::VarFunc {
+        if tv.value.string_is_null() {
             *lenp = 0;
             return std::borrow::Cow::Borrowed(b"");
         }
-        let s = tv.vval.v_string_owned();
+        let s = tv.value.string_owned();
         let bytes = s.into_bytes();
         *lenp = bytes.len() as i32;
         return std::borrow::Cow::Owned(bytes);
     }
 
-    if tv.v_type == VarType::VarPartial {
-        let Some(pt) = tv.vval.v_partial_opt() else {
+    if tv.var_type() == VarType::VarPartial {
+        let Some(pt) = tv.value.partial_opt() else {
             *lenp = 0;
             return std::borrow::Cow::Borrowed(b"");
         };
         let s = partial_name(Some(pt));
         if let Some(partialp) = partialp {
-            *partialp = tv.vval.v_partial().rc();
+            *partialp = tv.value.partial().rc();
         }
         let bytes = s.to_bytes().to_vec();
         *lenp = bytes.len() as i32;
@@ -1187,9 +1187,8 @@ fn add_nr_var(dp: &TvDict, name: &std::ffi::CStr, nr: Varnumber) {
     v.di_flags
         .set(v.di_flags.get() | DI_FLAGS_RO | DI_FLAGS_FIX);
     v.set_tv(TypVal {
-        v_type: VarType::VarNumber,
         v_lock: VAR_FIXED,
-        vval: crate::eval::typval::TypvalVval::Number(nr),
+        value: crate::eval::typval::TvValue::Number(nr),
     });
     hash_add(&dp.dv_hashtab, &v);
 }
@@ -1463,8 +1462,8 @@ pub fn call_user_func(
         emsg(gettext(
             c"E132: Function call depth is higher than 'maxfuncdepth'",
         ));
-        rettv.v_type = VarType::VarNumber;
-        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+
+        rettv.value = crate::eval::typval::TvValue::Number(-1);
         return;
     }
     UF_STATE.with(|s| s.call_depth.set(s.call_depth.get() + (1)));
@@ -1495,9 +1494,8 @@ pub fn call_user_func(
             .set(v.di_flags.get() | DI_FLAGS_RO | DI_FLAGS_FIX);
         selfdict.dv_refcount.set(selfdict.dv_refcount.get() + 1);
         v.set_tv(TypVal {
-            v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
-            vval: crate::eval::typval::TypvalVval::Dict(selfdict),
+            value: crate::eval::typval::TvValue::Dict(selfdict),
         });
 
         hash_add(&fc.fc_l_vars.get().dv_hashtab, &v);
@@ -1527,9 +1525,8 @@ pub fn call_user_func(
         v.di_flags
             .set(v.di_flags.get() | DI_FLAGS_RO | DI_FLAGS_FIX);
         v.set_tv(TypVal {
-            v_type: VarType::VarList,
             v_lock: VAR_FIXED,
-            vval: crate::eval::typval::TypvalVval::List(fc.fc_l_varlist.get()),
+            value: crate::eval::typval::TvValue::List(fc.fc_l_varlist.get()),
         });
         hash_add(&fc.fc_l_avars.get().dv_hashtab, &v);
     }
@@ -1560,8 +1557,7 @@ pub fn call_user_func(
 
             isdefault = ai + uf_def_args_len >= 0 && i >= argcount;
             if isdefault {
-                def_rettv.v_type = VarType::VarNumber;
-                def_rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+                def_rettv.value = crate::eval::typval::TvValue::Number(-1);
 
                 let default_expr_owned =
                     fp.uf_def_args.borrow()[(ai + uf_def_args_len) as usize].clone();
@@ -1641,8 +1637,8 @@ pub fn call_user_func(
                 if i > 0 {
                     msg_puts(c", ");
                 }
-                if arg_tv.v_type == VarType::VarNumber {
-                    msg_outnum(arg_tv.vval.v_number() as i32);
+                if arg_tv.var_type() == VarType::VarNumber {
+                    msg_outnum(arg_tv.value.number() as i32);
                 } else {
                     let tf = {
                         let _emsg_off = msg_state().suppress_emsg();
@@ -1737,11 +1733,11 @@ pub fn call_user_func(
         .set(screen_state().redrawing_disabled.get() - (1));
 
     if (msg_state().did_emsg.get() != 0 && (fp.uf_flags.get() & FC_ABORT) != 0)
-        || rettv.v_type == VarType::VarUnknown
+        || rettv.var_type() == VarType::VarUnknown
     {
         tv_clear(rettv);
-        rettv.v_type = VarType::VarNumber;
-        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+
+        rettv.value = crate::eval::typval::TvValue::Number(-1);
     }
 
     if func_or_func_caller_profiling {
@@ -1785,12 +1781,12 @@ pub fn call_user_func(
 
         if aborting() {
             smsg!(0, gettext(c"%s aborted"), sourcing_name().as_deref());
-        } else if rettv.v_type == VarType::VarNumber {
+        } else if rettv.var_type() == VarType::VarNumber {
             smsg!(
                 0,
                 gettext(c"%s returning #%lld"),
                 sourcing_name().as_deref(),
-                rettv.vval.v_number(),
+                rettv.value.number(),
             );
         } else {
             let mut buf = [0u8; MSG_BUF_LEN];
@@ -2022,7 +2018,7 @@ pub fn func_call(
             .as_deref()
             .map_or(0, |pt| pt.pt_argv.borrow().len() as i32);
     let mut skip_call = false;
-    if let Some(list) = args.vval.v_list_opt() {
+    if let Some(list) = args.value.list_opt() {
         for item in crate::eval::typval::list_iter_ptr(list.first_opt()) {
             if argc == max_argc {
                 emsg(gettext(c"E699: Too many arguments"));
@@ -2124,7 +2120,7 @@ pub fn call_func(
     let mut argv_base = 0;
     let partial = funcexe.fe_partial.clone();
 
-    rettv.v_type = VarType::VarUnknown;
+    rettv.value = crate::eval::typval::TvValue::Unknown;
 
     if len <= 0 {
         len = funcname.len() as i32;
@@ -2182,8 +2178,7 @@ pub fn call_func(
             fname
         };
 
-        rettv.v_type = VarType::VarNumber;
-        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+        rettv.value = crate::eval::typval::TvValue::Number(0);
         error = FCERR_UNKNOWN;
 
         if is_luafunc(partial.opt()) {
@@ -2313,8 +2308,7 @@ pub fn call_func(
 }
 
 pub fn call_simple_luafunc(funcname: &[u8], rettv: &mut TypVal) -> Option<bool> {
-    rettv.v_type = VarType::VarNumber;
-    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+    rettv.value = crate::eval::typval::TvValue::Number(0);
 
     nlua_call_vlua(funcname, &mut [], &mut *rettv);
     Some(true)
@@ -2323,8 +2317,7 @@ pub fn call_simple_luafunc(funcname: &[u8], rettv: &mut TypVal) -> Option<bool> 
 pub fn call_simple_func(funcname: &[u8], rettv: &mut TypVal) -> Option<bool> {
     let mut ret = Some(false);
 
-    rettv.v_type = VarType::VarNumber;
-    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+    rettv.value = crate::eval::typval::TvValue::Number(0);
 
     let name = bytes_to_cstring(funcname);
 
@@ -2349,7 +2342,7 @@ pub fn call_simple_func(funcname: &[u8], rettv: &mut TypVal) -> Option<bool> {
         error = FCERR_DELETED;
     } else {
         let mut argvars: [TypVal; 1] = [TypVal::new(); 1];
-        argvars[0].v_type = VarType::VarUnknown;
+        argvars[0].value = crate::eval::typval::TvValue::Unknown;
         let mut funcexe = Funcexe::new();
         funcexe.fe_evaluate = true;
 
@@ -2508,12 +2501,12 @@ pub fn trans_function_name(
             fdp.as_deref_mut().unwrap().fd_di = lv.ll_di;
         }
         let mut res: Option<std::ffi::CString> = None;
-        if ll_tv.v_type == VarType::VarFunc && !ll_tv.vval.v_string_is_null() {
-            res = Some(ll_tv.vval.v_string_owned());
+        if ll_tv.var_type() == VarType::VarFunc && !ll_tv.value.string_is_null() {
+            res = Some(ll_tv.value.string_owned());
 
             *pp = end_slice;
-        } else if ll_tv.v_type == VarType::VarPartial && !ll_tv.vval.v_partial().is_null() {
-            let pt = ll_tv.vval.v_partial();
+        } else if ll_tv.var_type() == VarType::VarPartial && !ll_tv.value.partial().is_null() {
+            let pt = ll_tv.value.partial();
             if is_luafunc(pt.opt()) && end_slice.first() == Some(&b'.') {
                 let after_dot = &end_slice[1..];
                 len = check_luafunc_name(after_dot, true);
@@ -3432,7 +3425,7 @@ pub fn ex_function(eap: &mut Exarg) {
         let name_cstr = name_owned.as_deref().unwrap_or(c"");
         let name_bytes = name_cstr.to_bytes();
         let v = find_var(name_bytes, name_bytes.len(), true, 0);
-        if v.is_some_and(|v| v.tv().v_type == VarType::VarFunc) {
+        if v.is_some_and(|v| v.tv().var_type() == VarType::VarFunc) {
             emsg_funcname(
                 c"E707: Function name conflicts with variable: %s",
                 name_bytes,
@@ -3549,7 +3542,7 @@ pub fn ex_function(eap: &mut Exarg) {
 
             crate::eval::typval::tv_set_string_len(&mut fudi.fd_di.tv_mut(), Some(name_slice));
 
-            fudi.fd_di.tv_mut().v_type = VarType::VarFunc;
+            fudi.fd_di.tv_mut().make_funcref();
 
             flags |= FC_DICT;
         }
@@ -3889,7 +3882,7 @@ fn ex_call_inner<'a>(
         let mut funcexe = funcexe_init.clone();
         funcexe.fe_doesrange = false;
         let mut rettv: TypVal = TypVal::new();
-        rettv.v_type = VarType::VarUnknown;
+        rettv.value = crate::eval::typval::TvValue::Unknown;
         if !get_func_tv(name, -1, &mut rettv, arg, Some(evalarg), &mut funcexe) {
             failed = true;
             break;
@@ -4024,7 +4017,7 @@ fn handle_defer_one(funccal: &Funccall) {
         funcexe.fe_evaluate = true;
 
         let mut rettv: TypVal = TypVal::new();
-        rettv.v_type = VarType::VarUnknown;
+        rettv.value = crate::eval::typval::TvValue::Unknown;
 
         let argcount = (dr_argvars.len() - 1) as i32;
 
@@ -4211,9 +4204,8 @@ pub fn do_return(
             rettv = Some(std::mem::replace(
                 &mut *fc_rettv,
                 TypVal {
-                    v_type: VarType::VarNumber,
                     v_lock: VAR_UNLOCKED,
-                    vval: crate::eval::typval::TypvalVval::Number(0),
+                    value: crate::eval::typval::TvValue::Number(0),
                 },
             ));
         }
@@ -4331,26 +4323,26 @@ pub fn make_partial(selfdict: &TvDict, rettv: &mut TypVal) {
     let mut fname_buf = [0u8; FLEN_FIXED + 1];
     let mut error = 0;
 
-    if rettv.v_type == VarType::VarPartial
-        && let Some(pt_ref) = rettv.vval.v_partial().opt()
+    if rettv.var_type() == VarType::VarPartial
+        && let Some(pt_ref) = rettv.value.partial().opt()
         && let Some(pt_fp) = pt_ref.func_rc()
     {
         fp = Some(pt_fp);
     } else {
-        let fname_opt = if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
-            rettv.vval.v_string_cstr()
-        } else if let Some(pt_ref) = rettv.vval.v_partial_opt() {
-            pt_ref.name_cstr()
-        } else {
-            None
-        };
+        let fname_opt =
+            if rettv.var_type() == VarType::VarFunc || rettv.var_type() == VarType::VarString {
+                rettv.value.string_cstr()
+            } else if let Some(pt_ref) = rettv.value.partial_opt() {
+                pt_ref.name_cstr()
+            } else {
+                None
+            };
         if let Some(fname_cstr) = fname_opt {
             let mut tofree: Option<std::ffi::CString> = None;
             let fname = fname_trans_sid(fname_cstr, &mut fname_buf, &mut tofree, &mut error);
             fp = find_func(Some(fname.to_bytes()));
         } else {
-            rettv.v_type = VarType::VarFunc;
-            rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+            rettv.value = (crate::eval::typval::TvValue::NULL_STRING).into_funcref();
         }
     }
 
@@ -4362,10 +4354,10 @@ pub fn make_partial(selfdict: &TvDict, rettv: &mut TypVal) {
         pt.pt_dict.set(selfdict.id());
         selfdict.dv_refcount.set(selfdict.dv_refcount.get() + 1);
         pt.pt_auto.set(true);
-        if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
+        if rettv.var_type() == VarType::VarFunc || rettv.var_type() == VarType::VarString {
             pt.set_name(crate::eval::typval::tv_take_string(rettv));
         } else {
-            let ret_pt = rettv.vval.v_partial().unwrap_rc();
+            let ret_pt = rettv.value.partial().unwrap_rc();
             if let Some(ret_name) = ret_pt.pt_name.get() {
                 func_ref(Some(ret_name));
                 pt.set_name(Some(ret_name.clone()));
@@ -4383,9 +4375,9 @@ pub fn make_partial(selfdict: &TvDict, rettv: &mut TypVal) {
             }
             partial_unref(Some(&ret_pt));
         }
-        rettv.v_type = VarType::VarPartial;
-        rettv.vval =
-            crate::eval::typval::TypvalVval::Partial(crate::eval::typval::PartialId::from(pt));
+
+        rettv.value =
+            crate::eval::typval::TvValue::Partial(crate::eval::typval::PartialId::from(pt));
     }
 }
 

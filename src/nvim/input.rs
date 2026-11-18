@@ -2048,12 +2048,12 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
     let mut simplify = true;
     let mut cursor_flag: u8 = 0;
 
-    if argvars[0].v_type != VarType::VarUnknown && !tv_check_for_opt_dict_arg(argvars, 1) {
+    if argvars[0].var_type() != VarType::VarUnknown && !tv_check_for_opt_dict_arg(argvars, 1) {
         return;
     }
 
-    if argvars[0].v_type != VarType::VarUnknown && argvars[1].v_type == VarType::VarDict {
-        let d = argvars[1].vval.v_dict_opt();
+    if argvars[0].var_type() != VarType::VarUnknown && argvars[1].var_type() == VarType::VarDict {
+        let d = argvars[1].value.dict_opt();
 
         if allow_number {
             allow_number = tv_dict_get_bool(d, c"number", 1) != 0;
@@ -2096,8 +2096,8 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
             ui_cursor_goto(msg_state().msg_row.get(), msg_state().msg_col.get());
         }
 
-        if argvars[0].v_type == VarType::VarUnknown
-            || (argvars[0].v_type == VarType::VarNumber && argvars[0].vval.v_number() == -1)
+        if argvars[0].var_type() == VarType::VarUnknown
+            || (argvars[0].var_type() == VarType::VarNumber && argvars[0].value.number() == -1)
         {
             if !state_wait_key() {
                 continue;
@@ -2190,9 +2190,9 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
             }
         }
     } else if !allow_number {
-        rettv.v_type = VarType::VarString;
+        rettv.value = crate::eval::typval::TvValue::NULL_STRING;
     } else {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(n);
+        rettv.value = crate::eval::typval::TvValue::Number(n);
     }
 }
 
@@ -2208,8 +2208,8 @@ pub fn f_getcharstr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// `"getcharmod()"` function.
 pub fn f_getcharmod(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval =
-        crate::eval::typval::TypvalVval::Number(Varnumber::from(input_state().mod_mask.get()));
+    rettv.value =
+        crate::eval::typval::TvValue::Number(Varnumber::from(input_state().mod_mask.get()));
 }
 
 fn put_string_in_typebuf(offset: i32, slen: i32, string: &mut [u8], new_slen: i32) -> bool {

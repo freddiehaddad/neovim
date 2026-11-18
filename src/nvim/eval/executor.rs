@@ -4,7 +4,7 @@
 
 use crate::errors::*;
 use crate::eval::typval::{
-    TypVal, TypvalVval, VarType, tv_clear, tv_get_number, tv_get_string, tv_get_string_buf,
+    TvValue, TypVal, VarType, tv_clear, tv_get_number, tv_get_string, tv_get_string_buf,
     tv_list_copy, tv_list_extend,
 };
 use crate::eval::{grow_string_tv, num_divide, num_modulus};
@@ -14,17 +14,17 @@ use crate::strings::concat_str;
 use std::ffi::CStr;
 
 fn tv_op_blob(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
-    if op != b'+' || tv2.v_type != VarType::VarBlob {
+    if op != b'+' || tv2.var_type() != VarType::VarBlob {
         return false;
     }
 
-    let Some(b2) = tv2.vval.v_blob().rc() else {
+    let Some(b2) = tv2.value.blob().rc() else {
         return true;
     };
 
-    let Some(b1_ref) = tv1.vval.v_blob().rc() else {
+    let Some(b1_ref) = tv1.value.blob().rc() else {
         b2.bv_refcount.set(b2.bv_refcount.get() + 1);
-        tv1.vval = crate::eval::typval::TypvalVval::Blob(crate::eval::typval::BlobId::from(b2));
+        tv1.value = crate::eval::typval::TvValue::Blob(crate::eval::typval::BlobId::from(b2));
         return true;
     };
 
@@ -44,20 +44,20 @@ fn tv_op_blob(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
 }
 
 fn tv_op_list(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
-    if op != b'+' || tv2.v_type != VarType::VarList {
+    if op != b'+' || tv2.var_type() != VarType::VarList {
         return false;
     }
 
-    let Some(l2) = tv2.vval.v_list_opt() else {
+    let Some(l2) = tv2.value.list_opt() else {
         return true;
     };
 
-    if let Some(l1) = tv1.vval.v_list_opt() {
+    if let Some(l1) = tv1.value.list_opt() {
         tv_list_extend(l1, Some(l2), None);
     } else {
         // Make a copy, "tv1" must not become the same List as "tv2".
         let copied = tv_list_copy(None, Some(l2), false, 0);
-        tv1.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::from(copied));
+        tv1.value = crate::eval::typval::TvValue::List(crate::eval::typval::ListId::from(copied));
     }
 
     true
@@ -66,12 +66,12 @@ fn tv_op_list(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
 fn tv_op_number(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     let mut n = tv_get_number(&*tv1);
 
-    if tv2.v_type == VarType::VarFloat {
+    if tv2.var_type() == VarType::VarFloat {
         let mut f = n as f64;
         if op == b'%' {
             return false;
         }
-        let rhs = tv2.vval.v_float();
+        let rhs = tv2.value.float();
         match op {
             b'+' => f += rhs,
             b'-' => f -= rhs,
@@ -80,8 +80,8 @@ fn tv_op_number(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
             _ => {}
         }
         tv_clear(tv1);
-        tv1.v_type = VarType::VarFloat;
-        tv1.vval = TypvalVval::Float(f);
+
+        tv1.value = TvValue::Float(f);
     } else {
         let rhs = tv_get_number(tv2);
 
@@ -98,15 +98,15 @@ fn tv_op_number(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
             _ => {}
         }
         tv_clear(tv1);
-        tv1.v_type = VarType::VarNumber;
-        tv1.vval = TypvalVval::Number(n);
+
+        tv1.value = TvValue::Number(n);
     }
 
     true
 }
 
 fn tv_op_string(tv1: &mut TypVal, tv2: &TypVal) -> bool {
-    if tv2.v_type == VarType::VarFloat {
+    if tv2.var_type() == VarType::VarFloat {
         return false;
     }
 
@@ -126,7 +126,7 @@ fn tv_op_string(tv1: &mut TypVal, tv2: &TypVal) -> bool {
 }
 
 fn tv_op_nr_or_string(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
-    if tv2.v_type == VarType::VarList {
+    if tv2.var_type() == VarType::VarList {
         return false;
     }
     if matches!(op, b'+' | b'-' | b'*' | b'/' | b'%') {
@@ -140,24 +140,24 @@ fn tv_op_float(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     if op == b'%'
         || op == b'.'
         || !matches!(
-            tv2.v_type,
+            tv2.var_type(),
             VarType::VarFloat | VarType::VarNumber | VarType::VarString
         )
     {
         return false;
     }
 
-    let f = if tv2.v_type == VarType::VarFloat {
-        tv2.vval.v_float()
+    let f = if tv2.var_type() == VarType::VarFloat {
+        tv2.value.float()
     } else {
         (tv_get_number(tv2)) as f64
     };
 
     match op {
-        b'+' => *tv1.vval.v_float_mut() += f,
-        b'-' => *tv1.vval.v_float_mut() -= f,
-        b'*' => *tv1.vval.v_float_mut() *= f,
-        b'/' => *tv1.vval.v_float_mut() /= f,
+        b'+' => *tv1.value.float_mut() += f,
+        b'-' => *tv1.value.float_mut() -= f,
+        b'*' => *tv1.value.float_mut() *= f,
+        b'/' => *tv1.value.float_mut() /= f,
         _ => {}
     }
 
@@ -168,15 +168,15 @@ fn tv_op_float(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
 pub fn eexe_mod_op(tv1: &mut TypVal, tv2: &TypVal, op: &CStr) -> bool {
     let op_byte = op.to_bytes().first().copied().unwrap_or(0);
 
-    if tv2.v_type == VarType::VarFunc
-        || tv2.v_type == VarType::VarDict
-        || (matches!(tv2.v_type, VarType::VarBool | VarType::VarSpecial) && op_byte == b'.')
+    if tv2.var_type() == VarType::VarFunc
+        || tv2.var_type() == VarType::VarDict
+        || (matches!(tv2.var_type(), VarType::VarBool | VarType::VarSpecial) && op_byte == b'.')
     {
         semsg!(E_LETWRONG, op);
         return false;
     }
 
-    let retval = match tv1.v_type {
+    let retval = match tv1.var_type() {
         VarType::VarDict
         | VarType::VarFunc
         | VarType::VarPartial
@@ -203,18 +203,16 @@ mod tests {
     #[test]
     fn numeric_and_float_mod_ops() {
         let mut tv1 = TypVal {
-            v_type: VarType::VarNumber,
             v_lock: 0,
-            vval: TypvalVval::Number(10),
+            value: TvValue::Number(10),
         };
         let tv2 = TypVal {
-            v_type: VarType::VarNumber,
             v_lock: 0,
-            vval: TypvalVval::Number(5),
+            value: TvValue::Number(5),
         };
         assert!(eexe_mod_op(&mut tv1, &tv2, c"+"));
-        assert_eq!(tv1.vval.v_number(), 15);
+        assert_eq!(tv1.value.number(), 15);
         assert!(eexe_mod_op(&mut tv1, &tv2, c"*"));
-        assert_eq!(tv1.vval.v_number(), 75);
+        assert_eq!(tv1.value.number(), 75);
     }
 }

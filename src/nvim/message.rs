@@ -17,7 +17,7 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::callback_call;
-use crate::eval::typval::{TypVal, TypvalVval, VarType, tv_clear};
+use crate::eval::typval::{TvValue, TypVal, tv_clear};
 use crate::eval::vars::{
     VV_ERRMSG, VV_SCROLLSTART, VV_STATUSMSG, VV_WARNINGMSG, get_vim_var_str, set_vim_var_string,
     var_redir_str,
@@ -3637,14 +3637,12 @@ fn msg_puts_printf(str_: &[u8], maxlen: isize) {
         {
             let cstr = crate::memory::bytes_to_cstring(slice);
             let mut argv = [TypVal {
-                v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::from_cstr(&cstr),
+                value: TvValue::from_cstr(&cstr),
             }];
             let mut rettv = TypVal {
-                v_type: VarType::VarUnknown,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(0),
+                value: crate::eval::typval::TvValue::Unknown,
             };
             callback_call(&msg_state().on_print, 1, &mut argv, &mut rettv);
             tv_clear(&mut rettv);

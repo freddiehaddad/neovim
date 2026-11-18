@@ -15,7 +15,7 @@ use crate::cursor::{CursorPos, Linenr, check_cursor};
 use crate::drawscreen::{UPD_VALID, redraw_later};
 use crate::errors::*;
 use crate::eval::typval::{
-    K_CALLBACK_NONE_CONST, TvDict, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType, Varnumber,
+    K_CALLBACK_NONE_CONST, TvDict, TvList, TvValue, TypVal, VAR_UNLOCKED, VarType, Varnumber,
     callback_free, tv_clear, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str,
     tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_lock, tv_dict_find, tv_dict_find_opt,
     tv_dict_get_number, tv_dict_get_string, tv_get_number, tv_list_alloc, tv_list_alloc_ret,
@@ -161,7 +161,7 @@ impl Drop for Tagname {
 use crate::change::{HLF_W, TAB};
 use crate::charset::NUL;
 use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
-use crate::eval::funcs::{K_SPECIAL_VAR_NULL_CONST, SEARCH_KEEP};
+use crate::eval::funcs::SEARCH_KEEP;
 use crate::fileio::{SEEK_END, SEEK_SET};
 use crate::os::env::ExpandCtx;
 use crate::os::fs::MAXPATHL;
@@ -946,9 +946,8 @@ fn select_tag_match(
         let tagstackidx = curwin().w_tagstackidx.get();
 
         let mut items_tv = TypVal {
-            v_type: VarType::VarUnknown,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Number(0),
+            value: crate::eval::typval::TvValue::Unknown,
         };
         tv_list_alloc_ret(&mut items_tv, matches.len() as isize);
 
@@ -988,22 +987,20 @@ fn select_tag_match(
             );
 
             let item = TypVal {
-                v_type: VarType::VarDict,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Dict(d),
+                value: TvValue::Dict(d),
             };
-            tv_list_append_tv(items_tv.vval.v_list_ref(), &item);
+            tv_list_append_tv(items_tv.value.list_ref(), &item);
         }
 
         let extra_d = tv_dict_alloc();
-        tv_dict_add_list(&extra_d, c"items", items_tv.vval.v_list_opt());
-        let list_ref = items_tv.vval.v_list_ref();
+        tv_dict_add_list(&extra_d, c"items", items_tv.value.list_opt());
+        let list_ref = items_tv.value.list_ref();
         list_ref.lv_refcount.set(list_ref.lv_refcount.get() + 1);
         tv_dict_add_str(&extra_d, c"tagname", Some(name));
         let mut extra_tv = TypVal {
-            v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Dict(extra_d),
+            value: TvValue::Dict(extra_d),
         };
 
         let cmod = cmdline_state().snapshot_cmdmod();
@@ -1272,15 +1269,13 @@ fn find_tagfunc_tags(
     let mut ntags: i32 = 0;
     let mut args = [const {
         TypVal {
-            v_type: VarType::VarUnknown,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Number(0),
+            value: crate::eval::typval::TvValue::Unknown,
         }
     }; 4];
     let mut rettv = TypVal {
-        v_type: VarType::VarUnknown,
         v_lock: VAR_UNLOCKED,
-        vval: TypvalVval::Number(0),
+        value: crate::eval::typval::TvValue::Unknown,
     };
     let mut flag_string = [0u8; 4];
 
@@ -1316,11 +1311,10 @@ fn find_tagfunc_tags(
         if (flags & TAG_REGEXP) != 0 { c"r" } else { c"" },
     );
 
-    args[0].v_type = VarType::VarString;
-    args[0].vval = crate::eval::typval::TypvalVval::from_cstr(pat_cstr);
-    args[1].v_type = VarType::VarString;
-    args[1].vval =
-        crate::eval::typval::TypvalVval::from_cstr(crate::memory::bytes_as_cstr(&flag_string));
+    args[0].value = crate::eval::typval::TvValue::from_cstr(pat_cstr);
+
+    args[1].value =
+        crate::eval::typval::TvValue::from_cstr(crate::memory::bytes_as_cstr(&flag_string));
 
     let d = tv_dict_alloc_lock(VAR_FIXED);
     if (flags & TAG_INS_COMP) == 0
@@ -1334,9 +1328,9 @@ fn find_tagfunc_tags(
     }
 
     d.dv_refcount.set(d.dv_refcount.get() + 1);
-    args[2].v_type = VarType::VarDict;
-    args[2].vval = crate::eval::typval::TypvalVval::Dict(d.clone());
-    args[3].v_type = VarType::VarUnknown;
+
+    args[2].value = crate::eval::typval::TvValue::Dict(d.clone());
+    args[3].value = crate::eval::typval::TvValue::Unknown;
 
     let save_pos = curwin().w_cursor.get();
     let mut result = callback_call(&curbuf().b_p_tfu, 3, &mut args, &mut rettv);
@@ -1347,16 +1341,16 @@ fn find_tagfunc_tags(
     if !result {
         return Some(false);
     }
-    if rettv.v_type == VarType::VarSpecial && rettv.vval.v_special() == K_SPECIAL_VAR_NULL_CONST {
+    if matches!(rettv.value, TvValue::Null) {
         tv_clear(&mut rettv);
         return None;
     }
-    if rettv.v_type != VarType::VarList || rettv.vval.v_list().is_null() {
+    if rettv.var_type() != VarType::VarList || rettv.value.list().is_null() {
         tv_clear(&mut rettv);
         emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
         return Some(false);
     }
-    let taglist = rettv.vval.v_list_opt();
+    let taglist = rettv.value.list_opt();
 
     for li in tv_list_iter(taglist) {
         let mut res_name: Option<std::ffi::CString> = None;
@@ -1367,32 +1361,32 @@ fn find_tagfunc_tags(
         let name_only = (flags & TAG_NAMES) != 0;
 
         let li_tv = li.tv();
-        if li_tv.v_type != VarType::VarDict {
+        if li_tv.var_type() != VarType::VarDict {
             emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
             break;
         }
 
         let mut len: usize = 2;
-        let item_dict = li_tv.vval.v_dict();
+        let item_dict = li_tv.value.dict();
         drop(li_tv);
         if let Some(item_dict) = item_dict.opt() {
             for (hi, di) in item_dict.dv_hashtab.iter_items() {
                 let dict_key = hi.key_cstr();
                 let tv = di.tv();
 
-                if tv.v_type == VarType::VarString && !tv.vval.v_string_is_null() {
-                    len += tv.vval.v_string_bytes().len() + 1;
+                if tv.var_type() == VarType::VarString && !tv.value.string_is_null() {
+                    len += tv.value.string_bytes().len() + 1;
                     let dk_bytes = dict_key.map_or(&[][..], std::ffi::CStr::to_bytes);
                     if dk_bytes == b"name" {
-                        res_name = tv.vval.v_string_cstr().map(CStr::to_owned);
+                        res_name = tv.value.string_cstr().map(CStr::to_owned);
                     } else if dk_bytes == b"filename" {
-                        res_fname = tv.vval.v_string_cstr().map(CStr::to_owned);
+                        res_fname = tv.value.string_cstr().map(CStr::to_owned);
                     } else if dk_bytes == b"cmd" {
-                        res_cmd = tv.vval.v_string_cstr().map(CStr::to_owned);
+                        res_cmd = tv.value.string_cstr().map(CStr::to_owned);
                     } else {
                         has_extra = true;
                         if dk_bytes == b"kind" {
-                            res_kind = tv.vval.v_string_cstr().map(CStr::to_owned);
+                            res_kind = tv.value.string_cstr().map(CStr::to_owned);
                         } else {
                             len += dk_bytes.len() + 1;
                         }
@@ -1445,8 +1439,8 @@ fn find_tagfunc_tags(
                         let dict_key = hi.key_cstr();
                         let tv = di.tv();
                         let key_bytes = dict_key.map_or(&[][..], std::ffi::CStr::to_bytes);
-                        if tv.v_type == VarType::VarString
-                            && !tv.vval.v_string_is_null()
+                        if tv.var_type() == VarType::VarString
+                            && !tv.value.string_is_null()
                             && key_bytes != b"name"
                             && key_bytes != b"filename"
                             && key_bytes != b"cmd"
@@ -1455,7 +1449,7 @@ fn find_tagfunc_tags(
                             v.push(TAB);
                             v.extend_from_slice(key_bytes);
                             v.push(b':');
-                            v.extend_from_slice(tv.vval.v_string_bytes());
+                            v.extend_from_slice(tv.value.string_bytes());
                         }
                     }
                 }
@@ -3358,8 +3352,8 @@ fn tagstack_push_items(wp: &WinInfoInfo, l: Option<&TvList>) {
     for li in tv_list_iter(l) {
         let itemdict_id = {
             let li_tv = li.tv();
-            if li_tv.v_type == VarType::VarDict {
-                li_tv.vval.v_dict()
+            if li_tv.var_type() == VarType::VarDict {
+                li_tv.value.dict()
             } else {
                 crate::eval::typval::DictId::NULL
             }
@@ -3409,11 +3403,11 @@ pub fn set_tagstack(wp: &WinInfoInfo, d: Option<&TvDict>, action: i32) -> bool {
     let mut l_id = crate::eval::typval::ListId::NULL;
 
     if let Some(di_items) = tv_dict_find_opt(d, c"items", -1) {
-        if di_items.tv().v_type != VarType::VarList {
+        if di_items.tv().var_type() != VarType::VarList {
             emsg(gettext(E_LISTREQ));
             return false;
         }
-        l_id = di_items.tv().vval.v_list();
+        l_id = di_items.tv().value.list();
     }
     let l: Option<&TvList> = l_id.opt();
 

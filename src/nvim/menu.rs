@@ -1977,7 +1977,7 @@ pub fn f_menu_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     };
 
     let which_cow;
-    let which: &CStr = if argvars[1].v_type != VarType::VarUnknown {
+    let which: &CStr = if argvars[1].var_type() != VarType::VarUnknown {
         let Some(w) = tv_get_string_chk(&argvars[1]) else {
             return;
         };

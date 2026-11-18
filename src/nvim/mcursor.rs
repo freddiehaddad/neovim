@@ -24,7 +24,7 @@ use crate::cursor::{
 use crate::decoration::DecorInline;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::eval::ESC;
-use crate::eval::typval::{TypVal, TypvalVval, VarType, Varnumber};
+use crate::eval::typval::{TvValue, TypVal, Varnumber};
 use crate::eval::vars::{VV_CASCADING, get_vim_var_tv, set_vim_var_bool};
 use crate::eval::window::Viewstate;
 use crate::ex_docmd::{
@@ -290,7 +290,7 @@ pub fn mc_showcmd(buf: &mut [u8]) -> usize {
 }
 
 pub fn mc_replaying() -> bool {
-    get_vim_var_tv(VV_CASCADING).tv().vval.v_bool() == K_BOOL_VAR_TRUE_CONST
+    get_vim_var_tv(VV_CASCADING).tv().value.boolean()
 }
 
 fn mc_mark_upd(buf: &FileBuf, mark: &mut u32, pos: CursorPos) {
@@ -1319,18 +1319,12 @@ fn mc_lua_enable(enable: bool) {
     }
     let mut tv_args = [
         TypVal {
-            v_type: VarType::VarBool,
             v_lock: 0,
-            vval: TypvalVval::Bool(if enable {
-                K_BOOL_VAR_TRUE_CONST
-            } else {
-                K_BOOL_VAR_FALSE_CONST
-            }),
+            value: TvValue::Bool(enable),
         },
         TypVal {
-            v_type: VarType::VarUnknown,
             v_lock: 0,
-            vval: TypvalVval::Number(0),
+            value: crate::eval::typval::TvValue::Unknown,
         },
     ];
     nlua_call_typval(c"vim._core.mcursor", c"enable", &mut tv_args, None);
@@ -1662,14 +1656,12 @@ pub fn mc_counter(count1: i64) {
     atom_did_global_op();
     let mut tv_args = [
         TypVal {
-            v_type: VarType::VarNumber,
             v_lock: 0,
-            vval: TypvalVval::Number(count1 as Varnumber),
+            value: TvValue::Number(count1 as Varnumber),
         },
         TypVal {
-            v_type: VarType::VarUnknown,
             v_lock: 0,
-            vval: TypvalVval::Number(0),
+            value: crate::eval::typval::TvValue::Unknown,
         },
     ];
     nlua_call_typval(c"vim._core.mcursor", c"number", &mut tv_args, None);

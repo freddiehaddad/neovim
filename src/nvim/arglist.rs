@@ -1184,13 +1184,13 @@ pub fn arg_all() -> CString {
 
 /// `argc([window id])` function (`f_argc`).
 pub fn f_argc(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    if argvars[0].v_type == VarType::VarUnknown {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(argcount() as Varnumber);
-    } else if argvars[0].v_type == VarType::VarNumber && tv_get_number(&argvars[0]) == -1 {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(gargcount() as Varnumber);
+    if argvars[0].var_type() == VarType::VarUnknown {
+        rettv.value = crate::eval::typval::TvValue::Number(argcount() as Varnumber);
+    } else if argvars[0].var_type() == VarType::VarNumber && tv_get_number(&argvars[0]) == -1 {
+        rettv.value = crate::eval::typval::TvValue::Number(gargcount() as Varnumber);
     } else {
         let wp = find_win_by_nr_or_id(&argvars[0]);
-        rettv.vval = crate::eval::typval::TypvalVval::Number(if let Some(wp_ref) = wp {
+        rettv.value = crate::eval::typval::TvValue::Number(if let Some(wp_ref) = wp {
             wargcount(&wp_ref) as Varnumber
         } else {
             -1
@@ -1200,15 +1200,15 @@ pub fn f_argc(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
 /// `argidx()` function (`f_argidx`).
 pub fn f_argidx(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(curwin().w_arg_idx.get() as Varnumber);
+    rettv.value = crate::eval::typval::TvValue::Number(curwin().w_arg_idx.get() as Varnumber);
 }
 
 /// `arglistid()` function (`f_arglistid`).
 pub fn f_arglistid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+    rettv.value = crate::eval::typval::TvValue::Number(-1);
     if let Some(wp_ref) = find_tabwin(&argvars[0], &argvars[1]) {
-        rettv.vval =
-            crate::eval::typval::TypvalVval::Number(win_alist_rc(&wp_ref).id.get() as Varnumber);
+        rettv.value =
+            crate::eval::typval::TvValue::Number(win_alist_rc(&wp_ref).id.get() as Varnumber);
     }
 }
 
@@ -1217,22 +1217,22 @@ fn get_arglist_as_rettv(entries: Option<&[Aentry]>, rettv: &mut TypVal) {
     tv_list_alloc_ret(&mut *rettv, count as isize);
     if let Some(entries) = entries {
         for entry in entries {
-            tv_list_append_string(rettv.vval.v_list_ref(), alist_name(entry).as_deref(), -1);
+            tv_list_append_string(rettv.value.list_ref(), alist_name(entry).as_deref(), -1);
         }
     }
 }
 
 /// `argv(nr)` function (`f_argv`).
 pub fn f_argv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    if argvars[0].v_type == VarType::VarUnknown {
+    if argvars[0].var_type() == VarType::VarUnknown {
         let entries = win_alist_rc(&curwin()).al_ga.borrow().clone();
         get_arglist_as_rettv(Some(&entries), rettv);
         return;
     }
 
-    let entries: Option<Vec<Aentry>> = if argvars[1].v_type == VarType::VarUnknown {
+    let entries: Option<Vec<Aentry>> = if argvars[1].var_type() == VarType::VarUnknown {
         Some(win_alist_rc(&curwin()).al_ga.borrow().clone())
-    } else if argvars[1].v_type == VarType::VarNumber && tv_get_number(&argvars[1]) == -1 {
+    } else if argvars[1].var_type() == VarType::VarNumber && tv_get_number(&argvars[1]) == -1 {
         Some(global_alist_rc().al_ga.borrow().clone())
     } else {
         find_win_by_nr_or_id(&argvars[1]).map(|wp_ref| win_alist_rc(&wp_ref).al_ga.borrow().clone())

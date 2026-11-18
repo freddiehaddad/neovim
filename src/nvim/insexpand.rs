@@ -131,7 +131,6 @@ pub(crate) const CTRL_I_CONST: i32 = 9;
 pub(crate) const K_WIN_INFO: WinKind = 1;
 
 const VAR_UNKNOWN: VarType = VarType::VarUnknown;
-const VAR_NUMBER: VarType = VarType::VarNumber;
 pub(crate) const VAR_STRING: VarType = VarType::VarString;
 const VAR_LIST: VarType = VarType::VarList;
 const VAR_DICT: VarType = VarType::VarDict;
@@ -3481,11 +3480,11 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&Callback>
     };
 
     let mut args: [TypVal; 3] = [const { TypVal::new() }; 3];
-    args[0].v_type = VAR_NUMBER;
-    args[1].v_type = VAR_STRING;
-    args[2].v_type = VAR_UNKNOWN;
-    args[0].vval = crate::eval::typval::TypvalVval::Number(0);
-    args[1].vval = crate::eval::typval::TypvalVval::from_cstr(base.unwrap_or(c""));
+    args[0].value = crate::eval::typval::TvValue::Number(0);
+    args[1].value = crate::eval::typval::TvValue::NULL_STRING;
+    args[2].value = crate::eval::typval::TvValue::Unknown;
+    args[0].value = crate::eval::typval::TvValue::Number(0);
+    args[1].value = crate::eval::typval::TvValue::from_cstr(base.unwrap_or(c""));
 
     let pos = curwin().w_cursor.get();
     {
@@ -3495,12 +3494,12 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&Callback>
             callback_call(cb, 2, &mut args, &mut rettv)
         };
         if called {
-            match rettv.v_type {
+            match rettv.var_type() {
                 VAR_LIST => {
-                    matchlist = rettv.vval.v_list();
+                    matchlist = rettv.value.list();
                 }
                 VAR_DICT => {
-                    matchdict = rettv.vval.v_dict();
+                    matchdict = rettv.value.dict();
                 }
                 _ => {
                     tv_clear(&mut rettv);
@@ -3550,10 +3549,10 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> Option<bool>
     let mut commit_chars: Option<std::ffi::CString> = None;
     let mut user_hl: [i32; 2] = [0, 0];
     let mut user_data: TypVal = TypVal::new();
-    user_data.v_type = VAR_UNKNOWN;
+    user_data.value = crate::eval::typval::TvValue::Unknown;
 
-    if tv.v_type == VAR_DICT && !tv.vval.v_dict().is_null() {
-        let d = tv.vval.v_dict_ref();
+    if tv.var_type() == VAR_DICT && !tv.value.dict().is_null() {
+        let d = tv.value.dict_ref();
         word = tv_dict_get_string(Some(d), c"word");
         cptext[CPT_ABBR] = crate::eval::typval::tv_dict_get_cstring(Some(d), c"abbr");
         cptext[CPT_MENU] = crate::eval::typval::tv_dict_get_cstring(Some(d), c"menu");
@@ -3630,20 +3629,20 @@ fn ins_compl_add_list(list: Option<&TvList>) {
 fn ins_compl_add_dict(dict: &TvDict) {
     INSEXPAND.with(|s| s.compl_opt_refresh_always.set(false));
     if let Some(di_refresh) = crate::eval::typval::tv_dict_find_opt(Some(dict), c"refresh", 7)
-        && di_refresh.tv().v_type == VAR_STRING
+        && di_refresh.tv().var_type() == VAR_STRING
         && di_refresh
             .tv()
-            .vval
-            .v_string_cstr()
+            .value
+            .string_cstr()
             .is_some_and(|s| s.to_bytes() == b"always")
     {
         INSEXPAND.with(|s| s.compl_opt_refresh_always.set(true));
     }
 
     if let Some(di_words) = crate::eval::typval::tv_dict_find_opt(Some(dict), c"words", 5)
-        && di_words.tv().v_type == VAR_LIST
+        && di_words.tv().var_type() == VAR_LIST
     {
-        let words_list = di_words.tv().vval.v_list();
+        let words_list = di_words.tv().value.list();
         ins_compl_add_list(words_list.opt());
     }
 }
@@ -3766,12 +3765,12 @@ pub fn f_complete(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncDa
         return;
     }
 
-    if argvars[1].v_type != VAR_LIST {
+    if argvars[1].var_type() != VAR_LIST {
         emsg(gettext(E_INVARG));
     } else {
         let startcol = tv_get_number_chk(&argvars[0], None) as Colnr;
         if startcol > 0 {
-            set_completion(startcol - 1, argvars[1].vval.v_list_opt());
+            set_completion(startcol - 1, argvars[1].value.list_opt());
         }
     }
 }
@@ -3782,13 +3781,13 @@ pub fn f_complete_add(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         Some(false) => 0,
         None => 2,
     };
-    rettv.vval = crate::eval::typval::TypvalVval::Number(rc);
+    rettv.value = crate::eval::typval::TvValue::Number(rc);
 }
 
 pub fn f_complete_check(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let _save_rd = screen_state().override_redrawing_disabled(0);
     ins_compl_check_keys(0, true);
-    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(ins_compl_interrupted()));
+    rettv.value = crate::eval::typval::TvValue::Number(Varnumber::from(ins_compl_interrupted()));
 }
 
 fn ins_compl_mode() -> NvimString {
@@ -3894,7 +3893,7 @@ fn fill_complete_info_dict(di: &TvDict, match_: &Compl, add_match: bool) {
     if let Some(ref commit_chars) = match_.cp_commit_chars {
         tv_dict_add_str(di, c"commit_chars", Some(commit_chars.as_c_str()));
     }
-    if match_.cp_user_data.v_type == VAR_UNKNOWN {
+    if match_.cp_user_data.var_type() == VAR_UNKNOWN {
         tv_dict_add_str_len(di, c"user_data", Some(b""));
     } else {
         tv_dict_add_tv(di, b"user_data", &mut match_.cp_user_data.clone());
@@ -4048,14 +4047,14 @@ pub fn f_complete_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
     let mut what_list = crate::eval::typval::ListId::NULL;
 
-    if argvars[0].v_type != VAR_UNKNOWN {
-        if argvars[0].v_type != VAR_LIST {
+    if argvars[0].var_type() != VAR_UNKNOWN {
+        if argvars[0].var_type() != VAR_LIST {
             emsg(gettext(E_LISTREQ));
             return;
         }
-        what_list = argvars[0].vval.v_list();
+        what_list = argvars[0].value.list();
     }
-    get_complete_info(what_list.opt(), rettv.vval.v_dict_ref());
+    get_complete_info(what_list.opt(), rettv.value.dict_ref());
 }
 
 #[inline]
@@ -6398,11 +6397,11 @@ fn get_userdefined_compl_info(
     };
 
     let mut args: [TypVal; 3] = [const { TypVal::new() }; 3];
-    args[0].v_type = VAR_NUMBER;
-    args[1].v_type = VAR_STRING;
-    args[2].v_type = VAR_UNKNOWN;
-    args[0].vval = crate::eval::typval::TypvalVval::Number(1);
-    args[1].vval = crate::eval::typval::TypvalVval::from_cstr(c"");
+    args[0].value = crate::eval::typval::TvValue::Number(0);
+    args[1].value = crate::eval::typval::TvValue::NULL_STRING;
+    args[2].value = crate::eval::typval::TvValue::Unknown;
+    args[0].value = crate::eval::typval::TvValue::Number(1);
+    args[1].value = crate::eval::typval::TvValue::from_cstr(c"");
 
     let pos = curwin().w_cursor.get();
     let col = {
@@ -7295,7 +7294,7 @@ fn cpt_compl_refresh() {
 
 pub fn f_preinserted(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     if ins_compl_preinsert_effect() {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(1);
+        rettv.value = crate::eval::typval::TvValue::Number(1);
     }
 }
 

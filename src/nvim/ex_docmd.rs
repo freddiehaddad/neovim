@@ -71,7 +71,7 @@ use crate::eval::funcs::{
     DOCMD_KEYTYPED, MT_LINE_WISE, RE_SEARCH, SEARCH_KEEP, VIM_QUESTION, create_environment,
 };
 use crate::eval::typval::{
-    BoolVarValue, Callback, EvalFuncData, TypVal, TypvalVval, VarType, callback_free, tv_clear,
+    BoolVarValue, Callback, EvalFuncData, TvValue, TypVal, VarType, callback_free, tv_clear,
     tv_dict_add_str, tv_dict_alloc, tv_get_string, tv_list_alloc_ret, tv_list_append_string,
     tv_list_copy, tv_list_find_str, tv_list_free,
 };
@@ -7755,8 +7755,7 @@ pub fn cmd_exists(name: &[u8]) -> i32 {
 pub fn f_fullcommand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut name = crate::option_vars::RcSlice::from_cstr(&tv_get_string(&argvars[0]));
 
-    rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+    rettv.value = crate::eval::typval::TvValue::NULL_STRING;
 
     while name.first_byte() == b':' {
         name = name.wrapping_add(1);
@@ -9323,9 +9322,8 @@ fn ex_exmode(_eap: &mut Exarg) {
         return;
     }
     let mut args = [TypVal {
-        v_type: VarType::VarUnknown,
         v_lock: 0,
-        vval: TypvalVval::Number(0),
+        value: crate::eval::typval::TvValue::Unknown,
     }];
     nlua_call_typval(c"vim._core.exmode", c"open", &mut args, None);
 }
@@ -9339,9 +9337,8 @@ fn ex_restart(eap: &mut Exarg) {
             Some(eap.do_ecmd_cmd.as_deref().unwrap_or(c"")),
         );
         let mut extra_tv = TypVal {
-            v_type: VarType::VarDict,
             v_lock: 0,
-            vval: TypvalVval::Dict(extra_d),
+            value: TvValue::Dict(extra_d),
         };
         let cmod = cmdline_state().snapshot_cmdmod();
         nlua_call_excmd(
@@ -9979,19 +9976,16 @@ fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<crate::eval::t
 
     let mut args = [
         TypVal {
-            v_type: VarType::VarString,
             v_lock: 0,
-            vval: TypvalVval::from_cstr(pat),
+            value: TvValue::from_cstr(pat),
         },
         TypVal {
-            v_type: VarType::VarBool,
             v_lock: 0,
-            vval: TypvalVval::Bool(cmdcomplete),
+            value: TvValue::Bool((cmdcomplete) == 1),
         },
         TypVal {
-            v_type: VarType::VarUnknown,
             v_lock: 0,
-            vval: TypvalVval::Number(0),
+            value: crate::eval::typval::TvValue::Unknown,
         },
     ];
 
@@ -10010,8 +10004,8 @@ fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<crate::eval::t
 
     let mut retlist: Option<crate::eval::typval::ListId> = None;
     if retval {
-        if rettv.v_type == VarType::VarList {
-            retlist = tv_list_copy(None, rettv.vval.v_list_opt(), false, get_copy_id());
+        if rettv.var_type() == VarType::VarList {
+            retlist = tv_list_copy(None, rettv.value.list_opt(), false, get_copy_id());
         } else {
             let _ = emsg(gettext(E_INVALID_RETURN_TYPE_FROM_FINDFUNC));
         }
@@ -10053,10 +10047,10 @@ fn findfunc_find_file(findarg: &[u8], count: i32) -> Option<std::ffi::CString> {
     } else if let Some(li) = crate::eval::typval::tv_list_find_opt(fname_list.as_deref(), count - 1)
     {
         let tv = li.tv();
-        if tv.v_type == VarType::VarString && !tv.vval.v_string_is_null() {
-            ret_fname = Some(tv.vval.v_string_owned());
-        } else if tv.v_type == VarType::VarDict
-            && let Some(dict) = tv.vval.v_dict_opt()
+        if tv.var_type() == VarType::VarString && !tv.value.string_is_null() {
+            ret_fname = Some(tv.value.string_owned());
+        } else if tv.var_type() == VarType::VarDict
+            && let Some(dict) = tv.value.dict_opt()
         {
             ret_fname = crate::eval::typval::tv_dict_get_cstring(Some(dict), c"word");
         }
@@ -10399,14 +10393,12 @@ fn ex_connect(eap: &mut Exarg) {
     if is_ssh {
         let mut argvars = [
             TypVal {
-                v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::from_opt_cstr(addr.as_opt_cstr()),
+                value: TvValue::from_opt_cstr(addr.as_opt_cstr()),
             },
             TypVal {
-                v_type: VarType::VarNumber,
                 v_lock: 0,
-                vval: TypvalVval::Number(screen_state().current_ui.get() as Varnumber),
+                value: TvValue::Number(screen_state().current_ui.get() as Varnumber),
             },
             TypVal::new(),
         ];
@@ -10417,12 +10409,12 @@ fn ex_connect(eap: &mut Exarg) {
             &mut argvars,
             Some(&mut ssh_rettv),
         );
-        if ssh_rettv.v_type != VarType::VarString || ssh_rettv.vval.v_string_is_null() {
+        if ssh_rettv.var_type() != VarType::VarString || ssh_rettv.value.string_is_null() {
             tv_clear(&mut ssh_rettv);
             return; // Declined, interrupted (CTRL-C), or failed (E6101 shown).
         }
 
-        addr = crate::option_vars::RcSlice::from_cstr(ssh_rettv.vval.v_string_cstr_or_empty());
+        addr = crate::option_vars::RcSlice::from_cstr(ssh_rettv.value.string_cstr_or_empty());
     } else {
         if !is_tcp && !crate::path::path_is_absolute(addr_bytes) {
             // Relative to the current directory (not the UI's), like other file args.
@@ -10451,14 +10443,12 @@ fn ex_connect(eap: &mut Exarg) {
         {
             let mut argvars = [
                 TypVal {
-                    v_type: VarType::VarString,
                     v_lock: 0,
-                    vval: TypvalVval::from_opt_cstr(Some(chan_addr.as_c_str())),
+                    value: TvValue::from_opt_cstr(Some(chan_addr.as_c_str())),
                 },
                 TypVal {
-                    v_type: VarType::VarString,
                     v_lock: 0,
-                    vval: TypvalVval::from_opt_cstr(addr.as_opt_cstr()),
+                    value: TvValue::from_opt_cstr(addr.as_opt_cstr()),
                 },
                 TypVal::new(),
             ];
@@ -10469,10 +10459,10 @@ fn ex_connect(eap: &mut Exarg) {
                 &mut argvars,
                 Some(&mut relinked),
             );
-            if relinked.v_type != VarType::VarBool {
+            if relinked.var_type() != VarType::VarBool {
                 return;
             }
-            if relinked.vval.v_bool() == K_BOOL_VAR_TRUE_CONST {
+            if relinked.value.boolean() {
                 addr = crate::option_vars::RcSlice::from_cstr(chan_addr.as_c_str());
             }
         }
@@ -12720,7 +12710,7 @@ fn ex_terminal(eap: &mut Exarg) {
         tv_list_alloc_ret(&mut shell_tv, 0);
         for arg in argv {
             tv_list_append_string(
-                &shell_tv.vval.v_list(),
+                &shell_tv.value.list(),
                 Some(arg.as_c_str()),
                 arg.as_bytes().len() as isize,
             );

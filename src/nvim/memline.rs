@@ -1085,9 +1085,9 @@ pub fn ml_recover(checkext: bool) {
         let mut items_tv = TypVal::new();
         tv_list_alloc_ret(&mut items_tv, 0);
 
-        recover_names(Some(fname_cstr), true, &items_tv.vval.v_list());
+        recover_names(Some(fname_cstr), true, &items_tv.value.list());
 
-        let n_swaps = tv_list_len(items_tv.vval.v_list().opt());
+        let n_swaps = tv_list_len(items_tv.value.list().opt());
 
         if n_swaps == 0 {
             tv_clear(&mut items_tv);
@@ -1106,11 +1106,11 @@ pub fn ml_recover(checkext: bool) {
 
             return;
         }
-        fname_used = tv_list_first(items_tv.vval.v_list().opt())
+        fname_used = tv_list_first(items_tv.value.list().opt())
             .unwrap()
             .tv()
-            .vval
-            .v_string_cstr()
+            .value
+            .string_cstr()
             .map(CStr::to_owned);
         tv_clear(&mut items_tv);
     }

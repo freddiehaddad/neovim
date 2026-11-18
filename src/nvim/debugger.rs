@@ -856,7 +856,7 @@ fn debuggy_find(
             if let Some(mut tv) = eval_expr_no_emsg(&dbg_name) {
                 if let Some(ref mut old_val) = old_val_opt {
                     if typval_compare(&mut tv, &mut *old_val, EXPR_IS, false)
-                        && tv.vval.v_number() == 0
+                        && tv.value.number() == 0
                     {
                         line = true;
                         let old_s = typval_tostring(Some(old_val), true);

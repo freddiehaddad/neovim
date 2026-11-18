@@ -529,7 +529,7 @@ fn del_history_idx(histype: i32, idx_arg: i32) -> bool {
 
 /// `"histadd()"` function (`f_histadd`).
 pub fn f_histadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+    rettv.value = crate::eval::typval::TvValue::Number(0);
     if check_secure() {
         return;
     }
@@ -550,7 +550,7 @@ pub fn f_histadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
     init_history();
     add_to_history(histype, entry_str.to_bytes(), false, 0);
-    rettv.vval = crate::eval::typval::TypvalVval::Number(1);
+    rettv.value = crate::eval::typval::TvValue::Number(1);
 }
 
 /// `"histdel()"` function (`f_histdel`).
@@ -558,9 +558,9 @@ pub fn f_histdel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let ok = if let Some(str_ptr) = tv_get_string_chk(&argvars[0]) {
         let htype = get_histtype(str_ptr.to_bytes(), false);
         let arg1 = &argvars[1];
-        if arg1.v_type == VarType::VarUnknown {
+        if arg1.var_type() == VarType::VarUnknown {
             clr_history(htype)
-        } else if arg1.v_type == VarType::VarNumber {
+        } else if arg1.var_type() == VarType::VarNumber {
             del_history_idx(htype, tv_get_number(arg1) as i32)
         } else {
             let mut buf = [0u8; NUMBUFLEN];
@@ -570,7 +570,7 @@ pub fn f_histdel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     } else {
         false
     };
-    rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(ok));
+    rettv.value = crate::eval::typval::TvValue::Number(i64::from(ok));
 }
 
 /// `"histget()"` function (`f_histget`).
@@ -581,7 +581,7 @@ pub fn f_histget(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     };
     let htype = get_histtype(str_ptr.to_bytes(), false);
     let arg1 = &argvars[1];
-    let req_idx = if arg1.v_type == VarType::VarUnknown {
+    let req_idx = if arg1.var_type() == VarType::VarUnknown {
         get_history_idx(htype).unwrap_or(-1)
     } else {
         tv_get_number_chk(arg1, None) as i32
@@ -601,7 +601,7 @@ pub fn f_histnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     } else {
         HIST_INVALID
     };
-    rettv.vval = crate::eval::typval::TypvalVval::Number(if htype != HIST_INVALID {
+    rettv.value = crate::eval::typval::TvValue::Number(if htype != HIST_INVALID {
         i64::from(get_history_idx(htype).unwrap_or(-1))
     } else {
         HIST_INVALID as i64

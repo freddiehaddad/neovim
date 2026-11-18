@@ -7,7 +7,7 @@ use crate::charset::{ascii_iswhite, getdigits_int};
 use crate::cursor::{Colnr, check_cursor, get_cursor_line_len, get_cursor_line_slice};
 use crate::errors::*;
 use crate::eval::typval::{
-    TypVal, TypvalVval, VarType, tv_clear, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str,
+    TvValue, TypVal, VarType, tv_clear, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str,
     tv_dict_add_str_len, tv_dict_alloc, tv_list_alloc_ret, tv_list_append_tv, tv_list_unref,
     tv_set_string,
 };
@@ -585,9 +585,8 @@ pub fn spell_apply_sps(flags: i32, limit: i32) {
 }
 fn select_spell_suggestion(sug: &mut Suginfo) {
     let mut items_tv = TypVal {
-        v_type: VarType::VarUnknown,
         v_lock: 0,
-        vval: TypvalVval::Number(0),
+        value: crate::eval::typval::TvValue::Unknown,
     };
     tv_list_alloc_ret(&mut items_tv, sug.su_ga.len() as isize);
     for stp in &sug.su_ga {
@@ -627,29 +626,26 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
             );
         }
         let item = TypVal {
-            v_type: VarType::VarDict,
             v_lock: 0,
-            vval: TypvalVval::Dict(d),
+            value: TvValue::Dict(d),
         };
-        tv_list_append_tv(items_tv.vval.v_list_ref(), &item);
+        tv_list_append_tv(items_tv.value.list_ref(), &item);
     }
     let badptr_bytes = sug.su_badptr.as_bytes();
     let bad_cstr = crate::memory::bytes_to_cstring(
         &badptr_bytes[..(sug.su_badlen as usize).min(badptr_bytes.len())],
     );
     let mut bad_tv = TypVal {
-        v_type: VarType::VarUnknown,
         v_lock: 0,
-        vval: TypvalVval::Number(0),
+        value: crate::eval::typval::TvValue::Unknown,
     };
     tv_set_string(&mut bad_tv, Some(bad_cstr.as_c_str()));
     let mut lua_args = [
         items_tv,
         bad_tv,
         TypVal {
-            v_type: VarType::VarUnknown,
             v_lock: 0,
-            vval: TypvalVval::Number(0),
+            value: crate::eval::typval::TvValue::Unknown,
         },
     ];
     nlua_call_typval(c"vim._core.spell", c"select_suggest", &mut lua_args, None);
@@ -941,8 +937,8 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
     if let Some(list) = list_opt {
         for li in crate::eval::typval::list_iter_ptr(list.first_opt()) {
             let li_tv = li.tv();
-            if li_tv.v_type == VarType::VarList
-                && let Some(sublist) = li_tv.vval.v_list_opt()
+            if li_tv.var_type() == VarType::VarList
+                && let Some(sublist) = li_tv.value.list_opt()
                 && let Some((score, p)) = get_spellword(sublist)
                 && score >= 0
                 && score <= su.su_maxscore

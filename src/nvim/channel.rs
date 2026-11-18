@@ -10,7 +10,7 @@ use crate::buffer::FileBuf;
 use crate::errors::*;
 use crate::eval::encode::encode_list_write;
 use crate::eval::typval::{
-    Callback, K_CALLBACK_NONE_CONST, ListId, TypVal, TypvalVval, VAR_UNLOCKED, VarType, Varnumber,
+    Callback, K_CALLBACK_NONE_CONST, ListId, TvValue, TypVal, VAR_UNLOCKED, VarType, Varnumber,
     callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_find, tv_dict_free,
     tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_ref, tv_list_unref,
 };
@@ -885,9 +885,9 @@ pub(crate) fn channel_proc_state_cb(
 
 fn channel_callback_call(chan: &Channel, is_stderr: Option<bool>) {
     let mut argv: [TypVal; 4] = [const { TypVal::new() }; 4];
-    argv[0].v_type = VarType::VarNumber;
+    argv[0].value = crate::eval::typval::TvValue::Number(0);
     argv[0].v_lock = VAR_UNLOCKED;
-    argv[0].vval = TypvalVval::Number(chan.id as Varnumber);
+    argv[0].value = TvValue::Number(chan.id as Varnumber);
 
     let cb = if let Some(is_stderr) = is_stderr {
         let (bytes, reader_type, callback) = chan.with_reader_mut(is_stderr, |reader| {
@@ -899,20 +899,20 @@ fn channel_callback_call(chan: &Channel, is_stderr: Option<bool>) {
         });
         let l = buffer_to_tv_list(&bytes);
         tv_list_ref(Some(&l));
-        argv[1].v_type = VarType::VarList;
+        argv[1].value = crate::eval::typval::TvValue::List(crate::eval::typval::ListId::NULL);
         argv[1].v_lock = VAR_UNLOCKED;
-        argv[1].vval = TypvalVval::List(l);
-        argv[2].v_type = VarType::VarString;
+        argv[1].value = TvValue::List(l);
+        argv[2].value = crate::eval::typval::TvValue::NULL_STRING;
         argv[2].v_lock = VAR_UNLOCKED;
-        argv[2].vval = TypvalVval::from_opt_cstr(reader_type);
+        argv[2].value = TvValue::from_opt_cstr(reader_type);
         callback
     } else {
-        argv[1].v_type = VarType::VarNumber;
+        argv[1].value = crate::eval::typval::TvValue::Number(0);
         argv[1].v_lock = VAR_UNLOCKED;
-        argv[1].vval = TypvalVval::Number(Varnumber::from(chan.exit_status.get()));
-        argv[2].v_type = VarType::VarString;
+        argv[1].value = TvValue::Number(Varnumber::from(chan.exit_status.get()));
+        argv[2].value = crate::eval::typval::TvValue::NULL_STRING;
         argv[2].v_lock = VAR_UNLOCKED;
-        argv[2].vval = TypvalVval::from_cstr(c"exit");
+        argv[2].value = TvValue::from_cstr(c"exit");
         chan.on_exit.clone()
     };
 
@@ -921,7 +921,7 @@ fn channel_callback_call(chan: &Channel, is_stderr: Option<bool>) {
     tv_clear(&mut rettv);
 
     if is_stderr.is_some() {
-        tv_list_unref(argv[1].vval.v_list_opt());
+        tv_list_unref(argv[1].value.list_opt());
     }
 }
 
@@ -1050,8 +1050,8 @@ pub fn set_info_event(chan: &Channel, event: AuEvent) {
     let info = channel_info(chan.id);
     let mut retval: TypVal = TypVal::new();
     object_to_vim(Object::Dict(info), &mut retval);
-    assert_eq!(retval.v_type, VarType::VarDict);
-    let _ = tv_dict_add_dict(&dict, c"info", retval.vval.v_dict_opt());
+    assert_eq!(retval.var_type(), VarType::VarDict);
+    let _ = tv_dict_add_dict(&dict, c"info", retval.value.dict_opt());
     tv_dict_set_keys_readonly(&dict);
 
     let _ = apply_autocmds(event, None, None, true, curbuf_opt().as_deref());

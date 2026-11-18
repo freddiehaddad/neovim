@@ -3217,13 +3217,13 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         recompute = true;
     }
 
-    if argvars[0].v_type != VarType::VarUnknown {
+    if argvars[0].var_type() != VarType::VarUnknown {
         let mut error = false;
 
         if !tv_check_for_nonnull_dict_arg(argvars, 0) {
             return;
         }
-        let dict = argvars[0].vval.v_dict_opt();
+        let dict = argvars[0].value.dict_opt();
         if let Some(di) = tv_dict_find_opt(dict, c"timeout", -1) {
             timeout = tv_get_number_chk(&di.tv(), Some(&mut error)) as i32;
             if error {
@@ -3246,11 +3246,11 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
         if let Some(di) = tv_dict_find_opt(dict, c"pos", -1) {
             let di_tv = di.tv();
-            if di_tv.v_type != VarType::VarList {
+            if di_tv.var_type() != VarType::VarList {
                 semsg!(tr(E_INVARG2), c"pos");
                 return;
             }
-            let pos_list = di_tv.vval.v_list_opt();
+            let pos_list = di_tv.value.list_opt();
             if tv_list_len(pos_list) != 3 {
                 semsg!(tr(E_INVARG2), c"List format should be [lnum, col, off]",);
                 return;
@@ -3302,23 +3302,23 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         );
 
         tv_dict_add_nr(
-            rettv.vval.v_dict_ref(),
+            rettv.value.dict_ref(),
             c"current",
             Varnumber::from(stat.cur),
         );
-        tv_dict_add_nr(rettv.vval.v_dict_ref(), c"total", Varnumber::from(stat.cnt));
+        tv_dict_add_nr(rettv.value.dict_ref(), c"total", Varnumber::from(stat.cnt));
         tv_dict_add_nr(
-            rettv.vval.v_dict_ref(),
+            rettv.value.dict_ref(),
             c"exact_match",
             Varnumber::from(stat.exact_match),
         );
         tv_dict_add_nr(
-            rettv.vval.v_dict_ref(),
+            rettv.value.dict_ref(),
             c"incomplete",
             Varnumber::from(stat.incomplete),
         );
         tv_dict_add_nr(
-            rettv.vval.v_dict_ref(),
+            rettv.value.dict_ref(),
             c"maxcount",
             Varnumber::from(stat.last_maxcount),
         );

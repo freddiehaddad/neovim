@@ -145,14 +145,14 @@ pub fn get_clipboard(mut name: i32, target: &mut Option<RegIdx>, quiet: bool) ->
         false
     };
 
-    if result.v_type != VarType::VarList {
-        if result.v_type == VarType::VarNumber && result.vval.v_number() == 0 {
+    if result.var_type() != VarType::VarList {
+        if result.var_type() == VarType::VarNumber && result.value.number() == 0 {
             errmsg = false;
         }
         return fail_cleanup(reg, errmsg, target);
     }
 
-    let res = result.vval.v_list_opt();
+    let res = result.value.list_opt();
     let res_len = res.map_or(0, |l| l.lv_len.get());
     let lines_list: crate::eval::typval::ListId;
     let lines: Option<&TvList>;
@@ -160,19 +160,19 @@ pub fn get_clipboard(mut name: i32, target: &mut Option<RegIdx>, quiet: bool) ->
 
     if res_len == 2
         && let Some(first_li) = res.and_then(TvList::first_opt)
-        && first_li.tv().v_type == VarType::VarList
+        && first_li.tv().var_type() == VarType::VarList
     {
-        lines_list = first_li.tv().vval.v_list();
+        lines_list = first_li.tv().value.list();
         lines = lines_list.opt();
 
         let Some(last_li) = res.and_then(TvList::last_opt) else {
             return fail_cleanup(reg, errmsg, target);
         };
         let last_tv = last_li.tv();
-        if last_tv.v_type != VarType::VarString {
+        if last_tv.var_type() != VarType::VarString {
             return fail_cleanup(reg, errmsg, target);
         }
-        let Some(regtype) = last_tv.vval.v_string_cstr() else {
+        let Some(regtype) = last_tv.value.string_cstr() else {
             return fail_cleanup(reg, errmsg, target);
         };
         let regtype_bytes = regtype.to_bytes();
@@ -197,13 +197,13 @@ pub fn get_clipboard(mut name: i32, target: &mut Option<RegIdx>, quiet: bool) ->
 
     for li in crate::eval::typval::list_iter_ptr(lines.and_then(|l| l.first_opt())) {
         let li_tv = li.tv();
-        if li_tv.v_type != VarType::VarString {
+        if li_tv.var_type() != VarType::VarString {
             for mut s in y_array {
                 api_clear_string(&mut s);
             }
             return fail_cleanup(reg, errmsg, target);
         }
-        y_array.push(cstr_to_string(Some(li_tv.vval.v_string_cstr_or_empty())));
+        y_array.push(cstr_to_string(Some(li_tv.value.string_cstr_or_empty())));
     }
 
     if y_array.last().is_some_and(|last| last.size == 0) {

@@ -11,8 +11,7 @@ use crate::drawscreen::{
     redraw_curbuf_later, redraw_later, redraw_statuslines, setcursor, update_screen,
 };
 use crate::eval::typval::{
-    EvalFuncData, TypVal, TypvalVval, VarType, Varnumber, tv_clear, tv_dict_add_nr,
-    tv_dict_alloc_ret,
+    EvalFuncData, TvValue, TypVal, Varnumber, tv_clear, tv_dict_add_nr, tv_dict_alloc_ret,
 };
 use crate::eval::vars::{VV_LNUM, VV_VIRTNUM, get_vim_var_nr, set_vim_var_nr};
 use crate::eval::{call_vim_function, eval_has_provider};
@@ -346,24 +345,20 @@ fn call_click_def_func(click_defs: &[StlClickDefinition], col: i32, which_button
     let def = &click_defs[col as usize];
     let mut argv: [TypVal; 4] = [
         TypVal {
-            v_type: VarType::VarNumber,
             v_lock: VAR_FIXED,
-            vval: TypvalVval::Number(Varnumber::from(def.tabnr)),
+            value: TvValue::Number(Varnumber::from(def.tabnr)),
         },
         TypVal {
-            v_type: VarType::VarNumber,
             v_lock: VAR_FIXED,
-            vval: TypvalVval::Number(clicks),
+            value: TvValue::Number(clicks),
         },
         TypVal {
-            v_type: VarType::VarString,
             v_lock: VAR_FIXED,
-            vval: TypvalVval::from_cstr(btn_str),
+            value: TvValue::from_cstr(btn_str),
         },
         TypVal {
-            v_type: VarType::VarString,
             v_lock: VAR_FIXED,
-            vval: TypvalVval::from_cstr(crate::memory::bytes_as_cstr(&mod_str)),
+            value: TvValue::from_cstr(crate::memory::bytes_as_cstr(&mod_str)),
         },
     ];
 

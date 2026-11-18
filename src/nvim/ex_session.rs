@@ -483,7 +483,7 @@ fn store_session_globals(fd: &CFile) -> bool {
     for (_, this_var) in d.dv_hashtab.iter_items() {
         let key_cstr = this_var.key_cstr();
         let this_tv = this_var.tv();
-        if (this_tv.v_type == VarType::VarNumber || this_tv.v_type == VarType::VarString)
+        if (this_tv.var_type() == VarType::VarNumber || this_tv.var_type() == VarType::VarString)
             && var_flavour(key_cstr.to_bytes()) == VAR_FLAVOUR_SESSION
         {
             let p = vim_strsave_escaped(tv_get_string(&this_tv).to_bytes(), b"\\\"\n\r");
@@ -498,7 +498,7 @@ fn store_session_globals(fd: &CFile) -> bool {
                     *b = b'r';
                 }
             }
-            let quote = if this_tv.v_type == VarType::VarString {
+            let quote = if this_tv.var_type() == VarType::VarString {
                 '"'
             } else {
                 ' '
@@ -514,10 +514,10 @@ fn store_session_globals(fd: &CFile) -> bool {
             {
                 return false;
             }
-        } else if this_tv.v_type == VarType::VarFloat
+        } else if this_tv.var_type() == VarType::VarFloat
             && var_flavour(key_cstr.to_bytes()) == VAR_FLAVOUR_SESSION
         {
-            let mut f = this_tv.vval.v_float();
+            let mut f = this_tv.value.float();
             let sign = if f < 0.0 {
                 f = -f;
                 '-'

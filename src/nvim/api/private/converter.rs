@@ -5,7 +5,7 @@ use crate::api::private::helpers::nil_obj;
 use crate::api::private::validate::{Array, Dict, NvimString, Object};
 use crate::eval::decode::decode_string;
 use crate::eval::typval::{
-    TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_dict_add, tv_dict_alloc, tv_list_alloc,
+    TvValue, TypVal, VAR_UNLOCKED, tv_dict_add, tv_dict_alloc, tv_list_alloc,
     tv_list_append_owned_tv,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
@@ -13,7 +13,6 @@ use crate::eval::{get_copy_id, partial_name};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::api_new_luaref;
 
-pub(crate) const K_SPECIAL_VAR_NULL: i64 = 0;
 pub(crate) const K_BOOL_VAR_FALSE: i64 = 0;
 pub(crate) const K_BOOL_VAR_TRUE: i64 = 1;
 
@@ -44,29 +43,27 @@ fn convert_one_value(
     tv: &TypVal,
     copy_id: i32,
 ) {
-    match tv.v_type {
-        VarType::VarString => {
-            let bytes = tv.vval.v_string_bytes();
+    match &tv.value {
+        TvValue::String(_) | TvValue::InlineString(_) => {
+            let bytes = tv.value.string_bytes();
             stack.push(cbuf_to_string_obj(bytes));
         }
-        VarType::VarNumber => {
-            let n = tv.vval.v_number();
-            stack.push(Object::Integer(n));
+        TvValue::Number(n) => {
+            stack.push(Object::Integer(*n));
         }
-        VarType::VarFloat => {
-            let f = tv.vval.v_float();
-            stack.push(Object::Float(f));
+        TvValue::Float(f) => {
+            stack.push(Object::Float(*f));
         }
-        VarType::VarBlob => {
-            let blob = tv.vval.v_blob_opt();
+        TvValue::Blob(blob) => {
+            let blob = blob.opt();
             let obj = match blob {
                 Some(b) => cbuf_to_string_obj(&b.bv_ga.borrow()),
                 None => cbuf_to_string_obj(&[]),
             };
             stack.push(obj);
         }
-        VarType::VarFunc => {
-            let obj = if let Some(fun) = tv.vval.v_string_cstr()
+        TvValue::Func(_) | TvValue::InlineFunc(_) => {
+            let obj = if let Some(fun) = tv.value.string_cstr()
                 && let Some(fp) = find_func(Some(fun.to_bytes()))
                 && (fp.uf_flags.get() & FC_LUAREF) != 0
             {
@@ -76,8 +73,8 @@ fn convert_one_value(
             };
             stack.push(obj);
         }
-        VarType::VarPartial => {
-            let obj = if let Some(pt) = tv.vval.v_partial_opt() {
+        TvValue::Partial(partial) => {
+            let obj = if let Some(pt) = partial.opt() {
                 let fun = partial_name(Some(pt));
                 if let Some(fp) = find_func(Some(fun.to_bytes()))
                     && (fp.uf_flags.get() & FC_LUAREF) != 0
@@ -91,9 +88,8 @@ fn convert_one_value(
             };
             stack.push(obj);
         }
-        VarType::VarList => {
-            let list_ptr = tv.vval.v_list();
-            let Some(list) = tv.vval.v_list_opt() else {
+        TvValue::List(list_ptr) => {
+            let Some(list) = list_ptr.opt() else {
                 stack.push(Object::Array(Array::new()));
                 return;
             };
@@ -110,22 +106,20 @@ fn convert_one_value(
             let arr = Array::with_capacity(list.lv_len.get() as usize);
             stack.push(Object::Array(arr));
             mpstack.push(ConvStackEntry::List {
-                list: list_ptr,
+                list: list_ptr.clone(),
                 li: list.lv_first.get(),
                 saved_copy_id,
                 first: true,
             });
         }
-        VarType::VarBool => {
-            let b = tv.vval.v_bool() == K_BOOL_VAR_TRUE as i32;
-            stack.push(Object::Boolean(b));
+        TvValue::Bool(b) => {
+            stack.push(Object::Boolean(*b));
         }
-        VarType::VarSpecial => {
+        TvValue::Null => {
             stack.push(nil_obj());
         }
-        VarType::VarDict => {
-            let dict_ptr = tv.vval.v_dict();
-            let Some(dict) = tv.vval.v_dict_opt() else {
+        TvValue::Dict(dict_ptr) => {
+            let Some(dict) = dict_ptr.opt() else {
                 stack.push(Object::Dict(Dict::new()));
                 return;
             };
@@ -143,14 +137,14 @@ fn convert_one_value(
             let d_obj = Dict::with_capacity(used);
             stack.push(Object::Dict(d_obj));
             mpstack.push(ConvStackEntry::Dict {
-                dict: dict_ptr,
+                dict: dict_ptr.clone(),
                 hi_idx: 0,
                 todo: used,
                 saved_copy_id,
                 first: true,
             });
         }
-        VarType::VarUnknown => {
+        TvValue::Unknown => {
             stack.push(nil_obj());
         }
     }
@@ -259,32 +253,23 @@ pub fn object_to_vim(obj: Object, tv: &mut TypVal) {
 }
 
 fn object_to_vim_ref(obj: &Object, tv: &mut TypVal) {
-    tv.v_type = VarType::VarUnknown;
     tv.v_lock = VAR_UNLOCKED;
 
     match obj {
         Object::Unset | Object::Nil => {
-            tv.v_type = VarType::VarSpecial;
-            tv.vval = TypvalVval::Number(K_SPECIAL_VAR_NULL);
+            tv.value = TvValue::Null;
         }
         Object::Boolean(value) => {
-            tv.v_type = VarType::VarBool;
-            tv.vval = TypvalVval::Number(if *value {
-                K_BOOL_VAR_TRUE
-            } else {
-                K_BOOL_VAR_FALSE
-            });
+            tv.value = TvValue::Bool(*value);
         }
         Object::Buffer(value)
         | Object::Window(value)
         | Object::Tabpage(value)
         | Object::Integer(value) => {
-            tv.v_type = VarType::VarNumber;
-            tv.vval = TypvalVval::Number(*value);
+            tv.value = TvValue::Number(*value);
         }
         Object::Float(value) => {
-            tv.v_type = VarType::VarFloat;
-            tv.vval = TypvalVval::Float(*value);
+            tv.value = TvValue::Float(*value);
         }
         Object::String(value) => {
             *tv = decode_string(value.as_bytes(), false);
@@ -294,16 +279,15 @@ fn object_to_vim_ref(obj: &Object, tv: &mut TypVal) {
             let list = tv_list_alloc(slice.len() as isize);
             for item in slice {
                 let mut li_tv = TypVal {
-                    v_type: VarType::VarUnknown,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::Number(0),
+                    value: crate::eval::typval::TvValue::Unknown,
                 };
                 object_to_vim_ref(item, &mut li_tv);
                 tv_list_append_owned_tv(&list, li_tv);
             }
             list.lv_refcount.set(list.lv_refcount.get() + 1);
-            tv.v_type = VarType::VarList;
-            tv.vval = TypvalVval::List(list);
+
+            tv.value = TvValue::List(list);
         }
         Object::Dict(value) => {
             let slice = value.as_slice();
@@ -314,14 +298,14 @@ fn object_to_vim_ref(obj: &Object, tv: &mut TypVal) {
                 tv_dict_add(&dict, &di);
             }
             dict.dv_refcount.set(dict.dv_refcount.get() + 1);
-            tv.v_type = VarType::VarDict;
-            tv.vval = TypvalVval::Dict(dict);
+
+            tv.value = TvValue::Dict(dict);
         }
         Object::LuaRef(value) => {
             let ref_id = api_new_luaref(*value);
             let name = register_luafunc(ref_id);
             crate::eval::typval::tv_set_string(tv, Some(&name));
-            tv.v_type = VarType::VarFunc;
+            tv.make_funcref();
         }
     }
 }
@@ -338,32 +322,23 @@ pub fn object_to_vim_take_luaref(obj: &mut Object, tv: &mut TypVal, take_luaref:
 
 fn object_to_vim_take_luaref_impl(obj: &mut Object, tv: &mut TypVal) {
     let tv_ref = tv;
-    tv_ref.v_type = VarType::VarUnknown;
     tv_ref.v_lock = VAR_UNLOCKED;
 
     match obj {
         Object::Unset | Object::Nil => {
-            tv_ref.v_type = VarType::VarSpecial;
-            tv_ref.vval = TypvalVval::Number(K_SPECIAL_VAR_NULL);
+            tv_ref.value = TvValue::Null;
         }
         Object::Boolean(value) => {
-            tv_ref.v_type = VarType::VarBool;
-            tv_ref.vval = TypvalVval::Number(if *value {
-                K_BOOL_VAR_TRUE
-            } else {
-                K_BOOL_VAR_FALSE
-            });
+            tv_ref.value = TvValue::Bool(*value);
         }
         Object::Buffer(value)
         | Object::Window(value)
         | Object::Tabpage(value)
         | Object::Integer(value) => {
-            tv_ref.v_type = VarType::VarNumber;
-            tv_ref.vval = TypvalVval::Number(*value);
+            tv_ref.value = TvValue::Number(*value);
         }
         Object::Float(value) => {
-            tv_ref.v_type = VarType::VarFloat;
-            tv_ref.vval = TypvalVval::Float(*value);
+            tv_ref.value = TvValue::Float(*value);
         }
         Object::String(value) => {
             *tv_ref = decode_string(value.as_bytes(), false);
@@ -372,16 +347,15 @@ fn object_to_vim_take_luaref_impl(obj: &mut Object, tv: &mut TypVal) {
             let list = tv_list_alloc(arr.size as isize);
             for item in arr.as_mut_slice() {
                 let mut li_tv = TypVal {
-                    v_type: VarType::VarUnknown,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::Number(0),
+                    value: crate::eval::typval::TvValue::Unknown,
                 };
                 object_to_vim_take_luaref_impl(item, &mut li_tv);
                 tv_list_append_owned_tv(&list, li_tv);
             }
             list.lv_refcount.set(list.lv_refcount.get() + 1);
-            tv_ref.v_type = VarType::VarList;
-            tv_ref.vval = TypvalVval::List(list);
+
+            tv_ref.value = TvValue::List(list);
         }
         Object::Dict(d) => {
             let dict = tv_dict_alloc();
@@ -391,14 +365,14 @@ fn object_to_vim_take_luaref_impl(obj: &mut Object, tv: &mut TypVal) {
                 tv_dict_add(&dict, &di);
             }
             dict.dv_refcount.set(dict.dv_refcount.get() + 1);
-            tv_ref.v_type = VarType::VarDict;
-            tv_ref.vval = TypvalVval::Dict(dict);
+
+            tv_ref.value = TvValue::Dict(dict);
         }
         Object::LuaRef(value) => {
             let ref_id = std::mem::replace(value, LUA_NOREF);
             let name = register_luafunc(ref_id);
             crate::eval::typval::tv_set_string(tv_ref, Some(&name));
-            tv_ref.v_type = VarType::VarFunc;
+            tv_ref.make_funcref();
         }
     }
 }
@@ -407,6 +381,7 @@ fn object_to_vim_take_luaref_impl(obj: &mut Object, tv: &mut TypVal) {
 mod tests {
     use super::*;
     use crate::api::private::validate::ObjectType;
+    use crate::eval::typval::VarType;
 
     #[test]
     fn scalar_object_to_vim_conversions() {
@@ -414,14 +389,13 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         let mut tv = TypVal {
-            v_type: VarType::VarUnknown,
             v_lock: 0,
-            vval: TypvalVval::Number(0),
+            value: crate::eval::typval::TvValue::Unknown,
         };
         {
             object_to_vim(Object::Integer(99), &mut tv);
-            assert_eq!(tv.v_type, VarType::VarNumber);
-            assert_eq!(tv.vval.v_number(), 99);
+            assert_eq!(tv.var_type(), VarType::VarNumber);
+            assert_eq!(tv.value.number(), 99);
 
             let obj = vim_to_object(&tv);
             assert_eq!(obj.obj_type(), ObjectType::ObjectTypeInteger);
@@ -429,18 +403,16 @@ mod tests {
 
             // NULL list -> empty Array, NULL dict -> empty Dict
             let null_list = TypVal {
-                v_type: VarType::VarList,
                 v_lock: 0,
-                vval: TypvalVval::List(crate::eval::typval::ListId::NULL),
+                value: TvValue::List(crate::eval::typval::ListId::NULL),
             };
             let arr_obj = vim_to_object(&null_list);
             assert_eq!(arr_obj.obj_type(), ObjectType::ObjectTypeArray);
             assert_eq!(arr_obj.as_array().expect("array Object").clone().size, 0);
 
             let null_dict = TypVal {
-                v_type: VarType::VarDict,
                 v_lock: 0,
-                vval: TypvalVval::Dict(crate::eval::typval::DictId::NULL),
+                value: TvValue::Dict(crate::eval::typval::DictId::NULL),
             };
             let dict_obj = vim_to_object(&null_dict);
             assert!(matches!(dict_obj, Object::Dict(dict) if dict.size == 0));
@@ -449,9 +421,8 @@ mod tests {
             let list = tv_list_alloc(1);
             list.lv_refcount.set(list.lv_refcount.get() + 1);
             let list_tv = TypVal {
-                v_type: VarType::VarList,
                 v_lock: 0,
-                vval: TypvalVval::List(list.clone()),
+                value: TvValue::List(list.clone()),
             };
             tv_list_append_owned_tv(&list, list_tv.clone());
             let cyc_obj = vim_to_object(&list_tv);
@@ -463,7 +434,7 @@ mod tests {
             );
             crate::api::private::helpers::api_free_object(cyc_obj);
 
-            list.lv_first.get().tv_mut().v_type = VarType::VarUnknown;
+            list.lv_first.get().tv_mut().value = crate::eval::typval::TvValue::Unknown;
 
             crate::eval::typval::tv_list_free(Some(&list));
         }

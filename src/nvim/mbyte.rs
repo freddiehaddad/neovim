@@ -3220,8 +3220,7 @@ fn iconv_string(
 }
 
 pub fn f_iconv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+    rettv.value = crate::eval::typval::TvValue::NULL_STRING;
 
     let str_ = tv_get_string(&argvars[0]);
     let mut buf1 = [0u8; NUMBUFLEN];
@@ -3464,33 +3463,33 @@ fn cw_value(c: i32) -> i32 {
 }
 
 pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    if argvars[0].v_type != VarType::VarList || argvars[0].vval.v_list().is_null() {
+    if argvars[0].var_type() != VarType::VarList || argvars[0].value.list().is_null() {
         emsg(crate::strings::gettext(E_LISTREQ));
         return;
     }
 
-    let l = argvars[0].vval.v_list_ref();
+    let l = argvars[0].value.list_ref();
     let table_size = tv_list_len(Some(l)) as usize;
     let mut table: Vec<CwInterval> = Vec::with_capacity(table_size);
     if table_size != 0 {
         for (item, li) in (0_i32..).zip(crate::eval::typval::list_iter_ptr(l.first_opt())) {
             let li_tv = li.tv();
-            if li_tv.v_type != VarType::VarList || li_tv.vval.v_list().is_null() {
+            if li_tv.var_type() != VarType::VarList || li_tv.value.list().is_null() {
                 semsg!(E_LIST_ITEM_NR_IS_NOT_LIST, item);
                 return;
             }
 
-            let li_l = li_tv.vval.v_list_ref();
+            let li_l = li_tv.value.list_ref();
             let mut i = 0;
             let mut n1: Varnumber = 0;
             let mut n2: Varnumber = 0;
             let mut n3: Varnumber = 0;
             for lili in crate::eval::typval::list_iter_ptr(tv_list_first(Some(li_l))) {
                 let lili_tv = lili.tv();
-                if lili_tv.v_type != VarType::VarNumber {
+                if lili_tv.var_type() != VarType::VarNumber {
                     break;
                 }
-                let val = lili_tv.vval.v_number();
+                let val = lili_tv.value.number();
                 if i == 0 {
                     n1 = val;
                     if n1 < 0x80 {
@@ -3558,16 +3557,16 @@ pub fn f_getcellwidths(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
         tv_list_append_number(&entry, entry_data.first);
         tv_list_append_number(&entry, entry_data.last);
         tv_list_append_number(&entry, Varnumber::from(entry_data.width));
-        tv_list_append_list(rettv.vval.v_list_ref(), Some(&entry));
+        tv_list_append_list(rettv.value.list_ref(), Some(&entry));
     }
 }
 
 pub fn f_charclass(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    if !tv_check_for_string_arg(argvars, 0) || argvars[0].vval.v_string_is_null() {
+    if !tv_check_for_string_arg(argvars, 0) || argvars[0].value.string_is_null() {
         return;
     }
-    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(mb_get_class(
-        argvars[0].vval.v_string_bytes(),
+    rettv.value = crate::eval::typval::TvValue::Number(Varnumber::from(mb_get_class(
+        argvars[0].value.string_bytes(),
     )));
 }
 

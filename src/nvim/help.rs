@@ -5,9 +5,7 @@ use crate::api::private::helpers::cstr_as_obj;
 use crate::buffer::{bt_help, buflist_findnr_opt, set_buflisted, wipe_buffer};
 use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_iswhite, buf_init_isk_chartab};
 use crate::errors::*;
-use crate::eval::K_BOOL_VAR_FALSE_CONST;
-use crate::eval::K_BOOL_VAR_TRUE_CONST;
-use crate::eval::typval::{TypVal, TypvalVval, VarType, tv_clear};
+use crate::eval::typval::{TvValue, TypVal, VarType, tv_clear};
 use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, ECMD_SET_HELP, do_ecmd};
 use crate::ex_docmd::{CMOD_KEEPALT, Exarg, do_cmdline_cmd};
 use crate::globals::*;
@@ -36,8 +34,6 @@ pub(crate) const TAG_KEEP_LANG: i32 = 128;
 pub(crate) const TAG_NO_TAGFUNC: i32 = 256;
 
 pub(crate) const K_OPT_ISKEYWORD: OptIndex = 155;
-
-use crate::eval::funcs::K_SPECIAL_VAR_NULL_CONST;
 
 /// `:help`: open a read-only window on a help file (`ex_help`).
 pub fn ex_help(eap: &mut Exarg) {
@@ -103,14 +99,12 @@ pub fn ex_help(eap: &mut Exarg) {
     let mut allocated_arg: Option<std::ffi::CString> = None;
     if helpbang {
         let mut no_args = [TypVal {
-            v_type: VarType::VarUnknown,
             v_lock: 0,
-            vval: TypvalVval::Number(0),
+            value: crate::eval::typval::TvValue::Unknown,
         }];
         let mut rettv = TypVal {
-            v_type: VarType::VarUnknown,
             v_lock: 0,
-            vval: TypvalVval::Number(0),
+            value: crate::eval::typval::TvValue::Unknown,
         };
         nlua_call_typval(
             c"vim._core.help",
@@ -118,7 +112,7 @@ pub fn ex_help(eap: &mut Exarg) {
             &mut no_args,
             Some(&mut rettv),
         );
-        if rettv.v_type == VarType::VarString && !rettv.vval.v_string_is_empty() {
+        if rettv.var_type() == VarType::VarString && !rettv.value.string_is_empty() {
             allocated_arg = crate::eval::typval::tv_take_string(&mut rettv);
             arg_cstr = allocated_arg.as_deref().unwrap();
         } else {
@@ -317,20 +311,17 @@ fn help_compare(str1: &[u8], str2: &[u8]) -> std::cmp::Ordering {
 pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lang: bool) -> bool {
     let mut tv_args = [
         TypVal {
-            v_type: VarType::VarString,
             v_lock: 0,
-            vval: TypvalVval::from_cstr(arg),
+            value: TvValue::from_cstr(arg),
         },
         TypVal {
-            v_type: VarType::VarUnknown,
             v_lock: 0,
-            vval: TypvalVval::Number(0),
+            value: crate::eval::typval::TvValue::Unknown,
         },
     ];
     let mut rettv = TypVal {
-        v_type: VarType::VarUnknown,
         v_lock: 0,
-        vval: TypvalVval::Number(0),
+        value: crate::eval::typval::TvValue::Unknown,
     };
     nlua_call_typval(
         c"vim._core.help",
@@ -338,12 +329,12 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
         &mut tv_args,
         Some(&mut rettv),
     );
-    if rettv.v_type != VarType::VarString || rettv.vval.v_string_is_null() {
+    if rettv.var_type() != VarType::VarString || rettv.value.string_is_null() {
         tv_clear(&mut rettv);
         return false;
     }
     let mut iobuff = [0u8; IOSIZE];
-    crate::memory::copy_bytes_to_c_buf(&mut iobuff, rettv.vval.v_string_bytes());
+    crate::memory::copy_bytes_to_c_buf(&mut iobuff, rettv.value.string_bytes());
     tv_clear(&mut rettv);
 
     matches.clear();
@@ -454,9 +445,8 @@ pub fn prepare_help_buffer() {
 /// Populate `*local-additions*` in `help.txt` (`get_local_additions`).
 pub fn get_local_additions() {
     let mut no_args = [TypVal {
-        v_type: VarType::VarUnknown,
         v_lock: 0,
-        vval: TypvalVval::Number(0),
+        value: crate::eval::typval::TvValue::Unknown,
     }];
     nlua_call_typval(c"vim._core.help", c"local_additions", &mut no_args, None);
 }
@@ -484,30 +474,22 @@ pub fn ex_helptags(eap: &mut Exarg) {
     let mut tv_args = [
         if eap.arg.as_bytes() == b"ALL" {
             TypVal {
-                v_type: VarType::VarSpecial,
                 v_lock: 0,
-                vval: TypvalVval::Special(K_SPECIAL_VAR_NULL_CONST),
+                value: TvValue::Null,
             }
         } else {
             TypVal {
-                v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::from_opt_cstr(eap.arg.as_opt_cstr()),
+                value: TvValue::from_opt_cstr(eap.arg.as_opt_cstr()),
             }
         },
         TypVal {
-            v_type: VarType::VarBool,
             v_lock: 0,
-            vval: TypvalVval::Number(if add_help_tags {
-                K_BOOL_VAR_TRUE_CONST
-            } else {
-                K_BOOL_VAR_FALSE_CONST
-            }),
+            value: crate::eval::typval::TvValue::Bool(add_help_tags),
         },
         TypVal {
-            v_type: VarType::VarUnknown,
             v_lock: 0,
-            vval: TypvalVval::Number(0),
+            value: crate::eval::typval::TvValue::Unknown,
         },
     ];
     nlua_call_typval(c"vim._core.help", c"gen_tags", &mut tv_args, None);

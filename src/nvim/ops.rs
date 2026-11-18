@@ -24,7 +24,7 @@ use crate::cursor::{
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, update_screen};
 use crate::errors::*;
 use crate::eval::typval::{
-    K_CALLBACK_NONE_CONST, TvDict, TypVal, TypvalVval, VarType, Varnumber, callback_free, tv_clear,
+    K_CALLBACK_NONE_CONST, TvDict, TvValue, TypVal, Varnumber, callback_free, tv_clear,
     tv_dict_add_nr,
 };
 use crate::eval::{callback_call, set_ref_in_callback};
@@ -3387,14 +3387,12 @@ fn op_function(oap: &Oparg) {
         };
         let mut argv = [
             TypVal {
-                v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::from_cstr(mode_str),
+                value: TvValue::from_cstr(mode_str),
             },
             TypVal {
-                v_type: VarType::VarUnknown,
                 v_lock: 0,
-                vval: TypvalVval::NULL_STRING,
+                value: crate::eval::typval::TvValue::Unknown,
             },
         ];
 

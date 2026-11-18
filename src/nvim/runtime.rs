@@ -17,7 +17,7 @@ use crate::cursor::Linenr;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, TvList, TypVal, TypvalVval, VAR_LOCKED, VarType, Varnumber,
+    EvalFuncData, TvList, TvValue, TypVal, VAR_LOCKED, VarType, Varnumber,
     tv_check_for_opt_dict_arg, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_func,
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_dict_alloc_lock,
     tv_dict_copy, tv_get_number_chk, tv_get_string, tv_list_alloc, tv_list_alloc_ret,
@@ -579,9 +579,8 @@ fn stacktrace_push_item(
     tv_dict_add_str(&d, c"filepath", filepath);
 
     let tv = TypVal {
-        v_type: VarType::VarDict,
         v_lock: VAR_LOCKED,
-        vval: TypvalVval::Dict(d),
+        value: TvValue::Dict(d),
     };
     tv_list_append_tv(l, &tv);
 }
@@ -624,8 +623,8 @@ pub fn stacktrace_create() -> crate::eval::typval::ListId {
 pub fn f_getstacktrace(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let l = stacktrace_create();
     l.lv_refcount.set(l.lv_refcount.get() + 1);
-    rettv.v_type = VarType::VarList;
-    rettv.vval = crate::eval::typval::TypvalVval::List(l);
+
+    rettv.value = crate::eval::typval::TvValue::List(l);
 }
 
 fn get_runtime_cmd_flags(argp: &mut &CStr, where_len: usize) -> i32 {
@@ -3093,7 +3092,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         return;
     }
 
-    let l = rettv.vval.v_list_opt().unwrap();
+    let l = rettv.value.list_opt().unwrap();
 
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.rm_ic = opt_vars().p_ic.get();
@@ -3101,8 +3100,8 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     let mut sid: Varnumber = -1;
 
     let mut pat_owned: Option<std::ffi::CString> = None;
-    if argvars[0].v_type == VarType::VarDict {
-        let arg_dict = argvars[0].vval.v_dict_opt();
+    if argvars[0].var_type() == VarType::VarDict {
+        let arg_dict = argvars[0].value.dict_opt();
         if let Some(sid_di) = crate::eval::typval::tv_dict_find_opt(arg_dict, c"sid", 3) {
             let mut error = false;
             sid = tv_get_number_chk(&sid_di.tv(), Some(&mut error));

@@ -3686,9 +3686,9 @@ pub(crate) fn fill_submatch_list(
         return argskip;
     }
     let listarg = &mut argv[argskip as usize];
-    tv_list_init_static10(&listarg.vval.v_list());
+    tv_list_init_static10(&listarg.value.list());
 
-    let mut li = listarg.vval.v_list().lv_first.get();
+    let mut li = listarg.value.list().lv_first.get();
     for i in 0..10 {
         let s = RE_STATE.with(|s| s.rsm.get()).sm_startp[i];
         let e = RE_STATE.with(|s| s.rsm.get()).sm_endp[i];
@@ -3849,10 +3849,10 @@ fn vim_regsub_both(
                 let mut argv: [TypVal; 2] = [const { TypVal::new() }; 2];
                 let mut rettv: TypVal = TypVal::new();
                 let match_list_id = tv_list_alloc_static();
-                rettv.v_type = VarType::VarString;
-                rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
-                argv[0].v_type = VarType::VarList;
-                argv[0].vval = crate::eval::typval::TypvalVval::List(match_list_id.clone());
+
+                rettv.value = crate::eval::typval::TvValue::NULL_STRING;
+
+                argv[0].value = crate::eval::typval::TvValue::List(match_list_id.clone());
                 let mut funcexe = Funcexe {
                     fe_fill_submatch: true,
                     fe_firstline: 0,
@@ -3864,16 +3864,16 @@ fn vim_regsub_both(
                     fe_basetv: None,
                     fe_found_var: false,
                 };
-                if expr.v_type == VarType::VarFunc {
-                    let s_bytes = expr.vval.v_string_bytes();
+                if expr.var_type() == VarType::VarFunc {
+                    let s_bytes = expr.value.string_bytes();
                     call_func(s_bytes, -1, &mut rettv, 1, &mut argv, &mut funcexe);
-                } else if expr.v_type == VarType::VarPartial {
-                    let partial = expr.vval.v_partial();
+                } else if expr.var_type() == VarType::VarPartial {
+                    let partial = expr.value.partial();
                     let s = partial_name(partial.opt());
                     funcexe.fe_partial = partial.clone();
                     call_func(s.to_bytes(), -1, &mut rettv, 1, &mut argv, &mut funcexe);
                 }
-                if rettv.v_type == VarType::VarUnknown {
+                if rettv.var_type() == VarType::VarUnknown {
                     EVAL_RESULT.with(|er| *er[nested].borrow_mut() = None);
                 } else {
                     let mut buf = [0u8; NUMBUFLEN];

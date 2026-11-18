@@ -47,7 +47,7 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::typval::{
-    Callback, EvalFuncData, K_CALLBACK_NONE_CONST, TypVal, TypvalVval, VarType, Varnumber,
+    Callback, EvalFuncData, K_CALLBACK_NONE_CONST, TvValue, TypVal, VarType, Varnumber,
     callback_free, tv_check_for_opt_number_arg, tv_check_for_string_arg, tv_clear, tv_copy,
     tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str, tv_dict_find, tv_dict_get_callback,
     tv_dict_get_number, tv_dict_get_string_buf_chk, tv_dict_set_keys_readonly, tv_get_number,
@@ -3922,14 +3922,12 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
 
     let mut arg_owned: Option<std::ffi::CString> = None;
     let mut arg = TypVal {
-        v_type: VarType::VarString,
         v_lock: 0,
-        vval: TypvalVval::from_opt_cstr(colored_ccline.cmdbuff().as_opt_cstr()),
+        value: TvValue::from_opt_cstr(colored_ccline.cmdbuff().as_opt_cstr()),
     };
     let mut tv = TypVal {
-        v_type: VarType::VarUnknown,
         v_lock: 0,
-        vval: TypvalVval::Number(0),
+        value: crate::eval::typval::TvValue::Unknown,
     };
 
     let mut color_cb = Callback::NONE;
@@ -3984,7 +3982,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                     (colored_ccline.cmdbuff()).slice(colored_ccline.cmdlen.get() as usize),
                 )
                 .unwrap_or_default();
-                arg.vval = crate::eval::typval::TypvalVval::from_cstr(&cstr);
+                arg.value = crate::eval::typval::TvValue::from_cstr(&cstr);
                 arg_owned = Some(cstr);
             }
 
@@ -4010,27 +4008,27 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
             if error_set(&err) || !cbcall_ret {
                 break 'color_cmdline_error;
             }
-            if tv.v_type != VarType::VarList {
+            if tv.var_type() != VarType::VarList {
                 msg_state().msg_scroll.set(1);
                 msg_putchar(b'\n' as i32);
                 smsg!(HLF_E, c"%s", gettext(c"E5400: Callback should return list"),);
                 printed_errmsg = true;
                 break 'color_cmdline_error;
             }
-            let Some(v_list) = tv.vval.v_list_opt() else {
+            let Some(v_list) = tv.value.list_opt() else {
                 break 'color_cmdline_end;
             };
             let mut prev_end: Varnumber = 0;
             for (i, li) in (0_i32..).zip(crate::eval::typval::tv_list_iter(Some(v_list))) {
                 let li_tv = li.tv();
-                if li_tv.v_type != VarType::VarList {
+                if li_tv.var_type() != VarType::VarList {
                     msg_state().msg_scroll.set(1);
                     msg_putchar(b'\n' as i32);
                     smsg!(HLF_E, gettext(c"E5401: List item %i is not a List"), i,);
                     printed_errmsg = true;
                     break 'color_cmdline_error;
                 }
-                let l = li_tv.vval.v_list_opt();
+                let l = li_tv.value.list_opt();
                 if tv_list_len(l) != 3 {
                     msg_state().msg_scroll.set(1);
                     msg_putchar(b'\n' as i32);
@@ -5057,14 +5055,13 @@ pub fn f_getcmdline(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     if let Some(s) = get_cmdline_str() {
         crate::eval::typval::tv_set_string_len(rettv, Some(s.as_bytes()));
     } else {
-        rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+        rettv.value = crate::eval::typval::TvValue::NULL_STRING;
     }
 }
 
 /// `"getcmdpos()"` function.
 pub fn f_getcmdpos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(
+    rettv.value = crate::eval::typval::TvValue::Number(
         get_ccline_opt().map_or(0, |p| Varnumber::from(p.cmdpos.get() + 1)),
     );
 }
@@ -5077,7 +5074,7 @@ pub fn f_getcmdprompt(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// `"getcmdscreenpos()"` function.
 pub fn f_getcmdscreenpos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(
+    rettv.value = crate::eval::typval::TvValue::Number(
         get_ccline_opt().map_or(0, |p| Varnumber::from(p.cmdspos.get() + 1)),
     );
 }
@@ -5137,7 +5134,7 @@ pub fn f_setcmdline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     }
 
     let mut pos: i32 = -1;
-    if argvars[1].v_type != VarType::VarUnknown {
+    if argvars[1].var_type() != VarType::VarUnknown {
         let mut error = false;
 
         pos = (tv_get_number_chk(&argvars[1], Some(&mut error)) - 1) as i32;
@@ -5150,7 +5147,7 @@ pub fn f_setcmdline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
     }
 
-    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(!set_cmdline_str(
+    rettv.value = crate::eval::typval::TvValue::Number(Varnumber::from(!set_cmdline_str(
         &tv_get_string(&argvars[0]),
         pos,
     )));
@@ -5161,8 +5158,7 @@ pub fn f_setcmdpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let pos = (tv_get_number(&argvars[0]) - 1) as i32;
 
     if pos >= 0 {
-        rettv.vval =
-            crate::eval::typval::TypvalVval::Number(Varnumber::from(!set_cmdline_pos(pos)));
+        rettv.value = crate::eval::typval::TvValue::Number(Varnumber::from(!set_cmdline_pos(pos)));
     }
 }
 
@@ -5266,24 +5262,20 @@ fn cmdwin_invoke(action: &CStr, firstc: i32, content: Option<&CStr>, pos: i32) {
     let fc: [u8; 2] = [firstc as u8, 0];
     let mut tv_args = [
         TypVal {
-            v_type: VarType::VarString,
             v_lock: 0,
-            vval: TypvalVval::from_cstr(crate::memory::bytes_as_cstr(&fc)),
+            value: TvValue::from_cstr(crate::memory::bytes_as_cstr(&fc)),
         },
         TypVal {
-            v_type: VarType::VarString,
             v_lock: 0,
-            vval: TypvalVval::from_cstr(content.unwrap_or(c"")),
+            value: TvValue::from_cstr(content.unwrap_or(c"")),
         },
         TypVal {
-            v_type: VarType::VarNumber,
             v_lock: 0,
-            vval: TypvalVval::Number((pos + 1) as Varnumber),
+            value: TvValue::Number((pos + 1) as Varnumber),
         },
         TypVal {
-            v_type: VarType::VarUnknown,
             v_lock: 0,
-            vval: TypvalVval::Number(0),
+            value: crate::eval::typval::TvValue::Unknown,
         },
     ];
     nlua_call_typval(
@@ -5391,8 +5383,7 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
 
 /// Used by `f_input()` and `f_inputdialog()` functions.
 pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool, secret: bool) {
-    rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+    rettv.value = crate::eval::typval::TvValue::NULL_STRING;
 
     if cmdline_state().cmdpreview.get() {
         return;
@@ -5402,9 +5393,8 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
     let mut defstr_cow: std::borrow::Cow<'_, CStr> = std::borrow::Cow::Borrowed(c"");
     let mut cancelreturn: Option<TypVal> = None;
     let mut cancelreturn_strarg2 = TypVal {
-        v_type: VarType::VarUnknown,
         v_lock: 0,
-        vval: TypvalVval::Number(0),
+        value: crate::eval::typval::TvValue::Unknown,
     };
     let mut xp_name_cow: Option<std::borrow::Cow<'_, CStr>> = None;
     let input_callback: Callback = Callback::new();
@@ -5413,12 +5403,12 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
     let mut cancelreturn_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
     let mut xp_name_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
     let dict;
-    if argvars[0].v_type == VarType::VarDict {
-        if argvars[1].v_type != VarType::VarUnknown {
+    if argvars[0].var_type() == VarType::VarDict {
+        if argvars[1].var_type() != VarType::VarUnknown {
             emsg(gettext(c"E5050: {opts} must be the only argument"));
             return;
         }
-        dict = argvars[0].vval.v_dict();
+        dict = argvars[0].value.dict();
         let dict_ref = dict.opt();
         let Some(p_cstr) =
             tv_dict_get_string_buf_chk(dict_ref, c"prompt", 6, &mut prompt_buf, Some(c""))
@@ -5453,19 +5443,18 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             return;
         };
         prompt_cow = std::borrow::Cow::Borrowed(p_cstr);
-        if argvars[1].v_type != VarType::VarUnknown {
+        if argvars[1].var_type() != VarType::VarUnknown {
             let Some(defstr_cstr) = tv_get_string_buf_chk(&argvars[1], &mut defstr_buf) else {
                 return;
             };
             defstr_cow = std::borrow::Cow::Borrowed(defstr_cstr);
-            if argvars[2].v_type != VarType::VarUnknown {
+            if argvars[2].var_type() != VarType::VarUnknown {
                 let Some(strarg2) = tv_get_string_buf_chk(&argvars[2], &mut cancelreturn_buf)
                 else {
                     return;
                 };
                 if inputdialog {
-                    cancelreturn_strarg2.v_type = VarType::VarString;
-                    cancelreturn_strarg2.vval = crate::eval::typval::TypvalVval::from_cstr(strarg2);
+                    cancelreturn_strarg2.value = crate::eval::typval::TvValue::from_cstr(strarg2);
                     cancelreturn = Some(cancelreturn_strarg2);
                 } else {
                     xp_name_cow = Some(std::borrow::Cow::Borrowed(strarg2));

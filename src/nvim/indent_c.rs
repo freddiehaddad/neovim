@@ -2981,10 +2981,10 @@ pub fn f_cindent(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let lnum = tv_get_lnum(&argvars[0]);
     if lnum >= 1 && lnum <= curbuf().b_ml.ml_line_count.get() {
         curwin().w_cursor.set_lnum(lnum);
-        rettv.vval = crate::eval::typval::TypvalVval::Number(get_c_indent() as i64);
+        rettv.value = crate::eval::typval::TvValue::Number(get_c_indent() as i64);
         curwin().w_cursor.set(pos);
     } else {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+        rettv.value = crate::eval::typval::TvValue::Number(-1);
     }
 }
 #[cfg(test)]

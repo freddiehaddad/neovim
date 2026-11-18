@@ -14,7 +14,7 @@ use crate::cursor::{Colnr, check_cursor};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later};
 use crate::errors::*;
 use crate::eval::funcs::{find_internal_func, find_internal_func_lua};
-use crate::eval::typval::{TypVal, TypvalVval, VarType, tv_clear};
+use crate::eval::typval::{TvValue, TypVal, VarType, tv_clear};
 use crate::eval::userfunc::{FCERR_NONE, FCERR_OTHER, Funcexe, call_func, register_luafunc};
 use crate::event::r#loop::{
     loop_poll_events, loop_queues, uv_thread_equal_safe, uv_thread_self_safe,
@@ -186,7 +186,7 @@ fn put_event(mq: Option<MultiQueue>, ev: Event) {
 fn push_all_typvals(lstate: *mut lua_State, args: &mut [TypVal], special: bool) {
     let flags = if special { K_NLUA_PUSH_SPECIAL } else { 0 };
     for arg in args {
-        if arg.v_type == VarType::VarUnknown {
+        if arg.var_type() == VarType::VarUnknown {
             lua_pushnil_safe(lstate);
         } else {
             nlua_push_typval(lstate, arg, flags);
@@ -1178,14 +1178,12 @@ extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
 extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
     let input_args: [TypVal; 2] = [
         TypVal {
-            v_type: VarType::VarString,
             v_lock: VAR_FIXED,
-            vval: TypvalVval::from_cstr(c"lua_debug> "),
+            value: TvValue::from_cstr(c"lua_debug> "),
         },
         TypVal {
-            v_type: VarType::VarUnknown,
             v_lock: 0,
-            vval: TypvalVval::Number(0),
+            value: crate::eval::typval::TvValue::Unknown,
         },
     ];
     loop {
@@ -1198,16 +1196,16 @@ extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
             format_to_buf!(
                 &mut iobuff,
                 c"lua_debug> %s",
-                input.vval.v_string_cstr_or_empty(),
+                input.value.string_cstr_or_empty(),
             );
             ui_ext_cmdline_block_append(0, crate::memory::bytes_until_nul(&iobuff));
         } else {
             msg_putchar(b'\n' as i32);
         }
 
-        if input.v_type != VarType::VarString
-            || input.vval.v_string_is_empty()
-            || input.vval.v_string_bytes() == b"cont"
+        if input.var_type() != VarType::VarString
+            || input.value.string_is_empty()
+            || input.value.string_bytes() == b"cont"
         {
             tv_clear(&mut input);
             if ui_has(K_UICMDLINE) {
@@ -1216,7 +1214,7 @@ extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
             return 0;
         }
 
-        let input_bytes = input.vval.v_string_bytes();
+        let input_bytes = input.value.string_bytes();
         if luaL_loadbuffer(lstate, input_bytes, c"=(debug command)") != 0 {
             nlua_error(lstate, gettext(c"E5115: Loading Lua debug string: %.*s"));
         } else if nlua_pcall(lstate, 0, 0) != 0 {
@@ -1544,8 +1542,7 @@ fn nlua_exec_typval(
 ) {
     if check_secure() {
         if let Some(ret_tv) = ret_tv.as_deref_mut() {
-            ret_tv.v_type = VarType::VarNumber;
-            ret_tv.vval = crate::eval::typval::TypvalVval::Number(0);
+            ret_tv.value = crate::eval::typval::TvValue::Number(0);
         }
         return;
     }
@@ -1649,7 +1646,7 @@ pub fn nlua_call_typval(
 ) {
     let argcount = argvars
         .iter()
-        .position(|tv| tv.v_type == VarType::VarUnknown)
+        .position(|tv| tv.var_type() == VarType::VarUnknown)
         .unwrap_or(argvars.len());
 
     let mod_bytes = module.to_bytes();
@@ -2056,20 +2053,20 @@ extern "C-unwind" fn nlua_is_thread(lstate: *mut lua_State) -> i32 {
 }
 
 pub fn nlua_is_table_from_lua(arg: &TypVal) -> bool {
-    if arg.v_type == VarType::VarDict {
-        arg.vval.v_dict().lua_table_ref.get() != LUA_NOREF
-    } else if arg.v_type == VarType::VarList {
-        arg.vval.v_list().lua_table_ref.get() != LUA_NOREF
+    if arg.var_type() == VarType::VarDict {
+        arg.value.dict().lua_table_ref.get() != LUA_NOREF
+    } else if arg.var_type() == VarType::VarList {
+        arg.value.list().lua_table_ref.get() != LUA_NOREF
     } else {
         false
     }
 }
 
 pub fn nlua_register_table_as_callable(arg: &TypVal) -> Option<std::ffi::CString> {
-    let table_ref = if arg.v_type == VarType::VarDict {
-        arg.vval.v_dict().lua_table_ref.get()
-    } else if arg.v_type == VarType::VarList {
-        arg.vval.v_list().lua_table_ref.get()
+    let table_ref = if arg.var_type() == VarType::VarDict {
+        arg.value.dict().lua_table_ref.get()
+    } else if arg.var_type() == VarType::VarList {
+        arg.value.list().lua_table_ref.get()
     } else {
         LUA_NOREF
     };

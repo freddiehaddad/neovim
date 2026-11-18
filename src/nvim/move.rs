@@ -1325,7 +1325,7 @@ fn virtcol2col(wp: &WinInfoInfo, lnum: Linenr, vcol: i32) -> i32 {
 
 /// `"virtcol2col({winid}, {lnum}, {col})"` function.
 pub fn f_virtcol2col(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+    rettv.value = crate::eval::typval::TvValue::Number(-1);
 
     if !tv_check_for_number_arg(argvars, 0)
         || !tv_check_for_number_arg(argvars, 1)
@@ -1349,8 +1349,8 @@ pub fn f_virtcol2col(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         return;
     }
 
-    rettv.vval =
-        crate::eval::typval::TypvalVval::Number(Varnumber::from(virtcol2col(&wp, lnum, screencol)));
+    rettv.value =
+        crate::eval::typval::TvValue::Number(Varnumber::from(virtcol2col(&wp, lnum, screencol)));
 }
 
 /// Make sure the cursor is in the visible part of the topline after scrolling

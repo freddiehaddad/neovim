@@ -27,8 +27,8 @@ use crate::digraph::keymap_init;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later, redrawing, status_redraw_all};
 use crate::errors::*;
 use crate::eval::typval::{
-    TypVal, TypvalVval, VarType, Varnumber, callback_free, tv_dict_add, tv_dict_alloc,
-    tv_dict_find, tv_dict_item_copy, tv_dict_watcher_notify,
+    TvValue, TypVal, VarType, Varnumber, callback_free, tv_dict_add, tv_dict_alloc, tv_dict_find,
+    tv_dict_item_copy, tv_dict_watcher_notify,
 };
 use crate::eval::vars::{init_var_dict, unref_var_dict, vars_clear};
 use crate::ex_cmds::{ECMD_FORCEIT, ECMD_ONE, do_ecmd, getfile};
@@ -1158,6 +1158,7 @@ impl FileBuf {
             b.self_weak = weak.clone();
             b.changedtick_di =
                 crate::eval::typval::tv_dict_item_alloc_static_key(b"changedtick\0".to_vec());
+            b.changedtick_di.tv_mut().value = TvValue::Number(0);
             b.b_bufvar = crate::eval::typval::tv_dict_item_alloc_static();
             b
         });
@@ -1166,7 +1167,7 @@ impl FileBuf {
 
     #[inline]
     pub fn b_vars(&self) -> crate::eval::typval::DictId {
-        self.b_bufvar.tv().vval.v_dict()
+        self.b_bufvar.tv().value.dict()
     }
 }
 
@@ -1337,7 +1338,7 @@ fn curbuf_is_changed() -> bool {
 
 #[inline]
 pub fn buf_get_changedtick(buf: &FileBuf) -> Varnumber {
-    buf.changedtick_di.tv().vval.v_number()
+    buf.changedtick_di.tv().value.number()
 }
 
 #[inline]
@@ -3251,9 +3252,8 @@ pub fn no_write_message_nobang(buf: &FileBuf) {
 fn buf_init_changedtick(buf: &FileBuf) {
     let tick = buf_get_changedtick(buf);
     buf.changedtick_di.set_tv(TypVal {
-        v_type: VarType::VarNumber,
         v_lock: VAR_FIXED,
-        vval: TypvalVval::Number(tick),
+        value: TvValue::Number(tick),
     });
     buf.changedtick_di.di_flags.set(DI_FLAGS_RO | DI_FLAGS_FIX);
     tv_dict_add(&buf.b_vars(), &buf.changedtick_di);
@@ -5469,11 +5469,11 @@ pub fn buf_set_changedtick(buf: &FileBuf, changedtick: Varnumber) {
     let changedtick_di = tv_dict_find(Some(&*buf.b_vars()), c"changedtick", 11);
     debug_assert!(changedtick_di.is_some());
     debug_assert_eq!(changedtick_di.unwrap(), buf.changedtick_di);
-    debug_assert!(buf.changedtick_di.tv().v_type == VarType::VarNumber);
+    debug_assert!(buf.changedtick_di.tv().var_type() == VarType::VarNumber);
     debug_assert!(buf.changedtick_di.tv().v_lock == VAR_FIXED);
     debug_assert!(buf.changedtick_di.di_flags.get() == (DI_FLAGS_RO | DI_FLAGS_FIX));
 
-    buf.changedtick_di.tv_mut().vval = crate::eval::typval::TypvalVval::Number(changedtick);
+    buf.changedtick_di.tv_mut().value = crate::eval::typval::TvValue::Number(changedtick);
 
     if tv_dict_is_watched(Some(&*buf.b_vars())) {
         let new_val = buf.changedtick_di.tv().clone();

@@ -1123,7 +1123,7 @@ pub fn nvim_buf_get_var(buf: Buffer, name: NvimString) -> Result<Object, Error> 
 //   FUNC_API_SINCE(2);
 pub fn nvim_buf_get_changedtick(buf: Buffer) -> Result<Integer, Error> {
     let b = crate::api::private::helpers::find_buffer_by_handle(buf)?;
-    Ok(b.changedtick_di.tv().vval.v_number())
+    Ok(b.changedtick_di.tv().value.number())
 }
 
 /// Gets a list of buffer-local |mapping| definitions.

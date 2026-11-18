@@ -36,9 +36,9 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::typval::{
-    TvDict, TvList, TypVal, TypvalVval, VarType, tv_dict_add_dict, tv_dict_add_list,
-    tv_dict_add_tv, tv_dict_alloc, tv_dict_extend, tv_dict_set_keys_readonly, tv_dict_unref,
-    tv_list_alloc, tv_list_append_owned_tv,
+    TvDict, TvList, TvValue, TypVal, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_tv,
+    tv_dict_alloc, tv_dict_extend, tv_dict_set_keys_readonly, tv_dict_unref, tv_list_alloc,
+    tv_list_append_owned_tv,
 };
 use crate::eval::vars::{init_var_dict, unref_var_dict, vars_clear};
 use crate::eval::window::win_has_winnr;
@@ -1159,7 +1159,7 @@ impl WinInfoInfo {
 
     #[inline]
     pub fn w_vars(&self) -> crate::eval::typval::DictId {
-        self.w_winvar.tv().vval.v_dict()
+        self.w_winvar.tv().value.dict()
     }
 }
 
@@ -1321,7 +1321,7 @@ impl TabPageInfo {
 
     #[inline]
     pub fn tp_vars(&self) -> crate::eval::typval::DictId {
-        self.tp_winvar.get().tv().vval.v_dict()
+        self.tp_winvar.get().tv().value.dict()
     }
 }
 
@@ -5522,7 +5522,7 @@ fn alloc_tabpage() -> crate::globals::TabpagePtr {
 impl Drop for TabPageInfo {
     fn drop(&mut self) {
         if let Some(tp_winvar) = self.tp_winvar.get().opt() {
-            if !tp_winvar.tv().vval.v_dict().is_null() {
+            if !tp_winvar.tv().value.dict().is_null() {
                 vars_clear(&self.tp_vars().dv_hashtab);
                 unref_var_dict(&self.tp_vars());
             }
@@ -5540,7 +5540,7 @@ pub fn free_tabpage(tp: Option<&TabPageInfo>) {
             clear_snapshot(tp_ref, idx as i32);
         }
         if let Some(tp_winvar) = tp_ref.tp_winvar.get().opt() {
-            if !tp_winvar.tv().vval.v_dict().is_null() {
+            if !tp_winvar.tv().value.dict().is_null() {
                 vars_clear(&tp_ref.tp_vars().dv_hashtab);
                 unref_var_dict(&tp_ref.tp_vars());
             }
@@ -6923,9 +6923,8 @@ fn make_win_info_dict(
 
     for (key, val) in entries {
         let mut tv = TypVal {
-            v_type: VarType::VarNumber,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Number(i64::from(val)),
+            value: TvValue::Number(i64::from(val)),
         };
         if !tv_dict_add_tv(&d, key.to_bytes(), &mut tv) {
             tv_dict_unref(Some(&d));
@@ -6968,9 +6967,8 @@ fn check_window_scroll_resize(
         if size_changed {
             if let Some(wl) = winlist {
                 let tv = TypVal {
-                    v_type: VarType::VarNumber,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::Number(i64::from(wp.handle)),
+                    value: TvValue::Number(i64::from(wp.handle)),
                 };
                 tv_list_append_owned_tv(wl, tv);
             } else if let Some(ref mut size_count) = size_count {

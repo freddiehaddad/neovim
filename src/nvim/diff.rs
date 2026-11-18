@@ -3701,7 +3701,7 @@ pub(crate) fn xdiff_out(
     0
 }
 pub fn f_diff_filler(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(
+    rettv.value = crate::eval::typval::TvValue::Number(
         diff_check_fill(&curwin(), tv_get_lnum(&argvars[0])).max(0) as Varnumber,
     );
 }
@@ -3797,7 +3797,7 @@ pub fn f_diff_hl_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
         diff_st(|st| st.f_diff_hlid_hl_id.set(hl_id));
     }
-    rettv.vval = crate::eval::typval::TypvalVval::Number(hl_id as Varnumber);
+    rettv.value = crate::eval::typval::TvValue::Number(hl_id as Varnumber);
 }
 #[cfg(test)]
 mod tests {

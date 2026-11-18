@@ -5327,13 +5327,13 @@ where
     }
 
     let pat = bytes_to_cstring(xp.xp_pattern.slice(xp.xp_pattern_len));
-    args[0].v_type = VarType::VarString;
-    args[1].v_type = VarType::VarString;
-    args[2].v_type = VarType::VarNumber;
-    args[3].v_type = VarType::VarUnknown;
-    args[0].vval = crate::eval::typval::TypvalVval::from_cstr(&pat);
-    args[1].vval = crate::eval::typval::TypvalVval::from_opt_cstr(xp.xp_line.as_opt_cstr());
-    args[2].vval = crate::eval::typval::TypvalVval::Number(i64::from(xp.xp_col));
+    args[0].value = crate::eval::typval::TvValue::NULL_STRING;
+    args[1].value = crate::eval::typval::TvValue::NULL_STRING;
+    args[2].value = crate::eval::typval::TvValue::Number(0);
+    args[3].value = crate::eval::typval::TvValue::Unknown;
+    args[0].value = crate::eval::typval::TvValue::from_cstr(&pat);
+    args[1].value = crate::eval::typval::TvValue::from_opt_cstr(xp.xp_line.as_opt_cstr());
+    args[2].value = crate::eval::typval::TvValue::Number(i64::from(xp.xp_col));
 
     exc_state().current_sctx.set(xp.xp_script_ctx);
 
@@ -5434,13 +5434,13 @@ pub fn expand_process_user_list(
             let mut menu: Option<std::ffi::CString> = None;
             let mut info: Option<std::ffi::CString> = None;
 
-            if tv.v_type == VarType::VarString {
-                if tv.vval.v_string_is_null() {
+            if tv.var_type() == VarType::VarString {
+                if tv.value.string_is_null() {
                     continue;
                 }
-                p = tv.vval.v_string_owned();
-            } else if tv.v_type == VarType::VarDict && !tv.vval.v_dict().is_null() {
-                let d = tv.vval.v_dict_ref();
+                p = tv.value.string_owned();
+            } else if tv.var_type() == VarType::VarDict && !tv.value.dict().is_null() {
+                let d = tv.value.dict_ref();
                 let Some(word) = tv_dict_get_string(Some(d), c"word") else {
                     continue;
                 };
@@ -5491,12 +5491,12 @@ fn expand_user_list(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
 fn expand_user_lua(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
     let mut rettv: TypVal = TypVal::new();
     nlua_call_user_expand_func(xp, &mut rettv);
-    if rettv.v_type != VarType::VarList {
+    if rettv.var_type() != VarType::VarList {
         tv_clear(&mut rettv);
         return false;
     }
 
-    let retlist = rettv.vval.v_list();
+    let retlist = rettv.value.list();
     expand_process_user_list(retlist.opt(), matches, xp);
     tv_list_unref(retlist.opt());
     true
@@ -5798,7 +5798,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     }
     let type_str = tv_get_string(&argvars[1]);
 
-    if argvars[2].v_type != VarType::VarUnknown {
+    if argvars[2].var_type() != VarType::VarUnknown {
         filtered = tv_get_bool_chk(&argvars[2], None) != 0;
     }
 
@@ -5810,7 +5810,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         options |= WILD_KEEP_ALL;
     }
 
-    if argvars[0].v_type != VarType::VarString {
+    if argvars[0].var_type() != VarType::VarString {
         if tv_get_string_chk(&argvars[0]).is_some() {
             emsg(gettext(E_INVARG));
         }
@@ -5903,7 +5903,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
     for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
         tv_list_append_string(
-            rettv.vval.v_list_ref(),
+            rettv.value.list_ref(),
             Some(f.as_c_str()),
             f.as_bytes().len() as isize,
         );
@@ -5912,8 +5912,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// "getcompletiontype()" function.
 pub fn f_getcompletiontype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+    rettv.value = crate::eval::typval::TvValue::NULL_STRING;
 
     if !tv_check_for_string_arg(argvars, 0) {
         return;
@@ -5945,7 +5944,7 @@ pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     if xpc.xp_files.capacity() == 0 {
         return;
     }
-    let retdict = rettv.vval.v_dict();
+    let retdict = rettv.value.dict();
     let mut ret = CMDLINE_ORIG.with(|cell| {
         let orig = cell.borrow();
         tv_dict_add_str_len(&retdict, c"cmdline_orig", orig.as_deref())

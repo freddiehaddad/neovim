@@ -349,13 +349,13 @@ pub fn nvim_call_dict_function(
 
     let fn_name_owned;
     let res = 'body: {
-        let Some(self_dict_ref) = rettv.vval.v_dict_opt() else {
+        let Some(self_dict_ref) = rettv.value.dict_opt() else {
             break 'body Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"dict not found",
             ));
         };
-        if rettv.v_type != VarType::VarDict {
+        if rettv.var_type() != VarType::VarDict {
             break 'body Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"dict not found",
@@ -375,20 +375,20 @@ pub fn nvim_call_dict_function(
                 ));
             };
             let di_tv = di.tv();
-            if di_tv.v_type == VarType::VarPartial {
+            if di_tv.var_type() == VarType::VarPartial {
                 break 'body Err(api_error!(
                     ErrorType::ErrorTypeValidation,
                     c"partial function not supported",
                 ));
             }
-            if di_tv.v_type != VarType::VarFunc {
+            if di_tv.var_type() != VarType::VarFunc {
                 break 'body Err(api_error!(
                     ErrorType::ErrorTypeValidation,
                     c"Not a function: %s",
                     fn_name,
                 ));
             }
-            fn_name_owned = di_tv.vval.v_string_cstr().map(std::ffi::CStr::to_owned);
+            fn_name_owned = di_tv.value.string_cstr().map(std::ffi::CStr::to_owned);
             drop(di_tv);
             fn_name = cstr_as_string(fn_name_owned.as_deref());
         }

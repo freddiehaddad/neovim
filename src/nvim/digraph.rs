@@ -1869,7 +1869,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
                 result: getexactdigraph(i32::from(dp.char1), i32::from(dp.char2), false),
             };
             if tmp.result != 0 && tmp.result != i32::from(tmp.char2) {
-                digraph_getlist_appendpair(&tmp, rettv.vval.v_list_ref());
+                digraph_getlist_appendpair(&tmp, rettv.value.list_ref());
             }
         }
     }
@@ -1878,7 +1878,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
         if input_state().got_int.get() {
             break;
         }
-        digraph_getlist_appendpair(dp, rettv.vval.v_list_ref());
+        digraph_getlist_appendpair(dp, rettv.value.list_ref());
     }
 }
 
@@ -1986,8 +1986,7 @@ fn digraph_set_common(argchars: &TypVal, argdigraph: &TypVal) -> bool {
 
 /// `digraph_get()` function (`f_digraph_get`).
 pub fn f_digraph_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+    rettv.value = crate::eval::typval::TvValue::NULL_STRING;
     let Some(digraphs) = tv_get_string_chk(&argvars[0]) else {
         return;
     };
@@ -2009,7 +2008,7 @@ pub fn f_digraph_getlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
         return;
     }
 
-    let flag_list_all = if argvars[0].v_type == VarType::VarUnknown {
+    let flag_list_all = if argvars[0].var_type() == VarType::VarUnknown {
         false
     } else {
         tv_get_bool(&argvars[0]) != 0
@@ -2020,43 +2019,41 @@ pub fn f_digraph_getlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 
 /// `digraph_set()` function (`f_digraph_set`).
 pub fn f_digraph_set(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VarBool;
-    rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_FALSE_CONST);
+    rettv.value = crate::eval::typval::TvValue::Bool(false);
 
     if !digraph_set_common(&argvars[0], &argvars[1]) {
         return;
     }
 
-    rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_TRUE_CONST);
+    rettv.value = crate::eval::typval::TvValue::Bool(true);
 }
 
 /// `digraph_setlist()` function (`f_digraph_setlist`).
 pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VarBool;
-    rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_FALSE_CONST);
+    rettv.value = crate::eval::typval::TvValue::Bool(false);
 
-    if argvars[0].v_type != VarType::VarList {
+    if argvars[0].var_type() != VarType::VarList {
         emsg(gettext(
             E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
         ));
         return;
     }
 
-    let Some(pl) = argvars[0].vval.v_list_opt() else {
-        rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_TRUE_CONST);
+    let Some(pl) = argvars[0].value.list_opt() else {
+        rettv.value = crate::eval::typval::TvValue::Bool(true);
         return;
     };
 
     for li in crate::eval::typval::tv_list_iter(Some(pl)) {
         let tv = li.tv();
-        if tv.v_type != VarType::VarList {
+        if tv.var_type() != VarType::VarList {
             emsg(gettext(
                 E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
             ));
             return;
         }
 
-        let Some(l) = tv.vval.v_list_opt() else {
+        let Some(l) = tv.value.list_opt() else {
             emsg(gettext(
                 E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
             ));
@@ -2077,7 +2074,7 @@ pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
         }
     }
 
-    rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_TRUE_CONST);
+    rettv.value = crate::eval::typval::TvValue::Bool(true);
 }
 
 /// Set up key mapping tables for the `'keymap'` option (`keymap_init`).

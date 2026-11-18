@@ -17,7 +17,7 @@ use crate::charset::{
 use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING, MB_MAXBYTES, cmdline_fuzzy_complete};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, TypVal, TypvalVval, VAR_UNLOCKED, VarType, nlua_clear_ref, tv_check_for_dict_arg,
+    EvalFuncData, TypVal, VAR_UNLOCKED, VarType, nlua_clear_ref, tv_check_for_dict_arg,
     tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_number, tv_dict_get_string,
     tv_get_bool, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk, tv_list_alloc_ret,
     tv_list_append_dict,
@@ -2173,18 +2173,17 @@ pub fn f_hasmapto(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let name = tv_get_string(&argvars[0]);
     let mut abbr = false;
     let mut buf = [0u8; NUMBUFLEN];
-    let mode = if argvars[1].v_type == VarType::VarUnknown {
+    let mode = if argvars[1].var_type() == VarType::VarUnknown {
         c"nvo"
     } else {
         let m = tv_get_string_buf(&argvars[1], &mut buf);
-        if argvars[2].v_type != VarType::VarUnknown {
+        if argvars[2].var_type() != VarType::VarUnknown {
             abbr = tv_get_bool(&argvars[2]) != 0;
         }
         m
     };
 
-    rettv.vval =
-        crate::eval::typval::TypvalVval::Number(i64::from(map_to_exists(&name, mode, abbr)));
+    rettv.value = crate::eval::typval::TvValue::Number(i64::from(map_to_exists(&name, mode, abbr)));
 }
 
 fn mapblock_fill_dict(
@@ -2302,8 +2301,7 @@ fn mapblock_fill_dict(
 }
 
 fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
-    rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+    rettv.value = crate::eval::typval::TvValue::NULL_STRING;
 
     let keys = tv_get_string(&argvars[0]);
     if keys.to_bytes().is_empty() {
@@ -2314,13 +2312,13 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     let mut abbr = false;
     let mut get_dict = false;
 
-    let which_cstr = if argvars[1].v_type != VarType::VarUnknown {
+    let which_cstr = if argvars[1].var_type() != VarType::VarUnknown {
         let Some(w) = tv_get_string_buf_chk(&argvars[1], &mut buf) else {
             return;
         };
-        if argvars[2].v_type != VarType::VarUnknown {
+        if argvars[2].var_type() != VarType::VarUnknown {
             abbr = tv_get_bool(&argvars[2]) != 0;
-            if argvars[3].v_type != VarType::VarUnknown {
+            if argvars[3].var_type() != VarType::VarUnknown {
                 get_dict = tv_get_bool(&argvars[3]) != 0;
             }
         }
@@ -2463,10 +2461,10 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
     }
 
     let mut buf = [0u8; NUMBUFLEN];
-    let dict_only = argvars[0].v_type == VarType::VarDict;
+    let dict_only = argvars[0].var_type() == VarType::VarDict;
 
     let (which, is_abbr, d) = if dict_only {
-        let d = argvars[0].vval.v_dict();
+        let d = argvars[0].value.dict();
         let which = tv_dict_get_string(d.opt(), c"mode").map(std::borrow::Cow::into_owned);
         let is_abbr = tv_dict_get_bool(d.opt(), c"abbr", -1) as i32;
         let Some(which) = which else {
@@ -2486,7 +2484,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         if !tv_check_for_dict_arg(argvars, 2) {
             return;
         }
-        let d = argvars[2].vval.v_dict();
+        let d = argvars[2].value.dict();
         (std::borrow::Cow::Borrowed(which), is_abbr, d)
     };
     let mode = get_map_mode_string(which.to_bytes(), is_abbr != 0);
@@ -2502,11 +2500,11 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
     let mut orig_rhs = crate::eval::typval::tv_dict_get_cstring(d_opt, c"rhs");
     let mut rhs_lua: LuaRef = LUA_NOREF;
     if let Some(callback_di) = tv_dict_find(d_opt, c"callback", 8)
-        && callback_di.tv().v_type == VarType::VarFunc
+        && callback_di.tv().var_type() == VarType::VarFunc
         && let Some(fp) = callback_di
             .tv()
-            .vval
-            .v_string_cstr()
+            .value
+            .string_cstr()
             .and_then(|s| find_func(Some(s.to_bytes())))
         && (fp.uf_flags.get() & FC_LUAREF) != 0
     {
@@ -2597,7 +2595,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
 /// "maplist()" function
 pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
-    let abbr = argvars[0].v_type != VarType::VarUnknown && tv_get_bool(&argvars[0]) != 0;
+    let abbr = argvars[0].var_type() != VarType::VarUnknown && tv_get_bool(&argvars[0]) != 0;
 
     tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
 
@@ -2631,14 +2629,13 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                         true,
                     );
                     let mut d = TypVal {
-                        v_type: VarType::VarUnknown,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval::Number(0),
+                        value: crate::eval::typval::TvValue::Unknown,
                     };
                     let mut dobj = dict_obj(dict);
                     object_to_vim_take_luaref(&mut dobj, &mut d, true);
-                    debug_assert!(d.v_type == VarType::VarDict);
-                    tv_list_append_dict(rettv.vval.v_list_ref(), d.vval.v_dict_opt());
+                    debug_assert!(d.var_type() == VarType::VarDict);
+                    tv_list_append_dict(rettv.value.list_ref(), d.value.dict_opt());
                 }
             }
         });

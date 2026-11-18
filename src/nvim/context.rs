@@ -489,8 +489,8 @@ fn array_to_string(array: Array) -> Result<Vec<u8>, Error> {
     let mut list_tv: TypVal = TypVal::new();
     object_to_vim(array_obj(array), &mut list_tv);
 
-    assert_eq!(list_tv.v_type, VarType::VarList);
-    let res = encode_vim_list_to_buf(list_tv.vval.v_list_opt()).ok_or_else(|| {
+    assert_eq!(list_tv.var_type(), VarType::VarList);
+    let res = encode_vim_list_to_buf(list_tv.value.list_opt()).ok_or_else(|| {
         api_error!(
             ErrorType::ErrorTypeException,
             c"%s",

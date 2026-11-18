@@ -28,7 +28,7 @@ use crate::cursor::{
 };
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::diff::{diff_move_to, diff_set_topline, ex_diffupdate, nv_diffgetput};
-use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST, get_digraph};
+use crate::digraph::get_digraph;
 use crate::drawline::{SMT_ALL, VALID_CROW, VALID_WCOL};
 use crate::drawscreen::{
     GETVCOL_END_EXCL_LBR, HLF_MSG, K_OPT_VE_FLAG_BLOCK, UPD_CLEAR, UPD_INVERTED, UPD_NOT_VALID,
@@ -40,7 +40,7 @@ use crate::errors::*;
 use crate::eval::K_MARK_ALL;
 use crate::eval::buffer::prompt_invoke_callback;
 use crate::eval::funcs::{MT_CHAR_WISE, MT_LINE_WISE, MT_UNKNOWN};
-use crate::eval::typval::{TypVal, TypvalVval, VarType, Varnumber, tv_clear};
+use crate::eval::typval::{TvValue, TypVal, VarType, Varnumber, tv_clear};
 use crate::eval::vars::{VV_OP, set_reg_var, set_vcount, set_vim_var_string};
 use crate::ex_cmds::{
     B_IMODE_LMAP, BL_FIX, BL_SOL, BL_WHITE, CTRL_C_CONST, CTRL_E, CTRL_Y, ECMD_HIDE, ECMD_LAST,
@@ -5621,29 +5621,21 @@ fn nv_brackets(cap: &mut Cmdarg) {
         } else {
             let mut tv_args: [TypVal; 3] = [
                 TypVal {
-                    v_type: VarType::VarBool,
                     v_lock: 0,
-                    vval: TypvalVval::Bool(if cap.cmdchar == b']' as i32 {
-                        K_BOOL_VAR_TRUE_CONST
-                    } else {
-                        K_BOOL_VAR_FALSE_CONST
-                    }),
+                    value: TvValue::Bool(cap.cmdchar == b']' as i32),
                 },
                 TypVal {
-                    v_type: VarType::VarNumber,
                     v_lock: 0,
-                    vval: TypvalVval::Number(Varnumber::from(cap.count1)),
+                    value: TvValue::Number(Varnumber::from(cap.count1)),
                 },
                 TypVal {
-                    v_type: VarType::VarUnknown,
                     v_lock: 0,
-                    vval: TypvalVval::Number(0),
+                    value: crate::eval::typval::TvValue::Unknown,
                 },
             ];
             let mut rettv = TypVal {
-                v_type: VarType::VarUnknown,
                 v_lock: 0,
-                vval: TypvalVval::Number(0),
+                value: crate::eval::typval::TvValue::Unknown,
             };
             nlua_call_typval(
                 c"vim._core.mcursor",
@@ -5651,7 +5643,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
                 &mut tv_args,
                 Some(&mut rettv),
             );
-            if rettv.v_type != VarType::VarBool || rettv.vval.v_bool() != K_BOOL_VAR_TRUE_CONST {
+            if rettv.var_type() != VarType::VarBool || !rettv.value.boolean() {
                 clearopbeep(&mut cap.oap);
             }
             tv_clear(&mut rettv);
@@ -6796,9 +6788,8 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
                 vim_beep(0);
             } else {
                 let mut tv_args: [TypVal; 1] = [TypVal {
-                    v_type: VarType::VarUnknown,
                     v_lock: 0,
-                    vval: TypvalVval::Number(0),
+                    value: crate::eval::typval::TvValue::Unknown,
                 }];
                 nlua_call_typval(c"vim._core.mcursor", c"restore", &mut tv_args, None);
             }
@@ -7597,24 +7588,20 @@ fn nv_q(cap: &mut Cmdarg) {
         let fc: [u8; 2] = [cap.nchar as u8, 0];
         let mut tv_args: [TypVal; 4] = [
             TypVal {
-                v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::from_cstr(crate::memory::bytes_as_cstr(&fc)),
+                value: TvValue::from_cstr(crate::memory::bytes_as_cstr(&fc)),
             },
             TypVal {
-                v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::from_cstr(if insert_range { c"'<,'>" } else { c"" }),
+                value: TvValue::from_cstr(if insert_range { c"'<,'>" } else { c"" }),
             },
             TypVal {
-                v_type: VarType::VarNumber,
                 v_lock: 0,
-                vval: TypvalVval::Number(if insert_range { 5 } else { 1 }),
+                value: TvValue::Number(if insert_range { 5 } else { 1 }),
             },
             TypVal {
-                v_type: VarType::VarUnknown,
                 v_lock: 0,
-                vval: TypvalVval::Number(0),
+                value: crate::eval::typval::TvValue::Unknown,
             },
         ];
         nlua_call_typval(c"vim._core.cmdwin", c"open", &mut tv_args, None);

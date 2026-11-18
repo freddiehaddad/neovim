@@ -8,7 +8,7 @@ use crate::errors::{E_INVARG_NVAL, E_INVARG2, E_INVARGVAL, E_LISTARG};
 use crate::eval::callback_call;
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 use crate::eval::typval::{
-    Callback, EvalFuncData, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType, callback_free,
+    Callback, EvalFuncData, TvList, TvValue, TypVal, VAR_UNLOCKED, VarType, callback_free,
     tv_check_for_nonnull_dict_arg, tv_clear, tv_dict_find_opt, tv_dict_get_callback,
     tv_dict_get_string, tv_dict_has_key, tv_dict_unref, tv_get_number_chk, tv_get_string,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
@@ -583,17 +583,17 @@ fn fuzzy_match_in_list(
         init_worker_fuzzy_chartab(cur_chartab);
         let mut matched_candidates = Vec::new();
         for li in crate::eval::typval::list_iter_ptr(l.and_then(|l| l.first_opt())) {
-            let v_type = li.tv().v_type;
+            let v_type = li.tv().var_type();
             let matched_bytes = if v_type == VarType::VarString {
                 let tv = li.tv();
-                tv.vval.v_string_cstr().and_then(|cstr| {
+                tv.value.string_cstr().and_then(|cstr| {
                     let b = cstr.to_bytes();
                     fuzzy_has_all_words(b, pat_bytes, matchseq).then(|| b.to_vec())
                 })
             } else if v_type == VarType::VarDict
                 && let Some(k) = key
             {
-                let d_id = li.tv().vval.v_dict();
+                let d_id = li.tv().value.dict();
                 d_id.opt()
                     .and_then(|d| tv_dict_get_string(Some(d), k))
                     .and_then(|cstr| {
@@ -705,23 +705,22 @@ fn fuzzy_match_in_list(
             }
 
             let mut rettv = TypVal {
-                v_type: VarType::VarUnknown,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(0),
+                value: crate::eval::typval::TvValue::Unknown,
             };
             let itemstr_cow;
             let d_id;
             let mut li_tv_opt = None;
             let mut itemstr: Option<&CStr> = None;
 
-            let v_type = li.tv().v_type;
+            let v_type = li.tv().var_type();
             if v_type == VarType::VarString {
                 li_tv_opt = Some(li.tv());
-                itemstr = li_tv_opt.as_ref().unwrap().vval.v_string_cstr();
+                itemstr = li_tv_opt.as_ref().unwrap().value.string_cstr();
             } else if v_type == VarType::VarDict
                 && (key.is_some() || item_cb.cb_type() != K_CALLBACK_NONE)
             {
-                d_id = li.tv().vval.v_dict();
+                d_id = li.tv().value.dict();
                 if let Some(d) = d_id.opt() {
                     if let Some(k) = key {
                         itemstr_cow = tv_dict_get_string(Some(d), k);
@@ -730,20 +729,18 @@ fn fuzzy_match_in_list(
                         d.dv_refcount.set(d.dv_refcount.get() + 1);
                         let mut argv = [
                             TypVal {
-                                v_type: VarType::VarDict,
                                 v_lock: VAR_UNLOCKED,
-                                vval: TypvalVval::Dict(d_id.clone()),
+                                value: TvValue::Dict(d_id.clone()),
                             },
                             TypVal {
-                                v_type: VarType::VarUnknown,
                                 v_lock: VAR_UNLOCKED,
-                                vval: TypvalVval::Number(0),
+                                value: crate::eval::typval::TvValue::Unknown,
                             },
                         ];
                         if callback_call(item_cb, 1, &mut argv, &mut rettv)
-                            && rettv.v_type == VarType::VarString
+                            && rettv.var_type() == VarType::VarString
                         {
-                            itemstr = rettv.vval.v_string_cstr();
+                            itemstr = rettv.value.string_cstr();
                         }
                         tv_dict_unref(d_id.opt());
                     }
@@ -784,7 +781,7 @@ fn fuzzy_match_in_list(
 
                 match_count += 1;
             }
-            if rettv.v_type != VarType::VarUnknown {
+            if rettv.var_type() != VarType::VarUnknown {
                 tv_clear(&mut rettv);
             }
         }
@@ -830,7 +827,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
     let arg1 = &argvars[1];
     let arg2 = &argvars[2];
 
-    if arg0.v_type != VarType::VarList || arg0.vval.v_list().is_null() {
+    if arg0.var_type() != VarType::VarList || arg0.value.list().is_null() {
         semsg!(
             E_LISTARG,
             if retmatchpos {
@@ -841,7 +838,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
         );
         return;
     }
-    if arg1.v_type != VarType::VarString || arg1.vval.v_string_is_null() {
+    if arg1.var_type() != VarType::VarString || arg1.value.string_is_null() {
         semsg!(E_INVARG2, tv_get_string(arg1));
         return;
     }
@@ -851,16 +848,16 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
     let mut matchseq = false;
     let mut max_matches: i32 = 0;
 
-    if arg2.v_type != VarType::VarUnknown {
+    if arg2.var_type() != VarType::VarUnknown {
         if !tv_check_for_nonnull_dict_arg(argvars, 2) {
             return;
         }
 
-        let d = arg2.vval.v_dict_ref();
+        let d = arg2.value.dict_ref();
         if let Some(di_key) = tv_dict_find_opt(Some(d), c"key", -1) {
             let di_tv = di_key.tv();
-            let key_cstr = di_tv.vval.v_string_cstr();
-            if di_tv.v_type != VarType::VarString
+            let key_cstr = di_tv.value.string_cstr();
+            if di_tv.var_type() != VarType::VarString
                 || key_cstr.is_none_or(|s| s.to_bytes().is_empty())
             {
                 semsg!(E_INVARG_NVAL, c"key", tv_get_string(&di_tv));
@@ -873,7 +870,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
         }
 
         if let Some(di_limit) = tv_dict_find_opt(Some(d), c"limit", -1) {
-            if di_limit.tv().v_type != VarType::VarNumber {
+            if di_limit.tv().var_type() != VarType::VarNumber {
                 callback_free(&cb);
                 semsg!(E_INVARGVAL, c"limit");
                 return;
@@ -890,8 +887,8 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
         &mut *rettv,
         if retmatchpos { 3 } else { K_LIST_LEN_UNKNOWN },
     );
-    let out_list = rettv.vval.v_list_ref();
-    let in_list = arg0.vval.v_list_ref();
+    let out_list = rettv.value.list_ref();
+    let in_list = arg0.value.list_ref();
     let pat_cow = tv_get_string(arg1);
     let pat_bytes = pat_cow.to_bytes();
 
@@ -1321,7 +1318,7 @@ mod tests {
             0,
         );
         assert_eq!(tv_list_len(Some(&out_list)), 3);
-        let matched_items = out_list.first_opt().unwrap().tv().vval.v_list();
+        let matched_items = out_list.first_opt().unwrap().tv().value.list();
         assert_eq!(tv_list_len(matched_items.opt()), 2500);
         // Tie-breaking must preserve original 0..2500 index order for equal-score items
         let first_str = matched_items
@@ -1330,8 +1327,8 @@ mod tests {
             .first_opt()
             .unwrap()
             .tv()
-            .vval
-            .v_string_owned();
+            .value
+            .string_owned();
         assert_eq!(
             first_str.as_bytes(),
             b"src/nvim/item_0000/target_handler.rs"

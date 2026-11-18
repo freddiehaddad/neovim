@@ -35,7 +35,7 @@ use crate::eval::vars::{
     VV_ARGF, VV_ERRMSG, VV_EXITING, VV_EXITREASON, VV_OLDFILES, VV_PROGNAME, VV_PROGPATH,
     VV_SEND_SERVER, VV_STARTTIME, VV_SWAPCOMMAND, VV_VIM_DID_ENTER, VV_VIM_DID_INIT,
     get_vim_var_list, get_vim_var_str, set_reg_var, set_vim_var_list, set_vim_var_nr,
-    set_vim_var_string, set_vim_var_type,
+    set_vim_var_string,
 };
 use crate::eval::{
     K_LIST_LEN_MAY_KNOW_CONST, eval_has_provider, eval_init, garbage_collect, set_argv_var,
@@ -654,7 +654,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     if exc_state().recoverymode.get() && fname.is_none() {
         let mut items_tv = crate::eval::typval::TypVal::new();
         tv_list_alloc_ret(&mut items_tv, 0);
-        recover_names(None, false, &items_tv.vval.v_list());
+        recover_names(None, false, &items_tv.value.list());
         let mut lua_args = [items_tv, crate::eval::typval::TypVal::new()];
         nlua_call_typval(c"vim._core.swapfile", c"list_swaps", &mut lua_args, None);
         tv_clear(&mut lua_args[0]);
@@ -901,7 +901,6 @@ pub fn getout(mut exitval: i32) -> ! {
         exitval += exc_state().ex_exitval.get();
     }
 
-    set_vim_var_type(VV_EXITING, crate::eval::typval::VarType::VarNumber);
     set_vim_var_nr(VV_EXITING, Varnumber::from(exitval));
 
     if get_vim_var_str(VV_EXITREASON).is_empty() {

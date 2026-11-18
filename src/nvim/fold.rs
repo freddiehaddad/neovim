@@ -15,9 +15,7 @@ use crate::drawscreen::{
     UPD_INVERTED, UPD_NOT_VALID, redraw_buf_later, redraw_later, redraw_win_range_later,
 };
 use crate::errors::*;
-use crate::eval::typval::{
-    EvalFuncData, K_CALLBACK_NONE_CONST, TypVal, VarType, Varnumber, tv_get_lnum,
-};
+use crate::eval::typval::{EvalFuncData, K_CALLBACK_NONE_CONST, TypVal, Varnumber, tv_get_lnum};
 use crate::eval::vars::{
     VV_FOLDDASHES, VV_FOLDEND, VV_FOLDLEVEL, VV_FOLDSTART, VV_LNUM, get_vim_var_nr,
     get_vim_var_str, set_vim_var_nr, set_vim_var_string,
@@ -2763,7 +2761,7 @@ fn foldclosed_both(argvars: &mut [TypVal], rettv: &mut TypVal, end: bool) {
             false,
             None,
         ) {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(if end {
+            rettv.value = crate::eval::typval::TvValue::Number(Varnumber::from(if end {
                 last
             } else {
                 first
@@ -2771,7 +2769,7 @@ fn foldclosed_both(argvars: &mut [TypVal], rettv: &mut TypVal, end: bool) {
             return;
         }
     }
-    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+    rettv.value = crate::eval::typval::TvValue::Number(-1);
 }
 
 /// "foldclosed()" function
@@ -2788,14 +2786,13 @@ pub fn f_foldclosedend(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 pub fn f_foldlevel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let lnum = tv_get_lnum(&argvars[0]);
     if lnum >= 1 && lnum <= curbuf().b_ml.ml_line_count.get() {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(fold_level(lnum)));
+        rettv.value = crate::eval::typval::TvValue::Number(Varnumber::from(fold_level(lnum)));
     }
 }
 
 /// "foldtext()" function
 pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+    rettv.value = crate::eval::typval::TvValue::NULL_STRING;
 
     let foldstart = get_vim_var_nr(VV_FOLDSTART) as Linenr;
     let foldend = get_vim_var_nr(VV_FOLDEND) as Linenr;
@@ -2840,8 +2837,7 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// "foldtextresult(lnum)" function
 pub fn f_foldtextresult(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+    rettv.value = crate::eval::typval::TvValue::NULL_STRING;
     if FOLD_STATE.with(|st| st.fdt_result_entered.replace(true)) {
         return;
     }
