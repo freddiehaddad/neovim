@@ -1822,8 +1822,7 @@ pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
     let v: OptKeyDictMopt = opt_keyset(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .cstr_bytes(),
         K_OPT_MESSAGESOPT,
     );

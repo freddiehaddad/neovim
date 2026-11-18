@@ -1249,10 +1249,7 @@ pub fn did_set_str_generic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Validate named string values without updating derived flags.
 pub fn validate_str_generic<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let opt = get_option(args.os_idx);
-    let value = args
-        .os_newval
-        .as_string()
-        .map_or(c"", |value| value.as_cstr());
+    let value = args.os_newval.as_string().expect("string Object").as_cstr();
     opt_strings_flags(
         value,
         opt_values(args.os_idx),
@@ -1414,8 +1411,7 @@ pub fn did_set_background<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if args
         .os_oldval
         .as_string()
-        .cloned()
-        .unwrap_or_default()
+        .expect("string Object")
         .first_byte()
         == opt_vars().p_bg.first_byte()
     {
@@ -1446,13 +1442,13 @@ pub fn did_set_background<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'backspace' option.
 pub fn validate_backspace<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let value = args.os_newval.as_string().cloned().unwrap_or_default();
-    if ascii_isdigit(value.first_byte()) {
-        return if value.first_byte() == b'2' {
-            None
-        } else {
-            Some(E_INVARG)
-        };
+    let first = args
+        .os_newval
+        .as_string()
+        .expect("string Object")
+        .first_byte();
+    if ascii_isdigit(first) {
+        return if first == b'2' { None } else { Some(E_INVARG) };
     }
     validate_str_generic(args)
 }
@@ -1460,11 +1456,7 @@ pub fn validate_backspace<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn validate_backupcopy<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut flags: u32 = 0;
     let errmsg = opt_strings_flags(
-        args.os_newval
-            .as_string()
-            .cloned()
-            .unwrap_or_default()
-            .as_cstr(),
+        args.os_newval.as_string().expect("string Object").as_cstr(),
         &OPT_BKC_VALUES,
         Some(&mut flags),
         true,
@@ -1518,7 +1510,7 @@ pub fn did_set_backupcopy<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'backupext' or 'patchmode' option.
 pub fn validate_backupext_or_patchmode<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let newval_str = args.os_newval.as_string().cloned().unwrap_or_default();
+    let newval_str = args.os_newval.as_string().expect("string Object");
     let ov = opt_vars();
     let ov_bex = ov.p_bex.as_bytes();
     let ov_pm = ov.p_pm.as_bytes();
@@ -1573,14 +1565,16 @@ pub fn did_set_breakindentopt<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn validate_buftype<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf();
     let os_flags = args.os_flags;
-    let newval_data = args.os_newval.as_string().cloned().unwrap_or_default();
+    let first = args
+        .os_newval
+        .as_string()
+        .expect("string Object")
+        .first_byte();
     let errmsg = validate_str_generic(args);
     if errmsg.is_some() {
         return errmsg;
     }
-    if (os_flags & OPT_GLOBAL) == 0
-        && !buf.terminal.get().is_null() != (newval_data.first_byte() == b't')
-    {
+    if (os_flags & OPT_GLOBAL) == 0 && !buf.terminal.get().is_null() != (first == b't') {
         return Some(E_INVARG);
     }
     None
@@ -1625,11 +1619,7 @@ pub fn did_set_buftype<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn validate_chars_option<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     set_chars_option(
         &args.win(),
-        args.os_newval
-            .as_string()
-            .cloned()
-            .unwrap_or_default()
-            .as_cstr(),
+        args.os_newval.as_string().expect("string Object").as_cstr(),
         if args.os_idx == K_OPT_LISTCHARS {
             CharsOption::Listchars
         } else {
@@ -1759,8 +1749,7 @@ pub fn validate_colorcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     check_colorcolumn(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .as_opt_cstr(),
         None,
     )
@@ -1776,8 +1765,11 @@ pub fn did_set_colorcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Validate the 'comments' option.
 pub fn validate_comments<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut errmsg: Option<&CStr> = None;
-    let newval_str = args.os_newval.as_string().cloned().unwrap_or_default();
-    let mut rem = newval_str.as_bytes();
+    let mut rem = args
+        .os_newval
+        .as_string()
+        .expect("string Object")
+        .as_bytes();
     let com_all_bytes = COM_ALL.to_bytes();
     while !rem.is_empty() {
         while let Some(&b) = rem.first() {
@@ -1815,8 +1807,11 @@ pub fn validate_comments<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'commentstring' option.
 pub fn validate_commentstring<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let newval_str = args.os_newval.as_string().cloned().unwrap_or_default();
-    let bytes = newval_str.as_bytes();
+    let bytes = args
+        .os_newval
+        .as_string()
+        .expect("string Object")
+        .as_bytes();
     if bytes.is_empty() || bytes.windows(2).any(|w| w == b"%s") {
         None
     } else {
@@ -1829,8 +1824,11 @@ pub fn validate_complete<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut buffer = [0u8; LSIZE];
     let mut char_before: u8 = 0;
 
-    let newval_str = args.os_newval.as_string().cloned().unwrap_or_default();
-    let mut rem = newval_str.as_bytes();
+    let mut rem = args
+        .os_newval
+        .as_string()
+        .expect("string Object")
+        .as_bytes();
     while !rem.is_empty() {
         buffer.fill(0);
         let mut buf_idx: usize = 0;
@@ -1889,8 +1887,11 @@ pub fn did_set_complete<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate 'completeitemalign' and prepare its column order.
 pub fn validate_completeitemalign<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let newval_str = args.os_newval.as_string().cloned().unwrap_or_default();
-    let mut p = newval_str.as_bytes();
+    let mut p = args
+        .os_newval
+        .as_string()
+        .expect("string Object")
+        .as_bytes();
     let mut new_cia_flags: u32 = 0;
     let mut seen = [false; 3];
     let mut count = 0;
@@ -1995,8 +1996,7 @@ pub fn validate_concealcursor<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     check_option_listflag(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .as_bytes(),
         COCU_ALL,
         args.os_errbuf.take(),
@@ -2015,8 +2015,7 @@ pub fn validate_cpoptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     check_option_listflag(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .as_bytes(),
         CPO_VI,
         args.os_errbuf.take(),
@@ -2028,8 +2027,11 @@ pub fn expand_set_cpoptions(args: &mut Optexpand, matches: &mut Vec<std::ffi::CS
 }
 
 pub fn validate_cursorlineopt<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let newval_str = args.os_newval.as_string().cloned().unwrap_or_default();
-    let value = newval_str.as_bytes();
+    let value = args
+        .os_newval
+        .as_string()
+        .expect("string Object")
+        .as_bytes();
     let mut flags: u32 = 0;
     if value.is_empty() || !fill_culopt_flags(value, &mut flags) {
         return Some(E_INVARG);
@@ -2101,30 +2103,18 @@ pub fn did_set_display<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate and canonize 'encoding', 'fileencoding' or 'makeencoding'.
 pub fn validate_encoding<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
+    let newval = args.os_newval.as_string().expect("string Object");
     if args.os_idx == K_OPT_FILEENCODING {
         if !modifiable(&args.buf()) && args.os_flags != OPT_GLOBAL {
             return Some(E_MODIFIABLE);
         }
 
-        if crate::strings::vim_haschr(
-            args.os_newval
-                .as_string()
-                .cloned()
-                .unwrap_or_default()
-                .as_cstr(),
-            b',' as i32,
-        ) {
+        if crate::strings::vim_haschr(newval.as_cstr(), b',' as i32) {
             return Some(E_INVARG);
         }
     }
 
-    let value_cstr = enc_canonize(
-        args.os_newval
-            .as_string()
-            .cloned()
-            .unwrap_or_default()
-            .as_bytes(),
-    );
+    let value_cstr = enc_canonize(newval.as_bytes());
     let is_not_utf8 = value_cstr.as_bytes() != b"utf-8";
     args.os_prep = OptSetPrep::Encoding(value_cstr);
     if args.os_idx == K_OPT_ENCODING && is_not_utf8 {
@@ -2156,11 +2146,7 @@ pub fn expand_set_encoding(args: &mut Optexpand, matches: &mut Vec<std::ffi::CSt
 /// Validate the 'eventignore'/'eventignorewin' option.
 pub fn validate_eventignore<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if !check_ei(
-        args.os_newval
-            .as_string()
-            .cloned()
-            .unwrap_or_default()
-            .as_cstr(),
+        args.os_newval.as_string().expect("string Object").as_cstr(),
         args.os_idx == K_OPT_EVENTIGNOREWIN,
     ) {
         return Some(E_INVARG);
@@ -2206,7 +2192,7 @@ pub fn validate_fileformat<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// The 'fileformat' option is changed.
 pub fn did_set_fileformat<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf();
-    let oldval = args.os_oldval.as_string().cloned().unwrap_or_default();
+    let oldval = args.os_oldval.as_string().expect("string Object");
 
     redraw_titles();
     ml_setflags(&buf);
@@ -2228,8 +2214,7 @@ pub fn validate_filetype<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if valid_filetype(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .as_bytes(),
     ) {
         None
@@ -2243,8 +2228,7 @@ pub fn did_set_filetype_or_syntax<'a>(args: &mut Optset<'a>) -> Option<&'a CStr>
     args.os_value_changed = args
         .os_oldval
         .as_string()
-        .cloned()
-        .unwrap_or_default()
+        .expect("string Object")
         .cstr_bytes()
         != args.var_cstr().to_bytes();
     args.os_value_checked = true;
@@ -2271,10 +2255,7 @@ pub fn did_set_foldignore<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'foldmarker' option.
 pub fn validate_foldmarker<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let value = args
-        .os_newval
-        .as_string()
-        .map_or(c"", |value| value.as_cstr());
+    let value = args.os_newval.as_string().expect("string Object").as_cstr();
     let Some(p) = vim_strchr(value, b',' as i32) else {
         return Some(E_COMMA_REQUIRED);
     };
@@ -2309,8 +2290,7 @@ pub fn validate_formatoptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     check_option_listflag(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .cstr_bytes(),
         FO_ALL,
         args.os_errbuf.take(),
@@ -2348,8 +2328,11 @@ pub fn did_set_helpfile<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'helplang' option.
 pub fn validate_helplang<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let newval_str = args.os_newval.as_string().cloned().unwrap_or_default();
-    let mut rem = newval_str.as_bytes();
+    let mut rem = args
+        .os_newval
+        .as_string()
+        .expect("string Object")
+        .as_bytes();
     while !rem.is_empty() {
         if rem.len() < 2 || (rem.len() > 2 && (rem[2] != b',' || rem.len() == 3)) {
             return Some(E_INVARG);
@@ -2367,8 +2350,7 @@ pub fn validate_highlight<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if args
         .os_newval
         .as_string()
-        .cloned()
-        .unwrap_or_default()
+        .expect("string Object")
         .cstr_bytes()
         != HIGHLIGHT_INIT.to_bytes()
     {
@@ -2395,8 +2377,7 @@ pub fn validate_isopt<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if !check_isopt(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .as_bytes(),
     ) {
         Some(E_INVARG)
@@ -2476,8 +2457,11 @@ pub fn did_set_keymodel<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'lispoptions' option.
 pub fn validate_lispoptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let newval_str = args.os_newval.as_string().cloned().unwrap_or_default();
-    let bytes = newval_str.as_bytes();
+    let bytes = args
+        .os_newval
+        .as_string()
+        .expect("string Object")
+        .as_bytes();
     if bytes.is_empty() || bytes == b"expr:0" || bytes == b"expr:1" {
         None
     } else {
@@ -2487,8 +2471,11 @@ pub fn validate_lispoptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'matchpairs' option.
 pub fn validate_matchpairs<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let newval_str = args.os_newval.as_string().cloned().unwrap_or_default();
-    let mut rem = newval_str.as_bytes();
+    let mut rem = args
+        .os_newval
+        .as_string()
+        .expect("string Object")
+        .as_bytes();
     while !rem.is_empty() {
         let mut x2: i32 = -1;
         let mut x3: i32 = -1;
@@ -2520,8 +2507,7 @@ pub fn validate_mkspellmem<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if spell_check_msm(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .as_bytes(),
         false,
     ) {
@@ -2536,8 +2522,7 @@ pub fn validate_mouse<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     check_option_listflag(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .as_bytes(),
         MOUSE_ALL,
         args.os_errbuf.take(),
@@ -2553,8 +2538,7 @@ pub fn validate_mousescroll<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let v: OptKeyDictMousescroll = opt_keyset(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .cstr_bytes(),
         K_OPT_MOUSESCROLL,
     );
@@ -2603,11 +2587,7 @@ pub fn did_set_selection<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn validate_sessionoptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut flags: u32 = 0;
     let errmsg = opt_strings_flags(
-        args.os_newval
-            .as_string()
-            .cloned()
-            .unwrap_or_default()
-            .as_cstr(),
+        args.os_newval.as_string().expect("string Object").as_cstr(),
         &OPT_SSOP_VALUES,
         Some(&mut flags),
         true,
@@ -2626,8 +2606,11 @@ pub fn validate_sessionoptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Validate the 'shada' option.
 pub fn validate_shada<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let errbuf = args.os_errbuf.take();
-    let newval_str = args.os_newval.as_string().cloned().unwrap_or_default();
-    let val_bytes = newval_str.as_bytes();
+    let val_bytes = args
+        .os_newval
+        .as_string()
+        .expect("string Object")
+        .as_bytes();
     let mut marks: Option<&[u8]> = None;
 
     let mut rem = val_bytes;
@@ -2684,8 +2667,11 @@ pub fn validate_shada<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Validate 'shellpipe'/'shellredir' option.
 pub fn validate_shellpipe_redir<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut seen = false;
-    let newval_str = args.os_newval.as_string().cloned().unwrap_or_default();
-    let mut rem = newval_str.as_bytes();
+    let mut rem = args
+        .os_newval
+        .as_string()
+        .expect("string Object")
+        .as_bytes();
     while let Some((&b0, rest)) = rem.split_first() {
         if b0 != b'%' {
             rem = rest;
@@ -2720,8 +2706,7 @@ pub fn validate_shortmess<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     check_option_listflag(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .cstr_bytes(),
         SHM_ALL,
         args.os_errbuf.take(),
@@ -2733,7 +2718,8 @@ pub fn validate_showbreak<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut s = args
         .os_newval
         .as_string()
-        .map_or(&[0][..], |value| value.cstr_bytes());
+        .expect("string Object")
+        .cstr_bytes();
     while !s.is_empty() {
         if ptr2cells(s) != 1 {
             return Some(E_SHOWBREAK_CONTAINS_UNPRINTABLE_OR_WIDE_CHARACTER);
@@ -2754,8 +2740,7 @@ pub fn validate_signcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if check_signcolumn(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .as_opt_cstr(),
         None,
     ) {
@@ -2768,7 +2753,7 @@ pub fn validate_signcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// The 'signcolumn' option is changed.
 pub fn did_set_signcolumn<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win();
-    let oldval = args.os_oldval.as_string().cloned().unwrap_or_default();
+    let oldval = args.os_oldval.as_string().expect("string Object");
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_scl);
     if !check_signcolumn(Some(&args.var_cstr()), is_local.then_some(&win)) {
         return Some(E_INVARG);
@@ -2790,11 +2775,7 @@ pub fn validate_spellcapcheck<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     let errmsg = compile_cap_prog(
-        args.os_newval
-            .as_string()
-            .cloned()
-            .unwrap_or_default()
-            .as_cstr(),
+        args.os_newval.as_string().expect("string Object").as_cstr(),
         &mut prog,
     );
     let leave_res = try_leave(&tstate);
@@ -2826,13 +2807,7 @@ pub fn did_set_spellcapcheck<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'spellfile' option.
 pub fn validate_spellfile<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if valid_spellfile(
-        args.os_newval
-            .as_string()
-            .cloned()
-            .unwrap_or_default()
-            .as_cstr(),
-    ) {
+    if valid_spellfile(args.os_newval.as_string().expect("string Object").as_cstr()) {
         None
     } else {
         Some(E_INVARG)
@@ -2846,13 +2821,7 @@ pub fn did_set_spellfile<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'spelllang' option.
 pub fn validate_spelllang<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if valid_spelllang(
-        args.os_newval
-            .as_string()
-            .cloned()
-            .unwrap_or_default()
-            .as_cstr(),
-    ) {
+    if valid_spelllang(args.os_newval.as_string().expect("string Object").as_cstr()) {
         None
     } else {
         Some(E_INVARG)
@@ -2867,10 +2836,7 @@ pub fn did_set_spelllang<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// The 'spelloptions' option is changed.
 pub fn did_set_spelloptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let opt_flags = args.os_flags;
-    let val = args
-        .os_newval
-        .as_string()
-        .map_or(c"", |value| value.as_cstr());
+    let val = args.os_newval.as_string().expect("string Object").as_cstr();
 
     if (opt_flags & OPT_LOCAL) == 0 {
         let mut new_flags = 0u32;
@@ -2899,13 +2865,9 @@ pub fn did_set_spelloptions<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'spellsuggest' option.
 pub fn validate_spellsuggest<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let Some((s0, s1)) = spell_check_sps(
-        args.os_newval
-            .as_string()
-            .cloned()
-            .unwrap_or_default()
-            .as_cstr(),
-    ) else {
+    let Some((s0, s1)) =
+        spell_check_sps(args.os_newval.as_string().expect("string Object").as_cstr())
+    else {
         return Some(E_INVARG);
     };
     args.os_prep = OptSetPrep::Spellsuggest([s0, s1]);
@@ -2931,8 +2893,11 @@ pub fn did_set_splitkeep<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 }
 
 pub fn validate_statustabline_rulerformat<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let newval_str = args.os_newval.as_string().cloned().unwrap_or_default();
-    let value = newval_str.as_bytes();
+    let value = args
+        .os_newval
+        .as_string()
+        .expect("string Object")
+        .as_bytes();
     if value.starts_with(b"%!") {
         None
     } else {
@@ -2968,7 +2933,7 @@ fn did_set_statustabline_rulerformat<'a>(
         && args.var_cstr().to_bytes().is_empty()
     {
         let def = get_option_default(args.os_idx, args.os_flags);
-        args.set_var_cstr(def.as_string().expect("string Object").clone().as_cstr());
+        args.set_var_cstr(def.as_string().expect("string Object").as_cstr());
         optval_free_read(args.os_idx, def);
     }
     let var_cstr = args.var_cstr();
@@ -3069,7 +3034,8 @@ pub fn validate_vartabstop<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let val_bytes = args
         .os_newval
         .as_string()
-        .map_or(&[0][..], |value| value.cstr_bytes());
+        .expect("string Object")
+        .cstr_bytes();
     let mut prev_comma = false;
     for (idx, &b) in val_bytes.iter().enumerate() {
         if ascii_isdigit(b) {
@@ -3152,8 +3118,7 @@ pub fn did_set_virtualedit<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
             != args
                 .os_oldval
                 .as_string()
-                .cloned()
-                .unwrap_or_default()
+                .expect("string Object")
                 .as_bytes()
         {
             validate_virtcol(&win);
@@ -3169,8 +3134,7 @@ pub fn validate_whichwrap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     check_option_listflag(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .as_bytes(),
         WW_ALL_COMMA,
         args.os_errbuf.take(),
@@ -3186,8 +3150,7 @@ pub fn validate_wildmode<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     if !check_opt_wim(
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .as_bytes(),
         &mut flags,
     ) {
@@ -3219,8 +3182,7 @@ pub fn validate_border<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         Some(&mut fconfig),
         args.os_newval
             .as_string()
-            .cloned()
-            .unwrap_or_default()
+            .expect("string Object")
             .cstr_bytes(),
     )
     .is_ok();
@@ -4044,10 +4006,7 @@ pub fn check_chars_options() -> Option<&'static CStr> {
 
 pub fn validate_previewpopup<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let mut fconfig = WIN_CONFIG_INIT;
-    let cstr = args
-        .os_newval
-        .as_string()
-        .map_or(c"", |value| value.as_cstr());
+    let cstr = args.os_newval.as_string().expect("string Object").as_cstr();
     if !win_previewpopup_config(cstr, &mut fconfig) {
         return Some(E_INVARG);
     }

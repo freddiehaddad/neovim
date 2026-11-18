@@ -838,7 +838,6 @@ fn set_init_expand_env() {
                 opt.def_val()
                     .as_string()
                     .expect("string Object")
-                    .clone()
                     .as_opt_cstr(),
             )
             .map(std::borrow::Cow::Owned);
@@ -955,7 +954,7 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
         && (opt.flags() & K_OPT_FLAG_NO_DEF_EXP) == 0
         && let Some(ref s) = option_expand(
             opt_idx,
-            def_val.as_string().and_then(|value| value.as_opt_cstr()),
+            def_val.as_string().expect("string Object").as_opt_cstr(),
         )
     {
         def_val = cstr_as_obj(Some(s));
@@ -5096,7 +5095,8 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: OptVar) -> Object {
             string_obj(cstr_as_string(
                 opt.def_val()
                     .as_string()
-                    .and_then(|value| value.as_opt_cstr()),
+                    .expect("string Object")
+                    .as_opt_cstr(),
             ))
         } else {
             opt.def_val()
