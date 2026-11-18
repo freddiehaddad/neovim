@@ -117,6 +117,24 @@ cargo xtask benchmark --release test/benchmark/signal_spec.lua
 
 Run affected functional cases and full CI-equivalent suites on Windows and Linux before publication. WSL tests need a native Linux checkout for POSIX permissions and Unix sockets. Compare the same tests and benchmarks against a preserved baseline binary using `--nvim-bin`; preserve the executable basename and record pre-existing failures and skips separately. Miri exercises production ownership primitives and the actual signal adapter with a controlled native driver, not the external C libraries; CI also runs with `MIRIFLAGS=-Zmiri-tree-borrows`.
 
+### API value representation changes
+
+Upstream's `Object.type` and union-member accesses map to a single Rust `Object` variant, not separate mutable fields. Construct and match the semantic variant; use the derived `obj_type()` only when metadata, diagnostics, or dynamic schemas need `ObjectType`. `Nil` and `Unset` are different states. Buffer/window/tabpage values have distinct variants despite sharing integer storage upstream, and their payloads remain `i64` until existing API validation/narrowing.
+
+Keep the Msgpack extension IDs, metadata type codes, binary-string handling, and empty array/dictionary distinctions unchanged. Preserve API-specific coercions and error messages rather than replacing them with globally defaulting getters or new panics. In particular, optional option-text snapshots, TUI scalar decoding, and namespace window lists have existing compatibility policies.
+
+Lua reference ownership is separate from the enum representation: `Clone` copies IDs, `copy_object` duplicates owned references, and consuming conversions reset transferred references to `LUA_NOREF`. Preserve the explicit release helpers and borrowed-versus-consuming conversion paths. Do not make every cloned `Object` release its Lua references on drop.
+
+Use the focused checks below, then affected/full compatibility suites on Windows and native Linux:
+
+```bash
+cargo test --release --lib msgpack_rpc::packer::tests
+cargo xtask functionaltest --release test/functional/api/object_spec.lua test/functional/lua/option_and_var_spec.lua test/functional/autocmd/optionset_spec.lua
+cargo xtask benchmark --release test/benchmark/object_spec.lua
+```
+
+The Object workload covers Lua API copying, Vimscript conversion, and nested RPC payloads. Compare identical scripts against preserved parent/current binaries; do not infer a runtime improvement from enum size alone.
+
 Versioning and Releases
 -----------------------
 

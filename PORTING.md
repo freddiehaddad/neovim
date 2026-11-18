@@ -135,6 +135,18 @@ Stopping a watcher is not closing it: stop permits a later restart, while close 
 
 The lifetime test package imports the production signal adapter with a controlled native driver. Both Miri models check real adapter code for ordinary dispatch, moves, reentrant close completion, failure, restart, and shutdown. Native tests and existing signal/TUI suites separately cover real libuv and platform behavior; the controlled driver sends no OS signals.
 
+## Single-Source API Object Variants
+
+The API value representation is now one `Object` enum. The former structure stored an independently writable `ObjectType` beside an already-tagged payload enum, allowing safe Rust to construct contradictory values. Defaulting payload accessors could then silently serialize a string-tagged integer as an empty string, for example. Variant construction and matching remove that representational failure mode rather than checking that two tags agree at runtime.
+
+The variants preserve all semantic distinctions: ordinary scalars and containers, `Nil`, `Unset`, `LuaRef`, and separate buffer/window/tabpage handles. Handle payloads remain `i64`; the existing boundary still decides validation and narrowing. `ObjectType` remains derived metadata with stable codes, and Msgpack encoding is explicit. Internal enum layout is neither a C ABI nor the RPC wire format.
+
+Compatibility conversions remain explicit at their owning boundaries. Accepted integer arguments, empty arrays used as dictionaries, optional option-text snapshots, TUI scalar coercions, and namespace window selectors retain their existing behavior. Lua push flags still determine nil representation. Tightening those policies or changing error messages is a separate behavioral change, not a consequence of using an enum.
+
+The change does not redesign string/container storage or Lua ownership. `NvimString` remains byte-oriented; arrays and dictionaries retain their copy-on-write storage and pooling. `Object::Clone` does not duplicate Lua registry references. Owned API copies, borrowed conversions, consuming conversions, and explicit release helpers keep their distinct contracts.
+
+Wire tests cover handle extension kinds, full-width decoded payloads, binary strings, and nested/empty containers. Functional cases exercise real Lua-reference copying and transfer, callback-option lifetime, and existing boundary coercions. Compare `test/benchmark/object_spec.lua` against the unchanged binary before making performance claims; a smaller enum layout alone does not establish an editor speedup.
+
 ## Where Things Stand & What's Next
 
 The tracked editor implementation is Rust (`edition = "2024"`), with external C libraries built separately as dependencies. Editor graph objects already use shared `Rc` handles and interior mutability; they should not be described as unported raw-pointer lists.
@@ -143,5 +155,5 @@ Compatibility remains the primary invariant, not a conclusion inferred from test
 
 Further modernization should enforce one concrete invariant at a time: validated representations, bounded borrows around callbacks, and explicit ownership at remaining FFI boundaries. Generational IDs or parser redesigns need a demonstrated benefit beyond the guarantees already provided by shared handles and slice-based APIs.
 
-Published performance measurements and their upstream revision are in [README.md](README.md#performance). Ownership refactors do not imply a speedup: compare relevant release workloads against the unchanged port, including process waits, persistent RPC traffic, stream draining, timer lifecycles, and listener/connection lifecycles.
+Published performance measurements and their upstream revision are in [README.md](README.md#performance). Ownership and representation refactors do not imply a speedup: compare relevant release workloads against the unchanged port, including process waits, RPC payloads, API value conversion, stream draining, timer lifecycles, and listener/connection lifecycles.
 

@@ -82,6 +82,8 @@ CI repeats the Miri command with `MIRIFLAGS=-Zmiri-tree-borrows` to check both b
 
 Match the CI test environment when comparing results. On Windows, Node-provider fixtures need `require('neovim')` to resolve from the test directory (CI uses `npm link neovim`), and timezone-sensitive cases can be run with `TZ=UTC`. The DOS 8.3 filesystem cases invoke `fsutil` and require suitable volume settings/permissions. Record baseline prerequisite failures rather than weakening assertions or silently changing shared-machine settings.
 
+Release CI sets `NVIM_TEST_INTEG=1` to enable the live-network cases in the net and package-manager suites. Default local runs skip those cases; enable the flag when matching release CI coverage and distinguish gated skips from passing tests.
+
 Blocking test-client RPC requests use a runner-side deadline (`TEST_TIMEOUT`, in seconds; default 600). Individual hang-sensitive cases can set their session's `request_timeout` in milliseconds. TCP test clients also wait for connection completion before starting RPC, using `TEST_TIMEOUT` to bound the connect wait and closing the socket on failure. Late responses or connection callbacks must not interrupt subsequent requests.
 
 For before/after process and channel measurements, preserve the baseline binary and run the same workload with each binary on the same host. Build the current test fixtures first; `--nvim-bin` changes the editor under test, while fixture executables are resolved from `NVIM_TEST_BUILD_DIR`:
@@ -100,6 +102,20 @@ For timer ownership changes, use `test/benchmark/timer_spec.lua` with the same c
 For listener ownership changes, use `test/benchmark/socket_spec.lua`. It measures 5,000 TCP listener create/close operations, draining native closes in bounded batches, plus 1,000 TCP and 1,000 pipe/Unix-socket connection/RPC/close operations. Connection workloads include test-client and RPC overhead and wait for server-side channel cleanup; they are end-to-end lifecycle measurements, not isolated allocation timings. Compare identical scripts with preserved baseline and changed binaries.
 
 For signal ownership changes, `test/benchmark/signal_spec.lua` measures 10,000 acknowledged POSIX signal deliveries plus autocommand dispatch, after warmup. It signals only the test-owned editor and waits for each delivery, rather than assuming signal bursts cannot coalesce; it is not a raw syscall benchmark and is skipped on Windows. Also compare startup and the event/timer/socket workloads to detect broader registration-bookkeeping costs.
+
+### API value representation
+
+`Object` is a Rust enum; its layout is internal, while Lua/Vimscript conversion rules and Msgpack bytes remain compatibility contracts. For changes to its representation or consumers, start with:
+
+```bash
+cargo test --release --lib msgpack_rpc::packer::tests
+cargo xtask functionaltest --release test/functional/api/object_spec.lua test/functional/lua/option_and_var_spec.lua test/functional/autocmd/optionset_spec.lua
+cargo xtask benchmark --release test/benchmark/object_spec.lua
+```
+
+The Rust cases cover wire kinds, full-width handle decoding, binary strings, and nested/empty containers. The functional cases cover real Lua-reference copying/transfer and API-specific coercions; also run affected API, option, UI, and terminal suites.
+
+The Object benchmark measures 100,000 nested Lua API copies, 50,000 Vimscript round trips, and 5,000 nested-payload RPC round trips after warmup. RPC uses a persistent test-owned child and includes client/transport costs. These are value-conversion workloads, not isolated enum-dispatch timings. Preserve baseline/current executable names, interleave repeated release runs on each platform without concurrent heavy validation, and report variability rather than treating layout size as a performance result.
 
 ## Build Options
 
