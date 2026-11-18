@@ -82,11 +82,11 @@ use crate::os::env::{expand_env, home_replace, home_replace_save, os_env_exists}
 ))]
 use crate::os::fs::s_ischr;
 use crate::os::fs::{
-    Directory, FileInfo, TEMP_FILE_PATH_MAXLEN, UV_ENOENT, VimAcl, os_close, os_closedir, os_copy,
-    os_dirname, os_errno, os_file_is_writable, os_file_owned, os_fileinfo, os_fileinfo_fd,
-    os_fileinfo_id_equal, os_fileinfo_size, os_free_acl, os_get_acl, os_getperm, os_isdir,
-    os_isrealdir, os_mkdir, os_mkdtemp, os_open, os_path_exists, os_remove, os_rename, os_rmdir,
-    os_scandir, os_scandir_next, os_set_acl, os_set_cloexec, os_set_errno,
+    FileInfo, TEMP_FILE_PATH_MAXLEN, UV_ENOENT, VimAcl, os_close, os_copy, os_dirname, os_errno,
+    os_file_is_writable, os_file_owned, os_fileinfo, os_fileinfo_fd, os_fileinfo_id_equal,
+    os_fileinfo_size, os_free_acl, os_get_acl, os_getperm, os_isdir, os_isrealdir, os_mkdir,
+    os_mkdtemp, os_open, os_path_exists, os_remove, os_rename, os_rmdir, os_set_acl,
+    os_set_cloexec, os_set_errno,
 };
 #[cfg(unix)]
 use crate::os::fs::{os_fchown, os_fileinfo_link, os_setperm, s_islnk};
@@ -3702,13 +3702,12 @@ pub fn readdir_core(
 ) -> bool {
     entries.clear();
 
-    let mut dir = Directory::new();
-    if !os_scandir(&mut dir, path) {
+    let Ok(mut dir) = crate::os::scandir::Directory::open(path) else {
         smsg!(0, tr(E_NOTOPEN), path);
         return false;
-    }
+    };
 
-    while let Some(p) = os_scandir_next(&mut dir) {
+    while let Some(p) = dir.next_entry() {
         let p_bytes = p.to_bytes();
 
         let mut ignore = p_bytes == b"." || p_bytes == b"..";
@@ -3727,7 +3726,7 @@ pub fn readdir_core(
         }
     }
 
-    os_closedir(&mut dir);
+    drop(dir);
 
     entries.sort_unstable();
 

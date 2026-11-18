@@ -20,6 +20,8 @@ pub mod pty_conpty_win;
 pub mod pty_proc_unix;
 #[allow(unsafe_code)]
 pub mod pty_proc_win;
+#[allow(unsafe_code)]
+pub mod scandir;
 #[cfg(unix)]
 pub use pty_proc_unix as pty_proc;
 #[cfg(windows)]

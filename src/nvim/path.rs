@@ -18,9 +18,9 @@ use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv_cstr, vim_env_iter};
 use crate::os::fs::{
-    Directory, FileID, FileInfo, MAXPATHL, os_can_exe, os_closedir, os_dirname,
-    os_file_is_readable, os_fileid, os_fileid_equal, os_fileinfo, os_fileinfo_id_equal,
-    os_fileinfo_link, os_isdir, os_path_exists, os_realpath, os_scandir, os_scandir_next,
+    FileID, FileInfo, MAXPATHL, os_can_exe, os_dirname, os_file_is_readable, os_fileid,
+    os_fileid_equal, os_fileinfo, os_fileinfo_id_equal, os_fileinfo_link, os_isdir, os_path_exists,
+    os_realpath,
 };
 use crate::os::input::os_breakcheck;
 use crate::os::shell::get_cmd_output;
@@ -512,7 +512,9 @@ pub fn path_has_wildcard(bytes: &[u8], all: bool) -> bool {
     false
 }
 
-fn scandir_next_with_dots(dir: Option<&mut Directory>) -> Option<&std::ffi::CStr> {
+fn scandir_next_with_dots(
+    dir: Option<&mut crate::os::scandir::Directory>,
+) -> Option<&std::ffi::CStr> {
     let Some(dir) = dir else {
         PATH_STATE.with(|st| st.scandir_count.set(0));
         return None;
@@ -526,7 +528,7 @@ fn scandir_next_with_dots(dir: Option<&mut Directory>) -> Option<&std::ffi::CStr
     if c == 1 || c == 2 {
         return Some(if c == 1 { c"." } else { c".." });
     }
-    os_scandir_next(dir)
+    dir.next_entry()
 }
 
 fn path_expand(gap: &mut Vec<std::ffi::CString>, path: &[u8], flags: i32) -> usize {
@@ -660,13 +662,14 @@ fn do_path_expand(
 
     buf_vec[s_idx] = 0;
 
-    let mut dir = Directory::new();
     let dirpath = if buf_vec[0] == 0 {
         c"."
     } else {
         crate::memory::bytes_as_cstr(&buf_vec)
     };
-    if os_file_is_readable(dirpath) && os_scandir(&mut dir, dirpath) {
+    if os_file_is_readable(dirpath)
+        && let Ok(mut dir) = crate::os::scandir::Directory::open(dirpath)
+    {
         scandir_next_with_dots(None);
         while !input_state().got_int.get() {
             let Some(name) = scandir_next_with_dots(Some(&mut dir)) else {
@@ -722,7 +725,6 @@ fn do_path_expand(
                 }
             }
         }
-        os_closedir(&mut dir);
     }
 
     drop(buf_vec);
@@ -1724,23 +1726,22 @@ pub fn path_fix_case(name: &mut [u8]) {
     let name_bytes = name_cstr.to_bytes();
     let name_len = name_bytes.len();
     let slash_pos = name_bytes.iter().rposition(|&b| b == b'/');
-    let mut dir = Directory::new();
-    let (ok, tail_off) = if let Some(pos) = slash_pos {
+    let (directory, tail_off) = if let Some(pos) = slash_pos {
         name[pos] = 0;
-        let ok = os_scandir(&mut dir, crate::memory::bytes_as_cstr(&name[..=pos]));
+        let directory =
+            crate::os::scandir::Directory::open(crate::memory::bytes_as_cstr(&name[..=pos]));
         name[pos] = b'/';
-        (ok, pos + 1)
+        (directory, pos + 1)
     } else {
-        let ok = os_scandir(&mut dir, c".");
-        (ok, 0)
+        (crate::os::scandir::Directory::open(c"."), 0)
     };
 
-    if !ok {
+    let Ok(mut dir) = directory else {
         return;
-    }
+    };
 
     let taillen = name_len - tail_off;
-    while let Some(entry) = os_scandir_next(&mut dir) {
+    while let Some(entry) = dir.next_entry() {
         let entry_bytes = entry.to_bytes();
         if name[tail_off..name_len].eq_ignore_ascii_case(entry_bytes)
             && taillen == entry_bytes.len()
@@ -1758,8 +1759,6 @@ pub fn path_fix_case(name: &mut [u8]) {
             }
         }
     }
-
-    os_closedir(&mut dir);
 }
 
 pub fn after_pathsep(prefix: &[u8]) -> bool {

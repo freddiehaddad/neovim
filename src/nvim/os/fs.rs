@@ -6,7 +6,7 @@ use crate::errors::*;
 #[cfg(windows)]
 use crate::event::r#loop::uv_guess_handle;
 use crate::event::r#loop::{
-    uv_chdir, uv_cwd, uv_fs_req_cleanup, uv_req_size, uv_strerror, uv_translate_sys_error,
+    uv_chdir, uv_cwd, uv_fs_req_cleanup, uv_strerror, uv_translate_sys_error,
 };
 use crate::globals::*;
 #[cfg(unix)]
@@ -132,22 +132,6 @@ impl FileInfo {
         }
     }
 }
-#[repr(C)]
-pub struct Directory {
-    pub _opaque: [u64; 88],
-}
-
-impl Directory {
-    pub const fn new() -> Self {
-        Self { _opaque: [0; 88] }
-    }
-}
-
-impl Default for Directory {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 pub type VimAcl = *mut c_void;
 #[allow(non_camel_case_types)]
 pub type uv_fs_buf_t = [u64; 80];
@@ -164,8 +148,6 @@ const K_PATH_DRIVE: i32 = 2;
 const K_PATH_UNC: i32 = 3;
 #[cfg(windows)]
 const K_PATH_DEVICE: i32 = 4;
-
-const UV_FS: i32 = 6;
 
 pub(crate) const UV_EOF: i32 = -4095;
 pub(crate) const UV_UNKNOWN: i32 = -4094;
@@ -389,8 +371,7 @@ use crate::memline::K_PATH_DEVICE_UNC;
 use crate::event::r#loop::{
     uv_exepath, uv_fs_access, uv_fs_chmod, uv_fs_close, uv_fs_copyfile, uv_fs_fstat, uv_fs_fsync,
     uv_fs_get_path, uv_fs_get_ptr, uv_fs_get_statbuf, uv_fs_lstat, uv_fs_mkdir, uv_fs_mkdtemp,
-    uv_fs_open, uv_fs_realpath, uv_fs_rename, uv_fs_rmdir, uv_fs_scandir, uv_fs_scandir_next,
-    uv_fs_stat, uv_fs_unlink,
+    uv_fs_open, uv_fs_realpath, uv_fs_rename, uv_fs_rmdir, uv_fs_stat, uv_fs_unlink,
 };
 #[cfg(unix)]
 use crate::event::r#loop::{uv_fs_chown, uv_fs_fchmod, uv_fs_utime};
@@ -2603,42 +2584,6 @@ pub fn os_rmdir(path: &CStr) -> i32 {
     }
 }
 
-/// Opens a directory.
-pub fn os_scandir(dir: &mut Directory, path: &CStr) -> bool {
-    debug_assert!(
-        unsafe { uv_req_size(UV_FS) } + size_of::<uv_dirent_t>() <= size_of::<Directory>()
-    );
-    let req = (&raw mut *dir).cast::<uv_fs_buf_t>();
-    let r = unsafe { uv_fs_scandir(ptr::null_mut(), req, path.as_ptr(), 0, ptr::null()) };
-    if r < 0 {
-        os_closedir(dir);
-    }
-    r >= 0
-}
-
-/// Increments the directory pointer.
-pub fn os_scandir_next(dir_in: &mut Directory) -> Option<&'static CStr> {
-    let req = (&raw mut *dir_in).cast::<uv_fs_buf_t>();
-    let ent = (&raw mut *dir_in)
-        .cast::<u8>()
-        .wrapping_add(unsafe { uv_req_size(UV_FS) })
-        .cast::<uv_dirent_t>();
-    let err = unsafe { uv_fs_scandir_next(req, ent) };
-    if err != UV_EOF {
-        let name = unsafe { (*ent).name };
-        (!name.is_null()).then(|| unsafe { CStr::from_ptr(name.cast()) })
-    } else {
-        None
-    }
-}
-
-/// Frees memory associated with `os_scandir()`.
-pub fn os_closedir(dir: &mut Directory) {
-    unsafe {
-        uv_fs_req_cleanup((&raw mut *dir).cast());
-    }
-}
-
 /// Remove a file.
 pub fn os_remove(path: &CStr) -> i32 {
     unsafe {
@@ -2988,6 +2933,30 @@ pub fn os_is_reparse_point_include(path: &CStr) -> bool {
 mod tests {
     use super::*;
     use std::ffi::CString;
+
+    #[test]
+    fn directory_scan_survives_moves_and_early_drop() {
+        use crate::os::scandir::Directory;
+
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let source = CString::new(root.join("src").to_str().unwrap()).unwrap();
+        let manifest = CString::new(root.join("Cargo.toml").to_str().unwrap()).unwrap();
+        let mut scan = Directory::open(&source).unwrap();
+        let first = scan.next_entry().unwrap().to_owned();
+        let mut scan = Box::new(scan);
+        let mut entries = vec![first];
+        while let Some(entry) = scan.next_entry() {
+            entries.push(entry.to_owned());
+        }
+        assert!(entries.iter().any(|entry| entry == c"nvim"));
+        assert!(scan.next_entry().is_none());
+        drop(scan);
+
+        let mut partial = Directory::open(&source).unwrap();
+        assert!(partial.next_entry().is_some());
+        drop(partial);
+        assert!(Directory::open(&manifest).is_err());
+    }
 
     #[test]
     fn fileinfo_and_fileid_accessors_work() {
