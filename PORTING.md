@@ -135,6 +135,14 @@ Stopping a watcher is not closing it: stop permits a later restart, while close 
 
 The lifetime test package imports the production signal adapter with a controlled native driver. Both Miri models check real adapter code for ordinary dispatch, moves, reentrant close completion, failure, restart, and shutdown. Native tests and existing signal/TUI suites separately cover real libuv and platform behavior; the controlled driver sends no OS signals.
 
+## Owned Directory Scans
+
+Synchronous directory scans use a unique `Directory` owner, with private request storage sized by libuv and kept at a stable address when the owner moves. Constructor failure, early iteration exit, and ordinary destruction all release the request once. An entry name is borrowed from the mutable scan, not from an invented static lifetime: libuv can free it when advancing or cleaning the request.
+
+Consumers copy names when they need independent storage. The ownership change retains libuv enumeration, wildcard dot entries, reentrant `readdir()` filtering, and existing diagnostics. It does not substitute a different filesystem backend or alter the editor's sorting policy.
+
+The FFI-free lifetime package imports the production scan adapter with a controlled native driver. Miri checks its request/entry ownership under both borrowing models; native unit and functional cases separately exercise real libuv and filesystem behavior.
+
 ## Single-Source API Object Variants
 
 The API value representation is now one `Object` enum. The former structure stored an independently writable `ObjectType` beside an already-tagged payload enum, allowing safe Rust to construct contradictory values. Defaulting payload accessors could then silently serialize a string-tagged integer as an empty string, for example. Variant construction and matching remove that representational failure mode rather than checking that two tags agree at runtime.
@@ -146,6 +154,18 @@ Compatibility conversions remain explicit at their owning boundaries. Accepted i
 The change does not redesign string/container storage or Lua ownership. `NvimString` remains byte-oriented; arrays and dictionaries retain their copy-on-write storage and pooling. `Object::Clone` does not duplicate Lua registry references. Owned API copies, borrowed conversions, consuming conversions, and explicit release helpers keep their distinct contracts.
 
 Wire tests cover handle extension kinds, full-width decoded payloads, binary strings, and nested/empty containers. Functional cases exercise real Lua-reference copying and transfer, callback-option lifetime, and existing boundary coercions. Compare `test/benchmark/object_spec.lua` against the unchanged binary before making performance claims; a smaller enum layout alone does not establish an editor speedup.
+
+## Single-Source Vimscript Values
+
+`TypVal` now stores an authoritative `TvValue` enum and independent lock metadata. There is no separately writable value kind: `VarType` is derived metadata with its existing numeric codes. `Unknown`, `Null`, Boolean, number, float, string, function reference, and nullable container variants retain their distinct meanings. Boolean values use `bool`; null has no numeric payload.
+
+The same enum encodes owned/inline text modes, keeping short strings and function names inline without nesting another storage enum in both text variants. `InlineText` bytes and length are private; derived kinds and text projections cover both storage modes. Null and empty strings remain distinct, and no unsafe layout tricks or externally fixed Rust enum layout are required.
+
+The evaluator's accepted coercions and errors remain separate from storage. Infallible projections require a validated kind rather than silently returning a zero or empty payload. Initialization constructs the intended domain value, including buffer changed ticks and predefined Vimscript variables. Temporary `v:key`/`v:val` scopes transfer and restore complete values and locks instead of keeping a kind beside a placeholder of another type.
+
+Rust allocation ownership does not replace Vimscript reference counting or garbage collection. Shallow cloning, `tv_copy`, `tv_clear`, function-reference registration, and consuming name transfers keep their separate contracts. There is no blanket value destructor that unreferences shallowly cloned function IDs or substitutes physical `Rc` counts for logical ownership.
+
+Compatibility coverage includes nullable containers/strings, scalar kinds through Lua and RPC, bound function copies, nested scope restoration, locks, and error paths. Release measurements compare scalar-loop evaluation and nested deep copies against the unchanged port; a smaller representation or fewer stored tags alone does not demonstrate a speedup.
 
 ## Where Things Stand & What's Next
 

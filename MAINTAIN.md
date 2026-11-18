@@ -40,6 +40,8 @@ Module responsibilities generally follow upstream. Internal ownership and layout
 | `src/nvim/regexp.c`, `src/nvim/regexp_nfa.c`, `src/nvim/regexp_bt.c` | `src/nvim/regexp.rs`, `src/nvim/regexp_nfa.rs`, `src/nvim/regexp_bt.rs` | Compiled `NfaRegprog` and `BtRegprog` are immutable (`Send + Sync`); per-run NFA execution lists (`lastlist_buf`, `rec_listbuf`) live in thread-local `RegexpNfaState` so pure single-line searches (`ml_try_mark_global_lines`, `ml_try_vimgrep_lines`) can run across worker threads via `std::thread::scope`. |
 | `src/nvim/globals.h` | `src/nvim/globals.rs` (domain subsystems) or module `thread_local!` | Single-module globals live in their owning module's `thread_local!` state; cross-module globals live in one of the 9 decentralized domain subsystems (see table below). |
 | `src/nvim/event/**`, process/channel code | `src/nvim/event/`, `src/nvim/channel.rs`, `src/nvim/msgpack_rpc/channel.rs` | Use shared `Proc`/`Stream` handles, `Rc<Channel>` lookup, and shared main-thread loop access. Preserve logical reference counts and event timing separately from Rust allocation lifetimes. Native callback registrations retain storage until their close callbacks finish. |
+| `src/nvim/os/fs.c` (directory scanning) | `src/nvim/os/scandir.rs` | Open an owned `Directory` and borrow names through `next_entry()`. Keep libuv enumeration semantics; native request storage and cleanup are private to the owner. |
+| `src/nvim/eval/typval.c`, `src/nvim/eval/typval_defs.h` | `src/nvim/eval/typval.rs`, `src/nvim/eval/value.rs` | Represent kind and payload with one `TvValue` variant. Keep lock metadata, coercion/error policy, logical reference counts, and garbage collection separate from Rust storage. |
 | `src/nvim/version.c` (`patches_*` arrays) | `src/nvim/version.rs` (`PATCHES_*` slices & `NUM_PATCHES`) | Add newly merged Vim patch numbers to the matching `PATCHES_*` slice and increment `NUM_PATCHES`. |
 | `cmake.deps/deps.txt` | `deps.txt` | Update the corresponding `*_URL` and `*_SHA256` entries in `deps.txt`. |
 | `runtime/**` | `runtime/**` | Apply changes directly (`git show <sha> -- runtime/`). |
@@ -134,6 +136,26 @@ cargo xtask benchmark --release test/benchmark/object_spec.lua
 ```
 
 The Object workload covers Lua API copying, Vimscript conversion, and nested RPC payloads. Compare identical scripts against preserved parent/current binaries; do not infer a runtime improvement from enum size alone.
+
+### Directory scan ownership
+
+`Directory::open` initializes a unique owner with an address-stable, libuv-sized request allocation. Dropping the owner cleans the request on success, early exit, and failed initialization. Iteration lends a `CStr` from `&mut self`; advancing or destroying the owner is forbidden while that borrow remains in use. Copy entries that need a longer lifetime rather than extending a native pointer's lifetime.
+
+Do not restore the former manual open/close interface or an externally writable request buffer. Preserve filename bytes, libuv ordering, synthetic dot entries in wildcard expansion, reentrant filtering, and failed-open diagnostics. This is not a change to `std::fs` enumeration.
+
+Run `cargo test -p event-lifetimes-tests --test directories` under both Miri models, `cargo test --lib os::fs::tests::directory_scan`, and the release `test/functional/vimscript/readdir_spec.lua` cases. The lifetime package imports the production adapter but substitutes a native driver; real Windows/Linux filesystem behavior and affected path-expansion cases still require native coverage.
+
+Compare `test/benchmark/directory_spec.lua` against a preserved baseline with `cargo xtask benchmark --nvim-bin <baseline>` and the changed release binary. The workload includes sorting and value conversion as well as native scanning.
+
+### Vimscript value representation
+
+Upstream's `typval_T.v_type` and union-member accesses map to one `TvValue` variant plus independent `TypVal` lock metadata. `var_type()` derives the existing `VarType` codes. Keep `Unknown` distinct from script-visible `Null`, use a Rust `bool` for Boolean values, and preserve separate string/function variants and nullable container handles. The enum also encodes inline/owned text storage; derived kinds and text projections handle both modes. `InlineText` keeps its bytes/length private, and null strings remain distinct from empty strings.
+
+Coercions remain at their existing evaluator/API boundaries. Do not turn accepted Boolean/numeric/string conversions into panics or change errors as a side effect of representation work. Upstream generic union-pointer comparisons require matching Rust handle variants: a dictionary is not a list, and a plain function reference has no partial handle. Preserve function/partial equality and identity rules at that boundary. Domain values must be initialized with their actual kind. Temporary `v:` values save and restore complete values and locks; they must not lose the `Unknown` sentinel or retain an unrelated payload.
+
+Keep `tv_copy`, `tv_clear`, function-reference copying/consumption, and cyclic-container collection explicit. Derived Rust cloning does not perform every logical reference-count operation, and dropping every shallow clone must not release a function reference. Preserve null container kinds after clearing and consuming function-name behavior.
+
+Start with `cargo test --lib eval::` and the release `typval_spec.lua`, `null_spec.lua`, `eval_spec.lua`, `luaeval_spec.lua`, and API Object suites, then run affected/full compatibility coverage on Windows and native Linux. `test/benchmark/typval_spec.lua` measures scalar evaluation and mixed nested deep copies; compare it and `test/benchmark/object_spec.lua` with preserved baseline/current release binaries before making performance claims.
 
 Versioning and Releases
 -----------------------

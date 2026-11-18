@@ -70,7 +70,7 @@ Windows CI runs the three functional shards on separate runners to bound cumulat
 
 ### Event ownership and reentrancy
 
-The `event-lifetimes-tests` package compiles the production callback-registration/shared-storage, read-buffer, inbox, and timer-ownership modules without the editor's C dependencies. Its signal integration tests import the actual production signal adapter and supply a deterministic native driver. The shared storage primitive is used by timers, listeners, and signals; real native behavior remains covered separately by native unit and functional tests:
+The `event-lifetimes-tests` package compiles the production callback-registration/shared-storage, read-buffer, inbox, and timer-ownership modules without the editor's C dependencies. Its signal and directory integration tests import the actual production adapters and supply deterministic native drivers. The shared storage primitive is used by timers, listeners, and signals; real native behavior remains covered separately by native unit and functional tests:
 
 ```bash
 cargo test -p event-lifetimes-tests
@@ -78,9 +78,11 @@ rustup toolchain install nightly-2026-11-16 --profile minimal --component miri -
 cargo +nightly-2026-11-16 miri test -p event-lifetimes-tests
 ```
 
-CI repeats the Miri command with `MIRIFLAGS=-Zmiri-tree-borrows` to check both borrowing models. Miri checks Rust-side memory behavior, including the signal adapter's init/start/callback/close sequence with controlled callbacks, not libuv, Lua, or OS signal semantics. Keep the native functional and legacy suites, including release builds on Windows and Linux. When using WSL, run those suites from a native Linux filesystem: tests create files and Unix sockets in and around the checkout, so moving only the Cargo target directory is insufficient. Use a separate dependency/staging tree for each platform; copied Windows parser DLLs can be selected before Linux parsers and fail to load.
+CI repeats the Miri command with `MIRIFLAGS=-Zmiri-tree-borrows` to check both borrowing models. Miri checks Rust-side memory behavior, including signal lifecycle callbacks and directory request cleanup on movement, early drop, initialization failure, and iteration errors. It does not execute libuv or establish Lua, filesystem, or OS signal semantics. Keep the native functional and legacy suites, including release builds on Windows and Linux. When using WSL, run those suites from a native Linux filesystem: tests create files and Unix sockets in and around the checkout, so moving only the Cargo target directory is insufficient. Use a separate dependency/staging tree for each platform; copied Windows parser DLLs can be selected before Linux parsers and fail to load.
 
-Match the CI test environment when comparing results. On Windows, Node-provider fixtures need `require('neovim')` to resolve from the test directory (CI uses `npm link neovim`), and timezone-sensitive cases can be run with `TZ=UTC`. The DOS 8.3 filesystem cases invoke `fsutil` and require suitable volume settings/permissions. Record baseline prerequisite failures rather than weakening assertions or silently changing shared-machine settings.
+Match the CI test environment when comparing results. On Windows, Node-provider fixtures need `require('neovim')` to resolve from the test directory (CI uses `npm link neovim`; a process-local `NODE_PATH` can expose an existing installation), and timezone-sensitive cases can be run with `TZ=UTC`. The DOS 8.3 filesystem cases invoke `fsutil` and require suitable volume settings/permissions. Record baseline prerequisite failures rather than weakening assertions or silently changing shared-machine settings.
+
+The Unix filesystem unit tests inspect `/dev/stderr`. Redirecting stderr to a regular log file changes the object under test; preserve terminal/pipe semantics when capturing output, for example with a test-owned PTY.
 
 POSIX release CI sets `NVIM_TEST_INTEG=1` to enable the live-network cases in the net and package-manager suites. Default local runs and Windows CI skip those cases; enable the flag when matching POSIX release CI coverage and distinguish gated skips from passing tests.
 
@@ -116,6 +118,25 @@ cargo xtask benchmark --release test/benchmark/object_spec.lua
 The Rust cases cover wire kinds, full-width handle decoding, binary strings, and nested/empty containers. The functional cases cover real Lua-reference copying/transfer and API-specific coercions; also run affected API, option, UI, and terminal suites.
 
 The Object benchmark measures 100,000 nested Lua API copies, 50,000 Vimscript round trips, and 5,000 nested-payload RPC round trips after warmup. RPC uses a persistent test-owned child and includes client/transport costs. These are value-conversion workloads, not isolated enum-dispatch timings. Preserve baseline/current executable names, interleave repeated release runs on each platform without concurrent heavy validation, and report variability rather than treating layout size as a performance result.
+
+### Directory scans and Vimscript values
+
+Directory scans have unique RAII owners and borrow each entry from the current scan. `TvValue` is the authoritative Vimscript value enum; lock metadata and logical reference counts remain separate. Focused checks for these contracts are:
+
+```bash
+cargo test -p event-lifetimes-tests --test directories
+cargo test --lib os::fs::tests::directory_scan
+cargo test --lib eval::
+cargo xtask functionaltest --release test/functional/vimscript/readdir_spec.lua test/functional/vimscript/typval_spec.lua test/functional/vimscript/null_spec.lua test/functional/api/object_spec.lua
+cargo xtask benchmark --release test/benchmark/typval_spec.lua
+cargo xtask benchmark --release test/benchmark/directory_spec.lua
+```
+
+The functional cases preserve nested directory filtering, failed-open diagnostics, scalar/container kinds, function-reference retention, temporary `v:` scopes, and lock behavior. Run the broader affected functional and legacy suites on both platforms as well.
+
+The TypVal workload measures 100,000 Vimscript scalar-loop iterations and 10,000 mixed nested deep copies after warmup. Compare the same scripts with preserved baseline/current release binaries using `--nvim-bin`, and also check the existing Object conversion workload. Interleave repeated runs without concurrent heavy validation; enum layout or a reduced count of tags is not a performance result.
+
+The directory workload performs 2,000 `readdir()` calls on the source directory after warmup. It includes enumeration, sorting, and Vimscript/Lua value conversion rather than isolating the native syscall or request allocation.
 
 ## Build Options
 
