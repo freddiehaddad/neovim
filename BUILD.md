@@ -82,7 +82,7 @@ CI repeats the Miri command with `MIRIFLAGS=-Zmiri-tree-borrows` to check both b
 
 Match the CI test environment when comparing results. On Windows, Node-provider fixtures need `require('neovim')` to resolve from the test directory (CI uses `npm link neovim`), and timezone-sensitive cases can be run with `TZ=UTC`. The DOS 8.3 filesystem cases invoke `fsutil` and require suitable volume settings/permissions. Record baseline prerequisite failures rather than weakening assertions or silently changing shared-machine settings.
 
-Release CI sets `NVIM_TEST_INTEG=1` to enable the live-network cases in the net and package-manager suites. Default local runs skip those cases; enable the flag when matching release CI coverage and distinguish gated skips from passing tests.
+POSIX release CI sets `NVIM_TEST_INTEG=1` to enable the live-network cases in the net and package-manager suites. Default local runs and Windows CI skip those cases; enable the flag when matching POSIX release CI coverage and distinguish gated skips from passing tests.
 
 Blocking test-client RPC requests use a runner-side deadline (`TEST_TIMEOUT`, in seconds; default 600). Individual hang-sensitive cases can set their session's `request_timeout` in milliseconds. TCP test clients also wait for connection completion before starting RPC, using `TEST_TIMEOUT` to bound the connect wait and closing the socket on failure. Late responses or connection callbacks must not interrupt subsequent requests.
 
