@@ -170,6 +170,9 @@ jobs:
       - name: cargo test
         run: cargo xtask unittest
 
+      - name: xtask tests
+        run: cargo test -p xtask
+
   event-lifetimes:
     needs: changes
     if: needs.changes.outputs.rust == 'true'
@@ -363,13 +366,17 @@ jobs:
   windows:
     needs: changes
     if: needs.changes.outputs.test == 'true'
-    name: windows release ${{ matrix.test }}
+    name: windows release ${{ matrix.test }}${{ matrix.shard != '' && format(' ({0})', matrix.shard) || '' }}
     runs-on: windows-2025
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        test: [functionaltest, oldtest]
+        include:
+          - { test: functionaltest, shard: "1/3" }
+          - { test: functionaltest, shard: "2/3" }
+          - { test: functionaltest, shard: "3/3" }
+          - { test: oldtest, shard: "" }
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -399,7 +406,7 @@ jobs:
           Get-Command -CommandType Application neovim-node-host.cmd
           npm.cmd link neovim
 
-      - if: ${{ matrix.test == 'functionaltest' }}
+      - if: ${{ matrix.test == 'functionaltest' && matrix.shard == '1/3' }}
         name: unittest
         timeout-minutes: 10
         run: cargo xtask unittest --release
@@ -408,15 +415,34 @@ jobs:
         name: functionaltest
         env:
           TEST_TIMEOUT: 600
+          TEST_SHARD: ${{ matrix.shard }}
         run: |
           $ErrorActionPreference = 'Continue'
-          $sleepProc = Start-Process -PassThru -WindowStyle Hidden (Get-Command sleep.exe).Source infinity
+          function Show-RunnerResources {
+            try {
+              $processes = @(Get-Process -ErrorAction Stop)
+              $handles = ($processes | Measure-Object -Property HandleCount -Sum).Sum
+              $privateBytes = ($processes | Measure-Object -Property PrivateMemorySize64 -Sum).Sum
+              Write-Host ('Runner resources: processes={0}, handles={1}, privateMiB={2:N0}' -f $processes.Count, $handles, ($privateBytes / 1MB))
+              $processes | Where-Object { $_.ProcessName -in @('nvim', 'conhost', 'OpenConsole', 'node', 'python', 'pwsh') } |
+                Group-Object ProcessName | ForEach-Object { Write-Host ('  {0}: {1}' -f $_.Name, $_.Count) }
+            } catch {
+              Write-Warning "Could not collect runner resources: $_"
+            }
+          }
+          Show-RunnerResources
+          $sleepProc = $null
+          $testExitCode = 1
           try {
+            $sleepProc = Start-Process -PassThru -WindowStyle Hidden -ErrorAction Stop (Get-Command sleep.exe).Source infinity
+            if ($sleepProc.HasExited) { throw 'Console keepalive exited before tests started' }
             cargo xtask functionaltest --release
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $testExitCode = $LASTEXITCODE
           } finally {
+            Show-RunnerResources
             if ($sleepProc) { Stop-Process -Id $sleepProc.Id -Force -ErrorAction SilentlyContinue }
           }
+          exit $testExitCode
 
       - if: ${{ matrix.test == 'oldtest' }}
         name: oldtest

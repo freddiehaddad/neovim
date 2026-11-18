@@ -8,4 +8,3 @@ publish = false
 [[bin]]
 name = "xtask"
 path = "main.rs"
-test = false

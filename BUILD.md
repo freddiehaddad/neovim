@@ -58,6 +58,16 @@ cargo xtask benchmark --release
 cargo xtask benchmark --nvim-bin /path/to/upstream/build/bin/nvim
 ```
 
+### Functional test sharding
+
+`TEST_SHARD=N/M` selects one of `M` disjoint partitions of the sorted functional test groups, using one-based shard numbers. For example, set `TEST_SHARD=1/3` and run `cargo xtask functionaltest --release`; repeat with `2/3` and `3/3` to cover the full suite. Without the variable, the command still runs every group.
+
+Sharding requires the full functional suite: do not combine it with explicit test paths, `TEST_FILE`, or benchmark runs. Invalid indices and configurations with empty shards fail rather than silently passing without coverage. For focused debugging, unset `TEST_SHARD` and select the desired test path; the test runner still fails groups in which a filter matches no tests.
+
+Run `cargo test -p xtask` when changing test discovery or partitioning. The tests verify that the repository's complete group list is covered exactly once across all shards.
+
+Windows CI runs the three functional shards on separate runners to bound cumulative process/console churn associated with the upstream `0xC0000142` initialization cascade. No tests are retried or removed. Each job logs its selected groups and process-resource counters; DLL-initialization failures remain failures. This isolates the runner condition rather than claiming to repair an identified Neovim memory defect.
+
 ### Event ownership and reentrancy
 
 The `event-lifetimes-tests` package compiles the production callback-registration/shared-storage, read-buffer, inbox, and timer-ownership modules without the editor's C dependencies. Its signal integration tests import the actual production signal adapter and supply a deterministic native driver. The shared storage primitive is used by timers, listeners, and signals; real native behavior remains covered separately by native unit and functional tests:

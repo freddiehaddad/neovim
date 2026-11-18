@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::env;
 use std::fs;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
@@ -647,6 +648,75 @@ fn functional_test_groups(root: &Path) -> Vec<String> {
     groups
 }
 
+#[derive(Clone, Copy, Debug)]
+struct TestShard {
+    index: usize,
+    count: NonZeroUsize,
+}
+
+impl TestShard {
+    fn parse(value: &str) -> Result<Self, String> {
+        let invalid = || format!("invalid TEST_SHARD {value:?}: expected N/M with 1 <= N <= M");
+        let (index, count) = value.trim().split_once('/').ok_or_else(invalid)?;
+        let index = index.parse::<NonZeroUsize>().map_err(|_| invalid())?;
+        let count = count.parse::<NonZeroUsize>().map_err(|_| invalid())?;
+        if index > count {
+            return Err(invalid());
+        }
+        Ok(Self {
+            index: index.get() - 1,
+            count,
+        })
+    }
+
+    fn select(self, targets: Vec<String>) -> Result<Vec<String>, String> {
+        if self.count.get() > targets.len() {
+            return Err(format!(
+                "TEST_SHARD requests {} shards for only {} test groups",
+                self.count,
+                targets.len(),
+            ));
+        }
+        Ok(targets
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, target)| {
+                (index % self.count.get() == self.index).then_some(target)
+            })
+            .collect())
+    }
+}
+
+fn lua_test_targets(
+    root: &Path,
+    test_type: &str,
+    extra_args: &[String],
+    test_file: Option<&str>,
+    shard: Option<TestShard>,
+) -> Result<Vec<String>, String> {
+    let has_positional = extra_args.iter().any(|arg| !arg.starts_with('-'));
+    let test_file = test_file.filter(|value| !value.is_empty());
+    if shard.is_some() && (test_type != "functional" || has_positional || test_file.is_some()) {
+        return Err(
+            "TEST_SHARD requires the full functional suite without explicit paths or TEST_FILE"
+                .to_string(),
+        );
+    }
+    let targets = if has_positional {
+        vec![String::new()]
+    } else if let Some(test_file) = test_file {
+        vec![test_file.to_string()]
+    } else if test_type == "functional" {
+        functional_test_groups(root)
+    } else {
+        vec![format!("test/{test_type}")]
+    };
+    match shard {
+        Some(shard) => shard.select(targets),
+        None => Ok(targets),
+    }
+}
+
 fn run_lua_tests(
     root: &Path,
     build_dir: &Path,
@@ -654,6 +724,22 @@ fn run_lua_tests(
     test_type: &str,
     extra_args: &[String],
 ) {
+    let shard = env::var("TEST_SHARD")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| TestShard::parse(&value).unwrap_or_else(|error| panic!("{error}")));
+    let test_file = env::var("TEST_FILE").ok();
+    let targets = lua_test_targets(root, test_type, extra_args, test_file.as_deref(), shard)
+        .unwrap_or_else(|error| panic!("{error}"));
+    if let Some(shard) = shard {
+        eprintln!(
+            "Functional test shard {}/{}: {}",
+            shard.index + 1,
+            shard.count,
+            targets.join(", "),
+        );
+    }
+
     let xdg_dir = build_dir.join("Xtest_xdg");
     let tmp_dir = root.join("Xtest_tmpdir");
     if xdg_dir.exists() {
@@ -673,19 +759,6 @@ fn run_lua_tests(
     let log_file = env::var("NVIM_LOG_FILE")
         .map(PathBuf::from)
         .unwrap_or_else(|_| build_dir.join("nvim.log"));
-
-    let has_positional = extra_args.iter().any(|arg| !arg.starts_with('-'));
-    let targets: Vec<String> = if has_positional {
-        vec![String::new()]
-    } else if let Ok(tf) = env::var("TEST_FILE")
-        && !tf.is_empty()
-    {
-        vec![tf]
-    } else if test_type == "functional" {
-        functional_test_groups(root)
-    } else {
-        vec![format!("test/{test_type}")]
-    };
 
     let norm_slashes = |p: &Path| p.to_string_lossy().replace('\\', "/");
     let mut failed_code: Option<i32> = None;
@@ -765,6 +838,13 @@ fn run_lua_tests(
         }
 
         let status = cmd.status().expect("failed to execute test runner");
+        if cfg!(windows) && status.code().is_some_and(|code| code as u32 == 0xC0000142) {
+            eprintln!(
+                "Windows could not initialize the test runner for {target}: \
+                 0xC0000142 (STATUS_DLL_INIT_FAILED). This is a process startup failure, \
+                 not a test assertion."
+            );
+        }
         if !status.success() && failed_code.is_none() {
             failed_code = Some(status.code().unwrap_or(1));
         }
@@ -1830,3 +1910,6 @@ fn main() -> ExitCode {
 
     ExitCode::SUCCESS
 }
+
+#[cfg(test)]
+mod sharding_tests;
