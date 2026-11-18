@@ -5,9 +5,7 @@
 use crate::api::private::helpers::{
     api_free_dict, api_free_string, copy_string, cstr_as_string, static_cstr_as_string,
 };
-use crate::api::private::validate::{
-    Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Dict, KeyValuePair, NvimString, Object};
 use crate::buffer::{
     BLN_LISTED, FileBuf, JUMPLISTSIZE, NMARKS, bt_quickfix, bt_terminal, buflist_findnr,
     buflist_new, buflist_setfpos,
@@ -1910,12 +1908,12 @@ fn shada_pack_entry(
             mpack_map(&mut sbuf, hdr.size as u32);
             for kv in hdr.as_slice() {
                 mpack_str(kv.key.clone(), &mut sbuf);
-                match kv.value.obj_type {
-                    ObjectType::ObjectTypeString => {
-                        mpack_bin(kv.value.data.string(), &mut sbuf);
+                match &kv.value {
+                    Object::String(value) => {
+                        mpack_bin(value.clone(), &mut sbuf);
                     }
-                    ObjectType::ObjectTypeInteger => {
-                        mpack_integer(&mut sbuf, kv.value.data.integer());
+                    Object::Integer(value) => {
+                        mpack_integer(&mut sbuf, *value);
                     }
                     _ => std::process::abort(),
                 }
@@ -2566,38 +2564,23 @@ fn shada_write(
     let mut header_items = [
         KeyValuePair {
             key: static_cstr_as_string(c"generator"),
-            value: Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(static_cstr_as_string(c"nvim")),
-            },
+            value: Object::String(static_cstr_as_string(c"nvim")),
         },
         KeyValuePair {
             key: static_cstr_as_string(c"version"),
-            value: Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(Some(long_version()))),
-            },
+            value: Object::String(cstr_as_string(Some(long_version()))),
         },
         KeyValuePair {
             key: static_cstr_as_string(c"max_kbyte"),
-            value: Object {
-                obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(max_kbyte as Integer),
-            },
+            value: Object::Integer(max_kbyte as Integer),
         },
         KeyValuePair {
             key: static_cstr_as_string(c"pid"),
-            value: Object {
-                obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(os_get_pid() as Integer),
-            },
+            value: Object::Integer(os_get_pid() as Integer),
         },
         KeyValuePair {
             key: static_cstr_as_string(c"encoding"),
-            value: Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(Some(&opt_vars().p_enc.as_cstr()))),
-            },
+            value: Object::String(cstr_as_string(Some(&opt_vars().p_enc.as_cstr()))),
         },
     ];
 

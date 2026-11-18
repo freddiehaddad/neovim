@@ -787,190 +787,78 @@ impl std::ops::IndexMut<usize> for Dict {
     }
 }
 
+/// `Clone` does not duplicate Lua registry ownership; use `copy_object` for that.
 #[derive(Clone, Debug, Default)]
-pub enum ObjectData {
+pub enum Object {
     #[default]
     Nil,
     Boolean(bool),
     Integer(i64),
-    Floating(f64),
+    Float(f64),
     String(NvimString),
     Array(Array),
     Dict(Dict),
     LuaRef(i32),
-}
-
-impl ObjectData {
-    #[inline]
-    pub const fn boolean(&self) -> bool {
-        match *self {
-            Self::Boolean(b) => b,
-            Self::Integer(i) => i != 0,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub const fn integer(&self) -> i64 {
-        match *self {
-            Self::Integer(i) => i,
-            Self::Boolean(b) => b as i64,
-            Self::LuaRef(r) => r as i64,
-            _ => 0,
-        }
-    }
-
-    #[inline]
-    pub fn integer_mut(&mut self) -> &mut i64 {
-        match self {
-            Self::Integer(i) => i,
-            _ => std::process::abort(),
-        }
-    }
-
-    #[inline]
-    pub const fn floating(&self) -> f64 {
-        match *self {
-            Self::Floating(f) => f,
-            Self::Integer(i) => i as f64,
-            _ => 0.0,
-        }
-    }
-
-    #[inline]
-    pub fn string(&self) -> NvimString {
-        match self {
-            Self::String(s) => s.clone(),
-            _ => NvimString::new(),
-        }
-    }
-
-    #[inline]
-    pub fn as_cstr(&self) -> &std::ffi::CStr {
-        match self {
-            Self::String(s) => s.as_cstr(),
-            _ => c"",
-        }
-    }
-
-    #[inline]
-    pub fn as_opt_cstr(&self) -> Option<&std::ffi::CStr> {
-        match self {
-            Self::String(s) => s.as_opt_cstr(),
-            _ => None,
-        }
-    }
-
-    #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        match self {
-            Self::String(s) => s.as_bytes(),
-            _ => &[],
-        }
-    }
-
-    #[inline(always)]
-    pub fn to_rc_cstr_if_clean(&self) -> Option<crate::option_vars::RcCStr> {
-        match self {
-            Self::String(s) => s.to_rc_cstr_if_clean(),
-            _ => None,
-        }
-    }
-
-    #[inline]
-    pub fn cstr_bytes(&self) -> &[u8] {
-        match self {
-            Self::String(s) => s.cstr_bytes(),
-            _ => &[0],
-        }
-    }
-
-    #[inline]
-    pub fn string_mut(&mut self) -> &mut NvimString {
-        match self {
-            Self::String(s) => s,
-            _ => std::process::abort(),
-        }
-    }
-
-    #[inline]
-    pub fn array(&self) -> Array {
-        match self {
-            Self::Array(a) => a.clone(),
-            _ => Array::new(),
-        }
-    }
-
-    #[inline]
-    pub fn array_slice(&self) -> &[Object] {
-        match self {
-            Self::Array(a) => a.as_slice(),
-            _ => &[],
-        }
-    }
-
-    #[inline]
-    pub fn array_mut(&mut self) -> &mut Array {
-        match self {
-            Self::Array(a) => a,
-            _ => std::process::abort(),
-        }
-    }
-
-    #[inline]
-    pub fn dict(&self) -> Dict {
-        match self {
-            Self::Dict(d) => d.clone(),
-            _ => Dict::new(),
-        }
-    }
-
-    #[inline]
-    pub fn dict_slice(&self) -> &[KeyValuePair] {
-        match self {
-            Self::Dict(d) => d.as_slice(),
-            _ => &[],
-        }
-    }
-
-    #[inline]
-    pub fn dict_mut(&mut self) -> &mut Dict {
-        match self {
-            Self::Dict(d) => d,
-            _ => std::process::abort(),
-        }
-    }
-
-    #[inline]
-    pub const fn luaref(&self) -> i32 {
-        match *self {
-            Self::LuaRef(r) => r,
-            Self::Integer(i) => i as i32,
-            _ => 0,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Object {
-    pub obj_type: ObjectType,
-    pub data: ObjectData,
+    Unset,
+    Buffer(i64),
+    Window(i64),
+    Tabpage(i64),
 }
 
 impl Object {
     #[inline]
     pub const fn new() -> Self {
-        Self {
-            obj_type: ObjectType::ObjectTypeNil,
-            data: ObjectData::Nil,
+        Self::Nil
+    }
+
+    #[inline]
+    pub const fn obj_type(&self) -> ObjectType {
+        match self {
+            Self::Nil => ObjectType::ObjectTypeNil,
+            Self::Boolean(_) => ObjectType::ObjectTypeBoolean,
+            Self::Integer(_) => ObjectType::ObjectTypeInteger,
+            Self::Float(_) => ObjectType::ObjectTypeFloat,
+            Self::String(_) => ObjectType::ObjectTypeString,
+            Self::Array(_) => ObjectType::ObjectTypeArray,
+            Self::Dict(_) => ObjectType::ObjectTypeDict,
+            Self::LuaRef(_) => ObjectType::ObjectTypeLuaRef,
+            Self::Unset => ObjectType::ObjectTypeUnset,
+            Self::Buffer(_) => ObjectType::ObjectTypeBuffer,
+            Self::Window(_) => ObjectType::ObjectTypeWindow,
+            Self::Tabpage(_) => ObjectType::ObjectTypeTabpage,
         }
     }
-}
 
-impl Default for Object {
     #[inline]
-    fn default() -> Self {
-        Self::new()
+    pub const fn as_boolean(&self) -> Option<bool> {
+        match self {
+            Self::Boolean(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub const fn as_integer(&self) -> Option<i64> {
+        match self {
+            Self::Integer(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub fn as_string(&self) -> Option<&NvimString> {
+        match self {
+            Self::String(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub fn as_array(&self) -> Option<&Array> {
+        match self {
+            Self::Array(value) => Some(value),
+            _ => None,
+        }
     }
 }
 
@@ -1238,15 +1126,15 @@ pub fn check_string_array(
 ) -> Result<(), Error> {
     let arr = arr.borrow().as_slice();
     for item in arr {
-        if item.obj_type != ObjectType::ObjectTypeString {
+        let Object::String(value) = item else {
             let name_str = name.to_string_lossy();
             let msg = format!(
                 "Invalid '{name_str}' item: expected String, got {}",
-                object_typename(item.obj_type)
+                object_typename(item.obj_type())
             );
             return Err(error_str(ErrorType::ErrorTypeValidation, &msg));
-        }
-        if disallow_nl && item.data.as_bytes().contains(&b'\n') {
+        };
+        if disallow_nl && value.as_bytes().contains(&b'\n') {
             let name_str = name.to_string_lossy();
             let msg = format!("'{name_str}' item contains newlines");
             return Err(error_str(ErrorType::ErrorTypeValidation, &msg));

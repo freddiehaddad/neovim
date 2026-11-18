@@ -1,9 +1,7 @@
 //! Functions for setting marks and jumping to them (`src/nvim/mark.c`).
 #![forbid(unsafe_code)]
 
-use crate::api::private::validate::{
-    Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Dict, KeyValuePair, NvimString, Object};
 use crate::autocmd::{AUGROUP_ALL, EVENT_MARKSET, aucmd_defer, has_event};
 use crate::buffer::{
     FileBuf, GETF_SETMARK, K_MARK_ADJUST_NORMAL, MAXLNUM, NMARKS, bt_prompt, buflist_findnr,
@@ -350,31 +348,19 @@ fn do_markset_autocmd(c: u8, pos: &CursorPos, buf: &FileBuf) {
     let mut items: [KeyValuePair; 3] = [
         KeyValuePair {
             key: NvimString::from_cstr(c"name"),
-            value: Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(NvimString::from_bytes_len(&mark_str, 1)),
-            },
+            value: Object::String(NvimString::from_bytes_len(&mark_str, 1)),
         },
         KeyValuePair {
             key: NvimString::from_cstr(c"line"),
-            value: Object {
-                obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(i64::from(pos.lnum)),
-            },
+            value: Object::Integer(i64::from(pos.lnum)),
         },
         KeyValuePair {
             key: NvimString::from_cstr(c"col"),
-            value: Object {
-                obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(i64::from(pos.col)),
-            },
+            value: Object::Integer(i64::from(pos.col)),
         },
     ];
     let data = Dict::from_slice(&mut items[..3]);
-    let mut dict_obj = Object {
-        obj_type: ObjectType::ObjectTypeDict,
-        data: ObjectData::Dict(data),
-    };
+    let mut dict_obj = Object::Dict(data);
     aucmd_defer(
         EVENT_MARKSET,
         Some(crate::memory::bytes_as_cstr(&mark_str)),

@@ -6,7 +6,7 @@ use crate::api::private::helpers::{
     integer_obj, normalize_index, put_c, try_wrap, try_wrap_err,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_conflict, api_err_exp,
+    Array, Dict, Error, ErrorType, NvimString, Object, api_err_conflict, api_err_exp,
     api_err_invalid, api_err_range, api_err_required,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
@@ -116,15 +116,10 @@ pub fn nvim_win_get_cursor(win: Window) -> Result<Array, Error> {
 pub fn nvim_win_set_cursor(win: Window, pos: Array) -> Result<(), Error> {
     let w = crate::api::private::helpers::find_window_by_handle(win)?;
 
-    if pos.size != 2
-        || pos[0].obj_type != ObjectType::ObjectTypeInteger
-        || pos[1].obj_type != ObjectType::ObjectTypeInteger
-    {
+    let [Object::Integer(row), Object::Integer(col)] = pos.as_slice() else {
         return Err(api_err_exp(c"pos", c"[row, col] array", None));
-    }
-
-    let row = pos[0].data.integer();
-    let col = pos[1].data.integer();
+    };
+    let (row, col) = (*row, *col);
 
     if row <= 0 || row > i64::from(w.buf().b_ml.ml_line_count.get()) {
         return Err(api_err_range(c"cursor line"));
@@ -620,8 +615,7 @@ mod tests {
     #[test]
     fn keyset_and_integer_obj_helpers() {
         let obj = integer_obj(42);
-        assert_eq!(obj.obj_type, ObjectType::ObjectTypeInteger);
-        assert_eq!(obj.data.integer(), 42);
+        assert!(matches!(obj, Object::Integer(42)));
         assert!(has_key(
             1u64 << KEYSET_OPTIDX_WIN_RESIZE_ANCHOR,
             KEYSET_OPTIDX_WIN_RESIZE_ANCHOR

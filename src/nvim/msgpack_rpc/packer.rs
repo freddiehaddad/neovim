@@ -1,7 +1,7 @@
 //! Msgpack-RPC serializer (`src/nvim/msgpack_rpc/packer.c`).
 #![forbid(unsafe_code)]
 
-use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, NvimString, Object, ObjectType};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
 
@@ -339,42 +339,44 @@ pub fn mpack_handle(obj_type: ObjectType, handle: ObjHandle, packer: &mut Packer
 /// Pack `obj` into `packer` (`mpack_object`).
 pub fn mpack_object(cur: &mut Object, packer: &mut PackerBuffer) {
     mpack_check_buffer(packer);
-    match cur.obj_type {
-        ObjectType::ObjectTypeLuaRef => {
-            let cs = nlua_funcref_str(cur.data.luaref(), true);
-            api_free_luaref(cur.data.luaref());
-            cur.data = ObjectData::LuaRef(LUA_NOREF);
+    match cur {
+        Object::LuaRef(reference) => {
+            let cs = nlua_funcref_str(*reference, true);
+            api_free_luaref(*reference);
+            *reference = LUA_NOREF;
             mpack_str(NvimString::from_cstr(&cs), packer);
         }
-        ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
+        Object::Unset | Object::Nil => {
             mpack_nil(packer);
         }
-        ObjectType::ObjectTypeBoolean => {
-            mpack_bool(packer, cur.data.boolean());
+        Object::Boolean(value) => {
+            mpack_bool(packer, *value);
         }
-        ObjectType::ObjectTypeInteger => {
-            mpack_integer(packer, cur.data.integer());
+        Object::Integer(value) => {
+            mpack_integer(packer, *value);
         }
-        ObjectType::ObjectTypeFloat => {
-            mpack_float8(packer, cur.data.floating());
+        Object::Float(value) => {
+            mpack_float8(packer, *value);
         }
-        ObjectType::ObjectTypeString => {
-            mpack_str_bytes(cur.data.as_bytes(), packer);
+        Object::String(value) => {
+            mpack_str_bytes(value.as_bytes(), packer);
         }
-        ObjectType::ObjectTypeBuffer
-        | ObjectType::ObjectTypeWindow
-        | ObjectType::ObjectTypeTabpage => {
-            mpack_handle(cur.obj_type, cur.data.integer() as ObjHandle, packer);
+        Object::Buffer(handle) => {
+            mpack_handle(ObjectType::ObjectTypeBuffer, *handle as ObjHandle, packer);
         }
-        ObjectType::ObjectTypeArray => {
-            let arr = cur.data.array_mut();
+        Object::Window(handle) => {
+            mpack_handle(ObjectType::ObjectTypeWindow, *handle as ObjHandle, packer);
+        }
+        Object::Tabpage(handle) => {
+            mpack_handle(ObjectType::ObjectTypeTabpage, *handle as ObjHandle, packer);
+        }
+        Object::Array(arr) => {
             mpack_array(packer, arr.size as u32);
             for item in arr.as_mut_slice() {
                 mpack_object(item, packer);
             }
         }
-        ObjectType::ObjectTypeDict => {
-            let dict = cur.data.dict_mut();
+        Object::Dict(dict) => {
             mpack_map(packer, dict.size as u32);
             for it in dict.as_mut_slice() {
                 mpack_check_buffer(packer);
@@ -442,13 +444,7 @@ mod tests {
     fn object_wire_types_preserve_handles_and_empty_values() {
         let cases = [
             (nil_obj(), vec![0xc0]),
-            (
-                Object {
-                    obj_type: ObjectType::ObjectTypeUnset,
-                    data: ObjectData::Integer(0),
-                },
-                vec![0xc0],
-            ),
+            (Object::Unset, vec![0xc0]),
             (boolean_obj(false), vec![0xc2]),
             (boolean_obj(true), vec![0xc3]),
             (integer_obj(42), vec![0x2a]),
@@ -486,6 +482,22 @@ mod tests {
         ];
         assert_eq!(encode(object), expected);
         assert_eq!(encode(unpack(&expected).unwrap()), expected);
+    }
+
+    #[test]
+    fn handle_decoding_preserves_full_width_payloads() {
+        for value in [(1_u64 << 40) + 17, u64::MAX] {
+            for kind in 0..=2 {
+                let mut bytes = vec![0xc7, 9, kind, 0xcf];
+                bytes.extend_from_slice(&value.to_be_bytes());
+                match (kind, unpack(&bytes).unwrap()) {
+                    (0, Object::Buffer(handle))
+                    | (1, Object::Window(handle))
+                    | (2, Object::Tabpage(handle)) => assert_eq!(handle, value as i64),
+                    (_, other) => panic!("unexpected handle object: {other:?}"),
+                }
+            }
+        }
     }
 
     #[test]

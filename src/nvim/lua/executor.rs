@@ -7,9 +7,7 @@ use crate::api::private::helpers::{
     HlMessageChunk, OBJECT_NIL, TryState, api_error, api_free_array, api_set_sctx, error_set,
     try_enter, try_leave,
 };
-use crate::api::private::validate::{
-    Array, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Array, Error, ErrorType, NvimString, Object};
 use crate::change::inserted_bytes;
 use crate::cmdexpand::Cmdidx;
 use crate::cursor::{Colnr, check_cursor};
@@ -1811,18 +1809,12 @@ fn nlua_call_pop_retval(
         K_RET_NIL_BOOL => {
             let bool_value = lua_toboolean_safe(lstate, -1);
             lua_pop(lstate, 1);
-            Ok(Object {
-                obj_type: ObjectType::ObjectTypeBoolean,
-                data: ObjectData::Boolean(bool_value),
-            })
+            Ok(Object::Boolean(bool_value))
         }
         K_RET_LUAREF => {
             let ref_ = nlua_ref_global(lstate, -1);
             lua_pop(lstate, 1);
-            Ok(Object {
-                obj_type: ObjectType::ObjectTypeLuaRef,
-                data: ObjectData::LuaRef(ref_),
-            })
+            Ok(Object::LuaRef(ref_))
         }
         K_RET_OBJECT => nlua_pop_object(lstate, false),
         K_RET_MULTI => {
@@ -1833,10 +1825,7 @@ fn nlua_call_pop_retval(
             for i in 0..nres_u {
                 res[nres_u - i - 1] = nlua_pop_object(lstate, false)?;
             }
-            Ok(Object {
-                obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(res),
-            })
+            Ok(Object::Array(res))
         }
         K_RET_MULTI_STACK => Ok(OBJECT_NIL),
         _ => unreachable!(),
@@ -2037,11 +2026,11 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
 
         let mut all_strings = true;
         for v in completions.as_slice() {
-            if v.obj_type != ObjectType::ObjectTypeString {
+            let Object::String(value) = v else {
                 all_strings = false;
                 break;
-            }
-            results.push(crate::memory::bytes_to_cstring(v.data.as_bytes()));
+            };
+            results.push(crate::memory::bytes_to_cstring(value.as_bytes()));
         }
         NLUA_EXPAND_RESULTS.with(|r| *r.borrow_mut() = results);
 
@@ -2341,16 +2330,13 @@ pub fn nlua_func_exists(lua_funcname: &CStr) -> bool {
     str_bytes.extend_from_slice(b"return ");
     str_bytes.extend_from_slice(fname_bytes);
     let str_cstr = std::ffi::CString::new(str_bytes).unwrap();
-    let mut args_items: [Object; 1] = [Object {
-        obj_type: ObjectType::ObjectTypeString,
-        data: ObjectData::String(NvimString::from_cstr(&str_cstr)),
-    }];
+    let mut args_items: [Object; 1] = [Object::String(NvimString::from_cstr(&str_cstr))];
     let args = Array::from_slice(&mut args_items[..1]);
     let code = NvimString::from_cstr(c"return type(loadstring(...)()) == 'function'");
     let result = nlua_exec(code, None, args, K_RET_NIL_BOOL);
     drop(str_cstr);
 
-    result.is_ok_and(|r| r.obj_type == ObjectType::ObjectTypeBoolean && r.data.boolean())
+    matches!(result, Ok(Object::Boolean(true)))
 }
 
 #[cfg(test)]

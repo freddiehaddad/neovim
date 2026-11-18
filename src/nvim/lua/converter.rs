@@ -7,7 +7,7 @@ use crate::api::private::helpers::{
     api_error, api_free_array, api_free_dict, api_free_object, api_typename, error_set, nil_obj,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
+    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType,
 };
 use crate::eval::decode::{
     K_MP_EXT, K_MP_INTEGER, K_MP_MAP, decode_create_map_special_dict, decode_string,
@@ -1062,31 +1062,31 @@ pub fn nlua_push_handle(lstate: *mut lua_State, item: ObjHandle, _flags: i32) {
 }
 
 fn nlua_push_object_ref(lstate: *mut lua_State, obj: &Object, flags: i32) {
-    match obj.obj_type {
-        ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
+    match obj {
+        Object::Unset | Object::Nil => {
             if (flags & K_NLUA_PUSH_SPECIAL) != 0 {
                 lua_pushnil_safe(lstate);
             } else {
                 nlua_pushref(lstate, crate::globals::nlua_global_refs().nil_ref);
             }
         }
-        ObjectType::ObjectTypeLuaRef => {
-            nlua_pushref(lstate, obj.data.luaref());
+        Object::LuaRef(value) => {
+            nlua_pushref(lstate, *value);
         }
-        ObjectType::ObjectTypeBoolean => nlua_push_boolean(lstate, obj.data.boolean(), flags),
-        ObjectType::ObjectTypeInteger => nlua_push_integer(lstate, obj.data.integer(), flags),
-        ObjectType::ObjectTypeFloat => nlua_push_float(lstate, obj.data.floating(), flags),
-        ObjectType::ObjectTypeString => lua_push_bytes(lstate, obj.data.as_bytes()),
-        ObjectType::ObjectTypeArray => {
-            let slice = obj.data.array_slice();
+        Object::Boolean(value) => nlua_push_boolean(lstate, *value, flags),
+        Object::Integer(value) => nlua_push_integer(lstate, *value, flags),
+        Object::Float(value) => nlua_push_float(lstate, *value, flags),
+        Object::String(value) => lua_push_bytes(lstate, value.as_bytes()),
+        Object::Array(value) => {
+            let slice = value.as_slice();
             lua_createtable_safe(lstate, slice.len() as i32, 0);
             for (i, item) in slice.iter().enumerate() {
                 nlua_push_object_ref(lstate, item, flags);
                 lua_rawseti_safe(lstate, -2, (i as i32) + 1);
             }
         }
-        ObjectType::ObjectTypeDict => {
-            let slice = obj.data.dict_slice();
+        Object::Dict(value) => {
+            let slice = value.as_slice();
             lua_createtable_safe(lstate, 0, slice.len() as i32);
             if slice.is_empty() {
                 nlua_pushref(lstate, crate::globals::nlua_global_refs().empty_dict_ref);
@@ -1098,10 +1098,8 @@ fn nlua_push_object_ref(lstate: *mut lua_State, obj: &Object, flags: i32) {
                 lua_rawset_safe(lstate, -3);
             }
         }
-        ObjectType::ObjectTypeBuffer
-        | ObjectType::ObjectTypeWindow
-        | ObjectType::ObjectTypeTabpage => {
-            nlua_push_handle(lstate, obj.data.integer() as ObjHandle, flags);
+        Object::Buffer(value) | Object::Window(value) | Object::Tabpage(value) => {
+            nlua_push_handle(lstate, *value as ObjHandle, flags);
         }
     }
 }
@@ -1112,35 +1110,31 @@ pub fn nlua_push_object(lstate: *mut lua_State, obj: &mut Object, flags: i32) {
         nlua_push_object_ref(lstate, obj, flags);
         return;
     }
-    match obj.obj_type {
-        ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
+    match obj {
+        Object::Unset | Object::Nil => {
             if (flags & K_NLUA_PUSH_SPECIAL) != 0 {
                 lua_pushnil_safe(lstate);
             } else {
                 nlua_pushref(lstate, crate::globals::nlua_global_refs().nil_ref);
             }
         }
-        ObjectType::ObjectTypeLuaRef => {
-            nlua_pushref(lstate, obj.data.luaref());
-            if (flags & K_NLUA_PUSH_FREE_REFS) != 0 {
-                api_free_luaref(obj.data.luaref());
-                obj.data = ObjectData::LuaRef(LUA_NOREF);
-            }
+        Object::LuaRef(value) => {
+            nlua_pushref(lstate, *value);
+            api_free_luaref(*value);
+            *value = LUA_NOREF;
         }
-        ObjectType::ObjectTypeBoolean => nlua_push_boolean(lstate, obj.data.boolean(), flags),
-        ObjectType::ObjectTypeInteger => nlua_push_integer(lstate, obj.data.integer(), flags),
-        ObjectType::ObjectTypeFloat => nlua_push_float(lstate, obj.data.floating(), flags),
-        ObjectType::ObjectTypeString => lua_push_bytes(lstate, obj.data.as_bytes()),
-        ObjectType::ObjectTypeArray => {
-            let arr = obj.data.array_mut();
+        Object::Boolean(value) => nlua_push_boolean(lstate, *value, flags),
+        Object::Integer(value) => nlua_push_integer(lstate, *value, flags),
+        Object::Float(value) => nlua_push_float(lstate, *value, flags),
+        Object::String(value) => lua_push_bytes(lstate, value.as_bytes()),
+        Object::Array(arr) => {
             lua_createtable_safe(lstate, arr.size as i32, 0);
             for (i, item) in arr.as_mut_slice().iter_mut().enumerate() {
                 nlua_push_object(lstate, item, flags);
                 lua_rawseti_safe(lstate, -2, (i as i32) + 1);
             }
         }
-        ObjectType::ObjectTypeDict => {
-            let dict = obj.data.dict_mut();
+        Object::Dict(dict) => {
             lua_createtable_safe(lstate, 0, dict.size as i32);
             if dict.size == 0 {
                 nlua_pushref(lstate, crate::globals::nlua_global_refs().empty_dict_ref);
@@ -1152,10 +1146,8 @@ pub fn nlua_push_object(lstate: *mut lua_State, obj: &mut Object, flags: i32) {
                 lua_rawset_safe(lstate, -3);
             }
         }
-        ObjectType::ObjectTypeBuffer
-        | ObjectType::ObjectTypeWindow
-        | ObjectType::ObjectTypeTabpage => {
-            nlua_push_handle(lstate, obj.data.integer() as ObjHandle, flags);
+        Object::Buffer(value) | Object::Window(value) | Object::Tabpage(value) => {
+            nlua_push_handle(lstate, *value as ObjHandle, flags);
         }
     }
 }
@@ -1358,19 +1350,21 @@ pub fn nlua_pop_dict(lstate: *mut lua_State, ref_: bool) -> Result<Dict, Error> 
 #[inline]
 fn attach_popped_object(stack: &mut [ObjPopStackItem], ret: &mut Object, val: Object) {
     if let Some(parent) = stack.last_mut() {
-        if parent.obj.obj_type == ObjectType::ObjectTypeDict {
-            let key = parent.next_key.take().unwrap();
-            let d = parent.obj.data.dict_mut();
-            let idx = d.size;
-            d.size += 1;
-            let item = &mut d[idx];
-            item.key = key;
-            item.value = val;
-        } else {
-            let a = parent.obj.data.array_mut();
-            let idx = a.size;
-            a.size += 1;
-            a[idx] = val;
+        match &mut parent.obj {
+            Object::Dict(dict) => {
+                let key = parent.next_key.take().unwrap();
+                let idx = dict.size;
+                dict.size += 1;
+                let item = &mut dict[idx];
+                item.key = key;
+                item.value = val;
+            }
+            Object::Array(array) => {
+                let idx = array.size;
+                array.size += 1;
+                array[idx] = val;
+            }
+            _ => unreachable!("Lua conversion requires a container parent"),
         }
     } else {
         *ret = val;
@@ -1392,11 +1386,8 @@ pub fn nlua_pop_object(lstate: *mut lua_State, ref_: bool) -> Result<Object, Err
                 break;
             }
             let cur = stack.last_mut().unwrap();
-            if cur.obj.obj_type == ObjectType::ObjectTypeDict {
-                let d_full = {
-                    let d = cur.obj.data.dict_mut();
-                    d.size == d.capacity
-                };
+            if let Object::Dict(dict) = &cur.obj {
+                let d_full = dict.size == dict.capacity;
                 if d_full {
                     lua_pop(lstate, 2);
                     let finished = stack.pop().unwrap().obj;
@@ -1420,11 +1411,8 @@ pub fn nlua_pop_object(lstate: *mut lua_State, ref_: bool) -> Result<Object, Err
                     attach_popped_object(&mut stack, &mut ret, finished);
                     continue;
                 }
-            } else {
-                let (a_full, idx) = {
-                    let a = cur.obj.data.array_mut();
-                    (a.size == a.capacity, a.size)
-                };
+            } else if let Object::Array(array) = &cur.obj {
+                let (a_full, idx) = (array.size == array.capacity, array.size);
                 if a_full {
                     lua_pop(lstate, 1);
                     let finished = stack.pop().unwrap().obj;
@@ -1432,6 +1420,8 @@ pub fn nlua_pop_object(lstate: *mut lua_State, ref_: bool) -> Result<Object, Err
                     continue;
                 }
                 lua_rawgeti_safe(lstate, -1, (idx as i32) + 1);
+            } else {
+                unreachable!("Lua conversion requires a container parent");
             }
         }
 
@@ -1441,17 +1431,11 @@ pub fn nlua_pop_object(lstate: *mut lua_State, ref_: bool) -> Result<Object, Err
         match lua_type_safe(lstate, -1) {
             LUA_TNIL => {}
             LUA_TBOOLEAN => {
-                cur_obj = Object {
-                    obj_type: ObjectType::ObjectTypeBoolean,
-                    data: ObjectData::Boolean(lua_toboolean_safe(lstate, -1)),
-                };
+                cur_obj = Object::Boolean(lua_toboolean_safe(lstate, -1));
             }
             LUA_TSTRING => {
                 let s_bytes = crate::lua::ffi::lua_tolstring_bytes_with_nul(lstate, -1);
-                cur_obj = Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(NvimString::from_bytes_with_nul(s_bytes)),
-                };
+                cur_obj = Object::String(NvimString::from_bytes_with_nul(s_bytes));
             }
             LUA_TNUMBER => {
                 let n = lua_tonumber_safe(lstate, -1);
@@ -1459,15 +1443,9 @@ pub fn nlua_pop_object(lstate: *mut lua_State, ref_: bool) -> Result<Object, Err
                     || n < (Integer::MIN as lua_Number)
                     || ((n as Integer) as lua_Number) != n
                 {
-                    cur_obj = Object {
-                        obj_type: ObjectType::ObjectTypeFloat,
-                        data: ObjectData::Floating(n),
-                    };
+                    cur_obj = Object::Float(n);
                 } else {
-                    cur_obj = Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(n as Integer),
-                    };
+                    cur_obj = Object::Integer(n as Integer);
                 }
             }
             LUA_TTABLE => {
@@ -1476,47 +1454,28 @@ pub fn nlua_pop_object(lstate: *mut lua_State, ref_: bool) -> Result<Object, Err
                     ObjectType::ObjectTypeArray => {
                         if table_props.maxidx != 0 {
                             stack.push(ObjPopStackItem {
-                                obj: Object {
-                                    obj_type: ObjectType::ObjectTypeArray,
-                                    data: ObjectData::Array(Array::with_capacity(
-                                        table_props.maxidx,
-                                    )),
-                                },
+                                obj: Object::Array(Array::with_capacity(table_props.maxidx)),
                                 next_key: None,
                             });
                             pushed_container = true;
                         } else {
-                            cur_obj = Object {
-                                obj_type: ObjectType::ObjectTypeArray,
-                                data: ObjectData::Array(Array::new()),
-                            };
+                            cur_obj = Object::Array(Array::new());
                         }
                     }
                     ObjectType::ObjectTypeDict => {
                         if table_props.string_keys_num != 0 {
                             stack.push(ObjPopStackItem {
-                                obj: Object {
-                                    obj_type: ObjectType::ObjectTypeDict,
-                                    data: ObjectData::Dict(Dict::with_capacity(
-                                        table_props.string_keys_num,
-                                    )),
-                                },
+                                obj: Object::Dict(Dict::with_capacity(table_props.string_keys_num)),
                                 next_key: None,
                             });
                             pushed_container = true;
                             lua_pushnil_safe(lstate);
                         } else {
-                            cur_obj = Object {
-                                obj_type: ObjectType::ObjectTypeDict,
-                                data: ObjectData::Dict(Dict::new()),
-                            };
+                            cur_obj = Object::Dict(Dict::new());
                         }
                     }
                     ObjectType::ObjectTypeFloat => {
-                        cur_obj = Object {
-                            obj_type: ObjectType::ObjectTypeFloat,
-                            data: ObjectData::Floating(table_props.val),
-                        };
+                        cur_obj = Object::Float(table_props.val);
                     }
                     ObjectType::ObjectTypeNil => {
                         err = api_error!(
@@ -1529,10 +1488,7 @@ pub fn nlua_pop_object(lstate: *mut lua_State, ref_: bool) -> Result<Object, Err
             }
             LUA_TFUNCTION => {
                 if ref_ {
-                    cur_obj = Object {
-                        obj_type: ObjectType::ObjectTypeLuaRef,
-                        data: ObjectData::LuaRef(nlua_ref_global(lstate, -1)),
-                    };
+                    cur_obj = Object::LuaRef(nlua_ref_global(lstate, -1));
                 } else {
                     err = api_error!(
                         ErrorType::ErrorTypeValidation,
@@ -1825,7 +1781,6 @@ mod tests {
     #[test]
     fn keyset_link_and_nil_obj_defaults() {
         let obj = nil_obj();
-        assert_eq!(obj.obj_type, ObjectType::ObjectTypeNil);
-        assert_eq!(obj.data.integer(), 0);
+        assert!(matches!(obj, Object::Nil));
     }
 }

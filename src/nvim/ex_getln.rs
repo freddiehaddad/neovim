@@ -5238,7 +5238,7 @@ pub fn cmdline_init() {
 
 /// Validate the `'cedit'` option.
 pub fn validate_cedit(args: &mut Optset) -> Option<&'static CStr> {
-    let newval_str = args.os_newval.data.string();
+    let newval_str = args.os_newval.as_string().cloned().unwrap_or_default();
     let value = newval_str.as_bytes();
     if !value.is_empty() {
         let n = string_to_key(value);

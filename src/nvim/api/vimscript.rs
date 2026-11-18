@@ -8,7 +8,7 @@ use crate::api::private::helpers::{
     try_leave,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
+    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, api_err_exp,
 };
 use crate::eval::eval0;
 use crate::eval::typval::{TvDict, TypVal, VarType, tv_clear};
@@ -322,11 +322,11 @@ pub fn nvim_call_dict_function(
     let mut rettv: TypVal = TypVal::new();
     let mut mustfree = false;
 
-    match dict.obj_type {
-        ObjectType::ObjectTypeString => {
+    match &dict {
+        Object::String(value) => {
             let mut tstate = TryState::new();
             try_enter(&mut tstate);
-            let s_val = dict.data.string();
+            let s_val = value.clone();
             let eval_ret = eval0(
                 s_val.as_bytes(),
                 &mut rettv,
@@ -339,7 +339,7 @@ pub fn nvim_call_dict_function(
             }
             mustfree = true;
         }
-        ObjectType::ObjectTypeDict => {
+        Object::Dict(_) => {
             object_to_vim(dict.clone(), &mut rettv);
         }
         _ => {
@@ -362,10 +362,7 @@ pub fn nvim_call_dict_function(
             ));
         }
 
-        if !fn_name.data.is_null()
-            && fn_name.size > 0
-            && dict.obj_type != ObjectType::ObjectTypeDict
-        {
+        if !fn_name.data.is_null() && fn_name.size > 0 && !matches!(dict, Object::Dict(_)) {
             let Some(di) = crate::eval::typval::tv_dict_find_opt(
                 Some(self_dict_ref),
                 fn_name.as_cstr(),

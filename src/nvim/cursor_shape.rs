@@ -2,9 +2,7 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::cstr_as_string;
-use crate::api::private::validate::{
-    Array, Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, NvimString, Object};
 use crate::ex_getln::{cmdline_at_end, cmdline_overstrike};
 use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_id2attr};
@@ -154,28 +152,15 @@ pub fn mode_style_array() -> Array {
         dict_put_c(
             &mut dic,
             c"name",
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(Some(cur.full_name))),
-            },
+            Object::String(cstr_as_string(Some(cur.full_name))),
         );
         dict_put_c(
             &mut dic,
             c"short_name",
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(Some(cur.name))),
-            },
+            Object::String(cstr_as_string(Some(cur.name))),
         );
         if (cur.used_for & SHAPE_MOUSE) != 0 {
-            dict_put_c(
-                &mut dic,
-                c"mouse_shape",
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(cur.mshape as i64),
-                },
-            );
+            dict_put_c(&mut dic, c"mouse_shape", Object::Integer(cur.mshape as i64));
         }
         if is_cursor {
             let shape_cstr = match cur.shape {
@@ -186,89 +171,43 @@ pub fn mode_style_array() -> Array {
             dict_put_c(
                 &mut dic,
                 c"cursor_shape",
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(Some(shape_cstr))),
-                },
+                Object::String(cstr_as_string(Some(shape_cstr))),
             );
             dict_put_c(
                 &mut dic,
                 c"cell_percentage",
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(cur.percentage as i64),
-                },
+                Object::Integer(cur.percentage as i64),
             );
             dict_put_c(
                 &mut dic,
                 c"blinkwait",
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(cur.blinkwait as i64),
-                },
+                Object::Integer(cur.blinkwait as i64),
             );
-            dict_put_c(
-                &mut dic,
-                c"blinkon",
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(cur.blinkon as i64),
-                },
-            );
-            dict_put_c(
-                &mut dic,
-                c"blinkoff",
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(cur.blinkoff as i64),
-                },
-            );
-            dict_put_c(
-                &mut dic,
-                c"hl_id",
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(cur.id as i64),
-                },
-            );
-            dict_put_c(
-                &mut dic,
-                c"id_lm",
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(cur.id_lm as i64),
-                },
-            );
+            dict_put_c(&mut dic, c"blinkon", Object::Integer(cur.blinkon as i64));
+            dict_put_c(&mut dic, c"blinkoff", Object::Integer(cur.blinkoff as i64));
+            dict_put_c(&mut dic, c"hl_id", Object::Integer(cur.id as i64));
+            dict_put_c(&mut dic, c"id_lm", Object::Integer(cur.id_lm as i64));
             dict_put_c(
                 &mut dic,
                 c"attr_id",
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(if cur.id != 0 {
-                        syn_id2attr(cur.id) as i64
-                    } else {
-                        0
-                    }),
-                },
+                Object::Integer(if cur.id != 0 {
+                    syn_id2attr(cur.id) as i64
+                } else {
+                    0
+                }),
             );
             dict_put_c(
                 &mut dic,
                 c"attr_id_lm",
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(if cur.id_lm != 0 {
-                        syn_id2attr(cur.id_lm) as i64
-                    } else {
-                        0
-                    }),
-                },
+                Object::Integer(if cur.id_lm != 0 {
+                    syn_id2attr(cur.id_lm) as i64
+                } else {
+                    0
+                }),
             );
         }
         assert!(all.size < all.capacity);
-        *all.next_slot_mut() = Object {
-            obj_type: ObjectType::ObjectTypeDict,
-            data: ObjectData::Dict(dic),
-        };
+        *all.next_slot_mut() = Object::Dict(dic);
         all.size += 1;
     }
     all

@@ -8,8 +8,8 @@ use crate::api::private::helpers::{
     try_wrap,
 };
 use crate::api::private::validate::{
-    Array, Error, ErrorType, NvimString, Object, ObjectType, api_err_conflict, api_err_exp,
-    api_err_invalid, api_err_required,
+    Array, Error, ErrorType, NvimString, Object, api_err_conflict, api_err_exp, api_err_invalid,
+    api_err_required,
 };
 use crate::api::tabpage::{Buffer, Window};
 use crate::autocmd::{EVENT_WINNEW, apply_autocmds_win, block_autocmds, unblock_autocmds};
@@ -1219,15 +1219,12 @@ fn parse_config_split(split: NvimString) -> Option<WinSplit> {
 }
 
 fn parse_float_bufpos(bufpos: Array) -> Option<Lpos> {
-    if bufpos.size != 2
-        || bufpos[0].obj_type != ObjectType::ObjectTypeInteger
-        || bufpos[1].obj_type != ObjectType::ObjectTypeInteger
-    {
+    let [Object::Integer(row), Object::Integer(col)] = bufpos.as_slice() else {
         return None;
-    }
+    };
     Some(Lpos {
-        lnum: bufpos[0].data.integer() as i32,
-        col: bufpos[1].data.integer() as i32,
+        lnum: *row as i32,
+        col: *col as i32,
     })
 }
 
@@ -1238,20 +1235,6 @@ pub fn parse_bordertext(
     bordertext_type: BorderTextType,
     fconfig: &mut WinConfig,
 ) -> Result<(), Error> {
-    if bordertext.obj_type != ObjectType::ObjectTypeString
-        && bordertext.obj_type != ObjectType::ObjectTypeArray
-    {
-        return Err(api_err_exp(
-            c"title/footer",
-            c"String or Array",
-            Some(api_typename(bordertext.obj_type)),
-        ));
-    }
-
-    if bordertext.obj_type == ObjectType::ObjectTypeArray && bordertext.data.array().size == 0 {
-        return Err(api_err_exp(c"title/footer", c"non-empty Array", None));
-    }
-
     let is_title = bordertext_type == K_BORDER_TEXT_TITLE;
     let is_present = if is_title {
         &mut fconfig.title
@@ -1269,20 +1252,33 @@ pub fn parse_bordertext(
         &mut fconfig.footer_width
     };
 
-    if bordertext.obj_type == ObjectType::ObjectTypeString {
-        if bordertext.data.string().size == 0 {
-            *is_present = false;
-            return Ok(());
+    match bordertext {
+        Object::String(value) => {
+            if value.size == 0 {
+                *is_present = false;
+                return Ok(());
+            }
+            let text_cstr = transstr(value.cstr_bytes(), true);
+            *width = mb_string2cells(text_cstr.as_bytes()) as i32;
+            chunks.clear();
+            chunks.push(VirtTextChunk {
+                text: Some(crate::option_vars::RcCStr::from_cstring(text_cstr)),
+                hl_id: -1,
+            });
         }
-        let text_cstr = transstr(bordertext.data.string().cstr_bytes(), true);
-        *width = mb_string2cells(text_cstr.as_bytes()) as i32;
-        chunks.clear();
-        chunks.push(VirtTextChunk {
-            text: Some(crate::option_vars::RcCStr::from_cstring(text_cstr)),
-            hl_id: -1,
-        });
-    } else {
-        *chunks = parse_virt_text(bordertext.data.array(), Some(width), true)?;
+        Object::Array(array) => {
+            if array.size == 0 {
+                return Err(api_err_exp(c"title/footer", c"non-empty Array", None));
+            }
+            *chunks = parse_virt_text(array, Some(width), true)?;
+        }
+        value => {
+            return Err(api_err_exp(
+                c"title/footer",
+                c"String or Array",
+                Some(api_typename(value.obj_type())),
+            ));
+        }
     }
 
     *is_present = true;
@@ -1345,36 +1341,34 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>) -> Res
     let chars = &mut fconfig.border_chars;
     let hl_ids = &mut fconfig.border_hl_ids;
 
-    if style.obj_type == ObjectType::ObjectTypeArray {
-        let arr = style.data.array();
+    if let Object::Array(arr) = &style {
         let mut size = arr.size;
         if size == 0 || size > 8 || (size & (size - 1)) != 0 {
             return Err(api_err_exp(c"border", c"1, 2, 4, or 8 chars", None));
         }
         for i in 0..size {
             let iytem = &arr[i];
-            let string: NvimString;
+            let string: &NvimString;
             let mut hl_id: i32 = 0;
-            if iytem.obj_type == ObjectType::ObjectTypeArray {
-                let iarr = iytem.data.array();
+            if let Object::Array(iarr) = iytem {
                 if iarr.size == 0 || iarr.size > 2 {
                     return Err(api_err_exp(c"border", c"1 or 2-item Array", None));
                 }
                 let first = &iarr[0];
-                if first.obj_type != ObjectType::ObjectTypeString {
+                let Object::String(value) = first else {
                     return Err(api_err_exp(c"border", c"Array of Strings", None));
-                }
-                string = first.data.string();
+                };
+                string = value;
                 if iarr.size == 2 {
                     hl_id = object_to_hl_id(iarr[1].clone(), c"border char highlight")?;
                 }
-            } else if iytem.obj_type == ObjectType::ObjectTypeString {
-                string = iytem.data.string();
+            } else if let Object::String(value) = iytem {
+                string = value;
             } else {
                 return Err(api_err_exp(
                     c"border",
                     c"String or Array",
-                    Some(api_typename(iytem.obj_type)),
+                    Some(api_typename(iytem.obj_type())),
                 ));
             }
             if string.size != 0 && mb_string2cells_len(string.as_bytes()) > 1 {
@@ -1405,8 +1399,7 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>) -> Res
                 None,
             ));
         }
-    } else if style.obj_type == ObjectType::ObjectTypeString {
-        let str_val = style.data.string();
+    } else if let Object::String(str_val) = &style {
         let str_bytes = str_val.cstr_bytes();
         if str_val.size == 0 || str_bytes == b"none" {
             fconfig.border = false;
@@ -1713,7 +1706,7 @@ fn parse_win_config(
                 break 'fail api_err_conflict(c"border", c"non-float window");
             }
             let border_style = config.border.clone();
-            if border_style.obj_type != ObjectType::ObjectTypeNil
+            if !matches!(border_style, Object::Nil)
                 && let Err(e) = parse_border_style(border_style, Some(&mut *fconfig))
             {
                 break 'fail e;

@@ -4,7 +4,7 @@
 use crate::api::private::dispatch::{MsgpackRpcRequestHandler, msgpack_rpc_get_handler_for};
 use crate::api::private::helpers::{api_error, nil_obj};
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
+    Array, Dict, Error, ErrorType, NvimString, Object, ObjectType,
 };
 use crate::lua::converter::{Boolean, FieldHashfn};
 use crate::mpack::mpack_core::{
@@ -116,36 +116,29 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
             node.data[0] = crate::mpack::object::MpackData::Object(nil_obj());
         }
         MpackTokenType::MpackTokenBoolean => {
-            node.data[0] = crate::mpack::object::MpackData::Object(Object {
-                obj_type: ObjectType::ObjectTypeBoolean,
-                data: ObjectData::Boolean(mpack_unpack_boolean(&node.tok)),
-            });
+            node.data[0] = crate::mpack::object::MpackData::Object(Object::Boolean(
+                mpack_unpack_boolean(&node.tok),
+            ));
         }
         MpackTokenType::MpackTokenSint => {
-            node.data[0] = crate::mpack::object::MpackData::Object(Object {
-                obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(mpack_unpack_sint(&node.tok)),
-            });
+            node.data[0] = crate::mpack::object::MpackData::Object(Object::Integer(
+                mpack_unpack_sint(&node.tok),
+            ));
         }
         MpackTokenType::MpackTokenUint => {
-            node.data[0] = crate::mpack::object::MpackData::Object(Object {
-                obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(mpack_unpack_uint(&node.tok) as Integer),
-            });
+            node.data[0] = crate::mpack::object::MpackData::Object(Object::Integer(
+                mpack_unpack_uint(&node.tok) as Integer,
+            ));
         }
         MpackTokenType::MpackTokenFloat => {
-            node.data[0] = crate::mpack::object::MpackData::Object(Object {
-                obj_type: ObjectType::ObjectTypeFloat,
-                data: ObjectData::Floating(mpack_unpack_float_fast(&node.tok)),
-            });
+            node.data[0] = crate::mpack::object::MpackData::Object(Object::Float(
+                mpack_unpack_float_fast(&node.tok),
+            ));
         }
         MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
             let len = node.tok.length as usize;
             let s = NvimString::zeroed(len);
-            node.data[0] = crate::mpack::object::MpackData::Object(Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(s),
-            });
+            node.data[0] = crate::mpack::object::MpackData::Object(Object::String(s));
         }
         MpackTokenType::MpackTokenExt => {
             node.data[0] = crate::mpack::object::MpackData::Object(nil_obj());
@@ -157,11 +150,10 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
                 || parent.tok.r#type == MpackTokenType::MpackTokenBin
             {
                 let pos = parent.pos;
-                let data = parent.data[0]
-                    .object_mut()
-                    .data
-                    .string_mut()
-                    .as_bytes_with_nul_mut();
+                let Object::String(string) = parent.data[0].object_mut() else {
+                    unreachable!("string chunks require a string parent");
+                };
+                let data = string.as_bytes_with_nul_mut();
                 if chunk_len > 0 {
                     data[pos..pos + chunk_len].copy_from_slice(node.tok.data.chunk_bytes());
                 }
@@ -189,8 +181,13 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
                 if (0..=EXT_OBJECT_TYPE_MAX).contains(&ext_type)
                     && let Some(obj_type) = ObjectType::from_raw(ext_type + EXT_OBJECT_TYPE_SHIFT)
                 {
-                    res.obj_type = obj_type;
-                    res.data = ObjectData::Integer(mpack_unpack_uint(&ext_tok) as i64);
+                    let handle = mpack_unpack_uint(&ext_tok) as i64;
+                    *res = match obj_type {
+                        ObjectType::ObjectTypeBuffer => Object::Buffer(handle),
+                        ObjectType::ObjectTypeWindow => Object::Window(handle),
+                        ObjectType::ObjectTypeTabpage => Object::Tabpage(handle),
+                        _ => unreachable!("validated handle extension type"),
+                    };
                 } else {
                     *res = nil_obj();
                 }
@@ -200,19 +197,13 @@ fn api_parse_enter(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: 
             let len = node.tok.length as usize;
             let mut arr = Array::with_capacity(len);
             arr.size = len;
-            node.data[0] = crate::mpack::object::MpackData::Object(Object {
-                obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(arr),
-            });
+            node.data[0] = crate::mpack::object::MpackData::Object(Object::Array(arr));
         }
         MpackTokenType::MpackTokenMap => {
             let len = node.tok.length as usize;
             let mut dict = Dict::with_capacity(len);
             dict.size = len;
-            node.data[0] = crate::mpack::object::MpackData::Object(Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(dict),
-            });
+            node.data[0] = crate::mpack::object::MpackData::Object(Object::Dict(dict));
         }
         MpackTokenType::MpackTokenNone => std::process::abort(),
     }
@@ -227,20 +218,26 @@ fn api_parse_exit(parser: &mut MpackParser, p: &mut ApiParseCtx<'_>, node_idx: u
     if let Some(parent) = parent {
         match parent.tok.r#type {
             MpackTokenType::MpackTokenArray => {
-                parent.data[0].object_mut().data.array_mut()[parent.pos - 1] = obj;
+                let Object::Array(array) = parent.data[0].object_mut() else {
+                    unreachable!("array items require an array parent");
+                };
+                array[parent.pos - 1] = obj;
             }
             MpackTokenType::MpackTokenMap => {
+                let Object::Dict(dict) = parent.data[0].object_mut() else {
+                    unreachable!("map items require a dictionary parent");
+                };
                 if parent.key_visited != 0 {
-                    let kv = &mut parent.data[0].object_mut().data.dict_mut()[parent.pos];
-                    if obj.obj_type == ObjectType::ObjectTypeString {
-                        kv.key = obj.data.string();
-                    } else {
-                        kv.key = NvimString::new();
-                        kv.value = obj;
+                    let kv = &mut dict[parent.pos];
+                    match obj {
+                        Object::String(key) => kv.key = key,
+                        value => {
+                            kv.key = NvimString::new();
+                            kv.value = value;
+                        }
                     }
                 } else {
-                    let kv = &mut parent.data[0].object_mut().data.dict_mut()[parent.pos - 1];
-                    kv.value = obj;
+                    dict[parent.pos - 1].value = obj;
                 }
             }
             _ => std::process::abort(),

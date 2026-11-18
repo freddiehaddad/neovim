@@ -909,7 +909,7 @@ pub fn nvim_get_runtime(
     let res = runtime_get_named(opts.is_lua, pat, all);
     if opts.do_source {
         for i in 0..res.size {
-            let name = res[i].data.string();
+            let name = res[i].as_string().expect("string Object").clone();
             do_source(name.as_cstr(), false, DOSO_NONE, None);
         }
     }
@@ -1144,11 +1144,9 @@ pub fn nvim_echo(
         opts.source.as_opt_cstr(),
     )?;
 
-    validate_int(
-        opts.id.obj_type != ObjectType::ObjectTypeInteger || msg_id_exists(opts.id.data.integer()),
-        c"id",
-        opts.id.data.integer(),
-    )?;
+    if let Object::Integer(id) = &opts.id {
+        validate_int(msg_id_exists(*id), c"id", *id)?;
+    }
 
     let mut msg_data = MessageData {
         source: opts.source.clone(),
@@ -1606,7 +1604,7 @@ pub fn nvim_paste(
     );
     match &rv_res {
         Err(_) => PASTE_CANCELLED.set(true),
-        Ok(rv) if rv.obj_type == ObjectType::ObjectTypeBoolean && !rv.data.boolean() => {
+        Ok(Object::Boolean(false)) => {
             PASTE_CANCELLED.set(true);
         }
         Ok(_) => {}
@@ -1668,8 +1666,8 @@ pub fn nvim_put(
     reg.y_array = Vec::with_capacity(lines.size);
     reg.y_allocated = true;
     for item in lines.as_slice() {
-        validate_t(c"line", ObjectType::ObjectTypeString, item.obj_type)?;
-        let line = item.data.string();
+        validate_t(c"line", ObjectType::ObjectTypeString, item.obj_type())?;
+        let line = item.as_string().expect("string Object").clone();
         let line_size = line.size;
         let mut copied = copy_string(line);
         if line_size > 0 {
@@ -1766,8 +1764,7 @@ pub fn nvim_get_context(opts: &mut KeyDictContext) -> Result<Dict, Error> {
     let mut int_types: CtxStateFlags = if types.size > 0 { 0 } else { K_CTX_ALL };
     if types.size > 0 {
         for item in types.as_slice() {
-            if item.obj_type == ObjectType::ObjectTypeString {
-                let s = item.data.string();
+            if let Object::String(s) = item {
                 match s.cstr_bytes() {
                     b"regs" => int_types |= K_CTX_REGS,
                     b"jumps" => int_types |= K_CTX_JUMPS,
@@ -2258,8 +2255,8 @@ pub fn nvim_get_proc_children(pid: Integer) -> Result<Array, Error> {
                 a,
                 K_RET_OBJECT,
             )?;
-            if o.obj_type == ObjectType::ObjectTypeArray {
-                Ok(o.data.array())
+            if let Object::Array(array) = o {
+                Ok(array)
             } else {
                 Err(api_error!(
                     ErrorType::ErrorTypeException,
@@ -2288,11 +2285,11 @@ pub fn nvim_get_proc(pid: Integer) -> Result<Object, Error> {
 
     #[cfg(windows)]
     {
-        let rvobj = dict_obj(os_proc_info(pid as i32));
-        if rvobj.data.dict().size == 0 {
+        let info = os_proc_info(pid as i32);
+        if info.size == 0 {
             return Ok(nil_obj());
         }
-        Ok(rvobj)
+        Ok(dict_obj(info))
     }
     #[cfg(not(windows))]
     {
@@ -2304,16 +2301,14 @@ pub fn nvim_get_proc(pid: Integer) -> Result<Object, Error> {
             a,
             K_RET_OBJECT,
         )?;
-        if o.obj_type == ObjectType::ObjectTypeArray && o.data.array().size == 0 {
-            Ok(nil_obj())
-        } else if o.obj_type == ObjectType::ObjectTypeDict {
-            Ok(o)
-        } else {
-            Err(api_error!(
+        match o {
+            Object::Array(array) if array.size == 0 => Ok(nil_obj()),
+            Object::Dict(_) => Ok(o),
+            _ => Err(api_error!(
                 ErrorType::ErrorTypeException,
                 c"Failed to get process info. pid=%lld",
                 pid,
-            ))
+            )),
         }
     }
 }
@@ -2901,20 +2896,18 @@ pub fn nvim_redraw(opts: &mut KeyDictRedraw) -> Result<(), Error> {
 
     if has_range {
         let r = &opts.range;
-        let ok = r.size == 2
-            && r[0].obj_type == ObjectType::ObjectTypeInteger
-            && r[1].obj_type == ObjectType::ObjectTypeInteger
-            && r[0].data.integer() >= 0
-            && r[1].data.integer() >= -1;
-        if !ok {
-            return Err(api_error!(
-                ErrorType::ErrorTypeValidation,
-                c"%s",
-                c"Invalid 'range': Expected 2-tuple of Integers",
-            ));
-        }
-        let begin_raw = r[0].data.integer();
-        let end_raw = r[1].data.integer();
+        let (begin_raw, end_raw) = match r.as_slice() {
+            [Object::Integer(begin), Object::Integer(end)] if *begin >= 0 && *end >= -1 => {
+                (*begin, *end)
+            }
+            _ => {
+                return Err(api_error!(
+                    ErrorType::ErrorTypeValidation,
+                    c"%s",
+                    c"Invalid 'range': Expected 2-tuple of Integers",
+                ));
+            }
+        };
 
         let rbuf = if !win.is_null() {
             win.w_buffer.get()

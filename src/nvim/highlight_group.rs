@@ -5,7 +5,7 @@ use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::{
     api_error, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, put_c,
 };
-use crate::api::private::validate::{Dict, Error, ErrorType, NvimString, Object, ObjectType};
+use crate::api::private::validate::{Dict, Error, ErrorType, NvimString, Object};
 use crate::api::ui::HLATTRS_DICT_SIZE;
 use crate::api::win_config::UIExtension;
 use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
@@ -1025,13 +1025,13 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDictHighlight, link_id: i
             for (j, (val, name)) in cinputs.iter().enumerate() {
                 let val = *val;
                 let dest_ref = &mut new_indices[j];
-                if name.obj_type != ObjectType::ObjectTypeNil {
+                if !matches!(name, Object::Nil) {
                     if val < 0 {
                         *dest_ref = K_COLOR_IDX_NONE;
-                    } else if name.obj_type == ObjectType::ObjectTypeString
-                        && name.data.string().size > 0
+                    } else if let Object::String(name) = name
+                        && name.size > 0
                     {
-                        name_to_color(name.data.as_cstr(), dest_ref);
+                        name_to_color(name.as_cstr(), dest_ref);
                     } else {
                         *dest_ref = K_COLOR_IDX_HEX;
                     }

@@ -4,8 +4,7 @@
 
 use crate::api::private::converter::{object_to_vim, vim_to_object};
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
-    api_err_exp,
+    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::buffer::FileBuf;
@@ -42,10 +41,7 @@ pub(crate) const HLF_E: i32 = 6;
 pub(crate) const SID_API_CLIENT: Scid = -9;
 pub(crate) const SID_LUA: Scid = -8;
 
-pub const OBJECT_NIL: Object = Object {
-    obj_type: ObjectType::ObjectTypeNil,
-    data: ObjectData::Integer(0),
-};
+pub const OBJECT_NIL: Object = Object::Nil;
 
 #[inline]
 pub const fn nil_obj() -> Object {
@@ -54,82 +50,52 @@ pub const fn nil_obj() -> Object {
 
 #[inline]
 pub const fn boolean_obj(b: Boolean) -> Object {
-    Object {
-        obj_type: ObjectType::ObjectTypeBoolean,
-        data: ObjectData::Boolean(b),
-    }
+    Object::Boolean(b)
 }
 
 #[inline]
 pub const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::ObjectTypeInteger,
-        data: ObjectData::Integer(i),
-    }
+    Object::Integer(i)
 }
 
 #[inline]
 pub const fn float_obj(f: Float) -> Object {
-    Object {
-        obj_type: ObjectType::ObjectTypeFloat,
-        data: ObjectData::Floating(f),
-    }
+    Object::Float(f)
 }
 
 #[inline]
 pub const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::ObjectTypeString,
-        data: ObjectData::String(s),
-    }
+    Object::String(s)
 }
 
 #[inline]
 pub const fn buffer_obj(b: Buffer) -> Object {
-    Object {
-        obj_type: ObjectType::ObjectTypeBuffer,
-        data: ObjectData::Integer(b as Integer),
-    }
+    Object::Buffer(b as Integer)
 }
 
 #[inline]
 pub const fn window_obj(w: Window) -> Object {
-    Object {
-        obj_type: ObjectType::ObjectTypeWindow,
-        data: ObjectData::Integer(w as Integer),
-    }
+    Object::Window(w as Integer)
 }
 
 #[inline]
 pub const fn tabpage_obj(t: Tabpage) -> Object {
-    Object {
-        obj_type: ObjectType::ObjectTypeTabpage,
-        data: ObjectData::Integer(t as Integer),
-    }
+    Object::Tabpage(t as Integer)
 }
 
 #[inline]
 pub const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::ObjectTypeArray,
-        data: ObjectData::Array(a),
-    }
+    Object::Array(a)
 }
 
 #[inline]
 pub const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::ObjectTypeDict,
-        data: ObjectData::Dict(d),
-    }
+    Object::Dict(d)
 }
 
 #[inline]
 pub const fn luaref_obj(r: LuaRef) -> Object {
-    Object {
-        obj_type: ObjectType::ObjectTypeLuaRef,
-        data: ObjectData::LuaRef(r),
-    }
+    Object::LuaRef(r)
 }
 
 #[inline]
@@ -662,15 +628,9 @@ pub fn string_to_array(input: NvimString, crlf: bool) -> Array {
                 }
             }
         }
-        ret.push(Object {
-            obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(s),
-        });
+        ret.push(Object::String(s));
         if i + 1 == bytes.len() && (end_byte == b'\n' || (crlf && end_byte == b'\r')) {
-            ret.push(Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(NvimString::empty_cstr()),
-            });
+            ret.push(Object::String(NvimString::empty_cstr()));
         }
         i += 1;
     }
@@ -763,19 +723,19 @@ pub fn take_arraybuilder(arr: &mut ArrayBuilder) -> Array {
 }
 
 pub fn api_free_object(value: Object) {
-    match value.obj_type {
-        ObjectType::ObjectTypeUnset
-        | ObjectType::ObjectTypeNil
-        | ObjectType::ObjectTypeBoolean
-        | ObjectType::ObjectTypeInteger
-        | ObjectType::ObjectTypeFloat
-        | ObjectType::ObjectTypeBuffer
-        | ObjectType::ObjectTypeWindow
-        | ObjectType::ObjectTypeTabpage => {}
-        ObjectType::ObjectTypeString => api_free_string(value.data.string()),
-        ObjectType::ObjectTypeArray => api_free_array(value.data.array()),
-        ObjectType::ObjectTypeDict => api_free_dict(value.data.dict()),
-        ObjectType::ObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
+    match value {
+        Object::Unset
+        | Object::Nil
+        | Object::Boolean(_)
+        | Object::Integer(_)
+        | Object::Float(_)
+        | Object::Buffer(_)
+        | Object::Window(_)
+        | Object::Tabpage(_) => {}
+        Object::String(value) => api_free_string(value),
+        Object::Array(value) => api_free_array(value),
+        Object::Dict(value) => api_free_dict(value),
+        Object::LuaRef(value) => api_free_luaref(value),
     }
 }
 
@@ -832,55 +792,42 @@ pub fn copy_dict(dict: Dict) -> Dict {
 }
 
 pub fn copy_object(obj: Object) -> Object {
-    match obj.obj_type {
-        ObjectType::ObjectTypeUnset
-        | ObjectType::ObjectTypeBuffer
-        | ObjectType::ObjectTypeTabpage
-        | ObjectType::ObjectTypeWindow
-        | ObjectType::ObjectTypeNil
-        | ObjectType::ObjectTypeBoolean
-        | ObjectType::ObjectTypeInteger
-        | ObjectType::ObjectTypeFloat => obj,
-        ObjectType::ObjectTypeString => Object {
-            obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(copy_string(obj.data.string())),
-        },
-        ObjectType::ObjectTypeArray => Object {
-            obj_type: ObjectType::ObjectTypeArray,
-            data: ObjectData::Array(copy_array(obj.data.array())),
-        },
-        ObjectType::ObjectTypeDict => Object {
-            obj_type: ObjectType::ObjectTypeDict,
-            data: ObjectData::Dict(copy_dict(obj.data.dict())),
-        },
-        ObjectType::ObjectTypeLuaRef => Object {
-            obj_type: ObjectType::ObjectTypeLuaRef,
-            data: ObjectData::LuaRef(api_new_luaref(obj.data.luaref())),
-        },
+    match obj {
+        Object::Unset
+        | Object::Buffer(_)
+        | Object::Tabpage(_)
+        | Object::Window(_)
+        | Object::Nil
+        | Object::Boolean(_)
+        | Object::Integer(_)
+        | Object::Float(_) => obj,
+        Object::String(value) => Object::String(copy_string(value)),
+        Object::Array(value) => Object::Array(copy_array(value)),
+        Object::Dict(value) => Object::Dict(copy_dict(value)),
+        Object::LuaRef(value) => Object::LuaRef(api_new_luaref(value)),
     }
 }
 
 pub fn api_object_to_bool(obj: Object, what: &CStr, nil_value: bool) -> Result<bool, Error> {
-    match obj.obj_type {
-        ObjectType::ObjectTypeBoolean => Ok(obj.data.boolean()),
-        ObjectType::ObjectTypeInteger => Ok(obj.data.integer() != 0),
-        ObjectType::ObjectTypeNil => Ok(nil_value),
+    match obj {
+        Object::Boolean(value) => Ok(value),
+        Object::Integer(value) => Ok(value != 0),
+        Object::Nil => Ok(nil_value),
         _ => Err(api_err_exp(what, c"boolean", None)),
     }
 }
 
 pub fn object_to_hl_id(obj: Object, what: &CStr) -> Result<i32, Error> {
-    match obj.obj_type {
-        ObjectType::ObjectTypeString => {
-            let str_ = obj.data.string();
+    match obj {
+        Object::String(str_) => {
             if str_.size != 0 {
                 Ok(syn_check_group(str_.as_bytes()))
             } else {
                 Ok(0)
             }
         }
-        ObjectType::ObjectTypeInteger => {
-            let id = obj.data.integer() as i32;
+        Object::Integer(value) => {
+            let id = value as i32;
             if (1..=highlight_num_groups()).contains(&id) {
                 Ok(id)
             } else {
@@ -916,23 +863,25 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool) -> Result<HlMessage, Error> {
     let mut hl_msg = HlMessage::new();
     for i in 0..chunks.size {
         let item = &chunks[i];
-        if item.obj_type != ObjectType::ObjectTypeArray {
+        let Object::Array(chunk) = item else {
             return Err(api_err_exp(
                 c"chunk",
                 api_typename(ObjectType::ObjectTypeArray),
-                Some(api_typename(item.obj_type)),
+                Some(api_typename(item.obj_type())),
             ));
-        }
-        let chunk = item.data.array();
-        if chunk.size == 0 || chunk.size > 2 || chunk[0].obj_type != ObjectType::ObjectTypeString {
-            return Err(api_error!(
-                ErrorType::ErrorTypeValidation,
-                c"%s",
-                c"Invalid chunk: expected Array with 1 or 2 Strings",
-            ));
-        }
+        };
+        let text = match chunk.as_slice() {
+            [Object::String(text), ..] if chunk.size <= 2 => text,
+            _ => {
+                return Err(api_error!(
+                    ErrorType::ErrorTypeValidation,
+                    c"%s",
+                    c"Invalid chunk: expected Array with 1 or 2 Strings",
+                ));
+            }
+        };
 
-        let str_ = copy_string(chunk[0].data.string());
+        let str_ = copy_string(text.clone());
         let hl_id = if chunk.size == 2 {
             object_to_hl_id(chunk[1].clone(), c"text highlight")?
         } else if is_err {
@@ -971,95 +920,75 @@ pub fn api_dict_to_keydict<T: crate::api::private::validate::KeyDict>(
         let value = &mut dict[i].value;
         let field_type =
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
+        let value_type = value.obj_type();
+        let wrong_type = || {
+            api_err_exp(
+                field_name,
+                api_typename(field_type),
+                Some(api_typename(value_type)),
+            )
+        };
 
         match field_type {
             ObjectType::ObjectTypeNil => *field.field_mut::<Object>(retval) = value.clone(),
             ObjectType::ObjectTypeInteger => {
                 if field.is_hlgroup {
                     let mut hl_id: i32 = 0;
-                    if value.obj_type != ObjectType::ObjectTypeNil {
+                    if !matches!(value, Object::Nil) {
                         hl_id = object_to_hl_id(value.clone(), k.as_cstr())?;
                     }
 
                     *field.field_mut::<Integer>(retval) = Integer::from(hl_id);
                 } else {
-                    if value.obj_type != ObjectType::ObjectTypeInteger {
-                        return Err(api_err_exp(
-                            field_name,
-                            api_typename(ObjectType::ObjectTypeInteger),
-                            Some(api_typename(value.obj_type)),
-                        ));
-                    }
-
-                    *field.field_mut::<Integer>(retval) = value.data.integer();
+                    let Object::Integer(value) = value else {
+                        return Err(wrong_type());
+                    };
+                    *field.field_mut::<Integer>(retval) = *value;
                 }
             }
             ObjectType::ObjectTypeFloat => {
-                let val = field.field_mut::<Float>(retval);
-                if value.obj_type == ObjectType::ObjectTypeInteger {
-                    *val = value.data.integer() as Float;
-                } else if value.obj_type == ObjectType::ObjectTypeFloat {
-                    *val = value.data.floating();
-                } else {
-                    return Err(api_err_exp(
-                        field_name,
-                        api_typename(ObjectType::ObjectTypeFloat),
-                        Some(api_typename(value.obj_type)),
-                    ));
-                }
+                *field.field_mut::<Float>(retval) = match value {
+                    Object::Integer(value) => *value as Float,
+                    Object::Float(value) => *value,
+                    _ => return Err(wrong_type()),
+                };
             }
             ObjectType::ObjectTypeBoolean => {
                 *field.field_mut::<Boolean>(retval) =
                     api_object_to_bool(value.clone(), field_name, false)?;
             }
             ObjectType::ObjectTypeString => {
-                if value.obj_type != ObjectType::ObjectTypeString {
-                    return Err(api_err_exp(
-                        field_name,
-                        api_typename(ObjectType::ObjectTypeString),
-                        Some(api_typename(value.obj_type)),
-                    ));
-                }
-
-                *field.field_mut::<NvimString>(retval) = value.data.string();
+                let Object::String(value) = value else {
+                    return Err(wrong_type());
+                };
+                *field.field_mut::<NvimString>(retval) = value.clone();
             }
             ObjectType::ObjectTypeArray => {
-                if value.obj_type != ObjectType::ObjectTypeArray {
-                    return Err(api_err_exp(
-                        field_name,
-                        api_typename(ObjectType::ObjectTypeArray),
-                        Some(api_typename(value.obj_type)),
-                    ));
-                }
-
-                *field.field_mut::<Array>(retval) = value.data.array();
+                let Object::Array(value) = value else {
+                    return Err(wrong_type());
+                };
+                *field.field_mut::<Array>(retval) = value.clone();
             }
             ObjectType::ObjectTypeDict => {
-                let val = field.field_mut::<Dict>(retval);
-                if value.obj_type == ObjectType::ObjectTypeArray && value.data.array().size == 0 {
-                    *val = Dict::new();
-                } else if value.obj_type == ObjectType::ObjectTypeDict {
-                    *val = value.data.dict();
-                } else {
-                    return Err(api_err_exp(
-                        field_name,
-                        api_typename(field_type),
-                        Some(api_typename(value.obj_type)),
-                    ));
-                }
+                *field.field_mut::<Dict>(retval) = match value {
+                    Object::Array(value) if value.size == 0 => Dict::new(),
+                    Object::Dict(value) => value.clone(),
+                    _ => return Err(wrong_type()),
+                };
             }
             ObjectType::ObjectTypeBuffer
             | ObjectType::ObjectTypeWindow
             | ObjectType::ObjectTypeTabpage => {
-                if value.obj_type == ObjectType::ObjectTypeInteger || value.obj_type == field_type {
-                    *field.field_mut::<ObjHandle>(retval) = value.data.integer() as ObjHandle;
-                } else {
-                    return Err(api_err_exp(
-                        field_name,
-                        api_typename(field_type),
-                        Some(api_typename(value.obj_type)),
-                    ));
-                }
+                let handle = match value {
+                    Object::Integer(value) => *value,
+                    Object::Buffer(value) | Object::Window(value) | Object::Tabpage(value)
+                        if value_type == field_type =>
+                    {
+                        *value
+                    }
+                    _ => return Err(wrong_type()),
+                };
+                *field.field_mut::<ObjHandle>(retval) = handle as ObjHandle;
             }
             ObjectType::ObjectTypeLuaRef => {
                 return Err(api_error!(
@@ -1093,36 +1022,21 @@ pub fn api_keydict_to_dict<T: crate::api::private::validate::KeyDict>(
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
         let val = match field_type {
             ObjectType::ObjectTypeNil => field.field_copy::<Object>(value),
-            ObjectType::ObjectTypeInteger => Object {
-                obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(field.field_copy::<Integer>(value)),
-            },
-            ObjectType::ObjectTypeFloat => Object {
-                obj_type: ObjectType::ObjectTypeFloat,
-                data: ObjectData::Floating(field.field_copy::<Float>(value)),
-            },
-            ObjectType::ObjectTypeBoolean => Object {
-                obj_type: ObjectType::ObjectTypeBoolean,
-                data: ObjectData::Boolean(field.field_copy::<Boolean>(value)),
-            },
-            ObjectType::ObjectTypeString => Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(field.field_copy::<NvimString>(value)),
-            },
-            ObjectType::ObjectTypeArray => Object {
-                obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(field.field_copy::<Array>(value)),
-            },
-            ObjectType::ObjectTypeDict => Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(field.field_copy::<Dict>(value)),
-            },
-            ObjectType::ObjectTypeBuffer
-            | ObjectType::ObjectTypeWindow
-            | ObjectType::ObjectTypeTabpage => Object {
-                obj_type: field_type,
-                data: ObjectData::Integer(Integer::from(field.field_copy::<ObjHandle>(value))),
-            },
+            ObjectType::ObjectTypeInteger => Object::Integer(field.field_copy::<Integer>(value)),
+            ObjectType::ObjectTypeFloat => Object::Float(field.field_copy::<Float>(value)),
+            ObjectType::ObjectTypeBoolean => Object::Boolean(field.field_copy::<Boolean>(value)),
+            ObjectType::ObjectTypeString => Object::String(field.field_copy::<NvimString>(value)),
+            ObjectType::ObjectTypeArray => Object::Array(field.field_copy::<Array>(value)),
+            ObjectType::ObjectTypeDict => Object::Dict(field.field_copy::<Dict>(value)),
+            ObjectType::ObjectTypeBuffer => {
+                Object::Buffer(Integer::from(field.field_copy::<ObjHandle>(value)))
+            }
+            ObjectType::ObjectTypeWindow => {
+                Object::Window(Integer::from(field.field_copy::<ObjHandle>(value)))
+            }
+            ObjectType::ObjectTypeTabpage => {
+                Object::Tabpage(Integer::from(field.field_copy::<ObjHandle>(value)))
+            }
             ObjectType::ObjectTypeLuaRef => OBJECT_NIL,
             ObjectType::ObjectTypeUnset => std::process::abort(),
         };
@@ -1142,10 +1056,10 @@ pub fn api_luarefs_free_object(value: Object) {
 
 #[inline]
 pub fn api_luarefs_free_object_ref(value: &Object) {
-    match value.obj_type {
-        ObjectType::ObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
-        ObjectType::ObjectTypeArray => api_luarefs_free_array_slice(value.data.array_slice()),
-        ObjectType::ObjectTypeDict => api_luarefs_free_dict_slice(value.data.dict_slice()),
+    match value {
+        Object::LuaRef(value) => api_free_luaref(*value),
+        Object::Array(value) => api_luarefs_free_array_slice(value.as_slice()),
+        Object::Dict(value) => api_luarefs_free_dict_slice(value.as_slice()),
         _ => {}
     }
 }
@@ -4076,12 +3990,12 @@ pub fn api_get_packed_metadata() -> &'static [u8] {
 
 pub fn api_metadata() -> Object {
     API_META_STATE.with(|st| {
-        if st.metadata_obj.get().obj_type == ObjectType::ObjectTypeNil {
+        if st.metadata_obj.get().obj_type() == ObjectType::ObjectTypeNil {
             let packed = api_get_packed_metadata();
             let Ok(obj) = unpack(packed) else {
                 std::process::abort();
             };
-            if obj.obj_type != ObjectType::ObjectTypeDict {
+            if obj.obj_type() != ObjectType::ObjectTypeDict {
                 std::process::abort();
             }
             st.metadata_obj.set(obj);
@@ -4118,8 +4032,9 @@ mod tests {
         let raw = api_metadata_raw();
         assert!(!raw.data.is_null());
         assert!(raw.size > 30_000);
-        let meta = api_metadata();
-        assert_eq!(meta.obj_type, ObjectType::ObjectTypeDict);
-        assert_eq!(meta.data.dict().size, 6);
+        let Object::Dict(meta) = api_metadata() else {
+            panic!("API metadata must be a dictionary");
+        };
+        assert_eq!(meta.size, 6);
     }
 }

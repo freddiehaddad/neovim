@@ -3,7 +3,7 @@
 //! Buffer line storage and swapfile recovery (`src/nvim/memline.c`).
 
 use crate::api::private::helpers::{HLF_E, cstr_as_string};
-use crate::api::private::validate::{NvimString, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{NvimString, Object};
 use crate::autocmd::{
     EVENT_BUFREADPOST, EVENT_BUFWINENTER, EVENT_SWAPEXISTS, apply_autocmds, has_autocmd,
 };
@@ -1320,10 +1320,7 @@ pub fn ml_recover(checkext: bool) {
         set_fileformat(b0_ff - 1, OPT_LOCAL);
     }
     if let Some(ref fenc) = b0_fenc {
-        let fenc_obj = Object {
-            obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(cstr_as_string(Some(fenc))),
-        };
+        let fenc_obj = Object::String(cstr_as_string(Some(fenc)));
         set_option_value_give_err(K_OPT_FILEENCODING, fenc_obj, OPT_LOCAL);
     }
     unchanged(&curbuf(), true, true);

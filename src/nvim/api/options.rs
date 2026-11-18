@@ -7,8 +7,7 @@ use crate::api::private::helpers::{
     static_cstr_as_obj, string_obj, try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType, api_err_conflict,
-    api_err_exp,
+    Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_conflict, api_err_exp,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::autocmd::{
@@ -401,18 +400,18 @@ pub fn nvim_get_option_value(name: NvimString, opts: &mut KeyDictOption) -> Resu
 }
 
 fn option_to_object_idx(opt_idx: OptIndex, value: Object) -> Object {
-    if value.obj_type != ObjectType::ObjectTypeString {
+    let Object::String(string) = &value else {
         return copy_object(value);
-    }
+    };
 
     let option = get_option(opt_idx);
     let flags = option.flags();
     let schema = option.schema;
-    let bytes = value.data.cstr_bytes();
+    let bytes = string.cstr_bytes();
 
     if (flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_FLAG_LIST)) == 0 {
         string_obj(crate::api::private::helpers::ensure_nul_string(
-            value.data.string(),
+            string.clone(),
         ))
     } else if (flags & K_OPT_FLAG_FLAG_LIST) != 0 && (flags & K_OPT_FLAG_COMMA) == 0 {
         let mut d = Dict::with_capacity(bytes.len());
@@ -554,8 +553,6 @@ pub fn nvim_set_option_value(
     let mut merged_val = OBJECT_NIL;
     let mut errmsg = None;
     let option = get_option(opt_idx);
-    let is_array = value.obj_type == ObjectType::ObjectTypeArray;
-    let is_dict = value.obj_type == ObjectType::ObjectTypeDict;
 
     let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, &to) {
         b
@@ -569,76 +566,68 @@ pub fn nvim_set_option_value(
     };
     let varp = get_varp_from(option, buf.borrow(), win.opt());
 
-    let nitems = if is_array {
-        value.data.array().size
-    } else if is_dict {
-        value.data.dict().size
-    } else {
-        0
+    let nitems = match &value {
+        Object::Array(array) => array.size,
+        Object::Dict(dict) => dict.size,
+        _ => 0,
     };
     let per_item = operation == OP_REMOVING && nitems > 0;
     let count = if per_item { nitems } else { 1 };
 
     for i in 0..count {
-        let mut single_arr_item;
-        let mut single_dict_item;
-        let mut item = value.clone();
-        if per_item && is_array {
-            single_arr_item = [value.data.array()[i].clone()];
-            item = Object {
-                obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(Array::from_slice(&mut single_arr_item)),
-            };
-        } else if per_item {
-            single_dict_item = [value.data.dict()[i].clone()];
-            item = Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(Dict::from_slice(&mut single_dict_item)),
-            };
-        }
+        let item = match &value {
+            Object::Array(array) if per_item => {
+                let mut single_item = [array[i].clone()];
+                Object::Array(Array::from_slice(&mut single_item))
+            }
+            Object::Dict(dict) if per_item => {
+                let mut single_item = [dict[i].clone()];
+                Object::Dict(Dict::from_slice(&mut single_item))
+            }
+            _ => value.clone(),
+        };
 
         let mut error = false;
         let optval_right = optval_from_obj(opt_idx, item, operation, &mut error);
-        let right_type = optval_right.obj_type;
+        let right_type = optval_right.obj_type();
 
         if error {
             optval_free(merged_val);
             return Err(api_err_exp(
                 name.as_cstr(),
                 c"a valid type",
-                Some(api_typename(value.obj_type)),
+                Some(api_typename(value.obj_type())),
             ));
         }
 
-        if right_type == ObjectType::ObjectTypeInteger {
+        if let Object::Integer(rhs) = &optval_right {
             if operation == OP_NONE {
                 merged_val = optval_right;
             } else {
                 let oldval_num = if i == 0 {
                     varp.int_val()
                 } else {
-                    merged_val.data.integer()
+                    merged_val.as_integer().expect("previous integer result")
                 };
-                let rhs = optval_right.data.integer();
                 let res = match operation {
-                    OP_ADDING => oldval_num.wrapping_add(rhs),
-                    OP_PREPENDING => oldval_num.wrapping_mul(rhs),
-                    OP_REMOVING => oldval_num.wrapping_sub(rhs),
-                    _ => rhs,
+                    OP_ADDING => oldval_num.wrapping_add(*rhs),
+                    OP_PREPENDING => oldval_num.wrapping_mul(*rhs),
+                    OP_REMOVING => oldval_num.wrapping_sub(*rhs),
+                    _ => *rhs,
                 };
                 merged_val = integer_obj(res);
             }
             continue;
         }
 
-        if right_type == ObjectType::ObjectTypeString
+        if let Object::String(string) = &optval_right
             && operation == OP_NONE
             && option_has_type(opt_idx, ObjectType::ObjectTypeString)
             && (option.flags() & (K_OPT_FLAG_FUNC | K_OPT_FLAG_EXPR | K_OPT_FLAG_FLAG_LIST)) == 0
             && opt_idx != K_OPT_KEYWORDPRG
             && {
-                let s = optval_right.data.cstr_bytes();
-                optval_right.data.string().size == s.len()
+                let s = string.cstr_bytes();
+                string.size == s.len()
                     && ((option.flags() & K_OPT_FLAG_EXPAND) == 0
                         || (!s
                             .first()
@@ -652,19 +641,19 @@ pub fn nvim_set_option_value(
 
         let mut arg_buf: Vec<u8> = Vec::new();
 
-        match right_type {
-            ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {}
-            ObjectType::ObjectTypeString => {
-                let optval_escaped = escape_option_str_cmdline(optval_right.data.as_bytes());
+        match &optval_right {
+            Object::Unset | Object::Nil => {}
+            Object::String(string) => {
+                let optval_escaped = escape_option_str_cmdline(string.as_bytes());
                 let escaped_bytes = optval_escaped.as_bytes();
                 arg_buf.reserve(1 + escaped_bytes.len());
                 arg_buf.push(b'=');
                 arg_buf.extend_from_slice(escaped_bytes);
             }
-            ObjectType::ObjectTypeBoolean => {
+            Object::Boolean(_) => {
                 merged_val = optval_right.clone();
             }
-            ObjectType::ObjectTypeLuaRef => {
+            Object::LuaRef(_) => {
                 merged_val = copy_object(optval_right.clone());
             }
             _ => {

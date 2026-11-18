@@ -6,8 +6,7 @@ use crate::api::private::helpers::{
     integer_obj, put_c, string_obj,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType, api_err_exp,
-    api_err_invalid,
+    Array, Dict, Error, ErrorType, NvimString, Object, api_err_exp, api_err_invalid,
 };
 use crate::api::ui::{HLATTRS_DICT_SIZE, remote_ui_hl_attr_define, remote_ui_hl_group_set};
 use crate::decoration::{HLGroupID, NS};
@@ -476,12 +475,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
     let mut valid_item = it.version >= hl_valid;
 
     if !valid_item && hl_def != LUA_NOREF && hl_st(|st| st.ns_get_hl_recursive.get()) == 0 {
-        let mut args_storage = [const {
-            Object {
-                obj_type: ObjectType::ObjectTypeNil,
-                data: ObjectData::Integer(0),
-            }
-        }; 3];
+        let mut args_storage = [const { Object::Nil }; 3];
         let mut args = Array::from_buf(&mut args_storage);
         add_c(&mut args, integer_obj(Integer::from(ns_id)));
         let hl_name = syn_id2name(hl_id);
@@ -495,18 +489,10 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
         let mut fallback = true;
         let mut tmp = false;
         let mut attrs = HLATTRS_INIT;
-        if let Ok(ret) = ret
-            && ret.obj_type == ObjectType::ObjectTypeDict
-        {
+        if let Ok(Object::Dict(value)) = ret {
             fallback = false;
             let mut dict = KeyDictHighlight::default();
-            if api_dict_to_keydict(
-                &mut dict,
-                Some(key_dict_highlight_get_field),
-                ret.data.dict(),
-            )
-            .is_ok()
-            {
+            if api_dict_to_keydict(&mut dict, Some(key_dict_highlight_get_field), value).is_ok() {
                 if let Ok(parsed_attrs) = dict2hlattrs(&mut dict, true, Some(&mut it.link_id), None)
                 {
                     attrs = parsed_attrs;
@@ -1698,30 +1684,29 @@ pub fn dict2hlattrs(
 }
 
 pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool) -> Result<i32, Error> {
-    if val.obj_type == ObjectType::ObjectTypeInteger {
-        Ok(val.data.integer() as i32)
-    } else if val.obj_type == ObjectType::ObjectTypeString {
-        let str_ = val.data.string();
-        if str_.size == 0 || is_none_str(str_.cstr_bytes()) {
-            return Ok(-1);
+    match val {
+        Object::Integer(value) => Ok(value as i32),
+        Object::String(value) => {
+            if value.size == 0 || is_none_str(value.cstr_bytes()) {
+                return Ok(-1);
+            }
+            let color = if rgb {
+                let mut dummy: i32 = 0;
+                name_to_color(value.as_cstr(), &mut dummy)
+            } else {
+                name_to_ctermcolor(value.as_cstr()).unwrap_or(-1)
+            };
+            if color < 0 {
+                return Err(api_err_invalid(
+                    c"highlight color",
+                    value.as_opt_cstr(),
+                    0,
+                    true,
+                ));
+            }
+            Ok(color)
         }
-        let color = if rgb {
-            let mut dummy: i32 = 0;
-            name_to_color(str_.as_cstr(), &mut dummy)
-        } else {
-            name_to_ctermcolor(str_.as_cstr()).unwrap_or(-1)
-        };
-        if color < 0 {
-            return Err(api_err_invalid(
-                c"highlight color",
-                str_.as_opt_cstr(),
-                0,
-                true,
-            ));
-        }
-        Ok(color)
-    } else {
-        Err(api_err_exp(key, c"String or Integer", None))
+        _ => Err(api_err_exp(key, c"String or Integer", None)),
     }
 }
 

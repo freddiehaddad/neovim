@@ -8,7 +8,7 @@ use crate::api::private::helpers::api_free_object;
 use crate::api::private::helpers::{
     HLF_E, boolean_obj, cstr_as_obj, cstr_as_string, error_init, error_set, integer_obj,
 };
-use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, Object};
 use crate::api::ui::{
     remote_ui_attached, remote_ui_connect, remote_ui_restart, ui_detach_channel, ui_detach_others,
 };
@@ -9465,8 +9465,10 @@ fn ex_restart(eap: &mut Exarg) {
                 K_RET_OBJECT,
             )
         {
-            if rv.obj_type == ObjectType::ObjectTypeString && rv.data.string().size > 0 {
-                listen_arg = Some(rv.data.string().to_cstring());
+            if let Object::String(value) = &rv
+                && value.size > 0
+            {
+                listen_arg = Some(value.to_cstring());
             }
             api_free_object(rv);
         }
@@ -9531,13 +9533,7 @@ fn ex_restart(eap: &mut Exarg) {
             value: boolean_obj(true),
         }];
         let detach_opts = Dict::from_slice(&mut detach_kv[..1]);
-        let mut detach_items = [
-            integer_obj(0),
-            Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(detach_opts),
-            },
-        ];
+        let mut detach_items = [integer_obj(0), Object::Dict(detach_opts)];
         let detach_args = Array::from_slice(&mut detach_items[..2]);
         if let Err(e) = rpc_send_call(chan_id, c"nvim_chan_set", detach_args, -1) {
             err = e;
@@ -9559,13 +9555,7 @@ fn ex_restart(eap: &mut Exarg) {
                 },
             ];
             let autocmd_opts = Dict::from_slice(&mut autocmd_kv[..3]);
-            let mut autocmd_items = [
-                cstr_as_obj(Some(c"UIEnter")),
-                Object {
-                    obj_type: ObjectType::ObjectTypeDict,
-                    data: ObjectData::Dict(autocmd_opts),
-                },
-            ];
+            let mut autocmd_items = [cstr_as_obj(Some(c"UIEnter")), Object::Dict(autocmd_opts)];
             let autocmd_args = Array::from_slice(&mut autocmd_items[..2]);
             if let Err(e) = rpc_send_call(chan_id, c"nvim_create_autocmd", autocmd_args, -1) {
                 err = e;
@@ -9582,11 +9572,11 @@ fn ex_restart(eap: &mut Exarg) {
                 break 'fail_2;
             }
         };
-        if result.obj_type != ObjectType::ObjectTypeString || result.data.string().size == 0 {
+        let Some(address) = result.as_string().filter(|value| value.size > 0) else {
             let _ = emsg(c"restart failed: could not get listen address from new server");
             break 'fail_2;
-        }
-        let listen_addr = bytes_to_cstring(result.data.string().as_bytes());
+        };
+        let listen_addr = bytes_to_cstring(address.as_bytes());
         #[cfg(windows)]
         if let Some(ref la) = listen_arg {
             let mut handoff_items = [cstr_as_obj(Some(la)), integer_obj(ui_active() as Integer)];
@@ -9595,10 +9585,7 @@ fn ex_restart(eap: &mut Exarg) {
                 cstr_as_obj(Some(
                     c"return require('vim._core.server').rebind_after_restart(...)",
                 )),
-                Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(handoff_params),
-                },
+                Object::Array(handoff_params),
             ];
             let lua_args = Array::from_slice(&mut lua_items[..2]);
             if let Err(e) = rpc_send_call(chan_id, c"nvim_exec_lua", lua_args, -1) {

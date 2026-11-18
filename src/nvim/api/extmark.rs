@@ -805,8 +805,7 @@ pub fn nvim_buf_set_extmark(
     }
 
     if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_HL_GROUP) {
-        if opts.hl_group.obj_type == ObjectType::ObjectTypeArray {
-            let arr = opts.hl_group.data.array();
+        if let Object::Array(arr) = &opts.hl_group {
             if arr.size >= 1 {
                 hl.hl_id = object_to_hl_id(arr[0].clone(), c"hl_group item")?;
             }
@@ -836,37 +835,37 @@ pub fn nvim_buf_set_extmark(
     }
 
     if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_CONCEAL) {
-        if opts.conceal.obj_type != ObjectType::ObjectTypeBoolean
-            && opts.conceal.obj_type != ObjectType::ObjectTypeString
-        {
-            return Err(api_err_exp(
-                c"conceal",
-                c"String or Boolean",
-                Some(api_typename(opts.conceal.obj_type)),
-            ));
-        }
-
-        has_hl = true;
-        if opts.conceal.obj_type == ObjectType::ObjectTypeBoolean {
-            hl.flags |= if opts.conceal.data.boolean() {
-                K_SHCONCEAL
-            } else {
-                K_SHCONCEAL_OFF
-            };
-        } else {
-            let conceal_str = opts.conceal.data.string();
-            hl.flags |= K_SHCONCEAL;
-            if conceal_str.size > 0 {
-                let ci = utf_slice2_str_char_info(conceal_str.as_bytes());
-                let cli = utf_cluster_info(ci);
-                if ci.chr.value < 0x20 || cli.cells > 2 {
-                    return Err(api_error!(
-                        ErrorType::ErrorTypeValidation,
-                        c"%s",
-                        c"conceal char must be printable",
-                    ));
+        match &opts.conceal {
+            Object::Boolean(conceal) => {
+                has_hl = true;
+                hl.flags |= if *conceal {
+                    K_SHCONCEAL
+                } else {
+                    K_SHCONCEAL_OFF
+                };
+            }
+            Object::String(conceal_str) => {
+                has_hl = true;
+                hl.flags |= K_SHCONCEAL;
+                if conceal_str.size > 0 {
+                    let ci = utf_slice2_str_char_info(conceal_str.as_bytes());
+                    let cli = utf_cluster_info(ci);
+                    if ci.chr.value < 0x20 || cli.cells > 2 {
+                        return Err(api_error!(
+                            ErrorType::ErrorTypeValidation,
+                            c"%s",
+                            c"conceal char must be printable",
+                        ));
+                    }
+                    hl.conceal_char = schar_from_cluster(ci, cli);
                 }
-                hl.conceal_char = schar_from_cluster(ci, cli);
+            }
+            _ => {
+                return Err(api_err_exp(
+                    c"conceal",
+                    c"String or Boolean",
+                    Some(api_typename(opts.conceal.obj_type())),
+                ));
             }
         }
     }
@@ -982,15 +981,15 @@ pub fn nvim_buf_set_extmark(
     if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_LINES) {
         let a = &opts.virt_lines;
         for item in a.as_slice() {
-            if item.obj_type != ObjectType::ObjectTypeArray {
+            let Object::Array(chunks) = item else {
                 return Err(api_err_exp(
                     c"virt_text_line",
                     api_typename(ObjectType::ObjectTypeArray),
-                    Some(api_typename(item.obj_type)),
+                    Some(api_typename(item.obj_type())),
                 ));
-            }
+            };
             let mut dummig: i32 = 0;
-            let jtem = parse_virt_text(item.data.array(), Some(&mut dummig), false)?;
+            let jtem = parse_virt_text(chunks.clone(), Some(&mut dummig), false)?;
             virt_lines.data.virt_lines_mut().push(VirtLine {
                 line: std::rc::Rc::new(jtem),
                 flags: virt_lines_flags,
@@ -1195,7 +1194,10 @@ pub fn nvim_buf_set_extmark(
         }
 
         if has_hl_multiple {
-            let arr = opts.hl_group.data.array();
+            let arr = opts
+                .hl_group
+                .as_array()
+                .expect("validated highlight group array");
             let mut i = arr.size - 1;
             while i > 0 {
                 let hl_id = match object_to_hl_id(arr[i].clone(), c"hl_group item") {
@@ -1485,8 +1487,7 @@ fn extmark_get_index_from_obj(
     obj: Object,
     _end: bool,
 ) -> Result<CursorPos, Error> {
-    if obj.obj_type == ObjectType::ObjectTypeInteger {
-        let id = obj.data.integer();
+    if let Object::Integer(id) = obj {
         if id == 0 {
             return Ok(CursorPos {
                 lnum: 0,
@@ -1512,17 +1513,11 @@ fn extmark_get_index_from_obj(
             col: extmark.start.pos.col,
             coladd: 0,
         })
-    } else if obj.obj_type == ObjectType::ObjectTypeArray {
-        let pos = obj.data.array();
-        if pos.size != 2
-            || pos[0].obj_type != ObjectType::ObjectTypeInteger
-            || pos[1].obj_type != ObjectType::ObjectTypeInteger
-        {
+    } else if let Object::Array(pos) = obj {
+        let [Object::Integer(pos_row), Object::Integer(pos_col)] = pos.as_slice() else {
             return Err(api_err_exp(c"mark position", c"2 Integer items", None));
-        }
-
-        let pos_row = pos[0].data.integer();
-        let pos_col = pos[1].data.integer();
+        };
+        let (pos_row, pos_col) = (*pos_row, *pos_col);
         Ok(CursorPos {
             lnum: (if pos_row >= 0 { pos_row } else { MAXLNUM }) as i32,
             col: (if pos_col >= 0 { pos_col } else { MAXCOL }) as Colnr,
@@ -1547,28 +1542,27 @@ pub fn parse_virt_text(
     let mut w: i32 = 0;
 
     for item in chunks.as_slice() {
-        if item.obj_type != ObjectType::ObjectTypeArray {
+        let Object::Array(chunk) = item else {
             return Err(api_err_exp(
                 c"chunk",
                 api_typename(ObjectType::ObjectTypeArray),
-                Some(api_typename(item.obj_type)),
+                Some(api_typename(item.obj_type())),
             ));
-        }
-        let chunk = item.data.array();
-        if chunk.size == 0 || chunk.size > 2 || chunk[0].obj_type != ObjectType::ObjectTypeString {
-            return Err(api_error!(
-                ErrorType::ErrorTypeValidation,
-                c"%s",
-                c"Invalid chunk: expected Array with 1 or 2 Strings",
-            ));
-        }
-
-        let str_val = chunk[0].data.string();
+        };
+        let str_val = match chunk.as_slice() {
+            [Object::String(value), ..] if chunk.size <= 2 => value,
+            _ => {
+                return Err(api_error!(
+                    ErrorType::ErrorTypeValidation,
+                    c"%s",
+                    c"Invalid chunk: expected Array with 1 or 2 Strings",
+                ));
+            }
+        };
         let mut hl_id: i32 = -1;
         if chunk.size == 2 {
-            let hl = chunk[1].clone();
-            if hl.obj_type == ObjectType::ObjectTypeArray {
-                let arr = hl.data.array();
+            let hl = &chunk[1];
+            if let Object::Array(arr) = hl {
                 for j in 0..arr.size {
                     hl_id = object_to_hl_id(arr[j].clone(), c"virt_text highlight")?;
                     if j < arr.size - 1 {
@@ -1576,7 +1570,7 @@ pub fn parse_virt_text(
                     }
                 }
             } else {
-                hl_id = object_to_hl_id(hl, c"virt_text highlight")?;
+                hl_id = object_to_hl_id(hl.clone(), c"virt_text highlight")?;
             }
         }
 
@@ -1636,7 +1630,16 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDictNsOpts) -> Result<(), Error
         let mut windows: std::collections::HashSet<*mut WinInfoInfo> =
             std::collections::HashSet::new();
         for i in 0..opts.wins.size {
-            let win = opts.wins[i].data.integer();
+            // Preserve the window-list boundary's existing scalar coercions.
+            let win = match &opts.wins[i] {
+                Object::Integer(value)
+                | Object::Buffer(value)
+                | Object::Window(value)
+                | Object::Tabpage(value) => *value,
+                Object::Boolean(value) => i64::from(*value),
+                Object::LuaRef(value) => i64::from(*value),
+                _ => 0,
+            };
             let wp = find_window_by_handle(win as Window)?;
             windows.insert(wp.as_ptr());
         }

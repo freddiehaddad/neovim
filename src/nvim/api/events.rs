@@ -43,15 +43,14 @@ pub fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
 //                                   Error *err) FUNC_API_SINCE(12) FUNC_API_REMOTE_ONLY;
 pub fn nvim_ui_term_event(channel_id: u64, event: NvimString, value: Object) -> Result<(), Error> {
     if !event.data.is_null() && event.cstr_bytes() == b"termresponse" {
-        if value.obj_type != ObjectType::ObjectTypeString {
+        let Object::String(termresponse) = &value else {
             return Err(api_err_exp(
                 c"termresponse",
                 api_typename(ObjectType::ObjectTypeString),
-                Some(api_typename(value.obj_type)),
+                Some(api_typename(value.obj_type())),
             ));
-        }
-
-        let termresponse = value.data.string();
+        };
+        let termresponse = termresponse.clone();
         set_vim_var_bytes(VV_TERMRESPONSE, termresponse.as_bytes());
         do_termresponse_autocmd(termresponse, channel_id);
     }

@@ -147,14 +147,14 @@ fn extract_keydict<T: Default + KeyDict>(
     get_field: FieldHashfn<T>,
     wrong_type_msg: &std::ffi::CStr,
 ) -> Result<T, Error> {
-    if item.obj_type == ObjectType::ObjectTypeDict {
-        let mut out = T::default();
-        api_dict_to_keydict(&mut out, get_field, item.data.dict())?;
-        Ok(out)
-    } else if item.obj_type == ObjectType::ObjectTypeArray && item.data.array().size == 0 {
-        Ok(T::default())
-    } else {
-        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
+    match item {
+        Object::Dict(dict) => {
+            let mut out = T::default();
+            api_dict_to_keydict(&mut out, get_field, dict)?;
+            Ok(out)
+        }
+        Object::Array(array) if array.size == 0 => Ok(T::default()),
+        _ => Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg)),
     }
 }
 
@@ -164,72 +164,66 @@ fn extract_handle(
     expected: ObjectType,
     wrong_type_msg: &std::ffi::CStr,
 ) -> Result<ObjHandle, Error> {
-    if (item.obj_type == expected || item.obj_type == ObjectType::ObjectTypeInteger)
-        && item.data.integer() >= 0
-    {
-        Ok(item.data.integer() as ObjHandle)
-    } else {
-        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
+    let kind = item.obj_type();
+    match item {
+        Object::Integer(value) if value >= 0 => Ok(value as ObjHandle),
+        Object::Buffer(value) | Object::Window(value) | Object::Tabpage(value)
+            if kind == expected && value >= 0 =>
+        {
+            Ok(value as ObjHandle)
+        }
+        _ => Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg)),
     }
 }
 
 #[inline]
 fn extract_boolean(item: Object, wrong_type_msg: &std::ffi::CStr) -> Result<Boolean, Error> {
-    if item.obj_type == ObjectType::ObjectTypeBoolean {
-        Ok(item.data.boolean())
-    } else if item.obj_type == ObjectType::ObjectTypeInteger && item.data.integer() >= 0 {
-        Ok((item.data.integer() as ObjHandle) != 0)
-    } else {
-        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
+    match item {
+        Object::Boolean(value) => Ok(value),
+        Object::Integer(value) if value >= 0 => Ok((value as ObjHandle) != 0),
+        _ => Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg)),
     }
 }
 
 #[inline]
 fn extract_float(item: Object, wrong_type_msg: &std::ffi::CStr) -> Result<Float, Error> {
-    if item.obj_type == ObjectType::ObjectTypeFloat {
-        Ok(item.data.floating())
-    } else if item.obj_type == ObjectType::ObjectTypeInteger {
-        Ok(item.data.integer() as Float)
-    } else {
-        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
+    match item {
+        Object::Float(value) => Ok(value),
+        Object::Integer(value) => Ok(value as Float),
+        _ => Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg)),
     }
 }
 
 #[inline]
 fn extract_dict(item: Object, wrong_type_msg: &std::ffi::CStr) -> Result<Dict, Error> {
-    if item.obj_type == ObjectType::ObjectTypeDict {
-        Ok(item.data.dict())
-    } else if item.obj_type == ObjectType::ObjectTypeArray && item.data.array().size == 0 {
-        Ok(Dict::new())
-    } else {
-        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
+    match item {
+        Object::Dict(value) => Ok(value),
+        Object::Array(value) if value.size == 0 => Ok(Dict::new()),
+        _ => Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg)),
     }
 }
 
 #[inline]
 fn extract_integer(item: Object, wrong_type_msg: &std::ffi::CStr) -> Result<Integer, Error> {
-    if item.obj_type == ObjectType::ObjectTypeInteger {
-        Ok(item.data.integer())
-    } else {
-        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
+    match item {
+        Object::Integer(value) => Ok(value),
+        _ => Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg)),
     }
 }
 
 #[inline]
 fn extract_string(item: Object, wrong_type_msg: &std::ffi::CStr) -> Result<NvimString, Error> {
-    if item.obj_type == ObjectType::ObjectTypeString {
-        Ok(item.data.string())
-    } else {
-        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
+    match item {
+        Object::String(value) => Ok(value),
+        _ => Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg)),
     }
 }
 
 #[inline]
 fn extract_array(item: Object, wrong_type_msg: &std::ffi::CStr) -> Result<Array, Error> {
-    if item.obj_type == ObjectType::ObjectTypeArray {
-        Ok(item.data.array())
-    } else {
-        Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg))
+    match item {
+        Object::Array(value) => Ok(value),
+        _ => Err(api_error_str(ErrorType::ErrorTypeException, wrong_type_msg)),
     }
 }
 

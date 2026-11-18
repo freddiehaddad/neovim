@@ -3,7 +3,7 @@
 
 use crate::api::buffer::{LUA_INTERNAL_CALL, buf_collect_lines};
 use crate::api::private::helpers::{OBJECT_NIL, array_obj, boolean_obj, buffer_obj, integer_obj};
-use crate::api::private::validate::{Array, Object, ObjectType};
+use crate::api::private::validate::{Array, Object};
 use crate::buffer::{BufUpdateCallbacks, FileBuf, buf_get_changedtick};
 use crate::cursor::{Colnr, Linenr};
 use crate::extmark::Bcount;
@@ -19,7 +19,7 @@ const LOG_ERROR: i32 = 3;
 
 #[inline]
 pub fn luaret_truthy(res: Object) -> bool {
-    res.obj_type == ObjectType::ObjectTypeBoolean && res.data.boolean()
+    matches!(res, Object::Boolean(true))
 }
 
 fn textlock_wrap<F: FnOnce()>(f: F) {

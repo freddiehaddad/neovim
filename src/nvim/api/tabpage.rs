@@ -250,12 +250,10 @@ pub fn nvim_open_tabpage(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::private::validate::ObjectType;
 
     #[test]
     fn window_obj_creates_window_object() {
         let o = window_obj(1002);
-        assert_eq!(o.obj_type, ObjectType::ObjectTypeWindow);
-        assert_eq!(o.data.integer(), 1002);
+        assert!(matches!(o, Object::Window(1002)));
     }
 }

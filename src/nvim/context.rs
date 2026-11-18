@@ -5,10 +5,10 @@ use crate::api::extmark::nvim_create_namespace;
 
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{
-    api_error, api_free_array, array_obj, copy_array, copy_object, put_c, static_cstr_as_string,
-    string_obj, string_to_array,
+    api_error, api_free_array, array_obj, copy_array, put_c, static_cstr_as_string, string_obj,
+    string_to_array,
 };
-use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
+use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, Object};
 use crate::api::vimscript::{KeyDictExecOpts, exec_impl};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{
@@ -478,7 +478,9 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
 
     if (flags & K_CTX_FUNCS) != 0 {
         for i in 0..ctx.funcs.size {
-            do_cmdline_cmd(ctx.funcs[i].data.string().as_bytes());
+            // Non-string context entries historically execute an empty command.
+            let command = ctx.funcs[i].as_string().cloned().unwrap_or_default();
+            do_cmdline_cmd(command.as_bytes());
         }
     }
 }
@@ -531,24 +533,24 @@ pub fn ctx_from_dict(dict: Dict, ctx: &mut Context) -> Result<CtxStateFlags, Err
     let mut types: CtxStateFlags = 0;
     for i in 0..dict.size {
         let item = &dict[i];
-        if item.value.obj_type != ObjectType::ObjectTypeArray {
+        let Object::Array(value) = &item.value else {
             continue;
-        }
+        };
         if item.key.opt_bytes() == Some(b"regs") {
             types |= K_CTX_REGS;
-            ctx.regs = array_to_string(item.value.data.array())?;
+            ctx.regs = array_to_string(value.clone())?;
         } else if item.key.opt_bytes() == Some(b"jumps") {
             types |= K_CTX_JUMPS;
-            ctx.jumps = array_to_string(item.value.data.array())?;
+            ctx.jumps = array_to_string(value.clone())?;
         } else if item.key.opt_bytes() == Some(b"bufs") {
             types |= K_CTX_BUFS;
-            ctx.bufs = array_to_string(item.value.data.array())?;
+            ctx.bufs = array_to_string(value.clone())?;
         } else if item.key.opt_bytes() == Some(b"gvars") {
             types |= K_CTX_GVARS;
-            ctx.gvars = array_to_string(item.value.data.array())?;
+            ctx.gvars = array_to_string(value.clone())?;
         } else if item.key.opt_bytes() == Some(b"funcs") {
             types |= K_CTX_FUNCS;
-            ctx.funcs = copy_object(item.value.clone()).data.array();
+            ctx.funcs = crate::api::private::helpers::copy_array(value.clone());
         }
     }
     Ok(types)

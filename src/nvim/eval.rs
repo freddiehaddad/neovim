@@ -99,7 +99,7 @@ use std::ffi::CStr;
 use std::ptr;
 
 use crate::api::private::converter::{object_to_vim, vim_to_object};
-use crate::api::private::validate::{NvimString, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{NvimString, Object, ObjectType};
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, PROF_YES};
 use crate::cmdexpand::{
     Cmdidx, EXPAND_COMMANDS, EXPAND_ENV_VARS, EXPAND_EXPRESSION, EXPAND_FUNCTIONS, EXPAND_NOTHING,
@@ -971,18 +971,12 @@ pub fn eval_foldtext(wp: &WinInfoInfo) -> Object {
     let mut tv = tv_initial_value();
     let retval: Object;
     if !eval_expr_option_tv(&wp.w_onebuf_opt.wo_fdt, use_sandbox, &mut tv) {
-        retval = Object {
-            obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(NvimString::new()),
-        };
+        retval = Object::String(NvimString::new());
     } else {
         if tv.v_type == VarType::VarList {
             retval = vim_to_object(&tv);
         } else {
-            retval = Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_to_string(Some(&tv_get_string(&tv)))),
-            };
+            retval = Object::String(cstr_to_string(Some(&tv_get_string(&tv))));
         }
         tv_clear(&mut tv);
     }
@@ -3546,7 +3540,7 @@ pub fn eval_option(arg: &mut &[u8], rettv: Option<&mut TypVal>, evaluate: bool) 
         } else {
             get_option_value(opt_idx, opt_flags)
         };
-        debug_assert!(value.obj_type != ObjectType::ObjectTypeNil);
+        debug_assert!(value.obj_type() != ObjectType::ObjectTypeNil);
 
         *rettv = opt_to_tv(value.clone(), true);
         optval_free(value);
@@ -6495,10 +6489,7 @@ pub fn do_string_sub(
     if opt_vars().p_cpo.is_null() {
         opt_vars().p_cpo.set(save_cpo);
     } else if opt_vars().p_cpo.is_empty() {
-        let obj = Object {
-            obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(cstr_as_string(Some(&save_cpo.as_cstr()))),
-        };
+        let obj = Object::String(cstr_as_string(Some(&save_cpo.as_cstr())));
         set_option_value_give_err(K_OPT_CPOPTIONS, obj, 0);
     }
 

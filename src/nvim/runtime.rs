@@ -6,7 +6,7 @@ use crate::api::private::helpers::{
     static_cstr_as_string, string_obj,
 };
 use crate::api::private::validate::Dict;
-use crate::api::private::validate::{Array, NvimString, ObjectType};
+use crate::api::private::validate::{Array, NvimString, Object};
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST, EVENT_SOURCEPRE,
     PROF_YES, apply_autocmds, has_autocmd, has_autocmd_fullname,
@@ -1021,13 +1021,8 @@ fn runtime_get_named_common(
         }
 
         for pat_item in pat.as_slice() {
-            if pat_item.obj_type == ObjectType::ObjectTypeString {
-                let size = format_to_buf!(
-                    &mut *buf_slice,
-                    c"%s/%s",
-                    &item.path,
-                    pat_item.data.string(),
-                ) as usize;
+            if let Object::String(pattern) = pat_item {
+                let size = format_to_buf!(&mut *buf_slice, c"%s/%s", &item.path, pattern,) as usize;
                 if size < buf_len && os_file_is_readable(crate::memory::bytes_as_cstr(buf_slice)) {
                     to_slash(buf_slice);
                     let astr = crate::api::private::helpers::ensure_nul_string(cstr_as_string(
@@ -2808,14 +2803,12 @@ fn do_source_ext(
                 integer_obj(Integer::from(eap.line2)),
             ];
             let args = Array::from_slice(&mut args_items[..3]);
-            if let Ok(result) = nlua_exec(
+            if let Ok(Object::Boolean(true)) = nlua_exec(
                 static_cstr_as_string(c"return require('vim._core.util').source_is_lua(...)"),
                 None,
                 args,
                 K_RET_NIL_BOOL,
-            ) && result.obj_type == ObjectType::ObjectTypeBoolean
-                && result.data.boolean()
-            {
+            ) {
                 ts_lua = true;
             }
         }

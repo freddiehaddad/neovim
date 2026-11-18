@@ -6,7 +6,7 @@ use crate::api::private::converter::{object_to_vim, object_to_vim_take_luaref, v
 use crate::api::private::helpers::{
     DI_FLAGS_LOCK, api_free_object, api_metadata, cstr_as_string, dict_set_var,
 };
-use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, NvimString, Object};
 use crate::api::vim::nvim_feedkeys;
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_BUFFILEPOST, EVENT_BUFFILEPRE, apply_autocmds,
@@ -1262,12 +1262,7 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
     let EvalFuncData::ApiHandler(handler) = fptr else {
         return;
     };
-    let mut args_storage = [const {
-        Object {
-            obj_type: ObjectType::ObjectTypeNil,
-            data: ObjectData::Boolean(false),
-        }
-    }; MAX_FUNC_ARGS];
+    let mut args_storage = [const { Object::Nil }; MAX_FUNC_ARGS];
     let mut args = Array::from_buf(&mut args_storage);
     for tv in argvars
         .iter_mut()
@@ -1293,12 +1288,7 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
 
 /// Invokes a Lua-implemented vimfn/"f_xx" function from Vimscript.
 pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData) {
-    let mut args_storage = [const {
-        Object {
-            obj_type: ObjectType::ObjectTypeNil,
-            data: ObjectData::Boolean(false),
-        }
-    }; MAX_FUNC_ARGS];
+    let mut args_storage = [const { Object::Nil }; MAX_FUNC_ARGS];
     let mut args = Array::from_buf(&mut args_storage);
     for tv in argvars
         .iter_mut()
@@ -4507,10 +4497,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             let _ = dict_set_var(
                 &buf.b_vars(),
                 cstr_as_string(Some(c"terminal_job_id")),
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(chan_ref.id as Integer),
-                },
+                Object::Integer(chan_ref.id as Integer),
                 false,
                 false,
             );
@@ -4518,10 +4505,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             let _ = dict_set_var(
                 &buf.b_vars(),
                 cstr_as_string(Some(c"terminal_job_pid")),
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(Integer::from(pid)),
-                },
+                Object::Integer(Integer::from(pid)),
                 false,
                 false,
             );
@@ -6898,10 +6882,7 @@ pub fn do_searchpair(
     } else if opt_vars().p_cpo.is_empty() {
         set_option_value_give_err(
             K_OPT_CPOPTIONS,
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(Some(&save_cpo.as_cstr()))),
-            },
+            Object::String(cstr_as_string(Some(&save_cpo.as_cstr()))),
             0,
         );
     }

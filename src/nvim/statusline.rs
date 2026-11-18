@@ -4,7 +4,7 @@
 
 use crate::api::private::helpers::{add_c, api_free_array, cstr_as_string, put_c};
 use crate::api::private::validate::Dict;
-use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Object};
 use crate::buffer::{
     FileBuf, K_UIMESSAGES, append_arg_number, bt_quickfix, buf_spname, calc_percentage, get_rel_pos,
 };
@@ -780,24 +780,12 @@ fn win_redr_stl_expr(
                 );
             } else {
                 let mut chunk = Array::new();
-                chunk.push(Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(i64::from(curattr)),
-                });
-                chunk.push(Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(crate::api::private::helpers::cbuf_to_string(
-                        &transbuf[..tsize],
-                    )),
-                });
-                chunk.push(Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(i64::from(curgroup)),
-                });
-                content.push(Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(chunk),
-                });
+                chunk.push(Object::Integer(i64::from(curattr)));
+                chunk.push(Object::String(
+                    crate::api::private::helpers::cbuf_to_string(&transbuf[..tsize]),
+                ));
+                chunk.push(Object::Integer(i64::from(curgroup)));
+                content.push(Object::Array(chunk));
             }
 
             let Some(sp_off) = sp_ref.start_off else {
@@ -929,14 +917,7 @@ fn ui_ext_tabline_update() {
     while !tp.is_null() {
         let mut tab_info = Dict::with_capacity(2);
 
-        put_c(
-            &mut tab_info,
-            c"tab",
-            Object {
-                obj_type: ObjectType::ObjectTypeTabpage,
-                data: ObjectData::Integer(i64::from(tp.handle)),
-            },
-        );
+        put_c(&mut tab_info, c"tab", Object::Tabpage(i64::from(tp.handle)));
 
         let cwp = if workspace_state().curtab.get() == tp {
             curwin()
@@ -950,21 +931,12 @@ fn ui_ext_tabline_update() {
         put_c(
             &mut tab_info,
             c"name",
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(crate::api::private::helpers::ensure_nul_string(
-                    cstr_as_string(Some(crate::memory::bytes_as_cstr(&name_buff))),
-                )),
-            },
+            Object::String(crate::api::private::helpers::ensure_nul_string(
+                cstr_as_string(Some(crate::memory::bytes_as_cstr(&name_buff))),
+            )),
         );
 
-        add_c(
-            &mut tabs,
-            Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(tab_info),
-            },
-        );
+        add_c(&mut tabs, Object::Dict(tab_info));
 
         tp = tp.tp_next.get();
     }
@@ -988,10 +960,7 @@ fn ui_ext_tabline_update() {
             put_c(
                 &mut buffer_info,
                 c"buffer",
-                Object {
-                    obj_type: ObjectType::ObjectTypeBuffer,
-                    data: ObjectData::Integer(i64::from(b.b_fnum.get())),
-                },
+                Object::Buffer(i64::from(b.b_fnum.get())),
             );
 
             let mut name_buff = [0u8; MAXPATHL];
@@ -1000,21 +969,12 @@ fn ui_ext_tabline_update() {
             put_c(
                 &mut buffer_info,
                 c"name",
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(crate::api::private::helpers::ensure_nul_string(
-                        cstr_as_string(Some(crate::memory::bytes_as_cstr(&name_buff))),
-                    )),
-                },
+                Object::String(crate::api::private::helpers::ensure_nul_string(
+                    cstr_as_string(Some(crate::memory::bytes_as_cstr(&name_buff))),
+                )),
             );
 
-            add_c(
-                &mut buffers,
-                Object {
-                    obj_type: ObjectType::ObjectTypeDict,
-                    data: ObjectData::Dict(buffer_info),
-                },
-            );
+            add_c(&mut buffers, Object::Dict(buffer_info));
         }
 
         buf = b.b_next.get();

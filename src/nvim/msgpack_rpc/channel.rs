@@ -6,9 +6,7 @@ use crate::api::private::dispatch::MsgpackRpcRequestHandler;
 use crate::api::private::helpers::{
     OBJECT_NIL, api_error, api_free_dict, api_free_object, cstr_as_string,
 };
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Array, Dict, Error, ErrorType, Object};
 use crate::api::ui::{remote_ui_disconnect, remote_ui_flush_if_incomplete};
 use crate::channel::{
     CallbackReader, InternalState, K_CHANNEL_PART_RPC_CONST, K_CHANNEL_STREAM_PROC,
@@ -415,20 +413,17 @@ pub fn rpc_send_call(
 
     if frame.errored.get() {
         let res = frame.result.get();
-        let err = if res.obj_type == ObjectType::ObjectTypeString {
-            api_error!(ErrorType::ErrorTypeException, c"%s", res.data.string())
-        } else if res.obj_type == ObjectType::ObjectTypeArray {
-            let array = res.data.array();
-            if array.size == 2
-                && array[0].obj_type == ObjectType::ObjectTypeInteger
-                && let Some(et) = ErrorType::from_raw(array[0].data.integer() as i32)
+        let err = if let Object::String(message) = &res {
+            api_error!(ErrorType::ErrorTypeException, c"%s", message)
+        } else if let Object::Array(array) = &res {
+            if let [Object::Integer(code), Object::String(message)] = array.as_slice()
+                && let Some(et) = ErrorType::from_raw(*code as i32)
                 && matches!(
                     et,
                     ErrorType::ErrorTypeException | ErrorType::ErrorTypeValidation
                 )
-                && array[1].obj_type == ObjectType::ObjectTypeString
             {
-                api_error!(et, c"%s", array[1].data.string())
+                api_error!(et, c"%s", message)
             } else {
                 api_error!(ErrorType::ErrorTypeException, c"%s", c"unknown error")
             }
@@ -506,42 +501,39 @@ fn parse_msgpack(channel: &std::rc::Rc<Channel>, read_buf: &mut &[u8]) {
             }
             let unpack_error = p.unpack_error.msg.take();
             p.unpack_error.clear();
-            let mut result = std::mem::take(&mut p.result);
+            let result = std::mem::take(&mut p.result);
             let error = std::mem::take(&mut p.error);
             Some(match p.msg_type {
                 MessageType::MessageTypeRedrawEvent => {
                     if std::mem::take(&mut p.has_grid_line_event) {
                         DecodedMessage::GridLine(p.grid_line_event)
                     } else if let Some(handler) = p.ui_handler.r#fn
-                        && result.obj_type == ObjectType::ObjectTypeArray
+                        && let Object::Array(args) = result
                     {
-                        DecodedMessage::UiCall {
-                            handler,
-                            args: std::mem::take(result.data.array_mut()),
-                        }
+                        DecodedMessage::UiCall { handler, args }
                     } else {
                         DecodedMessage::Ignore
                     }
                 }
                 MessageType::MessageTypeResponse => DecodedMessage::Response {
                     request_id: p.request_id,
-                    result: if error.obj_type == ObjectType::ObjectTypeNil {
+                    result: if matches!(error, Object::Nil) {
                         Ok(result)
                     } else {
                         Err(error)
                     },
                 },
                 MessageType::MessageTypeRequest | MessageType::MessageTypeNotification => {
-                    if result.obj_type != ObjectType::ObjectTypeArray {
-                        DecodedMessage::InvalidArguments
-                    } else {
+                    if let Object::Array(args) = result {
                         DecodedMessage::Request(DecodedRequest {
                             request_id: (p.msg_type == MessageType::MessageTypeRequest)
                                 .then_some(p.request_id),
                             handler: p.handler,
-                            args: std::mem::take(result.data.array_mut()),
+                            args,
                             unpack_error,
                         })
+                    } else {
+                        DecodedMessage::InvalidArguments
                     }
                 }
             })
@@ -886,10 +878,7 @@ fn chan_close_on_err(channel: &Channel, msg: &std::ffi::CStr, loglevel: i32) {
         frame.returned.set(true);
         frame.errored.set(true);
         let s = ensure_nul_string(cstr_as_string(Some(msg)));
-        frame.result.set(Object {
-            obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(s),
-        });
+        frame.result.set(Object::String(s));
     }
 
     channel_close(channel.id, K_CHANNEL_PART_RPC_CONST, None);
@@ -939,14 +928,8 @@ pub fn serialize_response(
             semsg!(c"paste: %s", err.msg_cstr());
         } else {
             let mut items = [
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(err.err_type as i64),
-                },
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(err.msg_cstr())),
-                },
+                Object::Integer(err.err_type as i64),
+                Object::String(cstr_as_string(err.msg_cstr())),
             ];
             let args = Array::from_slice(&mut items[..2]);
             serialize_request(channel.id, 0, c"nvim_error_event", args);
@@ -1072,8 +1055,8 @@ pub fn get_client_info(chan: &Channel, key: &CStr) -> Option<std::ffi::CString> 
     for item in info.as_slice() {
         if !item.key.data.is_null()
             && item.key.cstr_bytes() == key_bytes
-            && item.value.obj_type == ObjectType::ObjectTypeString
-            && let Some(cstr) = item.value.data.as_opt_cstr()
+            && let Object::String(value) = &item.value
+            && let Some(cstr) = value.as_opt_cstr()
         {
             return Some(cstr.to_owned());
         }

@@ -9,9 +9,7 @@ use crate::vterm::state::VTERM_SELECTION_PRIMARY;
 use crate::api::private::helpers::{
     api_free_object, dict_get_value, dict_set_var, integer_obj, string_obj,
 };
-use crate::api::private::validate::{
-    Array, Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, NvimString, Object};
 use crate::api::tabpage::Buffer;
 use crate::autocmd::{
     AUGROUP_ALL, EVENT_TERMCLOSE, EVENT_TERMENTER, EVENT_TERMLEAVE, EVENT_TERMOPEN,
@@ -535,20 +533,14 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
         },
         KeyValuePair {
             key: cstr_slice_as_string(b"cursor\0"),
-            value: Object {
-                obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(cursor),
-            },
+            value: Object::Array(cursor),
         },
         KeyValuePair {
             key: cstr_slice_as_string(b"terminator\0"),
             value: term_obj,
         },
     ];
-    let data_obj = Object {
-        obj_type: ObjectType::ObjectTypeDict,
-        data: ObjectData::Dict(Dict::from_slice(&mut data_items[..3])),
-    };
+    let data_obj = Object::Dict(Dict::from_slice(&mut data_items[..3]));
 
     with_term_mut(term_id, |t| t.refcount += 1);
     apply_autocmds_group(
@@ -1053,10 +1045,7 @@ pub fn terminal_close(term_id: TermId, status: i32) {
             key: cstr_slice_as_string(b"pos\0"),
             value: integer_obj(i64::from(pos)),
         }];
-        let data_obj = Object {
-            obj_type: ObjectType::ObjectTypeDict,
-            data: ObjectData::Dict(Dict::from_slice(&mut data_items[..1])),
-        };
+        let data_obj = Object::Dict(Dict::from_slice(&mut data_items[..1]));
 
         apply_autocmds_group(
             EVENT_TERMCLOSE,
@@ -2762,13 +2751,11 @@ fn get_config_string(buf: &FileBuf, key: &[u8]) -> Option<std::ffi::CString> {
     let key_str = NvimString::from_bytes(key);
     let mut obj =
         dict_get_value(Some(&*buf.b_vars()), key_str.clone()).unwrap_or_else(|_| Object::new());
-    if obj.obj_type == ObjectType::ObjectTypeNil {
+    if matches!(obj, Object::Nil) {
         obj = dict_get_value(Some(&*get_globvar_dict()), key_str).unwrap_or_else(|_| Object::new());
     }
-    if obj.obj_type == ObjectType::ObjectTypeString {
-        return Some(crate::memory::bytes_to_cstring(
-            obj.data.string().cstr_bytes(),
-        ));
+    if let Object::String(value) = &obj {
+        return Some(crate::memory::bytes_to_cstring(value.cstr_bytes()));
     }
     api_free_object(obj);
     None

@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::helpers::api_free_object;
-use crate::api::private::validate::{Array, NvimString, ObjectType};
+use crate::api::private::validate::{Array, NvimString, Object};
 use crate::api::win_config::K_UIMULTIGRID;
 use crate::buffer::{K_UIMESSAGES, buf_is_empty};
 use crate::charset::vim_strsize;
@@ -4127,8 +4127,10 @@ pub fn list_lua_version() {
         K_RET_OBJECT,
     )
     .expect("list_lua_version failed");
-    debug_assert!(ret.obj_type == ObjectType::ObjectTypeString);
-    msg_puts(ret.data.string().as_cstr());
+    let Object::String(value) = &ret else {
+        unreachable!("list_lua_version returns a string");
+    };
+    msg_puts(value.as_cstr());
     api_free_object(ret);
 }
 

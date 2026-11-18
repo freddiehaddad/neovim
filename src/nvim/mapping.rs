@@ -8,7 +8,7 @@ use crate::api::private::helpers::{
     ArrayBuilder, api_error, api_free_object, api_set_sctx, dict_obj, has_key, integer_obj,
     luaref_obj, put_c, string_obj, string_to_cstr,
 };
-use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
+use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, Object};
 use crate::api::tabpage::Buffer;
 use crate::buffer::FileBuf;
 use crate::charset::{
@@ -1793,8 +1793,8 @@ pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
         let args = Array::new();
         match nlua_call_ref(luaref, None, args, K_RET_OBJECT) {
             Ok(ret) => {
-                if ret.obj_type == ObjectType::ObjectTypeString {
-                    p = Some(string_to_cstr(ret.data.string()));
+                if let Object::String(value) = &ret {
+                    p = Some(string_to_cstr(value.clone()));
                 }
                 api_free_object(ret);
             }

@@ -10,7 +10,7 @@ use std::ffi::c_void;
 #[cfg(target_os = "windows")]
 use crate::api::private::validate::{Dict, NvimString};
 #[cfg(windows)]
-use crate::api::private::validate::{KeyValuePair, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{KeyValuePair, Object};
 
 #[cfg(target_os = "windows")]
 const UV_ESRCH: i32 = -4040;
@@ -310,32 +310,15 @@ pub fn os_proc_info(pid: i32) -> Dict {
                 dict.size += 1;
             };
 
-            put(
-                &mut pinfo,
-                c"pid",
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(i64::from(pid)),
-                },
-            );
+            put(&mut pinfo, c"pid", Object::Integer(i64::from(pid)));
             put(
                 &mut pinfo,
                 c"ppid",
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(i64::from(pe.th32_parent_process_id as i32)),
-                },
+                Object::Integer(i64::from(pe.th32_parent_process_id as i32)),
             );
             let exe_cstr = CStr::from_bytes_until_nul(&pe.sz_exe_file).unwrap_or(c"");
             let name_str = NvimString::from_bytes(exe_cstr.to_bytes());
-            put(
-                &mut pinfo,
-                c"name",
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(name_str),
-                },
-            );
+            put(&mut pinfo, c"name", Object::String(name_str));
         }
 
         pinfo

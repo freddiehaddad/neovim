@@ -8,9 +8,7 @@ use crate::api::private::helpers::{
     window_obj,
 };
 use crate::api::private::validate::Dict;
-use crate::api::private::validate::{
-    Array, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Array, Error, ErrorType, KeyValuePair, NvimString, Object};
 use crate::api::ui::{
     K_LINE_FLAG_WRAP, K_UICMDLINE, K_UIEXT_COUNT, K_UIHL_STATE, K_UILINEGRID, K_UIMESSAGES,
     K_UIMULTIGRID, K_UITERM_COLORS, remote_ui_bell, remote_ui_busy_start, remote_ui_busy_stop,
@@ -814,18 +812,9 @@ pub fn ui_array() -> Array {
         put_info(c"override", boolean_obj(ui.r#override));
         put_info(
             c"term_name",
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(ui.term_name.as_deref())),
-            },
+            Object::String(cstr_as_string(ui.term_name.as_deref())),
         );
-        put_info(
-            c"term_background",
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(NvimString::empty_cstr()),
-            },
-        );
+        put_info(c"term_background", Object::String(NvimString::empty_cstr()));
         put_info(c"term_colors", integer_obj(Integer::from(ui.term_colors)));
         put_info(c"stdin_tty", boolean_obj(ui.stdin_tty));
         put_info(c"stdout_tty", boolean_obj(ui.stdout_tty));
@@ -837,10 +826,7 @@ pub fn ui_array() -> Array {
         }
         put_info(c"chan", integer_obj(ui.channel_id as Integer));
 
-        *all_uis.next_slot_mut() = Object {
-            obj_type: ObjectType::ObjectTypeDict,
-            data: ObjectData::Dict(info),
-        };
+        *all_uis.next_slot_mut() = Object::Dict(info);
         all_uis.size += 1;
     }
     all_uis
@@ -924,7 +910,7 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
             screen_state().ui_event_ns_id.set(0);
             match res {
                 Ok(res) => {
-                    if res.obj_type == ObjectType::ObjectTypeBoolean && res.data.boolean() {
+                    if matches!(res, Object::Boolean(true)) {
                         handled = true;
                     }
                 }
@@ -1051,18 +1037,12 @@ const NOARGS_ARRAY: Array = Array::new();
 
 #[inline]
 const fn buf_obj(b: ObjHandle) -> Object {
-    Object {
-        obj_type: ObjectType::ObjectTypeBuffer,
-        data: ObjectData::Integer(b as Integer),
-    }
+    Object::Buffer(b as Integer)
 }
 
 #[inline]
 const fn tab_obj(t: ObjHandle) -> Object {
-    Object {
-        obj_type: ObjectType::ObjectTypeTabpage,
-        data: ObjectData::Integer(t as Integer),
-    }
+    Object::Tabpage(t as Integer)
 }
 
 macro_rules! ui_call_loop {

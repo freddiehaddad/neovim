@@ -1722,7 +1722,7 @@ fn ex_let_option<'a>(
     };
     let mut newval = nil_obj();
 
-    if curval.obj_type == ObjectType::ObjectTypeNil {
+    if matches!(curval, Object::Nil) {
         semsg!(gettext(E_UNKNOWN_OPTION2), &opt_cstr);
         optval_free(curval);
         optval_free(newval);
@@ -1731,8 +1731,8 @@ fn ex_let_option<'a>(
     let op_b = op.and_then(|s| s.to_bytes().first().copied()).unwrap_or(0);
     if op_b != 0
         && op_b != b'='
-        && ((curval.obj_type != ObjectType::ObjectTypeString && op_b == b'.')
-            || (curval.obj_type == ObjectType::ObjectTypeString && op_b != b'.'))
+        && ((!matches!(curval, Object::String(_)) && op_b == b'.')
+            || (matches!(curval, Object::String(_)) && op_b != b'.'))
     {
         semsg!(gettext(E_LETWRONG), op.unwrap());
         optval_free(curval);
@@ -1748,26 +1748,14 @@ fn ex_let_option<'a>(
         return None;
     }
 
-    let is_num = (curval.obj_type == ObjectType::ObjectTypeInteger
-        || curval.obj_type == ObjectType::ObjectTypeBoolean)
-        && (newval.obj_type == ObjectType::ObjectTypeInteger
-            || newval.obj_type == ObjectType::ObjectTypeBoolean);
-    let is_string = curval.obj_type == ObjectType::ObjectTypeString
-        && newval.obj_type == ObjectType::ObjectTypeString;
+    let number = |value: &Object| match value {
+        Object::Integer(value) => Some(*value),
+        Object::Boolean(value) => Some(OptInt::from(*value)),
+        _ => None,
+    };
 
     if op_b != 0 && op_b != b'=' {
-        if !hidden && is_num {
-            let cur_n: OptInt = if curval.obj_type == ObjectType::ObjectTypeInteger {
-                curval.data.integer()
-            } else {
-                OptInt::from(curval.data.boolean())
-            };
-            let mut new_n: OptInt = if newval.obj_type == ObjectType::ObjectTypeInteger {
-                newval.data.integer()
-            } else {
-                OptInt::from(newval.data.boolean())
-            };
-
+        if !hidden && let Some((cur_n, mut new_n)) = number(&curval).zip(number(&newval)) {
             match op_b {
                 b'+' => new_n = cur_n.wrapping_add(new_n),
                 b'-' => new_n = cur_n.wrapping_sub(new_n),
@@ -1777,21 +1765,20 @@ fn ex_let_option<'a>(
                 _ => {}
             }
 
-            if curval.obj_type == ObjectType::ObjectTypeInteger {
+            if matches!(curval, Object::Integer(_)) {
                 newval = integer_obj(new_n);
             } else {
                 newval = opt_from_tristate(tristate_from_int(new_n));
             }
-        } else if !hidden && is_string {
-            let curval_str = curval.data.string();
-            let newval_str = newval.data.string();
-
-            if !curval_str.data.is_null() && !newval_str.data.is_null() {
-                let newval_old = newval;
-                let joined = concat_str(curval_str.cstr_bytes(), newval_str.cstr_bytes());
-                newval = crate::api::private::helpers::cstr_to_obj(Some(&*joined));
-                optval_free(newval_old);
-            }
+        } else if !hidden
+            && let (Object::String(curval_str), Object::String(newval_str)) = (&curval, &newval)
+            && !curval_str.data.is_null()
+            && !newval_str.data.is_null()
+        {
+            let joined = concat_str(curval_str.cstr_bytes(), newval_str.cstr_bytes());
+            let newval_old = newval;
+            newval = crate::api::private::helpers::cstr_to_obj(Some(&*joined));
+            optval_free(newval_old);
         }
     }
 
@@ -3467,45 +3454,41 @@ pub fn opt_to_tv(value: Object, numbool: bool) -> TypVal {
         vval: TypvalVval::Special(K_SPECIAL_VAR_NULL_CONST),
     };
 
-    match value.obj_type {
-        ObjectType::ObjectTypeUnset => {
+    match value {
+        Object::Unset => {
             if numbool {
                 rettv.v_type = VarType::VarNumber;
                 rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(K_NONE));
             }
         }
-        ObjectType::ObjectTypeNil => {}
-        ObjectType::ObjectTypeBoolean => {
+        Object::Nil => {}
+        Object::Boolean(value) => {
             if numbool {
                 rettv.v_type = VarType::VarNumber;
-                rettv.vval =
-                    crate::eval::typval::TypvalVval::Number(Varnumber::from(value.data.boolean()));
+                rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(value));
             } else {
                 rettv.v_type = VarType::VarBool;
-                rettv.vval = crate::eval::typval::TypvalVval::Bool(if value.data.boolean() {
+                rettv.vval = crate::eval::typval::TypvalVval::Bool(if value {
                     K_BOOL_VAR_TRUE_CONST
                 } else {
                     K_BOOL_VAR_FALSE_CONST
                 });
             }
         }
-        ObjectType::ObjectTypeInteger => {
+        Object::Integer(value) => {
             rettv.v_type = VarType::VarNumber;
-            rettv.vval = crate::eval::typval::TypvalVval::Number(value.data.integer());
+            rettv.vval = crate::eval::typval::TypvalVval::Number(value);
         }
-        ObjectType::ObjectTypeString => {
-            if !value.data.string().data.is_null() {
-                crate::eval::typval::tv_set_string_len(
-                    &mut rettv,
-                    Some(value.data.string().as_bytes()),
-                );
+        Object::String(value) => {
+            if !value.data.is_null() {
+                crate::eval::typval::tv_set_string_len(&mut rettv, Some(value.as_bytes()));
             } else {
                 rettv.v_type = VarType::VarString;
                 rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
             }
         }
-        ObjectType::ObjectTypeLuaRef => {
-            let s = nlua_funcref_str(value.data.luaref(), true);
+        Object::LuaRef(value) => {
+            let s = nlua_funcref_str(value, true);
             crate::eval::typval::tv_set_string_len(&mut rettv, Some(s.as_bytes()));
         }
         _ => {

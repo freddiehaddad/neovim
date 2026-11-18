@@ -7,7 +7,7 @@ use crate::api::private::helpers::{
     HLF_E, api_free_object, api_free_string, boolean_obj, copy_object, cstr_as_obj, cstr_to_string,
     dict_obj, find_buffer_by_handle, integer_obj, static_cstr_as_string, string_obj,
 };
-use crate::api::private::validate::{Array, Dict, KeyValuePair, NvimString, Object, ObjectType};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, NvimString, Object};
 use crate::api::tabpage::Buffer;
 use crate::api::ui::NO_SCREEN;
 use crate::buffer::{
@@ -2759,10 +2759,8 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
         let buf_ptr = buf.clone();
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
-        if let Some(ref data_obj) = data
-            && data_obj.obj_type == ObjectType::ObjectTypeDict
-        {
-            for item in data_obj.data.dict_slice() {
+        if let Some(Object::Dict(data)) = &data {
+            for item in data.as_slice() {
                 let mut tv: TypVal = TypVal::new();
                 object_to_vim(item.value.clone(), &mut tv);
                 tv_dict_add_tv(&v_event, item.key.as_bytes(), &mut tv);
@@ -3551,7 +3549,7 @@ fn au_callback(callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) -> boo
 
         let luaref = callback.data.as_luaref();
         let result = nlua_call_ref_log_err(luaref, None, args, K_RET_NIL_BOOL);
-        result.obj_type == ObjectType::ObjectTypeBoolean && result.data.boolean()
+        matches!(result, Object::Boolean(true))
     } else {
         let mut argsin: [TypVal; 1] = [TypVal::new()];
         let mut rettv: TypVal = TypVal::new();

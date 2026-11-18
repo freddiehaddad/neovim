@@ -5,7 +5,7 @@
 use crate::api::private::helpers::{
     api_free_object, api_metadata_raw, boolean_obj, cstr_as_obj, cstr_as_string, integer_obj,
 };
-use crate::api::private::validate::{Array, Dict, NvimString, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, NvimString, Object};
 use crate::api::ui::remote_ui_wait_for_attach;
 use crate::arglist::{alist_add, alist_name, garg_entry, gargcount, global_alist_rc};
 use crate::autocmd::{
@@ -1177,10 +1177,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
         integer_obj(Integer::from(chan as i32)),
         cstr_as_obj(server_addr),
         cstr_as_obj(connect_error),
-        Object {
-            obj_type: ObjectType::ObjectTypeArray,
-            data: ObjectData::Array(args),
-        },
+        Object::Array(args),
     ];
     let a = Array::from_slice(&mut a_items[..4]);
     let s = NvimString::from_cstr(c"return vim._cs_remote(...)");
@@ -1194,11 +1191,10 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
         }
     };
 
-    if o.obj_type != ObjectType::ObjectTypeDict {
+    let Object::Dict(dict) = &o else {
         fprintf!(stderr, c"vim._cs_remote returned unexpected value\n",);
         os_exit(2);
-    }
-    let dict: Dict = o.data.dict();
+    };
 
     let mut should_exit: TriState = K_NONE;
     let mut tabbed: TriState = K_NONE;
@@ -1206,50 +1202,42 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
     for i in 0..dict.size {
         let item = &dict[i];
         if item.key.opt_bytes() == Some(b"errmsg") {
-            if item.value.obj_type != ObjectType::ObjectTypeString {
+            let Object::String(value) = &item.value else {
                 fprintf!(
                     stderr,
                     c"vim._cs_remote returned an unexpected type for 'errmsg'\n",
                 );
                 os_exit(2);
-            }
-            fprintf!(stderr, c"%s\n", item.value.data.string());
+            };
+            fprintf!(stderr, c"%s\n", value);
             os_exit(2);
         } else if item.key.opt_bytes() == Some(b"result") {
-            if item.value.obj_type != ObjectType::ObjectTypeString {
+            let Object::String(value) = &item.value else {
                 fprintf!(
                     stderr,
                     c"vim._cs_remote returned an unexpected type for 'result'\n",
                 );
                 os_exit(2);
-            }
-            printf!(c"%s", item.value.data.string());
+            };
+            printf!(c"%s", value);
         } else if item.key.opt_bytes() == Some(b"tabbed") {
-            if item.value.obj_type != ObjectType::ObjectTypeBoolean {
+            let Object::Boolean(value) = &item.value else {
                 fprintf!(
                     stderr,
                     c"vim._cs_remote returned an unexpected type for 'tabbed'\n",
                 );
                 os_exit(2);
-            }
-            tabbed = if item.value.data.boolean() {
-                K_TRUE
-            } else {
-                K_FALSE
             };
+            tabbed = if *value { K_TRUE } else { K_FALSE };
         } else if item.key.opt_bytes() == Some(b"should_exit") {
-            if item.value.obj_type != ObjectType::ObjectTypeBoolean {
+            let Object::Boolean(value) = &item.value else {
                 fprintf!(
                     stderr,
                     c"vim._cs_remote returned an unexpected type for 'should_exit'\n",
                 );
                 os_exit(2);
-            }
-            should_exit = if item.value.data.boolean() {
-                K_TRUE
-            } else {
-                K_FALSE
             };
+            should_exit = if *value { K_TRUE } else { K_FALSE };
         }
     }
     if should_exit == K_NONE || tabbed == K_NONE {

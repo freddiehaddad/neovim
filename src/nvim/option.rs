@@ -7,9 +7,7 @@ use crate::api::private::helpers::{
     api_error, api_free_string, boolean_obj, copy_object, cstr_as_obj, cstr_as_string, cstr_to_obj,
     dict_obj, integer_obj, luaref_obj, nil_obj, put_c, string_obj,
 };
-use crate::api::private::validate::{
-    Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Dict, Error, ErrorType, NvimString, Object, ObjectType};
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFDELETE, EVENT_OPTIONSET, EVENT_SYNTAX, K_OPT_MODIFIED, OPT_NOWIN,
     apply_autocmds, aucmd_defer_modified, do_filetype_autocmd, has_event,
@@ -535,12 +533,8 @@ impl OptionModuleState {
             expand_option_flags: std::cell::Cell::new(0),
             expand_option_append: std::cell::Cell::new(false),
             opt_flags: init_opt_flags(),
-            opt_def_val: [const {
-                crate::api::private::validate::CloneCell::new(Object {
-                    obj_type: ObjectType::ObjectTypeNil,
-                    data: ObjectData::Boolean(false),
-                })
-            }; 379],
+            opt_def_val: [const { crate::api::private::validate::CloneCell::new(Object::Nil) };
+                379],
             opt_script_ctx: [const {
                 std::cell::Cell::new(Sctx {
                     sc_sid: 0,
@@ -672,10 +666,7 @@ pub fn opt_error_int<'a>(
 
 #[inline]
 const fn unset_obj() -> Object {
-    Object {
-        obj_type: ObjectType::ObjectTypeUnset,
-        data: ObjectData::Integer(0),
-    }
+    Object::Unset
 }
 
 use crate::keycodes::{ctrl_chr, key2termcap0, key2termcap1};
@@ -702,9 +693,12 @@ fn get_varp(p: &Vimoption) -> OptVar {
 
 pub fn set_init_tablocal() {
     // cmdheight calls itself OPT_GLOBAL but is really tablocal!
-    opt_vars()
-        .p_ch
-        .set(get_option(K_OPT_CMDHEIGHT).def_val().data.integer());
+    opt_vars().p_ch.set(
+        get_option(K_OPT_CMDHEIGHT)
+            .def_val()
+            .as_integer()
+            .expect("integer Object"),
+    );
 }
 
 /// Initialize the 'shell' option to a default value.
@@ -839,8 +833,15 @@ fn set_init_expand_env() {
                 p = Some(std::borrow::Cow::Owned(tr(&cstr).to_owned()));
             }
         } else if (opt.flags() & K_OPT_FLAG_EXPAND) != 0 {
-            p = option_expand(opt_idx, opt.def_val().data.string().as_opt_cstr())
-                .map(std::borrow::Cow::Owned);
+            p = option_expand(
+                opt_idx,
+                opt.def_val()
+                    .as_string()
+                    .expect("string Object")
+                    .clone()
+                    .as_opt_cstr(),
+            )
+            .map(std::borrow::Cow::Owned);
         }
         if let Some(ref p) = p {
             let ov = cstr_to_obj(Some(p));
@@ -952,7 +953,10 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
     let mut def_val = opt.def_val();
     if option_has_type(opt_idx, ObjectType::ObjectTypeString)
         && (opt.flags() & K_OPT_FLAG_NO_DEF_EXP) == 0
-        && let Some(ref s) = option_expand(opt_idx, def_val.data.as_opt_cstr())
+        && let Some(ref s) = option_expand(
+            opt_idx,
+            def_val.as_string().and_then(|value| value.as_opt_cstr()),
+        )
     {
         def_val = cstr_as_obj(Some(s));
     }
@@ -1721,16 +1725,14 @@ pub fn get_option_newval(
         )
     };
 
-    match oldval.obj_type {
-        ObjectType::ObjectTypeNil => std::process::abort(),
-        ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeBoolean => {
+    match &oldval {
+        Object::Nil => std::process::abort(),
+        Object::Unset | Object::Boolean(_) => {
             let newval_bool: TriState = if nextchar == b'!' as i32 {
-                if oldval.obj_type == ObjectType::ObjectTypeUnset {
-                    K_NONE
-                } else if oldval.data.boolean() {
-                    K_FALSE
-                } else {
-                    K_TRUE
+                match oldval.as_boolean() {
+                    None => K_NONE,
+                    Some(true) => K_FALSE,
+                    Some(false) => K_TRUE,
                 }
             } else if prefix == PREFIX_INV {
                 varp.bool_tristate() ^ 1
@@ -1742,8 +1744,8 @@ pub fn get_option_newval(
 
             newval = opt_from_tristate(newval_bool);
         }
-        ObjectType::ObjectTypeInteger => {
-            let oldval_num = oldval.data.integer();
+        Object::Integer(oldval_num) => {
+            let oldval_num = *oldval_num;
             let mut newval_num: OptInt = 0;
 
             arg = &arg[usize::from(!arg.is_empty())..];
@@ -1809,12 +1811,11 @@ pub fn get_option_newval(
 
             newval = integer_obj(newval_num);
         }
-        ObjectType::ObjectTypeString => {
-            let oldval_str = oldval.data.as_opt_cstr();
-            let newval_str = stropt_get_newval(opt_idx, argp, varp, oldval_str, &mut op);
+        Object::String(value) => {
+            let newval_str = stropt_get_newval(opt_idx, argp, varp, value.as_opt_cstr(), &mut op);
             newval = cstr_to_obj(Some(&*newval_str));
         }
-        ObjectType::ObjectTypeLuaRef => {
+        Object::LuaRef(_) => {
             let newval_str = stropt_get_newval(opt_idx, argp, varp, Some(c""), &mut op);
             newval = cstr_to_obj(Some(&*newval_str));
         }
@@ -1950,7 +1951,7 @@ fn do_one_set_option<'a>(
         &mut errmsg,
     );
 
-    if newval.obj_type == ObjectType::ObjectTypeNil || errmsg.is_some() {
+    if matches!(newval, Object::Nil) || errmsg.is_some() {
         return errmsg;
     }
 
@@ -2575,7 +2576,7 @@ fn apply_optionset_autocmd(
         return;
     }
     if opt_idx == K_OPT_MODIFIED {
-        aucmd_defer_modified(&curbuf(), newval.data.boolean());
+        aucmd_defer_modified(&curbuf(), newval.as_boolean().expect("boolean Object"));
         return;
     }
     apply_optionset_autocmd_now(opt_idx, opt_flags, oldval, oldval_g, oldval_l, newval);
@@ -2636,7 +2637,7 @@ pub fn did_set_autochdir<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the updated 'binary' option value.
 pub fn did_set_binary<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     set_options_bin(
-        i32::from(args.os_oldval.data.boolean()),
+        i32::from(args.os_oldval.as_boolean().expect("boolean Object")),
         i32::from(args.buf().b_p_bin.get()),
         args.os_flags,
     );
@@ -2648,7 +2649,7 @@ pub fn did_set_binary<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_buflisted<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf();
 
-    if args.os_oldval.data.boolean() != buf.b_p_bl.get() {
+    if args.os_oldval.as_boolean().expect("boolean Object") != buf.b_p_bl.get() {
         apply_autocmds(
             if buf.b_p_bl.get() {
                 EVENT_BUFADD
@@ -2666,7 +2667,7 @@ pub fn did_set_buflisted<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Process the new 'cmdheight' option value.
 pub fn did_set_cmdheight<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let old_value = args.os_oldval.data.integer();
+    let old_value = args.os_oldval.as_integer().expect("integer Object");
 
     if opt_vars().p_ch.get()
         > OptInt::from(screen_state().rows_global.get() - min_rows(&curtab()) + 1)
@@ -2706,7 +2707,7 @@ pub fn did_set_eof_eol_fixeol_bomb<'a>(_args: &mut Optset<'a>) -> Option<&'a CSt
 
 /// Process the updated 'equalalways' option value.
 pub fn did_set_equalalways<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if opt_vars().p_ea.get() && !args.os_oldval.data.boolean() {
+    if opt_vars().p_ea.get() && !args.os_oldval.as_boolean().expect("boolean Object") {
         win_equal(args.os_win.opt(), false, 0);
     }
     None
@@ -2716,7 +2717,7 @@ pub fn did_set_equalalways<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 pub fn did_set_foldenable<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win();
     if args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_fen)
-        && args.os_oldval.data.boolean() != win.w_onebuf_opt.wo_fen.get()
+        && args.os_oldval.as_boolean().expect("boolean Object") != win.w_onebuf_opt.wo_fen.get()
         && foldmethod_is_diff(&win)
         && win.w_onebuf_opt.wo_scb.get()
     {
@@ -2805,8 +2806,8 @@ pub fn did_set_langremap<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Process the new 'laststatus' option value.
 pub fn did_set_laststatus<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let old_value = args.os_oldval.data.integer();
-    let value = args.os_newval.data.integer();
+    let old_value = args.os_oldval.as_integer().expect("integer Object");
+    let value = args.os_newval.as_integer().expect("integer Object");
 
     if value == 3 && old_value != 3 {
         let new_h = crate::globals::topframe().fr_height.get() - STATUS_HEIGHT;
@@ -2832,7 +2833,7 @@ pub fn did_set_lines_or_columns<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
         || opt_vars().p_columns.get() != OptInt::from(screen_state().columns_global.get())
     {
         if screen_state().updating_screen.get() {
-            let oldval = integer_obj(args.os_oldval.data.integer());
+            let oldval = integer_obj(args.os_oldval.as_integer().expect("integer Object"));
             set_option_varp(args.os_idx, args.os_varp.clone(), oldval);
         } else if screen_state().full_screen.get() {
             screen_resize(
@@ -2890,7 +2891,7 @@ pub fn did_set_modifiable<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the updated 'modified' option value.
 pub fn did_set_modified<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf();
-    let new_bool = args.os_newval.data.boolean();
+    let new_bool = args.os_newval.as_boolean().expect("boolean Object");
     if !new_bool {
         save_file_ff(&buf);
     }
@@ -3027,7 +3028,7 @@ pub fn did_set_paste<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'previewwindow' option.
 pub fn validate_previewwindow<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    if (args.os_flags & OPT_GLOBAL) != 0 || !args.os_newval.data.boolean() {
+    if (args.os_flags & OPT_GLOBAL) != 0 || !args.os_newval.as_boolean().expect("boolean Object") {
         return None;
     }
     let win = &args.os_win;
@@ -3072,8 +3073,8 @@ pub fn did_set_readonly<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the new 'scrollback' option value.
 pub fn did_set_scrollback<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf();
-    let old_value = args.os_oldval.data.integer();
-    let value = args.os_newval.data.integer();
+    let old_value = args.os_oldval.as_integer().expect("integer Object");
+    let value = args.os_newval.as_integer().expect("integer Object");
 
     if let Some(term) = buf.terminal_opt()
         && value < old_value
@@ -3163,7 +3164,7 @@ pub fn did_set_title_icon<'a>(_args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Process the new 'titlelen' option value.
 pub fn did_set_titlelen<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let old_value = args.os_oldval.data.integer();
+    let old_value = args.os_oldval.as_integer().expect("integer Object");
     if starting_val() != NO_SCREEN && old_value != opt_vars().p_titlelen.get() {
         screen_state().need_maketitle.set(true);
     }
@@ -3218,12 +3219,15 @@ pub fn did_set_undolevels<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let buf = args.buf();
 
     if args.os_varp.ptr_eq(&opt_vars().p_ul) {
-        did_set_global_undolevels(args.os_newval.data.integer(), args.os_oldval.data.integer());
+        did_set_global_undolevels(
+            args.os_newval.as_integer().expect("integer Object"),
+            args.os_oldval.as_integer().expect("integer Object"),
+        );
     } else if args.os_varp.ptr_eq(&buf.b_p_ul) {
         did_set_buflocal_undolevels(
             &buf,
-            args.os_newval.data.integer(),
-            args.os_oldval.data.integer(),
+            args.os_newval.as_integer().expect("integer Object"),
+            args.os_oldval.as_integer().expect("integer Object"),
         );
     }
 
@@ -3232,7 +3236,7 @@ pub fn did_set_undolevels<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Process the new 'updatecount' option value.
 pub fn did_set_updatecount<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let old_value = args.os_oldval.data.integer();
+    let old_value = args.os_oldval.as_integer().expect("integer Object");
     if opt_vars().p_uc.get() != 0 && old_value == 0 {
         ml_open_files();
     }
@@ -3241,7 +3245,7 @@ pub fn did_set_updatecount<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 
 /// Validate the 'wildchar' or 'wildcharm' option.
 pub fn validate_wildchar<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
-    let c = args.os_newval.data.integer();
+    let c = args.os_newval.as_integer().expect("integer Object");
     if c == CTRL_C_CONST_CONST
         || c == OptInt::from(b'\n')
         || c == OptInt::from(b'\r')
@@ -3255,8 +3259,8 @@ pub fn validate_wildchar<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
 /// Process the new 'winblend' option value.
 pub fn did_set_winblend<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     let win = args.win();
-    let old_value = args.os_oldval.data.integer();
-    let value = args.os_newval.data.integer();
+    let old_value = args.os_oldval.as_integer().expect("integer Object");
+    let value = args.os_newval.as_integer().expect("integer Object");
 
     if value != old_value {
         win.w_onebuf_opt
@@ -4173,7 +4177,7 @@ impl Vimoption {
     #[inline(always)]
     pub fn def_val(&self) -> Object {
         let v = OPT_STATE.with(|s| s.opt_def_val[self.idx() as usize].get());
-        if v.obj_type == ObjectType::ObjectTypeNil {
+        if matches!(v, Object::Nil) {
             self.init_def_val.into_object()
         } else {
             v
@@ -4963,33 +4967,23 @@ pub fn optval_free_read(opt_idx: OptIndex, value: Object) {
 
 /// Free an allocated option value.
 pub fn optval_free(o: Object) {
-    match o.obj_type {
-        ObjectType::ObjectTypeString => {
-            api_free_string(o.data.string());
-        }
-        ObjectType::ObjectTypeLuaRef => {
-            api_free_luaref(o.data.luaref());
-        }
-        ObjectType::ObjectTypeUnset
-        | ObjectType::ObjectTypeNil
-        | ObjectType::ObjectTypeBoolean
-        | ObjectType::ObjectTypeInteger => {}
+    match o {
+        Object::String(value) => api_free_string(value),
+        Object::LuaRef(value) => api_free_luaref(value),
+        Object::Unset | Object::Nil | Object::Boolean(_) | Object::Integer(_) => {}
         _ => std::process::abort(),
     }
 }
 
 /// Check if two option values are equal.
 pub fn option_equal(o1: Object, o2: Object) -> bool {
-    if o1.obj_type != o2.obj_type {
-        return false;
-    }
-
-    match o1.obj_type {
-        ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => true,
-        ObjectType::ObjectTypeBoolean => o1.data.boolean() == o2.data.boolean(),
-        ObjectType::ObjectTypeInteger => o1.data.integer() == o2.data.integer(),
-        ObjectType::ObjectTypeString => o1.data.string().as_bytes() == o2.data.string().as_bytes(),
-        ObjectType::ObjectTypeLuaRef => false,
+    match (o1, o2) {
+        (Object::Unset, Object::Unset) | (Object::Nil, Object::Nil) => true,
+        (Object::Boolean(left), Object::Boolean(right)) => left == right,
+        (Object::Integer(left), Object::Integer(right)) => left == right,
+        (Object::String(left), Object::String(right)) => left.as_bytes() == right.as_bytes(),
+        (Object::LuaRef(_), Object::LuaRef(_)) => false,
+        (left, right) if left.obj_type() != right.obj_type() => false,
         _ => std::process::abort(),
     }
 }
@@ -5004,14 +4998,12 @@ pub fn opt_from_tristate(t: TriState) -> Object {
 }
 
 fn optval_type(o: Object) -> ObjectType {
-    match o.obj_type {
-        ObjectType::ObjectTypeNil => ObjectType::ObjectTypeNil,
-        ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeBoolean => {
-            ObjectType::ObjectTypeBoolean
-        }
-        ObjectType::ObjectTypeInteger => ObjectType::ObjectTypeInteger,
-        ObjectType::ObjectTypeString => ObjectType::ObjectTypeString,
-        ObjectType::ObjectTypeLuaRef => ObjectType::ObjectTypeLuaRef,
+    match o {
+        Object::Nil => ObjectType::ObjectTypeNil,
+        Object::Unset | Object::Boolean(_) => ObjectType::ObjectTypeBoolean,
+        Object::Integer(_) => ObjectType::ObjectTypeInteger,
+        Object::String(_) => ObjectType::ObjectTypeString,
+        Object::LuaRef(_) => ObjectType::ObjectTypeLuaRef,
         _ => std::process::abort(),
     }
 }
@@ -5033,8 +5025,8 @@ pub fn optval_own(opt_idx: OptIndex, value: Object) -> Object {
 }
 
 fn optval_snapshot(value: Object) -> Object {
-    if value.obj_type == ObjectType::ObjectTypeLuaRef {
-        let s = nlua_funcref_str(value.data.luaref(), true);
+    if let Object::LuaRef(reference) = value {
+        let s = nlua_funcref_str(reference, true);
         return cstr_to_obj(Some(s.as_c_str()));
     }
     copy_object(value)
@@ -5071,22 +5063,21 @@ fn opt_from_callback(cb: &Callback) -> Object {
 
 fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
     let mut cb = Callback::NONE;
-    match value.obj_type {
-        ObjectType::ObjectTypeLuaRef => {
+    match value {
+        Object::LuaRef(reference) => {
             cb.data
                 .set(crate::eval::typval::CallbackData::lua(api_new_luaref(
-                    value.data.luaref(),
+                    reference,
                 )));
         }
-        ObjectType::ObjectTypeString => {
+        Object::String(value) => {
             if !is_expr {
-                option_set_callback_func(value.data.string().as_bytes(), &mut cb);
-            } else if value.data.string().size > 0 {
-                let s_val = value.data.string();
-                let funcref = if let Some(name) = get_scriptlocal_funcname(s_val.as_opt_cstr()) {
+                option_set_callback_func(value.as_bytes(), &mut cb);
+            } else if value.size > 0 {
+                let funcref = if let Some(name) = get_scriptlocal_funcname(value.as_opt_cstr()) {
                     name
                 } else {
-                    s_val.to_cstring()
+                    value.to_cstring()
                 };
                 cb.data
                     .set(crate::eval::typval::CallbackData::expr(funcref));
@@ -5102,7 +5093,11 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: OptVar) -> Object {
     let opt = get_option(opt_idx);
     if opt.immutable {
         return if opt.opt_type == ObjectType::ObjectTypeString {
-            string_obj(cstr_as_string(opt.def_val().data.string().as_opt_cstr()))
+            string_obj(cstr_as_string(
+                opt.def_val()
+                    .as_string()
+                    .and_then(|value| value.as_opt_cstr()),
+            ))
         } else {
             opt.def_val()
         };
@@ -5146,8 +5141,8 @@ fn set_option_varp(opt_idx: OptIndex, varp: OptVar, value: Object) {
         return;
     }
 
-    match value.obj_type {
-        ObjectType::ObjectTypeUnset => {
+    match value {
+        Object::Unset => {
             assert!(option_is_global_local(opt_idx));
             if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
                 varp.set_bool(None);
@@ -5164,17 +5159,17 @@ fn set_option_varp(opt_idx: OptIndex, varp: OptVar, value: Object) {
                 varp.set_int(-1);
             }
         }
-        ObjectType::ObjectTypeBoolean => {
+        Object::Boolean(value) => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeBoolean));
-            varp.set_bool(Some(value.data.boolean()));
+            varp.set_bool(Some(value));
         }
-        ObjectType::ObjectTypeInteger => {
+        Object::Integer(value) => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeInteger));
-            varp.set_int(value.data.integer());
+            varp.set_int(value);
         }
-        ObjectType::ObjectTypeString => {
+        Object::String(value) => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeString));
-            varp.set_bytes(value.data.string().as_bytes());
+            varp.set_bytes(value.as_bytes());
         }
         _ => std::process::abort(),
     }
@@ -5182,24 +5177,24 @@ fn set_option_varp(opt_idx: OptIndex, varp: OptVar, value: Object) {
 
 /// Gets the string form of an option value.
 fn optval_to_cstr(o: Object, quote: bool) -> std::ffi::CString {
-    match o.obj_type {
-        ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => std::ffi::CString::default(),
-        ObjectType::ObjectTypeBoolean => {
-            if o.data.boolean() {
+    match o {
+        Object::Unset | Object::Nil => std::ffi::CString::default(),
+        Object::Boolean(value) => {
+            if value {
                 c"true".to_owned()
             } else {
                 c"false".to_owned()
             }
         }
-        ObjectType::ObjectTypeInteger => {
-            let s = format!("{}", o.data.integer());
+        Object::Integer(value) => {
+            let s = format!("{value}");
             crate::memory::bytes_to_cstring(s.as_bytes())
         }
-        ObjectType::ObjectTypeString => {
-            let slice = if o.data.string().data.is_null() || o.data.string().size == 0 {
+        Object::String(value) => {
+            let slice = if value.data.is_null() || value.size == 0 {
                 &[][..]
             } else {
-                o.data.as_bytes()
+                value.as_bytes()
             };
             if !quote {
                 return crate::memory::bytes_to_cstring(slice);
@@ -5210,14 +5205,14 @@ fn optval_to_cstr(o: Object, quote: bool) -> std::ffi::CString {
             out.push(b'"');
             crate::memory::bytes_to_cstring(&out)
         }
-        ObjectType::ObjectTypeLuaRef => nlua_funcref_str(o.data.luaref(), false),
+        Object::LuaRef(value) => nlua_funcref_str(value, false),
         _ => std::process::abort(),
     }
 }
 
 /// Converts a structured option (non-scalar Object) to the internal scalar (:set-style) form.
 pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool) -> Object {
-    if o.obj_type == ObjectType::ObjectTypeNil {
+    if matches!(o, Object::Nil) {
         return nil_obj();
     }
 
@@ -5228,124 +5223,115 @@ pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool
     let is_comma = (flags & K_OPT_FLAG_COMMA) != 0;
     let allow_dup = (flags & K_OPT_FLAG_NO_DUP) == 0;
 
-    let type_ok = match o.obj_type {
-        ObjectType::ObjectTypeBoolean => option_has_type(opt_idx, ObjectType::ObjectTypeBoolean),
-        ObjectType::ObjectTypeInteger => option_has_type(opt_idx, ObjectType::ObjectTypeInteger),
-        ObjectType::ObjectTypeString => {
-            option_has_type(opt_idx, ObjectType::ObjectTypeString)
-                || opt_idx == K_OPT_WILDCHAR
-                || opt_idx == K_OPT_WILDCHARM
-        }
-        ObjectType::ObjectTypeArray => is_list,
-        ObjectType::ObjectTypeDict => is_map || is_flaglist,
-        ObjectType::ObjectTypeLuaRef => is_callback_option(opt_idx),
-        _ => false,
-    };
-    if !type_ok {
-        *error = true;
-        return nil_obj();
-    }
-
-    match o.obj_type {
-        ObjectType::ObjectTypeBoolean | ObjectType::ObjectTypeInteger => return o,
-        ObjectType::ObjectTypeLuaRef => return luaref_obj(api_new_luaref(o.data.luaref())),
-        _ => {}
-    }
-
-    if o.obj_type == ObjectType::ObjectTypeString {
-        if op == OP_REMOVING && is_map && !o.data.cstr_bytes().contains(&b':') {
-            let src = o.data.cstr_bytes();
-            let mut out = Vec::with_capacity(src.len() + 2);
-            out.extend_from_slice(src);
-            out.push(b':');
-            out.push(0);
-            api_free_string(o.data.string());
-            return string_obj(NvimString::from_vec_with_nul(out));
-        }
-        return o;
-    }
-
     let sep: &[u8] = if is_flaglist && !is_comma { b"" } else { b"," };
-    let mut out: Vec<u8> = if o.obj_type == ObjectType::ObjectTypeArray {
-        let arr = o.data.array();
-        let slice = arr.as_slice();
-        let mut items: Vec<&[u8]> = Vec::with_capacity(slice.len());
-        let mut total_len = 0usize;
-        for item in slice {
-            if item.obj_type != ObjectType::ObjectTypeString {
-                *error = true;
-                return nil_obj();
-            }
-            let s_bytes = item.data.cstr_bytes();
-            if !allow_dup && items.contains(&s_bytes) {
-                continue;
-            }
-            if !items.is_empty() {
-                total_len += sep.len();
-            }
-            total_len += s_bytes.len();
-            items.push(s_bytes);
+    let mut out = match o {
+        Object::Boolean(value) if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) => {
+            return boolean_obj(value);
         }
-        let mut buf = Vec::with_capacity(total_len + 1);
-        for (i, item_bytes) in items.iter().enumerate() {
-            if i > 0 {
-                buf.extend_from_slice(sep);
-            }
-            buf.extend_from_slice(item_bytes);
+        Object::Integer(value) if option_has_type(opt_idx, ObjectType::ObjectTypeInteger) => {
+            return integer_obj(value);
         }
-        buf.push(0);
-        buf
-    } else {
-        let dict = o.data.dict();
-        let slice = dict.as_slice();
-        let mut entries: Vec<Vec<u8>> = Vec::with_capacity(slice.len());
-        for kv in slice {
-            let k_bytes = kv.key.cstr_bytes();
-            let v = &kv.value;
-            if is_flaglist {
-                if !(v.obj_type == ObjectType::ObjectTypeNil
-                    || (v.obj_type == ObjectType::ObjectTypeBoolean && !v.data.boolean()))
-                {
-                    entries.push(k_bytes.to_vec());
+        Object::LuaRef(reference) if is_callback_option(opt_idx) => {
+            return luaref_obj(api_new_luaref(reference));
+        }
+        Object::String(value)
+            if option_has_type(opt_idx, ObjectType::ObjectTypeString)
+                || opt_idx == K_OPT_WILDCHAR
+                || opt_idx == K_OPT_WILDCHARM =>
+        {
+            let src = value.cstr_bytes();
+            if op == OP_REMOVING && is_map && !src.contains(&b':') {
+                let mut out = Vec::with_capacity(src.len() + 2);
+                out.extend_from_slice(src);
+                out.push(b':');
+                out.push(0);
+                return string_obj(NvimString::from_vec_with_nul(out));
+            }
+            return string_obj(value);
+        }
+        Object::Array(array) if is_list => {
+            let slice = array.as_slice();
+            let mut items: Vec<&[u8]> = Vec::with_capacity(slice.len());
+            let mut total_len = 0usize;
+            for item in slice {
+                let Object::String(value) = item else {
+                    *error = true;
+                    return nil_obj();
+                };
+                let s_bytes = value.cstr_bytes();
+                if !allow_dup && items.contains(&s_bytes) {
+                    continue;
                 }
-            } else if v.obj_type == ObjectType::ObjectTypeString {
-                let v_bytes = v.data.cstr_bytes();
-                let mut entry = Vec::with_capacity(k_bytes.len() + 1 + v_bytes.len());
-                entry.extend_from_slice(k_bytes);
-                entry.push(b':');
-                entry.extend_from_slice(v_bytes);
-                entries.push(entry);
-            } else if v.obj_type == ObjectType::ObjectTypeInteger {
-                use std::io::Write as _;
-                let mut entry = Vec::with_capacity(k_bytes.len() + 21);
-                entry.extend_from_slice(k_bytes);
-                let _ = write!(&mut entry, ":{}", v.data.integer());
-                entries.push(entry);
-            } else if v.obj_type == ObjectType::ObjectTypeBoolean
-                || v.obj_type == ObjectType::ObjectTypeNil
-            {
-                if v.obj_type == ObjectType::ObjectTypeBoolean && v.data.boolean() {
-                    entries.push(k_bytes.to_vec());
+                if !items.is_empty() {
+                    total_len += sep.len();
                 }
-            } else {
-                *error = true;
-                return nil_obj();
+                total_len += s_bytes.len();
+                items.push(s_bytes);
             }
-        }
-        if !entries.is_empty() && (is_map || is_comma) {
-            entries.sort_unstable();
-        }
-        let total_len: usize = entries.iter().map(Vec::len).sum::<usize>()
-            + sep.len() * entries.len().saturating_sub(1);
-        let mut buf = Vec::with_capacity(total_len + 2);
-        for (i, entry) in entries.iter().enumerate() {
-            if i > 0 {
-                buf.extend_from_slice(sep);
+            let mut buf = Vec::with_capacity(total_len + 1);
+            for (i, item_bytes) in items.iter().enumerate() {
+                if i > 0 {
+                    buf.extend_from_slice(sep);
+                }
+                buf.extend_from_slice(item_bytes);
             }
-            buf.extend_from_slice(entry);
+            buf.push(0);
+            buf
         }
-        buf.push(0);
-        buf
+        Object::Dict(dict) if is_map || is_flaglist => {
+            let slice = dict.as_slice();
+            let mut entries: Vec<Vec<u8>> = Vec::with_capacity(slice.len());
+            for kv in slice {
+                let k_bytes = kv.key.cstr_bytes();
+                if is_flaglist {
+                    if !matches!(kv.value, Object::Nil | Object::Boolean(false)) {
+                        entries.push(k_bytes.to_vec());
+                    }
+                    continue;
+                }
+                match &kv.value {
+                    Object::String(value) => {
+                        let v_bytes = value.cstr_bytes();
+                        let mut entry = Vec::with_capacity(k_bytes.len() + 1 + v_bytes.len());
+                        entry.extend_from_slice(k_bytes);
+                        entry.push(b':');
+                        entry.extend_from_slice(v_bytes);
+                        entries.push(entry);
+                    }
+                    Object::Integer(value) => {
+                        use std::io::Write as _;
+                        let mut entry = Vec::with_capacity(k_bytes.len() + 21);
+                        entry.extend_from_slice(k_bytes);
+                        let _ = write!(&mut entry, ":{value}");
+                        entries.push(entry);
+                    }
+                    Object::Boolean(true) => entries.push(k_bytes.to_vec()),
+                    Object::Boolean(false) | Object::Nil => {}
+                    _ => {
+                        *error = true;
+                        return nil_obj();
+                    }
+                }
+            }
+            if !entries.is_empty() && (is_map || is_comma) {
+                entries.sort_unstable();
+            }
+            let total_len: usize = entries.iter().map(Vec::len).sum::<usize>()
+                + sep.len() * entries.len().saturating_sub(1);
+            let mut buf = Vec::with_capacity(total_len + 2);
+            for (i, entry) in entries.iter().enumerate() {
+                if i > 0 {
+                    buf.extend_from_slice(sep);
+                }
+                buf.extend_from_slice(entry);
+            }
+            buf.push(0);
+            buf
+        }
+        _ => {
+            *error = true;
+            return nil_obj();
+        }
     };
 
     if op == OP_REMOVING && is_map && !out[..out.len() - 1].contains(&b':') {
@@ -5421,20 +5407,21 @@ fn optval_is_unset_local(opt_idx: OptIndex, value: Object) -> bool {
     if !option_is_global_local(opt_idx) {
         return false;
     }
-    if value.obj_type == ObjectType::ObjectTypeUnset {
+    if matches!(value, Object::Unset) {
         return true;
     }
     if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
-        return value.obj_type == ObjectType::ObjectTypeString && value.data.string().size == 0;
+        return matches!(value, Object::String(value) if value.size == 0);
     }
-    if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean)
-        || value.obj_type != ObjectType::ObjectTypeInteger
-    {
+    if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
         return false;
     }
+    let Object::Integer(value) = value else {
+        return false;
+    };
     match opt_idx {
-        K_OPT_SCROLLOFF | K_OPT_SCROLLOFFPAD | K_OPT_SIDESCROLLOFF => value.data.integer() == -1,
-        K_OPT_UNDOLEVELS => value.data.integer() == NO_LOCAL_UNDOLEVEL,
+        K_OPT_SCROLLOFF | K_OPT_SCROLLOFFPAD | K_OPT_SIDESCROLLOFF => value == -1,
+        K_OPT_UNDOLEVELS => value == NO_LOCAL_UNDOLEVEL,
         _ => std::process::abort(),
     }
 }
@@ -5470,7 +5457,7 @@ fn did_set_option<'a>(
         && (opt.flags() & K_OPT_FLAG_SECURE) != 0
     {
         errmsg = Some(E_SECURE);
-    } else if args.os_newval.obj_type == ObjectType::ObjectTypeString
+    } else if matches!(args.os_newval, Object::String(_))
         && !is_callback_option(opt_idx)
         && (opt.flags() & (K_OPT_FLAG_NFNAME | K_OPT_FLAG_NDNAME)) != 0
         && check_illegal_path_names(args.var_cstr().to_bytes(), opt.flags())
@@ -5597,7 +5584,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
         return None;
     }
 
-    if newval.obj_type == ObjectType::ObjectTypeNil {
+    if matches!(newval, Object::Nil) {
         if opt_flags == OPT_GLOBAL {
             errmsg = Some(tr(c"Cannot unset global option value"));
         } else {
@@ -5608,7 +5595,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
                 optval_own(opt_idx, opt_from_varp(opt_idx, varp))
             };
         }
-    } else if newval.obj_type == ObjectType::ObjectTypeLuaRef {
+    } else if matches!(newval, Object::LuaRef(_)) {
         assert!(is_callback_option(opt_idx));
     } else if !option_has_type(opt_idx, optval_type(newval.clone())) {
         let rep = optval_to_cstr(newval.clone(), true);
@@ -5626,13 +5613,8 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
         } else {
             Some(c"")
         };
-    } else if newval.obj_type == ObjectType::ObjectTypeInteger {
-        errmsg = validate_num_option(
-            opt_idx,
-            newval.data.integer_mut(),
-            &win,
-            args.os_errbuf.take(),
-        );
+    } else if let Object::Integer(value) = newval {
+        errmsg = validate_num_option(opt_idx, value, &win, args.os_errbuf.take());
     }
     if errmsg.is_some() {
         return errmsg;
@@ -5650,13 +5632,15 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset<'a>) -> Option<&'
         }
     }
     let schema = opt.schema;
-    if newval.obj_type == ObjectType::ObjectTypeString && !schema.is_empty() {
-        errmsg = opt_strings_check(newval.data.as_bytes(), schema, args.os_errbuf.take());
+    if let Object::String(value) = newval
+        && !schema.is_empty()
+    {
+        errmsg = opt_strings_check(value.as_bytes(), schema, args.os_errbuf.take());
         if errmsg.is_some() {
             return errmsg;
         }
     }
-    if newval.obj_type != ObjectType::ObjectTypeUnset
+    if !matches!(newval, Object::Unset)
         && let Some(validate_cb) = opt.opt_validate_cb
     {
         let scope_both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
@@ -5715,19 +5699,21 @@ fn set_option<'a>(
         value = args.os_newval.clone();
 
         if errmsg.is_none()
-            && value.obj_type == ObjectType::ObjectTypeString
+            && let Object::String(string) = &value
             && (opt.flags() & K_OPT_FLAG_FUNC) != 0
-            && value.data.string().size > 0
+            && string.size > 0
         {
             let mut cb = Callback::NONE;
-            if !option_set_callback_func(value.data.as_bytes(), &mut cb) {
+            if !option_set_callback_func(string.as_bytes(), &mut cb) {
                 errmsg = Some(E_INVARG);
             }
             callback_free(&cb);
         }
-    } else if value.obj_type == ObjectType::ObjectTypeString && is_dict_option(opt_idx) {
+    } else if let Object::String(string) = &value
+        && is_dict_option(opt_idx)
+    {
         errmsg = opt_strings_check(
-            value.data.as_bytes(),
+            string.as_bytes(),
             opt_dict_schema(opt_idx).unwrap().schema,
             args.os_errbuf.take(),
         );
@@ -5741,7 +5727,7 @@ fn set_option<'a>(
     #[cfg(windows)]
     {
         let flags = opt.flags();
-        if value.obj_type == ObjectType::ObjectTypeString
+        if let Object::String(string) = &mut value
             && (flags & K_OPT_FLAG_EXPAND) != 0
             && opt_idx != K_OPT_EQUALPRG
             && opt_idx != K_OPT_FORMATPRG
@@ -5753,7 +5739,7 @@ fn set_option<'a>(
             let allow_comma = (flags & K_OPT_FLAG_COMMA) != 0;
             let allow_space =
                 opt_idx == K_OPT_CDPATH || opt_idx == K_OPT_PATH || opt_idx == K_OPT_TAGS;
-            let str_slice = value.data.string_mut().as_bytes_with_nul_mut();
+            let str_slice = string.as_bytes_with_nul_mut();
             let mut i = 0;
             while i < str_slice.len() && str_slice[i] != 0 {
                 if str_slice[i] != b'\\'
@@ -5825,7 +5811,7 @@ fn set_option<'a>(
     if varp.is_some() {
         set_option_varp(opt_idx, varp.clone(), value.clone());
     }
-    if value.obj_type == ObjectType::ObjectTypeUnset {
+    if matches!(value, Object::Unset) {
         value = optval_own(opt_idx, opt_from_varp(opt_idx, varp.clone()));
     }
     if need_optionset || need_ui_option {
@@ -5844,7 +5830,7 @@ fn set_option<'a>(
     if errmsg.is_none() && !direct {
         if starting_val() == 0 {
             if opt_idx == K_OPT_MODIFIED {
-                aucmd_defer_modified(&curbuf(), value.data.boolean());
+                aucmd_defer_modified(&curbuf(), value.as_boolean().expect("boolean Object"));
             } else if need_optionset {
                 apply_optionset_autocmd(
                     opt_idx,
@@ -6075,14 +6061,14 @@ pub fn set_option_value_for(
         && *tab != workspace_state().curtab.get()
     {
         assert!(opt_idx == K_OPT_CMDHEIGHT);
-        if value.obj_type != ObjectType::ObjectTypeInteger {
+        let Object::Integer(value) = value else {
             return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"'cmdheight' requires a Number",
             ));
-        }
+        };
 
-        tab.tp_ch_used.set(value.data.integer());
+        tab.tp_ch_used.set(value);
 
         return Ok(());
     }
@@ -6229,7 +6215,7 @@ fn showoneopt(opt: &Vimoption, opt_flags: i32) {
 
     if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
         let val_int = if opt.immutable {
-            i32::from(opt.def_val().data.boolean())
+            i32::from(opt.def_val().as_boolean().expect("boolean Object"))
         } else if varp.ptr_eq(&curbuf().b_changed) {
             i32::from(curbuf_is_changed_fn())
         } else {
@@ -6379,9 +6365,8 @@ fn put_set_value(
         return true;
     }
 
-    match value.obj_type {
-        ObjectType::ObjectTypeBoolean => {
-            let value_bool = value.data.boolean();
+    match value {
+        Object::Boolean(value_bool) => {
             if fprintf!(
                 fd,
                 c"%s %s%s",
@@ -6393,11 +6378,10 @@ fn put_set_value(
                 return false;
             }
         }
-        ObjectType::ObjectTypeInteger => {
+        Object::Integer(value_num) => {
             if fprintf!(fd, c"%s %s=", cmd, name) < 0 {
                 return false;
             }
-            let value_num = value.data.integer();
             let mut wc: OptInt = 0;
             if wc_use_keyname(varp, &mut wc) {
                 if fd.puts(&get_special_key_name(wc as i32, 0)) < 0 {
@@ -6410,11 +6394,10 @@ fn put_set_value(
                 }
             }
         }
-        ObjectType::ObjectTypeString => {
+        Object::String(value_str) => {
             if fprintf!(fd, c"%s %s=", cmd, name) < 0 {
                 return false;
             }
-            let value_str = value.data.string();
             if !value_str.data.is_null() {
                 if (flags & K_OPT_FLAG_EXPAND) != 0 {
                     let size = value_str.cstr_bytes().len() + 1;
@@ -6467,7 +6450,7 @@ fn put_set(
     varp: OptVar,
 ) -> bool {
     let value = opt_from_varp(opt_idx, varp.clone());
-    let ret = if value.obj_type == ObjectType::ObjectTypeLuaRef {
+    let ret = if matches!(value, Object::LuaRef(_)) {
         true
     } else {
         put_set_value(fd, cmd, opt_idx, varp, value.clone())
@@ -7858,7 +7841,7 @@ pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
                 OPT_STATE.with(|s| s.expand_option_flags.get()),
             ),
         );
-        let is_luafn = o.obj_type == ObjectType::ObjectTypeLuaRef;
+        let is_luafn = matches!(o, Object::LuaRef(_));
         optval_free_read(OPT_STATE.with(|s| s.expand_option_idx.get()), o);
         if is_luafn {
             return true;

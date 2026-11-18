@@ -5,7 +5,7 @@ use crate::api::extmark::describe_ns;
 use crate::api::private::helpers::{
     api_free_array, api_free_object, api_object_to_bool, buffer_obj, integer_obj, window_obj,
 };
-use crate::api::private::validate::{Array, ObjectType};
+use crate::api::private::validate::{Array, Object};
 use crate::buffer::FileBuf;
 use crate::cursor::Linenr;
 use crate::decoration::{NS, decor_check_to_be_deleted};
@@ -142,8 +142,10 @@ fn decor_provider_invoke(
         let err = match call_res {
             Ok(ret) => {
                 if let Some(res) = res {
-                    debug_assert!(matches!(ret.obj_type, ObjectType::ObjectTypeArray));
-                    *res = ret.data.array();
+                    let Object::Array(array) = ret else {
+                        unreachable!("multi-return callbacks produce an array");
+                    };
+                    *res = array;
                     provider.error_count = 0;
                     return true;
                 }
@@ -415,20 +417,19 @@ pub fn decor_providers_invoke_range(
                     p.state = K_DECOR_PROVIDER_WIN_DISABLED;
                 } else if res.size >= 1 {
                     let first = &res[0];
-                    if matches!(first.obj_type, ObjectType::ObjectTypeBoolean) {
-                        if !first.data.boolean() {
+                    if let Object::Boolean(enabled) = first {
+                        if !enabled {
                             p.state = K_DECOR_PROVIDER_WIN_DISABLED;
                         }
-                    } else if matches!(first.obj_type, ObjectType::ObjectTypeInteger) {
-                        let row = first.data.integer();
+                    } else if let Object::Integer(row) = first {
                         let mut col: Integer = 0;
                         if res.size >= 2 {
                             let second = &res[1];
-                            if matches!(second.obj_type, ObjectType::ObjectTypeInteger) {
-                                col = second.data.integer();
+                            if let Object::Integer(value) = second {
+                                col = *value;
                             }
                         }
-                        p.win_skip_row = row as i32;
+                        p.win_skip_row = *row as i32;
                         p.win_skip_col = col as i32;
                     }
                 }

@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use crate::api::private::converter::{K_BOOL_VAR_TRUE, object_to_vim, vim_to_object};
-use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Object};
 use crate::channel::{CallbackReader, channel_close, channel_create_event, channel_job_start};
 use crate::errors::{E_API_SPAWN_FAILED, E_INVARG, E_INVARG2};
 use crate::eval::find_job;
@@ -49,12 +49,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         return;
     }
 
-    let mut args_storage = [const {
-        Object {
-            obj_type: ObjectType::ObjectTypeNil,
-            data: ObjectData::Boolean(false),
-        }
-    }; MAX_FUNC_ARGS];
+    let mut args_storage = [const { Object::Nil }; MAX_FUNC_ARGS];
     let mut args = Array::from_buf(&mut args_storage);
     for tv in argvars[2..]
         .iter_mut()
@@ -94,12 +89,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         return;
     }
 
-    let mut args_storage = [const {
-        Object {
-            obj_type: ObjectType::ObjectTypeNil,
-            data: ObjectData::Boolean(false),
-        }
-    }; MAX_FUNC_ARGS];
+    let mut args_storage = [const { Object::Nil }; MAX_FUNC_ARGS];
     let mut args = Array::from_buf(&mut args_storage);
     for tv in argvars[2..]
         .iter_mut()

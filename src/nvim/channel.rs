@@ -4,7 +4,7 @@
 
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{cstr_as_string, put_c};
-use crate::api::private::validate::{Array, Dict, NvimString, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Dict, NvimString, Object};
 use crate::autocmd::{AuEvent, apply_autocmds, has_event};
 use crate::buffer::FileBuf;
 use crate::errors::*;
@@ -1049,13 +1049,7 @@ pub fn set_info_event(chan: &Channel, event: AuEvent) {
     let dict = get_v_event(&mut save_v_event);
     let info = channel_info(chan.id);
     let mut retval: TypVal = TypVal::new();
-    object_to_vim(
-        Object {
-            obj_type: ObjectType::ObjectTypeDict,
-            data: ObjectData::Dict(info),
-        },
-        &mut retval,
-    );
+    object_to_vim(Object::Dict(info), &mut retval);
     assert_eq!(retval.v_type, VarType::VarDict);
     let _ = tv_dict_add_dict(&dict, c"info", retval.vval.v_dict_opt());
     tv_dict_set_keys_readonly(&dict);
@@ -1084,14 +1078,7 @@ pub fn channel_info(id: u64) -> Dict {
 
     let mut info = Dict::with_capacity(10);
 
-    put_c(
-        &mut info,
-        c"id",
-        Object {
-            obj_type: ObjectType::ObjectTypeInteger,
-            data: ObjectData::Integer(chan.id as Integer),
-        },
-    );
+    put_c(&mut info, c"id", Object::Integer(chan.id as Integer));
 
     let stream_desc: &'static CStr = match chan.streamtype {
         K_CHANNEL_STREAM_PROC => {
@@ -1101,14 +1088,7 @@ pub fn channel_info(id: u64) -> Dict {
                     Some(name) => NvimString::from_bytes(name.to_bytes()),
                     None => NvimString::from_bytes(b""),
                 };
-                put_c(
-                    &mut info,
-                    c"pty",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeString,
-                        data: ObjectData::String(s),
-                    },
-                );
+                put_c(&mut info, c"pty", Object::String(s));
             }
 
             let args = ph.argv.get();
@@ -1119,34 +1099,17 @@ pub fn channel_info(id: u64) -> Dict {
                 for arg in &args {
                     add_c(
                         &mut argv,
-                        Object {
-                            obj_type: ObjectType::ObjectTypeString,
-                            data: ObjectData::String(cstr_as_string(Some(arg.as_c_str()))),
-                        },
+                        Object::String(cstr_as_string(Some(arg.as_c_str()))),
                     );
                 }
             }
-            put_c(
-                &mut info,
-                c"argv",
-                Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(argv),
-                },
-            );
+            put_c(&mut info, c"argv", Object::Array(argv));
             c"job"
         }
         K_CHANNEL_STREAM_STDIO => c"stdio",
         K_CHANNEL_STREAM_STDERR => c"stderr",
         K_CHANNEL_STREAM_INTERNAL => {
-            put_c(
-                &mut info,
-                c"internal",
-                Object {
-                    obj_type: ObjectType::ObjectTypeBoolean,
-                    data: ObjectData::Boolean(true),
-                },
-            );
+            put_c(&mut info, c"internal", Object::Boolean(true));
             c"socket"
         }
         _ => c"socket",
@@ -1155,19 +1118,13 @@ pub fn channel_info(id: u64) -> Dict {
     put_c(
         &mut info,
         c"stream",
-        Object {
-            obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(cstr_as_string(Some(stream_desc))),
-        },
+        Object::String(cstr_as_string(Some(stream_desc))),
     );
     if let Some(ref addr) = chan.addr.get() {
         put_c(
             &mut info,
             c"addr",
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(Some(addr.as_c_str()))),
-            },
+            Object::String(cstr_as_string(Some(addr.as_c_str()))),
         );
     }
 
@@ -1175,57 +1132,23 @@ pub fn channel_info(id: u64) -> Dict {
         put_c(
             &mut info,
             c"client",
-            Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(chan.rpc.info.get().clone()),
-            },
+            Object::Dict(chan.rpc.info.get().clone()),
         );
 
-        put_c(
-            &mut info,
-            c"detach",
-            Object {
-                obj_type: ObjectType::ObjectTypeBoolean,
-                data: ObjectData::Boolean(chan.detach.get()),
-            },
-        );
+        put_c(&mut info, c"detach", Object::Boolean(chan.detach.get()));
 
-        put_c(
-            &mut info,
-            c"trust",
-            Object {
-                obj_type: ObjectType::ObjectTypeBoolean,
-                data: ObjectData::Boolean(chan.trust.get()),
-            },
-        );
+        put_c(&mut info, c"trust", Object::Boolean(chan.trust.get()));
 
         c"rpc"
     } else if !chan.term.get().is_null() {
         let tbuf = terminal_buf(chan.term.get().borrow());
-        put_c(
-            &mut info,
-            c"buf",
-            Object {
-                obj_type: ObjectType::ObjectTypeBuffer,
-                data: ObjectData::Integer(i64::from(tbuf)),
-            },
-        );
-        put_c(
-            &mut info,
-            c"buffer",
-            Object {
-                obj_type: ObjectType::ObjectTypeBuffer,
-                data: ObjectData::Integer(i64::from(tbuf)),
-            },
-        );
+        put_c(&mut info, c"buf", Object::Buffer(i64::from(tbuf)));
+        put_c(&mut info, c"buffer", Object::Buffer(i64::from(tbuf)));
 
         put_c(
             &mut info,
             c"exitcode",
-            Object {
-                obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(i64::from(chan.exit_status.get())),
-            },
+            Object::Integer(i64::from(chan.exit_status.get())),
         );
 
         c"terminal"
@@ -1236,10 +1159,7 @@ pub fn channel_info(id: u64) -> Dict {
     put_c(
         &mut info,
         c"mode",
-        Object {
-            obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(cstr_as_string(Some(mode_desc))),
-        },
+        Object::String(cstr_as_string(Some(mode_desc))),
     );
 
     info
@@ -1250,13 +1170,7 @@ pub fn channel_all_info() -> Array {
     let mut ret = Array::with_capacity(channels.len());
     for channel in channels {
         let info = channel_info(channel.id);
-        add_c(
-            &mut ret,
-            Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(info),
-            },
-        );
+        add_c(&mut ret, Object::Dict(info));
     }
 
     ret

@@ -460,7 +460,10 @@ pub fn nvim_buf_set_lines(
                 ));
             }
 
-            if let Some(rc_cstr) = item.data.to_rc_cstr_if_clean() {
+            if let Some(rc_cstr) = item
+                .as_string()
+                .and_then(|value| value.to_rc_cstr_if_clean())
+            {
                 let len = rc_cstr.to_bytes().len();
                 if !crate::memline::ml_replace_buf_cstr(&b, lnum as Linenr, rc_cstr) {
                     return Err(api_error!(
@@ -472,7 +475,7 @@ pub fn nvim_buf_set_lines(
                 continue;
             }
 
-            let raw = item.data.as_bytes();
+            let raw = item.as_string().expect("string Object").as_bytes();
             let line: &[u8] = if raw.contains(&0) {
                 scratch.clear();
                 scratch.extend_from_slice(raw);
@@ -518,7 +521,10 @@ pub fn nvim_buf_set_lines(
                 ));
             }
 
-            if let Some(rc_cstr) = item.data.to_rc_cstr_if_clean() {
+            if let Some(rc_cstr) = item
+                .as_string()
+                .and_then(|value| value.to_rc_cstr_if_clean())
+            {
                 let len = rc_cstr.to_bytes().len();
                 if !crate::memline::ml_append_buf_cstr(&b, lnum as Linenr, rc_cstr, false) {
                     return Err(api_error!(
@@ -531,7 +537,7 @@ pub fn nvim_buf_set_lines(
                 continue;
             }
 
-            let raw = item.data.as_bytes();
+            let raw = item.as_string().expect("string Object").as_bytes();
             let line: &[u8] = if raw.contains(&0) {
                 scratch.clear();
                 scratch.extend_from_slice(raw);
@@ -713,8 +719,14 @@ pub fn nvim_buf_set_text(
         old_byte += (end_col as Bcount) + 1;
     }
 
-    let first_item = replacement_slice[0].data.string();
-    let last_item = replacement_slice[new_len - 1].data.string();
+    let first_item = replacement_slice[0]
+        .as_string()
+        .expect("string Object")
+        .clone();
+    let last_item = replacement_slice[new_len - 1]
+        .as_string()
+        .expect("string Object")
+        .clone();
 
     let mut firstlen = (start_col as usize) + first_item.size;
     let last_part_len = (len_at_end as usize) - (end_col as usize);
@@ -765,7 +777,7 @@ pub fn nvim_buf_set_text(
         .take(new_len.saturating_sub(1))
         .skip(1)
     {
-        let l = item.data.string();
+        let l = item.as_string().expect("string Object").clone();
         let mut p = l.as_bytes().to_vec();
         for b in &mut p {
             if *b == 0 {
@@ -1720,7 +1732,7 @@ mod tests {
         assert_eq!(VIML_INTERNAL_CALL, 1u64 << 63);
         assert_eq!(LUA_INTERNAL_CALL, (1u64 << 63) + 1);
         let obj = boolean_obj(true);
-        assert_eq!(obj.obj_type, ObjectType::ObjectTypeBoolean);
-        assert!(obj.data.boolean());
+        assert_eq!(obj.obj_type(), ObjectType::ObjectTypeBoolean);
+        assert!(obj.as_boolean().expect("boolean Object"));
     }
 }

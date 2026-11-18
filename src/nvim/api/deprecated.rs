@@ -384,7 +384,7 @@ pub fn buffer_get_line(buffer: Buffer, mut index: Integer) -> Result<NvimString,
     index = convert_index(index);
     let slice = nvim_buf_get_lines(0, buffer, index, index + 1, true, std::ptr::null_mut())?;
     if slice.size > 0 {
-        rv = slice[0].data.string();
+        rv = slice[0].as_string().expect("string Object").clone();
     }
     Ok(rv)
 }
@@ -774,17 +774,14 @@ fn set_option_to(
     }
 
     let valid = matches!(
-        value.obj_type,
-        ObjectType::ObjectTypeNil
-            | ObjectType::ObjectTypeBoolean
-            | ObjectType::ObjectTypeInteger
-            | ObjectType::ObjectTypeString
+        value,
+        Object::Nil | Object::Boolean(_) | Object::Integer(_) | Object::String(_)
     );
     if !valid {
         return Err(api_err_exp(
             c"value",
             c"valid option type",
-            Some(api_typename(value.obj_type)),
+            Some(api_typename(value.obj_type())),
         ));
     }
 
@@ -822,35 +819,34 @@ pub fn nvim_call_atomic(channel_id: u64, calls: Array) -> Result<Array, Error> {
     let mut i = 0usize;
     while i < calls.size {
         let item = &calls[i];
-        if item.obj_type != ObjectType::ObjectTypeArray {
+        let Object::Array(call) = item else {
             return Err(api_err_exp(
                 c"'calls' item",
                 api_typename(ObjectType::ObjectTypeArray),
-                Some(api_typename(item.obj_type)),
+                Some(api_typename(item.obj_type())),
             ));
-        }
-        let call = item.data.array();
+        };
         if call.size != 2 {
             return Err(api_err_exp(c"'calls' item", c"2-item Array", None));
         }
         let first = &call[0];
-        if first.obj_type != ObjectType::ObjectTypeString {
+        let Object::String(name) = first else {
             return Err(api_err_exp(
                 c"name",
                 api_typename(ObjectType::ObjectTypeString),
-                Some(api_typename(first.obj_type)),
+                Some(api_typename(first.obj_type())),
             ));
-        }
-        let name = first.data.string();
+        };
+        let name = name.clone();
         let second = &call[1];
-        if second.obj_type != ObjectType::ObjectTypeArray {
+        let Object::Array(args) = second else {
             return Err(api_err_exp(
                 c"call args",
                 api_typename(ObjectType::ObjectTypeArray),
-                Some(api_typename(second.obj_type)),
+                Some(api_typename(second.obj_type())),
             ));
-        }
-        let args = second.data.array();
+        };
+        let args = args.clone();
 
         let handler = match msgpack_rpc_get_handler_for(name.as_bytes()) {
             Ok(h) => h,

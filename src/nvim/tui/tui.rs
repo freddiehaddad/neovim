@@ -5,7 +5,7 @@ use crate::api::private::helpers::{
     api_free_object, array_obj, boolean_obj, cstr_as_obj, dict_obj, static_cstr_as_obj,
     static_cstr_as_string, string_obj,
 };
-use crate::api::private::validate::{Array, Dict, KeyValuePair, NvimString, Object, ObjectType};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, NvimString, Object};
 use crate::charset::getdigits_int;
 use crate::cursor_shape::{
     CursorShape, Cursorentry, SHAPE_IDX_COUNT, SHAPE_IDX_N, shape_table_entry,
@@ -504,19 +504,6 @@ enum TermdefFieldTarget {
     FKey(usize),
 }
 
-impl TermdefFieldTarget {
-    const fn expected_type(self) -> ObjectType {
-        match self {
-            Self::BoolBackColorErase | Self::BoolTc | Self::BoolRGB | Self::BoolSu => {
-                ObjectType::ObjectTypeBoolean
-            }
-            Self::IntMaxColors | Self::IntLines | Self::IntColumns => ObjectType::ObjectTypeInteger,
-            Self::Def(_) | Self::KeyStr(_) | Self::FKey(_) => ObjectType::ObjectTypeString,
-            Self::KeyArr(_) => ObjectType::ObjectTypeArray,
-        }
-    }
-}
-
 fn lookup_termdef_field(name: &[u8]) -> Option<TermdefFieldTarget> {
     use TermdefFieldTarget::*;
     match name {
@@ -629,14 +616,13 @@ fn apply_termdefs(tui: &mut TUIData) {
     ) else {
         return;
     };
-    if rv.obj_type != ObjectType::ObjectTypeDict {
+    let Object::Dict(dict) = &rv else {
         api_free_object(rv);
         return;
-    }
+    };
     let mut chunks: Vec<Object> = Vec::new();
     let mut err_count = 0usize;
 
-    let dict = rv.data.dict();
     for kv in dict.as_slice() {
         let key_bytes = if kv.key.data.is_null() {
             &[][..]
@@ -651,44 +637,35 @@ fn apply_termdefs(tui: &mut TUIData) {
             err_count += 1;
             continue;
         };
-        if kv.value.obj_type != target.expected_type() {
-            let msg = format!("skipping invalid field in $NVIM_TERMDEFS: '{key_str}'\n");
-            push_termdef_err(&mut chunks, &msg);
-            err_count += 1;
-            continue;
-        }
-
-        let val = &kv.value;
-        match target {
-            TermdefFieldTarget::BoolBackColorErase => {
-                tui.ti.back_color_erase = val.data.boolean();
+        match (target, &kv.value) {
+            (TermdefFieldTarget::BoolBackColorErase, Object::Boolean(value)) => {
+                tui.ti.back_color_erase = *value;
             }
-            TermdefFieldTarget::BoolTc => {
-                tui.ti.tc = val.data.boolean();
+            (TermdefFieldTarget::BoolTc, Object::Boolean(value)) => {
+                tui.ti.tc = *value;
             }
-            TermdefFieldTarget::BoolRGB => {
-                tui.ti.rgb = val.data.boolean();
+            (TermdefFieldTarget::BoolRGB, Object::Boolean(value)) => {
+                tui.ti.rgb = *value;
             }
-            TermdefFieldTarget::BoolSu => {
-                tui.ti.su = val.data.boolean();
+            (TermdefFieldTarget::BoolSu, Object::Boolean(value)) => {
+                tui.ti.su = *value;
             }
-            TermdefFieldTarget::IntMaxColors => {
-                tui.ti.max_colors = val.data.integer() as i32;
+            (TermdefFieldTarget::IntMaxColors, Object::Integer(value)) => {
+                tui.ti.max_colors = *value as i32;
             }
-            TermdefFieldTarget::IntLines => {
-                tui.ti.lines = val.data.integer() as i32;
+            (TermdefFieldTarget::IntLines, Object::Integer(value)) => {
+                tui.ti.lines = *value as i32;
             }
-            TermdefFieldTarget::IntColumns => {
-                tui.ti.columns = val.data.integer() as i32;
+            (TermdefFieldTarget::IntColumns, Object::Integer(value)) => {
+                tui.ti.columns = *value as i32;
             }
-            TermdefFieldTarget::Def(idx) => {
-                tui.ti.defs[idx] = Some(std::borrow::Cow::Owned(val.data.string().to_cstring()));
+            (TermdefFieldTarget::Def(idx), Object::String(value)) => {
+                tui.ti.defs[idx] = Some(std::borrow::Cow::Owned(value.to_cstring()));
             }
-            TermdefFieldTarget::KeyStr(idx) => {
-                tui.ti.keys[idx][0] = Some(std::borrow::Cow::Owned(val.data.string().to_cstring()));
+            (TermdefFieldTarget::KeyStr(idx), Object::String(value)) => {
+                tui.ti.keys[idx][0] = Some(std::borrow::Cow::Owned(value.to_cstring()));
             }
-            TermdefFieldTarget::KeyArr(idx) => {
-                let arr = val.data.array();
+            (TermdefFieldTarget::KeyArr(idx), Object::Array(arr)) => {
                 if arr.size > 2 {
                     let msg = format!(
                         "skipping invalid field definition in $NVIM_TERMDEFS for {key_str}: array should have at most two entries for unshifted and shifted key variants.\n"
@@ -700,21 +677,25 @@ fn apply_termdefs(tui: &mut TUIData) {
                 tui.ti.keys[idx][0] = None;
                 tui.ti.keys[idx][1] = None;
                 for (key_map_idx, key_mapping) in arr.as_slice().iter().enumerate() {
-                    if key_mapping.obj_type != ObjectType::ObjectTypeString {
+                    let Object::String(value) = key_mapping else {
                         let msg = format!(
                             "skipping invalid field definition in $NVIM_TERMDEFS for {key_str}[{key_map_idx}]: expected type 'string'\n"
                         );
                         push_termdef_err(&mut chunks, &msg);
                         err_count += 1;
                         continue;
-                    }
-                    tui.ti.keys[idx][key_map_idx] = Some(std::borrow::Cow::Owned(
-                        key_mapping.data.string().to_cstring(),
-                    ));
+                    };
+                    tui.ti.keys[idx][key_map_idx] =
+                        Some(std::borrow::Cow::Owned(value.to_cstring()));
                 }
             }
-            TermdefFieldTarget::FKey(idx) => {
-                tui.ti.f_keys[idx] = Some(std::borrow::Cow::Owned(val.data.string().to_cstring()));
+            (TermdefFieldTarget::FKey(idx), Object::String(value)) => {
+                tui.ti.f_keys[idx] = Some(std::borrow::Cow::Owned(value.to_cstring()));
+            }
+            _ => {
+                let msg = format!("skipping invalid field in $NVIM_TERMDEFS: '{key_str}'\n");
+                push_termdef_err(&mut chunks, &msg);
+                err_count += 1;
             }
         }
     }
@@ -1649,17 +1630,41 @@ fn tui_cursor_reset_style(tui: &mut TUIData) {
     terminfo_out(tui, K_TERM_RESET_CURSOR_STYLE);
 }
 
+// UI cursor and option values retain their existing scalar coercions.
+fn coerce_ui_integer(value: &Object) -> i64 {
+    match value {
+        Object::Integer(value)
+        | Object::Buffer(value)
+        | Object::Window(value)
+        | Object::Tabpage(value) => *value,
+        Object::Boolean(value) => i64::from(*value),
+        Object::LuaRef(value) => i64::from(*value),
+        _ => 0,
+    }
+}
+
+fn coerce_ui_boolean(value: &Object) -> bool {
+    match value {
+        Object::Boolean(value) => *value,
+        Object::Integer(value)
+        | Object::Buffer(value)
+        | Object::Window(value)
+        | Object::Tabpage(value) => *value != 0,
+        _ => false,
+    }
+}
+
 fn decode_cursor_entry(args: Dict) -> Cursorentry {
     let mut r = shape_table_entry(0);
     for item in args.as_slice() {
         let value = &item.value;
-        match item.key.cstr_bytes() {
-            b"cursor_shape" if value.obj_type == ObjectType::ObjectTypeString => {
-                r.shape = tui_cursor_decode_shape(value.data.string());
+        match (item.key.cstr_bytes(), value) {
+            (b"cursor_shape", Object::String(value)) => {
+                r.shape = tui_cursor_decode_shape(value.clone());
             }
-            b"blinkon" => r.blinkon = value.data.integer() as i32,
-            b"blinkoff" => r.blinkoff = value.data.integer() as i32,
-            b"attr_id" => r.id = value.data.integer() as i32,
+            (b"blinkon", value) => r.blinkon = coerce_ui_integer(value) as i32,
+            (b"blinkoff", value) => r.blinkoff = coerce_ui_integer(value) as i32,
+            (b"attr_id", value) => r.id = coerce_ui_integer(value) as i32,
             _ => {}
         }
     }
@@ -1674,10 +1679,10 @@ pub fn tui_mode_info_set(tui: &mut TUIData, guicursor_enabled: bool, args: Array
     }
 
     for (i, item) in args.as_slice().iter().enumerate().take(SHAPE_IDX_COUNT) {
-        if item.obj_type != ObjectType::ObjectTypeDict {
+        let Object::Dict(value) = item else {
             continue;
-        }
-        let r = decode_cursor_entry(item.data.dict());
+        };
+        let r = decode_cursor_entry(value.clone());
         tui.cursor_shapes[i] = r;
     }
 
@@ -2166,22 +2171,23 @@ pub fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
 
 pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
     if name.opt_bytes() == Some(b"mousemoveevent") {
-        if tui.mouse_move_enabled != value.data.boolean() {
+        let enabled = coerce_ui_boolean(&value);
+        if tui.mouse_move_enabled != enabled {
             if tui.mouse_enabled {
                 tui_mouse_off(tui);
-                tui.mouse_move_enabled = value.data.boolean();
+                tui.mouse_move_enabled = enabled;
                 tui_mouse_on(tui);
             } else {
-                tui.mouse_move_enabled = value.data.boolean();
+                tui.mouse_move_enabled = enabled;
             }
         }
     } else if name.opt_bytes() == Some(b"termguicolors") {
-        tui.rgb = value.data.boolean();
+        tui.rgb = coerce_ui_boolean(&value);
         tui.print_attr_id = -1;
         invalidate(tui, 0, tui.grid.height, 0, tui.grid.width);
 
         if screen_state().ui_client_channel_id.get() != 0 {
-            let mut args_items = [cstr_as_obj(Some(c"rgb")), boolean_obj(value.data.boolean())];
+            let mut args_items = [cstr_as_obj(Some(c"rgb")), boolean_obj(tui.rgb)];
             let args = Array::from_slice(&mut args_items[..2]);
             rpc_send_event(
                 screen_state().ui_client_channel_id.get(),
@@ -2190,13 +2196,13 @@ pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
             );
         }
     } else if name.opt_bytes() == Some(b"ttimeout") {
-        tui.input.ttimeout = value.data.boolean();
+        tui.input.ttimeout = coerce_ui_boolean(&value);
     } else if name.opt_bytes() == Some(b"ttimeoutlen") {
-        tui.input.ttimeoutlen = value.data.integer() as OptInt;
+        tui.input.ttimeoutlen = coerce_ui_integer(&value) as OptInt;
     } else if name.opt_bytes() == Some(b"verbose") {
-        tui.verbose = value.data.integer();
+        tui.verbose = coerce_ui_integer(&value);
     } else if name.opt_bytes() == Some(b"termsync") {
-        tui.sync_output = value.data.boolean();
+        tui.sync_output = coerce_ui_boolean(&value);
     }
 }
 
@@ -2983,6 +2989,21 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ui_option_updates_preserve_scalar_coercions() {
+        let mut tui = TUIData::new();
+        let timeout = NvimString::from_static_cstr(c"ttimeout");
+        let timeoutlen = NvimString::from_static_cstr(c"ttimeoutlen");
+        tui_option_set(&mut tui, timeout.clone(), Object::Integer(1));
+        assert!(tui.input.ttimeout);
+        tui_option_set(&mut tui, timeoutlen.clone(), Object::Buffer(250));
+        assert_eq!(tui.input.ttimeoutlen, 250);
+        tui_option_set(&mut tui, timeoutlen, Object::Boolean(true));
+        assert_eq!(tui.input.ttimeoutlen, 1);
+        tui_option_set(&mut tui, timeout, Object::Nil);
+        assert!(!tui.input.ttimeout);
+    }
 
     #[test]
     fn termdef_lookup_and_sscanf_int_work() {

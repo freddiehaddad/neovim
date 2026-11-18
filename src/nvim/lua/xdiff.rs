@@ -2,7 +2,7 @@
 //! Lua `vim.diff` bindings (`src/nvim/lua/xdiff.c`).
 
 use crate::api::private::helpers::{api_error, api_free_string};
-use crate::api::private::validate::{Error, ErrorType, NvimString, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Error, ErrorType, NvimString, Object};
 use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers};
 use crate::lua::converter::{
     LUA_TFUNCTION, LUA_TTABLE, lua_State, lua_concat_safe, lua_createtable_safe, lua_error_safe,
@@ -61,10 +61,7 @@ impl KeyDictXdlDiff {
             algorithm: NvimString::new(),
             ctxlen: 0,
             interhunkctxlen: 0,
-            linematch: Object {
-                obj_type: ObjectType::ObjectTypeNil,
-                data: ObjectData::Integer(0),
-            },
+            linematch: Object::Nil,
             ignore_whitespace: false,
             ignore_whitespace_change: false,
             ignore_whitespace_change_at_eol: false,
@@ -329,20 +326,17 @@ fn process_xdl_diff_opts(
         }
 
         if opts.has_key(KEYSET_OPTIDX_LINEMATCH) {
-            if opts.linematch.obj_type == ObjectType::ObjectTypeBoolean {
-                *linematch = if opts.linematch.data.boolean() {
-                    i64::MAX
-                } else {
-                    0
-                };
-            } else if opts.linematch.obj_type == ObjectType::ObjectTypeInteger {
-                *linematch = opts.linematch.data.integer();
-            } else {
-                break 'validate Err(api_error!(
-                    ErrorType::ErrorTypeValidation,
-                    c"linematch must be a boolean or integer",
-                ));
-            }
+            *linematch = match &opts.linematch {
+                Object::Boolean(true) => i64::MAX,
+                Object::Boolean(false) => 0,
+                Object::Integer(value) => *value,
+                _ => {
+                    break 'validate Err(api_error!(
+                        ErrorType::ErrorTypeValidation,
+                        c"linematch must be a boolean or integer",
+                    ));
+                }
+            };
         }
 
         if opts.ignore_whitespace {

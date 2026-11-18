@@ -4,9 +4,7 @@
 use crate::api::private::helpers::{
     HLF_E, HlMessageChunk, api_free_array, copy_string, cstr_as_string, cstr_to_string,
 };
-use crate::api::private::validate::{
-    Array, Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, NvimString, Object};
 use crate::api::vim::{HLF_N, HlMessage, MessageData};
 use crate::autocmd::{AUGROUP_ALL, EVENT_PROGRESS, HLF_8, HLF_T, apply_autocmds_group, has_event};
 use crate::charset::{
@@ -307,10 +305,7 @@ const PROGRESS_TARGET_CMD: i32 = 0x01;
 
 const VERBOSE_KIND: &CStr = c"verbose";
 
-pub(crate) const NIL_OBJ: Object = Object {
-    obj_type: ObjectType::ObjectTypeNil,
-    data: ObjectData::Integer(0),
-};
+pub(crate) const NIL_OBJ: Object = Object::Nil;
 
 /// Message history for `:messages`
 pub struct MessageHistoryEntry {
@@ -379,10 +374,7 @@ impl MessageState {
             progress_msg_target: std::cell::Cell::new(PROGRESS_TARGET_CMD),
             verbose_did_open: std::cell::Cell::new(false),
             keep_msg_more: std::cell::Cell::new(false),
-            msg_ext_id: crate::api::private::validate::CloneCell::new(Object {
-                obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(1),
-            }),
+            msg_ext_id: crate::api::private::validate::CloneCell::new(Object::Integer(1)),
             msg_ext_chunks: crate::api::private::validate::CloneCell::new(Array::new()),
             msg_ext_last_attr: std::cell::Cell::new(-1),
             msg_ext_last_hl_id: std::cell::Cell::new(0),
@@ -861,14 +853,13 @@ pub fn msg_multihl(
     needs_msg_clear: &mut bool,
     raw_for_lua_print: bool,
 ) -> MsgID {
-    if id.obj_type == ObjectType::ObjectTypeNil {
+    if matches!(id, Object::Nil) {
         let next_id = MSG_STATE.with(|s| s.msg_id_next.get());
         MSG_STATE.with(|s| s.msg_id_next.set(s.msg_id_next.get() + (1)));
-        id = Object {
-            obj_type: ObjectType::ObjectTypeInteger,
-            data: ObjectData::Integer(next_id),
-        };
-    } else if id.obj_type == ObjectType::ObjectTypeInteger && !msg_id_exists(id.data.integer()) {
+        id = Object::Integer(next_id);
+    } else if let Object::Integer(number) = &id
+        && !msg_id_exists(*number)
+    {
         std::process::abort();
     }
 
@@ -948,12 +939,7 @@ pub fn msg_multihl(
     // Release the id: it belongs to this message, and a String id only borrows the caller's storage
     // (often a stack buffer). Redundant unless nothing was emitted (e.g. 'msg_silent').
     let next_id = MSG_STATE.with(|s| s.msg_id_next.get());
-    MSG_STATE.with(|s| {
-        s.msg_ext_id.set(Object {
-            obj_type: ObjectType::ObjectTypeInteger,
-            data: ObjectData::Integer(next_id),
-        })
-    });
+    MSG_STATE.with(|s| s.msg_ext_id.set(Object::Integer(next_id)));
     id
 }
 
@@ -1645,10 +1631,7 @@ pub fn msg_with_id<'a>(
         out_cstr = Some(s_cstr);
     }
     msg_ext_no_fast();
-    let id_obj = Object {
-        obj_type: ObjectType::ObjectTypeString,
-        data: ObjectData::String(cstr_as_string(Some(id))),
-    };
+    let id_obj = Object::String(cstr_as_string(Some(id)));
     msg_multihl(
         id_obj,
         &mut chunks,
@@ -1693,10 +1676,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
 
     let mut messages_vec: Vec<Object> = msg
         .iter()
-        .map(|chunk| Object {
-            obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(chunk.text.clone()),
-        })
+        .map(|chunk| Object::String(chunk.text.clone()))
         .collect();
     let messages = Array::from_slice(&mut messages_vec);
 
@@ -1716,57 +1696,33 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
     };
 
     put_c(c"id", msg_id);
-    put_c(
-        c"text",
-        Object {
-            obj_type: ObjectType::ObjectTypeArray,
-            data: ObjectData::Array(messages),
-        },
-    );
+    put_c(c"text", Object::Array(messages));
     if msg_data.is_some() {
         if msg_data.as_deref_mut().unwrap().percent >= 0 {
             put_c(
                 c"percent",
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(msg_data.as_deref_mut().unwrap().percent),
-                },
+                Object::Integer(msg_data.as_deref_mut().unwrap().percent),
             );
         }
         put_c(
             c"source",
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(msg_data.as_deref_mut().unwrap().source.clone()),
-            },
+            Object::String(msg_data.as_deref_mut().unwrap().source.clone()),
         );
         put_c(
             c"status",
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(msg_data.as_deref_mut().unwrap().status.clone()),
-            },
+            Object::String(msg_data.as_deref_mut().unwrap().status.clone()),
         );
         put_c(
             c"title",
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(msg_data.as_deref_mut().unwrap().title.clone()),
-            },
+            Object::String(msg_data.as_deref_mut().unwrap().title.clone()),
         );
         put_c(
             c"data",
-            Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(msg_data.as_deref_mut().unwrap().data.clone()),
-            },
+            Object::Dict(msg_data.as_deref_mut().unwrap().data.clone()),
         );
     }
 
-    let dict_obj = Object {
-        obj_type: ObjectType::ObjectTypeDict,
-        data: ObjectData::Dict(Dict::from_slice(&mut data_items[..data_size])),
-    };
+    let dict_obj = Object::Dict(Dict::from_slice(&mut data_items[..data_size]));
     let fname = if let Some(ref d) = msg_data
         && d.source.size > 0
     {
@@ -1863,8 +1819,14 @@ pub fn msg_hist_clear_temp() {
 
 /// Check the 'messagesopt' fields after schema validation.
 pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
-    let v: OptKeyDictMopt =
-        opt_keyset(args.os_newval.data.string().cstr_bytes(), K_OPT_MESSAGESOPT);
+    let v: OptKeyDictMopt = opt_keyset(
+        args.os_newval
+            .as_string()
+            .cloned()
+            .unwrap_or_default()
+            .cstr_bytes(),
+        K_OPT_MESSAGESOPT,
+    );
 
     let has_wait = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_WAIT)) != 0;
     let has_history = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_HISTORY)) != 0;
@@ -1939,49 +1901,25 @@ pub fn ex_messages(eap: &mut Exarg) {
         }
         if ui_has(K_UIMESSAGES) && msg_state().msg_silent.get() == 0 {
             let mut entry = Array::new();
-            entry.push(Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_to_string(kind.as_deref())),
-            });
+            entry.push(Object::String(cstr_to_string(kind.as_deref())));
             let mut content = Array::new();
             with_msg_ext(|ext| {
                 let p = &ext.msg_hist.borrow()[cur_idx];
                 for chunk in &p.msg {
                     let mut content_entry = Array::new();
-                    content_entry.push(Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(if chunk.hl_id != 0 {
-                            syn_id2attr(chunk.hl_id) as Integer
-                        } else {
-                            0
-                        }),
-                    });
-                    content_entry.push(Object {
-                        obj_type: ObjectType::ObjectTypeString,
-                        data: ObjectData::String(copy_string(chunk.text.clone())),
-                    });
-                    content_entry.push(Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(chunk.hl_id as Integer),
-                    });
-                    content.push(Object {
-                        obj_type: ObjectType::ObjectTypeArray,
-                        data: ObjectData::Array(content_entry),
-                    });
+                    content_entry.push(Object::Integer(if chunk.hl_id != 0 {
+                        syn_id2attr(chunk.hl_id) as Integer
+                    } else {
+                        0
+                    }));
+                    content_entry.push(Object::String(copy_string(chunk.text.clone())));
+                    content_entry.push(Object::Integer(chunk.hl_id as Integer));
+                    content.push(Object::Array(content_entry));
                 }
             });
-            entry.push(Object {
-                obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(content),
-            });
-            entry.push(Object {
-                obj_type: ObjectType::ObjectTypeBoolean,
-                data: ObjectData::Boolean(append),
-            });
-            entries.push(Object {
-                obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(entry),
-            });
+            entry.push(Object::Array(content));
+            entry.push(Object::Boolean(append));
+            entries.push(Object::Array(entry));
         }
         if redirecting() || !ui_has(K_UIMESSAGES) {
             msg_state()
@@ -3013,10 +2951,7 @@ pub fn msg_puts_len(str_: &[u8], len: isize, hl_id: i32, hist: bool) {
                 false,
                 false,
                 false,
-                Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(-1),
-                },
+                Object::Integer(-1),
                 NvimString::new(),
             );
             cmdline_state().cmdline_was_last_drawn.set(false);
@@ -3058,30 +2993,22 @@ fn msg_ext_emit_chunk() {
         return;
     }
     let mut chunk = Array::new();
-    chunk.push(Object {
-        obj_type: ObjectType::ObjectTypeInteger,
-        data: ObjectData::Integer(MSG_STATE.with(|s| s.msg_ext_last_attr.get()) as Integer),
-    });
+    chunk.push(Object::Integer(
+        MSG_STATE.with(|s| s.msg_ext_last_attr.get()) as Integer,
+    ));
     MSG_STATE.with(|s| s.msg_ext_last_attr.set(-1));
     let text = with_msg_ext(|ext| {
         let s = crate::api::private::helpers::cbuf_to_string(&ext.msg_ext_last_chunk.borrow());
         *ext.msg_ext_last_chunk.borrow_mut() = Vec::new();
         s
     });
-    chunk.push(Object {
-        obj_type: ObjectType::ObjectTypeString,
-        data: ObjectData::String(text),
-    });
-    chunk.push(Object {
-        obj_type: ObjectType::ObjectTypeInteger,
-        data: ObjectData::Integer(MSG_STATE.with(|s| s.msg_ext_last_hl_id.get()) as Integer),
-    });
+    chunk.push(Object::String(text));
+    chunk.push(Object::Integer(
+        MSG_STATE.with(|s| s.msg_ext_last_hl_id.get()) as Integer,
+    ));
     MSG_STATE.with(|s| {
         let mut chunks = s.msg_ext_chunks.get();
-        chunks.push(Object {
-            obj_type: ObjectType::ObjectTypeArray,
-            data: ObjectData::Array(chunk),
-        });
+        chunks.push(Object::Array(chunk));
         s.msg_ext_chunks.set(chunks);
     });
 }
@@ -4216,13 +4143,21 @@ pub fn msg_ext_ui_flush() {
             // Add to history as temporary message for "g<".
             let mut msg = HlMessage::new();
             for i in 0..tofree.size {
-                let mut chunk = tofree[i].data.array();
-                let text = chunk[1].data.string();
-                chunk[1].data = ObjectData::String(NvimString::new());
+                let Object::Array(array) = &tofree[i] else {
+                    unreachable!("message chunks are arrays");
+                };
+                let mut chunk = array.clone();
+                let Object::String(text) = &mut chunk[1] else {
+                    unreachable!("message chunks contain string text");
+                };
+                let text = std::mem::take(text);
+                let Object::Integer(hl_id) = &chunk[2] else {
+                    unreachable!("message chunks contain integer highlight IDs");
+                };
 
                 msg.push(HlMessageChunk {
                     text,
-                    hl_id: chunk[2].data.integer() as i32,
+                    hl_id: *hl_id as i32,
                 });
             }
             api_free_array(tofree);
@@ -4235,19 +4170,14 @@ pub fn msg_ext_ui_flush() {
         with_msg_ext(|ext| *ext.msg_ext_kind.borrow_mut() = None);
         let next_id = MSG_STATE.with(|st| {
             let ext_id = st.msg_ext_id.get();
-            if ext_id.obj_type == ObjectType::ObjectTypeInteger
-                && ext_id.data.integer() == st.msg_id_next.get()
+            if let Object::Integer(id) = ext_id
+                && id == st.msg_id_next.get()
             {
                 st.msg_id_next.set(st.msg_id_next.get() + 1);
             }
             st.msg_id_next.get()
         });
-        MSG_STATE.with(|s| {
-            s.msg_ext_id.set(Object {
-                obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(next_id),
-            })
-        });
+        MSG_STATE.with(|s| s.msg_ext_id.set(Object::Integer(next_id)));
     }
 }
 

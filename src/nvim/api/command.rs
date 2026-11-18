@@ -707,11 +707,10 @@ pub fn nvim_cmd(
             let mut is_numeric = false;
             let mut count_value: i64 = 0;
 
-            if first_arg.obj_type == ObjectType::ObjectTypeInteger {
+            if let Object::Integer(value) = first_arg {
                 is_numeric = true;
-                count_value = first_arg.data.integer();
-            } else if first_arg.obj_type == ObjectType::ObjectTypeString {
-                let s = first_arg.data.string();
+                count_value = *value;
+            } else if let Object::String(s) = first_arg {
                 let str_bytes = s.as_bytes();
                 let mut rem = str_bytes;
                 let val = getdigits_long(&mut rem, false, 0);
@@ -733,20 +732,20 @@ pub fn nvim_cmd(
         if !count_from_first_arg {
             args = Array::with_capacity(cmd.args.size);
             for elem in cmd.args.as_slice() {
-                match elem.obj_type {
-                    ObjectType::ObjectTypeBoolean => {
-                        let b = if elem.data.boolean() { b"1" } else { b"0" };
+                match elem {
+                    Object::Boolean(value) => {
+                        let b = if *value { b"1" } else { b"0" };
                         add_c(&mut args, string_obj(NvimString::from_bytes(b)));
                     }
-                    ObjectType::ObjectTypeBuffer
-                    | ObjectType::ObjectTypeWindow
-                    | ObjectType::ObjectTypeTabpage
-                    | ObjectType::ObjectTypeInteger => {
-                        let s = elem.data.integer().to_string();
+                    Object::Buffer(value)
+                    | Object::Window(value)
+                    | Object::Tabpage(value)
+                    | Object::Integer(value) => {
+                        let s = value.to_string();
                         add_c(&mut args, string_obj(NvimString::from_bytes(s.as_bytes())));
                     }
-                    ObjectType::ObjectTypeString => {
-                        if string_iswhite(elem.data.string()) {
+                    Object::String(value) => {
+                        if string_iswhite(value.clone()) {
                             return Err(api_err_exp(c"command arg", c"non-whitespace", None));
                         }
                         add_c(&mut args, elem.clone());
@@ -755,7 +754,7 @@ pub fn nvim_cmd(
                         return Err(api_err_exp(
                             c"command arg",
                             c"valid type",
-                            Some(api_typename(elem.obj_type)),
+                            Some(api_typename(elem.obj_type())),
                         ));
                     }
                 }
@@ -796,14 +795,14 @@ pub fn nvim_cmd(
         ea.addr_count = range.size as i32;
 
         for elem in range.as_slice() {
-            if elem.obj_type != ObjectType::ObjectTypeInteger || elem.data.integer() < 0 {
+            if !matches!(elem, Object::Integer(value) if *value >= 0) {
                 return Err(api_err_exp(c"range element", c"non-negative Integer", None));
             }
         }
 
         if range.size > 0 {
-            ea.line1 = range[0].data.integer() as Linenr;
-            ea.line2 = range[range.size - 1].data.integer() as Linenr;
+            ea.line1 = range[0].as_integer().expect("integer Object") as Linenr;
+            ea.line2 = range[range.size - 1].as_integer().expect("integer Object") as Linenr;
         }
     }
 
@@ -835,7 +834,7 @@ pub fn nvim_cmd(
         let mut arg_cur = ea.arg.clone();
         for i in 0..args.size {
             ea.args.push(arg_cur.clone());
-            let arglen = args[i].data.string().size;
+            let arglen = args[i].as_string().expect("string Object").clone().size;
             ea.arglens.push(arglen);
             arg_cur = arg_cur.wrapping_add(arglen + 1);
         }
@@ -1143,7 +1142,7 @@ fn build_cmdline_str(cmdline_buf: &mut Vec<u8>, eap: &mut Exarg, args: Array) {
     cmdline_buf.extend_from_slice(eap.cmd.as_bytes());
 
     for i in 0..args.size {
-        let s = args[i].data.string();
+        let s = args[i].as_string().expect("string Object").clone();
         cmdline_buf.push(b' ');
         cmdline_buf.extend_from_slice(s.as_bytes());
     }
@@ -1337,8 +1336,8 @@ pub fn create_user_command(
             ));
         }
 
-        if opts.nargs.obj_type == ObjectType::ObjectTypeInteger {
-            match opts.nargs.data.integer() {
+        if let Object::Integer(value) = &opts.nargs {
+            match *value {
                 0 => {}
                 1 => {
                     argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG;
@@ -1347,27 +1346,17 @@ pub fn create_user_command(
                     return Err(api_err_invalid(c"nargs", None, n, false));
                 }
             }
-        } else if opts.nargs.obj_type == ObjectType::ObjectTypeString {
-            if opts.nargs.data.string().size > 1 {
-                return Err(api_err_invalid(
-                    c"nargs",
-                    opts.nargs.data.string().as_opt_cstr(),
-                    0,
-                    true,
-                ));
+        } else if let Object::String(value) = &opts.nargs {
+            if value.size > 1 {
+                return Err(api_err_invalid(c"nargs", value.as_opt_cstr(), 0, true));
             }
-            match opts.nargs.data.string().first_byte() {
+            match value.first_byte() {
                 b'*' => argt |= EX_EXTRA,
                 b'?' => argt |= EX_EXTRA | EX_NOSPC,
                 b'+' => argt |= EX_EXTRA | EX_NEEDARG,
                 b'_' => argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE,
                 _ => {
-                    return Err(api_err_invalid(
-                        c"nargs",
-                        opts.nargs.data.string().as_opt_cstr(),
-                        0,
-                        true,
-                    ));
+                    return Err(api_err_invalid(c"nargs", value.as_opt_cstr(), 0, true));
                 }
             }
         } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_NARGS) {
@@ -1382,56 +1371,49 @@ pub fn create_user_command(
             ));
         }
 
-        if opts.range.obj_type == ObjectType::ObjectTypeBoolean {
-            if opts.range.data.boolean() {
+        if let Object::Boolean(value) = &opts.range {
+            if *value {
                 argt |= EX_RANGE;
                 addr_type_arg = ADDR_LINES;
             }
-        } else if opts.range.obj_type == ObjectType::ObjectTypeString {
-            if !(opts.range.data.string().first_byte() == b'%'
-                && opts.range.data.string().size == 1)
-            {
+        } else if let Object::String(value) = &opts.range {
+            if !(value.first_byte() == b'%' && value.size == 1) {
                 return Err(api_err_invalid(c"range", Some(c""), 0, true));
             }
             argt |= EX_RANGE | EX_DFLALL;
             addr_type_arg = ADDR_LINES;
-        } else if opts.range.obj_type == ObjectType::ObjectTypeInteger {
+        } else if let Object::Integer(value) = &opts.range {
             argt |= EX_RANGE | EX_ZEROR;
-            def = opts.range.data.integer();
+            def = *value;
             addr_type_arg = ADDR_LINES;
         } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_RANGE) {
             return Err(api_err_invalid(c"range", Some(c""), 0, true));
         }
 
-        if opts.count.obj_type == ObjectType::ObjectTypeBoolean {
-            if opts.count.data.boolean() {
+        if let Object::Boolean(value) = &opts.count {
+            if *value {
                 argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
                 addr_type_arg = ADDR_OTHER;
                 def = 0;
             }
-        } else if opts.count.obj_type == ObjectType::ObjectTypeInteger {
+        } else if let Object::Integer(value) = &opts.count {
             argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
             addr_type_arg = ADDR_OTHER;
-            def = opts.count.data.integer();
+            def = *value;
         } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COUNT) {
             return Err(api_err_invalid(c"count", Some(c""), 0, true));
         }
 
         if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_ADDR) {
-            if opts.addr.obj_type != ObjectType::ObjectTypeString {
+            let Object::String(value) = &opts.addr else {
                 return Err(api_err_exp(
                     c"addr",
                     api_typename(ObjectType::ObjectTypeString),
-                    Some(api_typename(opts.addr.obj_type)),
+                    Some(api_typename(opts.addr.obj_type())),
                 ));
-            }
-            let Some(addr) = parse_addr_type_arg(opts.addr.data.string().as_bytes()) else {
-                return Err(api_err_invalid(
-                    c"addr",
-                    opts.addr.data.string().as_opt_cstr(),
-                    0,
-                    true,
-                ));
+            };
+            let Some(addr) = parse_addr_type_arg(value.as_bytes()) else {
+                return Err(api_err_invalid(c"addr", value.as_opt_cstr(), 0, true));
             };
             addr_type_arg = addr;
             argt |= EX_RANGE;
@@ -1459,59 +1441,47 @@ pub fn create_user_command(
             true
         };
 
-        if opts.complete.obj_type == ObjectType::ObjectTypeLuaRef {
+        if let Object::LuaRef(reference) = &mut opts.complete {
             context = EXPAND_USER_LUA;
-            compl_luaref = opts.complete.data.luaref();
-            opts.complete.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
-        } else if opts.complete.obj_type == ObjectType::ObjectTypeString {
-            if !parse_compl_arg(
-                opts.complete.data.string().as_bytes(),
-                &mut context,
-                &mut argt,
-                &mut compl_arg,
-            ) {
-                return Err(api_err_invalid(
-                    c"complete",
-                    opts.complete.data.string().as_opt_cstr(),
-                    0,
-                    true,
-                ));
+            compl_luaref = std::mem::replace(reference, LUA_NOREF);
+        } else if let Object::String(value) = &opts.complete {
+            if !parse_compl_arg(value.as_bytes(), &mut context, &mut argt, &mut compl_arg) {
+                return Err(api_err_invalid(c"complete", value.as_opt_cstr(), 0, true));
             }
         } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COMPLETE) {
             return Err(api_err_exp(c"complete", c"Function or String", None));
         }
 
         if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_PREVIEW) {
-            if opts.preview.obj_type != ObjectType::ObjectTypeLuaRef {
+            let Object::LuaRef(reference) = &mut opts.preview else {
                 return Err(api_err_exp(
                     c"preview",
                     api_typename(ObjectType::ObjectTypeLuaRef),
-                    Some(api_typename(opts.preview.obj_type)),
+                    Some(api_typename(opts.preview.obj_type())),
                 ));
-            }
+            };
             argt |= EX_PREVIEW;
-            preview_luaref = opts.preview.data.luaref();
-            opts.preview.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
+            preview_luaref = std::mem::replace(reference, LUA_NOREF);
         }
 
         if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_DESC) {
-            if opts.desc.obj_type != ObjectType::ObjectTypeString {
+            let Object::String(value) = &opts.desc else {
                 return Err(api_err_exp(
                     c"desc",
                     api_typename(ObjectType::ObjectTypeString),
-                    Some(api_typename(opts.desc.obj_type)),
+                    Some(api_typename(opts.desc.obj_type())),
                 ));
-            }
-            desc = opts.desc.data.as_opt_cstr();
+            };
+            desc = value.as_opt_cstr();
         }
 
-        match cmd.obj_type {
-            ObjectType::ObjectTypeLuaRef => {
-                luaref = api_new_luaref(cmd.data.luaref());
+        match &cmd {
+            Object::LuaRef(reference) => {
+                luaref = api_new_luaref(*reference);
                 rep = c"";
             }
-            ObjectType::ObjectTypeString => {
-                rep = cmd.data.as_cstr();
+            Object::String(value) => {
+                rep = value.as_cstr();
             }
             _ => {
                 return Err(api_err_exp(c"command", c"Function or String", None));

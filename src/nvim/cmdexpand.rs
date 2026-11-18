@@ -3,7 +3,7 @@
 
 use crate::api::command::is_user_cmdidx;
 use crate::api::private::helpers::{api_free_object, cstr_as_string};
-use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, NvimString, Object};
 use crate::arglist::get_arglist_name;
 use crate::autocmd::{
     HLF_T, aucmd_set_expand_context, expand_get_augroup_name, expand_get_event_name,
@@ -1844,15 +1844,9 @@ impl CmdexpandState {
             compl_selected: std::cell::Cell::new(0),
             filetype_expand_what: std::cell::Cell::new(FiletypeExpandWhat::All),
             breakpt_expand_what: std::cell::Cell::new(BreakptExpandWhat::Add),
-            healthcheck_names: crate::api::private::validate::CloneCell::new(Object {
-                obj_type: ObjectType::ObjectTypeNil,
-                data: ObjectData::Integer(0),
-            }),
+            healthcheck_names: crate::api::private::validate::CloneCell::new(Object::Nil),
             healthcheck_last_gen: std::cell::Cell::new(0),
-            arg1_lua_names: crate::api::private::validate::CloneCell::new(Object {
-                obj_type: ObjectType::ObjectTypeNil,
-                data: ObjectData::Integer(0),
-            }),
+            arg1_lua_names: crate::api::private::validate::CloneCell::new(Object::Nil),
             arg1_lua_last_gen: std::cell::Cell::new(0),
             first_match: std::cell::Cell::new(0),
             save_p_ls: std::cell::Cell::new(-1),
@@ -4577,23 +4571,12 @@ fn get_healthcheck_names(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
         CMDEXP_STATE.with(|s| s.healthcheck_last_gen.set(prompt_id));
     }
 
-    if CMDEXP_STATE.with(|s| s.healthcheck_names.get()).obj_type == ObjectType::ObjectTypeArray
+    if let Object::Array(names) = CMDEXP_STATE.with(|s| s.healthcheck_names.get())
         && idx >= 0
-        && (idx as usize)
-            < CMDEXP_STATE
-                .with(|s| s.healthcheck_names.get())
-                .data
-                .array()
-                .size
+        && let Some(Object::String(item)) = names.as_slice().get(idx as usize)
+        && !item.data.is_null()
     {
-        let names = CMDEXP_STATE
-            .with(|s| s.healthcheck_names.get())
-            .data
-            .array();
-        let item = &names[idx as usize];
-        if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-            return Some(xp.set_item(crate::memory::bytes_to_cstring(item.data.as_bytes())));
-        }
+        return Some(xp.set_item(crate::memory::bytes_to_cstring(item.as_bytes())));
     }
     None
 }
@@ -4617,14 +4600,8 @@ fn get_arg1_from_lua<'a>(
             *cell.borrow_mut() = Some(xp.xp_line.to_cstring());
         });
         let mut args_items = [
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(xp.xp_pattern.as_opt_cstr())),
-            },
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(xp.xp_line.as_opt_cstr())),
-            },
+            Object::String(cstr_as_string(xp.xp_pattern.as_opt_cstr())),
+            Object::String(cstr_as_string(xp.xp_line.as_opt_cstr())),
         ];
         let args = Array::from_slice(&mut args_items[..2]);
         let res = nlua_exec(cstr_as_string(Some(lua)), None, args, K_RET_OBJECT)
@@ -4634,20 +4611,12 @@ fn get_arg1_from_lua<'a>(
         CMDEXP_STATE.with(|s| s.arg1_lua_last_gen.set(prompt_id));
     }
 
-    if CMDEXP_STATE.with(|s| s.arg1_lua_names.get()).obj_type == ObjectType::ObjectTypeArray
+    if let Object::Array(names) = CMDEXP_STATE.with(|s| s.arg1_lua_names.get())
         && idx >= 0
-        && (idx as usize)
-            < CMDEXP_STATE
-                .with(|s| s.arg1_lua_names.get())
-                .data
-                .array()
-                .size
+        && let Some(Object::String(item)) = names.as_slice().get(idx as usize)
+        && !item.data.is_null()
     {
-        let names = CMDEXP_STATE.with(|s| s.arg1_lua_names.get()).data.array();
-        let item = &names[idx as usize];
-        if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-            return Some(xp.set_item(crate::memory::bytes_to_cstring(item.data.as_bytes())));
-        }
+        return Some(xp.set_item(crate::memory::bytes_to_cstring(item.as_bytes())));
     }
     None
 }

@@ -101,6 +101,28 @@ describe('API Object conversion', function()
     )
   end)
 
+  it('keeps callback-option ownership without broadening supported types', function()
+    eq(
+      { 'function', 7, 7, true },
+      n.exec_lua(function()
+        vim.api.nvim_set_option_value('foldexpr', function()
+          return 7
+        end, {})
+        local callback = vim.api.nvim_get_option_value('foldexpr', {})
+        local result = callback()
+        vim.api.nvim_set_option_value('foldexpr', '0', {})
+        collectgarbage('collect')
+        local ok, err = pcall(vim.api.nvim_set_option_value, 'statusline', callback, {})
+        return {
+          type(callback),
+          result,
+          callback(),
+          not ok and err:find('expected a valid type, got Function', 1, true) ~= nil,
+        }
+      end)
+    )
+  end)
+
   it('keeps accepted integer and empty-array argument coercions', function()
     eq(3, api.nvim__id_float(3))
     eq(false, vim.islist(api.nvim__id_dict({})))
@@ -115,5 +137,21 @@ describe('API Object conversion', function()
         }
       end)
     )
+  end)
+
+  it('keeps non-string context function entries as empty commands', function()
+    api.nvim_load_context({
+      funcs = { false, 42, 'function! ObjectContextValue()\nreturn 7\nendfunction' },
+    })
+    eq(7, api.nvim_call_function('ObjectContextValue', {}))
+  end)
+
+  it('keeps namespace window-list coercions at the API boundary', function()
+    local ns = api.nvim_create_namespace('object-window-list')
+    local win = api.nvim_get_current_win()
+    for _, value in ipairs({ 0, false, 'current' }) do
+      api.nvim__ns_set(ns, { wins = { value } })
+      eq({ win }, api.nvim__ns_get(ns).wins)
+    end
   end)
 end)

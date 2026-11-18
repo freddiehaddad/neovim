@@ -441,14 +441,14 @@ fn ui_set_option_rc(
         let mut ui = ui_rc.borrow_mut();
         let name_bytes = name.cstr_bytes();
         if name_bytes == b"rgb" {
-            if value.obj_type != ObjectType::ObjectTypeBoolean {
+            let Object::Boolean(enabled) = &value else {
                 return Err(api_err_exp(
                     c"rgb",
                     api_typename(ObjectType::ObjectTypeBoolean),
-                    Some(api_typename(value.obj_type)),
+                    Some(api_typename(value.obj_type())),
                 ));
-            }
-            ui.rgb = value.data.boolean();
+            };
+            ui.rgb = *enabled;
             if !ui.ui_ext[K_UILINEGRID] {
                 need_refresh = true;
             }
@@ -464,14 +464,14 @@ fn ui_set_option_rc(
                 }
             }
             if let Some(i) = matched_ext {
-                if value.obj_type != ObjectType::ObjectTypeBoolean {
+                let Object::Boolean(boolval) = &value else {
                     return Err(api_err_exp(
                         name.as_cstr(),
                         c"Boolean",
-                        Some(api_typename(value.obj_type)),
+                        Some(api_typename(value.obj_type())),
                     ));
-                }
-                let boolval = value.data.boolean();
+                };
+                let boolval = *boolval;
                 if i == K_UILINEGRID && boolval != ui.ui_ext[i] {
                     res = Err(api_error!(
                         ErrorType::ErrorTypeValidation,
@@ -501,26 +501,26 @@ fn ui_set_option(
 ) -> Result<(), Error> {
     let name_bytes = name.cstr_bytes();
     if name_bytes == b"override" {
-        if value.obj_type != ObjectType::ObjectTypeBoolean {
+        let Object::Boolean(enabled) = &value else {
             return Err(api_err_exp(
                 c"override",
                 api_typename(ObjectType::ObjectTypeBoolean),
-                Some(api_typename(value.obj_type)),
+                Some(api_typename(value.obj_type())),
             ));
-        }
-        ui.r#override = value.data.boolean();
+        };
+        ui.r#override = *enabled;
         return Ok(());
     }
 
     if name_bytes == b"rgb" {
-        if value.obj_type != ObjectType::ObjectTypeBoolean {
+        let Object::Boolean(enabled) = &value else {
             return Err(api_err_exp(
                 c"rgb",
                 api_typename(ObjectType::ObjectTypeBoolean),
-                Some(api_typename(value.obj_type)),
+                Some(api_typename(value.obj_type())),
             ));
-        }
-        ui.rgb = value.data.boolean();
+        };
+        ui.rgb = *enabled;
         if !init && !ui.ui_ext[K_UILINEGRID] {
             ui_refresh();
         }
@@ -528,14 +528,13 @@ fn ui_set_option(
     }
 
     if name_bytes == b"term_name" {
-        if value.obj_type != ObjectType::ObjectTypeString {
+        let Object::String(s) = &value else {
             return Err(api_err_exp(
                 c"term_name",
                 api_typename(ObjectType::ObjectTypeString),
-                Some(api_typename(value.obj_type)),
+                Some(api_typename(value.obj_type())),
             ));
-        }
-        let s = value.data.string();
+        };
         let term_cstr = std::ffi::CString::new(s.as_bytes()).unwrap();
         set_tty_option(c"term", Some(term_cstr.clone()));
         ui.term_name = Some(term_cstr);
@@ -543,31 +542,31 @@ fn ui_set_option(
     }
 
     if name_bytes == b"term_colors" {
-        if value.obj_type != ObjectType::ObjectTypeInteger {
+        let Object::Integer(colors) = &value else {
             return Err(api_err_exp(
                 c"term_colors",
                 api_typename(ObjectType::ObjectTypeInteger),
-                Some(api_typename(value.obj_type)),
+                Some(api_typename(value.obj_type())),
             ));
-        }
-        screen_state().t_colors.set(value.data.integer() as i32);
-        ui.term_colors = value.data.integer() as i32;
+        };
+        screen_state().t_colors.set(*colors as i32);
+        ui.term_colors = *colors as i32;
         return Ok(());
     }
 
     if name_bytes == b"stdin_fd" {
-        if value.obj_type != ObjectType::ObjectTypeInteger {
+        let Object::Integer(fd) = &value else {
             return Err(api_err_exp(
                 c"stdin_fd",
                 api_typename(ObjectType::ObjectTypeInteger),
-                Some(api_typename(value.obj_type)),
+                Some(api_typename(value.obj_type())),
             ));
-        }
-        if value.data.integer() < 0 {
+        };
+        if *fd < 0 {
             return Err(api_error!(
                 ErrorType::ErrorTypeValidation,
                 c"Invalid stdin_fd: %lld",
-                value.data.integer(),
+                *fd,
             ));
         }
         if starting_val() != NO_SCREEN {
@@ -577,37 +576,37 @@ fn ui_set_option(
                 c"stdin_fd can only be used with first attached UI",
             ));
         }
-        exc_state().stdin_fd.set(value.data.integer() as i32);
+        exc_state().stdin_fd.set(*fd as i32);
         return Ok(());
     }
 
     if name_bytes == b"stdin_tty" {
-        if value.obj_type != ObjectType::ObjectTypeBoolean {
+        let Object::Boolean(is_tty) = &value else {
             return Err(api_err_exp(
                 c"stdin_tty",
                 api_typename(ObjectType::ObjectTypeBoolean),
-                Some(api_typename(value.obj_type)),
+                Some(api_typename(value.obj_type())),
             ));
-        }
+        };
         if ui.channel_id == CHAN_STDIO {
-            exc_state().stdin_isatty.set(value.data.boolean());
+            exc_state().stdin_isatty.set(*is_tty);
         }
-        ui.stdin_tty = value.data.boolean();
+        ui.stdin_tty = *is_tty;
         return Ok(());
     }
 
     if name_bytes == b"stdout_tty" {
-        if value.obj_type != ObjectType::ObjectTypeBoolean {
+        let Object::Boolean(is_tty) = &value else {
             return Err(api_err_exp(
                 c"stdout_tty",
                 api_typename(ObjectType::ObjectTypeBoolean),
-                Some(api_typename(value.obj_type)),
+                Some(api_typename(value.obj_type())),
             ));
-        }
+        };
         if ui.channel_id == CHAN_STDIO {
-            exc_state().stdout_isatty.set(value.data.boolean());
+            exc_state().stdout_isatty.set(*is_tty);
         }
-        ui.stdout_tty = value.data.boolean();
+        ui.stdout_tty = *is_tty;
         return Ok(());
     }
 
@@ -616,14 +615,14 @@ fn ui_set_option(
         if (!name.data.is_null() && name_bytes == ext_name.to_bytes())
             || (i == K_UIPOPUPMENU && is_popupmenu)
         {
-            if value.obj_type != ObjectType::ObjectTypeBoolean {
+            let Object::Boolean(boolval) = &value else {
                 return Err(api_err_exp(
                     name.as_cstr(),
                     c"Boolean",
-                    Some(api_typename(value.obj_type)),
+                    Some(api_typename(value.obj_type())),
                 ));
-            }
-            let boolval = value.data.boolean();
+            };
+            let boolval = *boolval;
             let mut res = Ok(());
             if !init && i == K_UILINEGRID && boolval != ui.ui_ext[i] {
                 res = Err(api_error!(
@@ -1266,9 +1265,9 @@ pub fn remote_ui_flush_pending_data(ui: &mut RemoteUI) {
 fn translate_contents(ui: &mut RemoteUI, contents: Array) -> Array {
     let mut new_contents = Array::with_capacity(contents.size);
     for i in 0..contents.size {
-        let item = contents[i].data.array();
+        let item = contents[i].as_array().expect("array Object").clone();
         let mut new_item = Array::with_capacity(2);
-        let attr = item[0].data.integer() as i32;
+        let attr = item[0].as_integer().expect("integer Object") as i32;
         if attr != 0 {
             let mut rgb_attrs = Dict::with_capacity(HLATTRS_DICT_SIZE);
             hlattrs2dict(&mut rgb_attrs, None, syn_attr2entry(attr), ui.rgb, false);
@@ -1286,7 +1285,7 @@ fn translate_contents(ui: &mut RemoteUI, contents: Array) -> Array {
 
 fn translate_firstarg(ui: &mut RemoteUI, args: Array) -> Array {
     let mut new_args = Array::with_capacity(args.size);
-    let contents = args[0].data.array();
+    let contents = args[0].as_array().expect("array Object").clone();
     new_args[0] = array_obj(translate_contents(ui, contents));
     for i in 1..args.size {
         new_args[i] = args[i].clone();
@@ -1303,10 +1302,13 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
             push_call(ui, name, new_args);
             return;
         } else if name == c"cmdline_block_show" {
-            let block = args[0].data.array();
+            let block = args[0].as_array().expect("array Object").clone();
             let mut new_block = Array::with_capacity(block.size);
             for i in 0..block.size {
-                new_block[i] = array_obj(translate_contents(ui, block[i].data.array()));
+                new_block[i] = array_obj(translate_contents(
+                    ui,
+                    block[i].as_array().expect("array Object").clone(),
+                ));
             }
             new_block.size = block.size;
             let mut new_args_items: [Object; 1] = [array_obj(new_block)];
@@ -1322,12 +1324,13 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
 
     if ui.ui_ext[K_UIWILDMENU] {
         if name == c"popupmenu_show" {
-            ui.wildmenu_active = args[4].data.integer() == -1 || !ui.ui_ext[K_UIPOPUPMENU];
+            ui.wildmenu_active =
+                args[4].as_integer().expect("integer Object") == -1 || !ui.ui_ext[K_UIPOPUPMENU];
             if ui.wildmenu_active {
-                let items = args[0].data.array();
+                let items = args[0].as_array().expect("array Object").clone();
                 let mut new_items = Array::with_capacity(items.size);
                 for i in 0..items.size {
-                    new_items[i] = items[i].data.array()[0].clone();
+                    new_items[i] = items[i].as_array().expect("array Object").clone()[0].clone();
                 }
                 new_items.size = items.size;
                 let mut new_args_items: [Object; 1] = [array_obj(new_items)];
@@ -1336,7 +1339,7 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
                     c"wildmenu_show",
                     Array::from_slice(&mut new_args_items[..1]),
                 );
-                if args[1].data.integer() != -1 {
+                if args[1].as_integer().expect("integer Object") != -1 {
                     new_args_items[0] = args[1].clone();
                     push_call(
                         ui,
