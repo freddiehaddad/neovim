@@ -1301,10 +1301,7 @@ fn expand_set_opt_string(
             matches.push(val.to_owned());
         }
     }
-    if matches.is_empty() {
-        return false;
-    }
-    true
+    !matches.is_empty()
 }
 
 /// Callback used by expand_set_opt_generic to also include the original value.

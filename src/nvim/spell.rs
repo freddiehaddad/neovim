@@ -2038,9 +2038,7 @@ pub fn clear_spell_chartab(sp: &mut Spelltab) {
         sp.st_fold[i] = i as u8;
         sp.st_upper[i] = i as u8;
     }
-    for i in (b'0' as usize)..=(b'9' as usize) {
-        sp.st_isw[i] = true;
-    }
+    sp.st_isw[(b'0' as usize)..=(b'9' as usize)].fill(true);
     for i in (b'A' as usize)..=(b'Z' as usize) {
         sp.st_isw[i] = true;
         sp.st_isu[i] = true;

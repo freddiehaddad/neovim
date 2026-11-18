@@ -2104,10 +2104,7 @@ fn check_writable(fname: &CStr) -> bool {
 }
 
 fn handle_mkdir_p_arg(eap: &mut Exarg, fname: Option<&CStr>) -> bool {
-    if eap.mkdir_p && os_file_mkdir(fname.unwrap_or(c""), 0o755) < 0 {
-        return false;
-    }
-    true
+    !eap.mkdir_p || os_file_mkdir(fname.unwrap_or(c""), 0o755) >= 0
 }
 
 /// Write current buffer to file `eap->arg`.

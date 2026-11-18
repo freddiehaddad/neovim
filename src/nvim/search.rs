@@ -533,10 +533,7 @@ pub fn search_regcomp(
         regmatch.rmm_ic = ignorecase(pat_ref);
         regmatch.rmm_maxcol = 0;
         regmatch.set_prog(vim_regcomp(pat_ref, if magic { RE_MAGIC } else { 0 }));
-        if regmatch.regprog.is_null() {
-            return false;
-        }
-        true
+        !regmatch.regprog.is_null()
     }
 }
 
@@ -1306,8 +1303,8 @@ fn set_vv_searchforward() {
 }
 
 fn first_submatch(rp: &Regmmatch) -> i32 {
-    for submatch in 1..=9 {
-        if rp.startpos[submatch].lnum >= 0 {
+    for (submatch, pos) in rp.startpos.iter().enumerate().skip(1) {
+        if pos.lnum >= 0 {
             return submatch as i32;
         }
     }
@@ -4270,8 +4267,8 @@ mod tests {
     #[test]
     fn first_submatch_and_pos_helpers() {
         let mut rm: Regmmatch = Regmmatch::new();
-        for i in 0..10 {
-            rm.startpos[i].lnum = -1;
+        for pos in &mut rm.startpos {
+            pos.lnum = -1;
         }
         assert_eq!(first_submatch(&rm), 0);
         rm.startpos[3].lnum = 0;

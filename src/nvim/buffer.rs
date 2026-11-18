@@ -3013,11 +3013,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         reset_binding(&curwin());
     }
 
-    if aborting() {
-        return false;
-    }
-
-    true
+    !aborting()
 }
 
 pub fn do_buffer(action: i32, start: i32, dir: i32, count: i32, forceit: i32) -> bool {

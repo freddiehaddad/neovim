@@ -289,9 +289,9 @@ fn ctx_positions(ctx: &mut Context, flags: CtxStateFlags) -> [Option<&mut Cursor
 
 pub fn ctx_free(ctx: &mut Context) {
     if let Some(buf) = handle_get_buffer_opt(ctx.buf) {
-        for i in 0..ctx.pos_marks.len() {
-            if ctx.pos_marks[i] != 0 {
-                extmark_del_id(&buf, ctx_marks_ns(), ctx.pos_marks[i]);
+        for &mark in &ctx.pos_marks {
+            if mark != 0 {
+                extmark_del_id(&buf, ctx_marks_ns(), mark);
             }
         }
     }

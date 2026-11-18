@@ -511,8 +511,8 @@ pub fn vterm_state_newpen(state: &mut VTermStateFull) {
     let dbg = state.default_bg;
     vterm_state_set_default_colors(state, Some(&dfg), Some(&dbg));
 
-    for col in 0..16 {
-        lookup_default_colour_ansi(col as isize, &mut state.colors[col]);
+    for (col, color) in state.colors.iter_mut().enumerate() {
+        lookup_default_colour_ansi(col as isize, color);
     }
 }
 

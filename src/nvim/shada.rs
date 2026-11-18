@@ -2417,9 +2417,13 @@ fn shada_initialize_registers(wms: &mut WriteMergerState, max_reg_lines: i32, sc
 #[inline]
 fn replace_numbered_mark(wms: &mut WriteMergerState, idx: usize, entry: ShadaEntry) {
     shada_free_shada_entry(&mut wms.numbered_marks[EXTRA_MARKS - 1]);
-    for i in idx..(EXTRA_MARKS - 1) {
-        if wms.numbered_marks[i].entry_type == ShadaEntryType::SDItemGlobalMark {
-            wms.numbered_marks[i].data.filemark_mut().name = b'0' + (i as u8) + 1;
+    for (i, mark) in wms.numbered_marks[..(EXTRA_MARKS - 1)]
+        .iter_mut()
+        .enumerate()
+        .skip(idx)
+    {
+        if mark.entry_type == ShadaEntryType::SDItemGlobalMark {
+            mark.data.filemark_mut().name = b'0' + (i as u8) + 1;
         }
     }
     wms.numbered_marks[idx..].rotate_right(1);

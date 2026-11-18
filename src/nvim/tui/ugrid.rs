@@ -25,8 +25,8 @@ fn clear_region(grid: &mut UGrid, top: i32, bot: i32, left: i32, right: i32, att
     }
     let start_col = left as usize;
     let end_col = (right + 1) as usize;
-    for row in (top as usize)..=(bot as usize) {
-        grid.cells[row][start_col..end_col].fill(UCell { data: space, attr });
+    for row in &mut grid.cells[(top as usize)..=(bot as usize)] {
+        row[start_col..end_col].fill(UCell { data: space, attr });
     }
 }
 
@@ -100,10 +100,10 @@ mod tests {
 
         ugrid_clear(&mut grid);
         let space = schar_from_ascii(b' ');
-        for r in 0..3 {
-            for c in 0..4 {
+        for row in &grid.cells[..3] {
+            for &cell in &row[..4] {
                 assert_eq!(
-                    grid.cells[r][c],
+                    cell,
                     UCell {
                         data: space,
                         attr: 0

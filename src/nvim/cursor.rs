@@ -383,10 +383,7 @@ fn coladvance2(
 
     wp.with_buf(|buf| mark_mb_adjustpos(buf, pos));
 
-    if wcol < 0 || col < wcol {
-        return false;
-    }
-    true
+    wcol >= 0 && col >= wcol
 }
 
 /// Return in `pos` the position of the cursor advanced to screen column `wcol` (`getvpos`).

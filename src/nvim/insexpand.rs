@@ -4911,8 +4911,7 @@ fn get_register_completion() {
             continue;
         }
 
-        for j in 0..reg.y_array.len() {
-            let str_val = &reg.y_array[j];
+        for str_val in &reg.y_array {
             if str_val.data.is_null() {
                 continue;
             }

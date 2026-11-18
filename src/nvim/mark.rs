@@ -989,12 +989,8 @@ pub fn mark_check(
         }
         return false;
     }
-    if fm.fnum == curbuf().b_fnum.get()
-        && !mark_check_line_bounds(Some(&crate::globals::curbuf()), fm, errormsg)
-    {
-        return false;
-    }
-    true
+    fm.fnum != curbuf().b_fnum.get()
+        || mark_check_line_bounds(Some(&crate::globals::curbuf()), fm, errormsg)
 }
 
 /// Check if a mark line number is greater than the buffer line count (`mark_check_line_bounds`).
@@ -2110,14 +2106,9 @@ fn add_mark(l: &TvList, mname: &CStr, pos: &CursorPos, bufnr: i32, fname: Option
     );
     tv_list_append_number(&lpos, i64::from(pos.coladd));
 
-    if !tv_dict_add_str_len(&d, c"mark", Some(mname.to_bytes()))
-        || !tv_dict_add_list(&d, c"pos", Some(&lpos))
-        || fname.is_some_and(|f| !tv_dict_add_str(&d, c"file", Some(f)))
-    {
-        return false;
-    }
-
-    true
+    tv_dict_add_str_len(&d, c"mark", Some(mname.to_bytes()))
+        && tv_dict_add_list(&d, c"pos", Some(&lpos))
+        && fname.is_none_or(|f| tv_dict_add_str(&d, c"file", Some(f)))
 }
 
 /// Get information about marks local to a buffer (`get_buf_local_marks`).

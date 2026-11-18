@@ -2566,12 +2566,8 @@ fn state_in_list(
     let Some(state_idx) = state else {
         return false;
     };
-    if lastlist[state_idx][re_s.nfa_ll_index.get()] == l.id
+    lastlist[state_idx][re_s.nfa_ll_index.get()] == l.id
         && !(re_s.rex.nfa_has_backref.get() || has_state_with_pos(re_s, l, state_idx, subs, None))
-    {
-        return true;
-    }
-    false
 }
 
 #[inline(always)]

@@ -254,10 +254,7 @@ fn ses_get_fname(
 
 fn ses_fname(fd: &CFile, buf: &FileBuf, flagp: &std::cell::Cell<u32>, add_eol: bool) -> bool {
     let name = ses_get_fname(buf, flagp);
-    if !ses_put_fname(fd, name.as_deref(), flagp) || (add_eol && !write_bytes(fd, b"\n")) {
-        return false;
-    }
-    true
+    ses_put_fname(fd, name.as_deref(), flagp) && (!add_eol || write_bytes(fd, b"\n"))
 }
 
 fn ses_escape_fname(name: Option<&CStr>) -> CString {

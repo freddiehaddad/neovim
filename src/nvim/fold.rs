@@ -2742,10 +2742,7 @@ fn put_fold_open_close(fd: &CFile, fp: &FoldEntry, off: Linenr) -> bool {
     } else {
         c"sil! normal! zo"
     };
-    if fd.puts(cmd) < 0 || !put_eol(fd) {
-        return false;
-    }
-    true
+    fd.puts(cmd) >= 0 && put_eol(fd)
 }
 
 fn foldclosed_both(argvars: &mut [TypVal], rettv: &mut TypVal, end: bool) {

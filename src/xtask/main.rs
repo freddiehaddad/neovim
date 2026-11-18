@@ -680,9 +680,7 @@ impl TestShard {
         Ok(targets
             .into_iter()
             .enumerate()
-            .filter_map(|(index, target)| {
-                (index % self.count.get() == self.index).then_some(target)
-            })
+            .filter_map(|(index, target)| (index % self.count == self.index).then_some(target))
             .collect())
     }
 }

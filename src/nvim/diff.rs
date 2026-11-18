@@ -1784,21 +1784,21 @@ pub fn diff_linematch(dp: &DiffBlock) -> bool {
         return false;
     }
     let mut tsize: i32 = 0;
-    for i in 0..DB_COUNT {
+    for (i, &count) in dp.df_count.iter().enumerate() {
         if !curtab().tp_diffbuf[i].get().is_null() {
-            if dp.df_count[i] < 0 {
+            if count < 0 {
                 return false;
             }
-            tsize += dp.df_count[i];
+            tsize += count;
         }
     }
     tsize <= diff_st(|st| st.linematch_lines.get())
 }
 fn get_max_diff_length(dp: &DiffBlock) -> i32 {
     let mut maxlength: i32 = 0;
-    for k in 0..DB_COUNT {
-        if !curtab().tp_diffbuf[k].get().is_null() && dp.df_count[k] > maxlength {
-            maxlength = dp.df_count[k];
+    for (k, &count) in dp.df_count.iter().enumerate() {
+        if !curtab().tp_diffbuf[k].get().is_null() && count > maxlength {
+            maxlength = count;
         }
     }
     maxlength
@@ -3090,10 +3090,10 @@ pub fn diff_infold(wp: &WinInfoInfo, tp: Option<crate::globals::TabpagePtr>, lnu
 
     let mut idx: i32 = -1;
     let mut other = false;
-    for i in 0..DB_COUNT {
-        if tp.tp_diffbuf[i].get() == wp.w_buffer.get() {
+    for (i, diffbuf) in tp.tp_diffbuf.iter().enumerate() {
+        if diffbuf.get() == wp.w_buffer.get() {
             idx = i as i32;
-        } else if !tp.tp_diffbuf[i].get().is_null() {
+        } else if !diffbuf.get().is_null() {
             other = true;
         }
     }

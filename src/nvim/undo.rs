@@ -775,8 +775,8 @@ fn serialize_uhp(bi: &mut Bufinfo, uhp: usize) -> bool {
     undo_write_bytes(bi, uh_cursor_vcol as u64, 4);
     undo_write_bytes(bi, uh_flags as u64, 2);
     with_uhp(&buf, uhp, |h| {
-        for i in 0..NMARKS {
-            serialize_pos(bi, h.uh_namedm[i].mark);
+        for mark in &h.uh_namedm {
+            serialize_pos(bi, mark.mark);
         }
     });
     with_uhp_mut(&buf, uhp, |h| serialize_visualinfo(bi, &mut h.uh_visual));
@@ -836,10 +836,10 @@ fn unserialize_uhp(bi: &mut Bufinfo, file_name: &CStr) -> Option<(UHeader, [i32;
     uhp.uh_cursor_vcol = undo_read_4c(bi);
     uhp.uh_flags = undo_read_2c(bi);
     let cur_timestamp: Timestamp = os_time();
-    for i in 0..NMARKS {
-        unserialize_pos(bi, &mut uhp.uh_namedm[i].mark);
-        uhp.uh_namedm[i].timestamp = cur_timestamp;
-        uhp.uh_namedm[i].fnum = 0;
+    for mark in &mut uhp.uh_namedm {
+        unserialize_pos(bi, &mut mark.mark);
+        mark.timestamp = cur_timestamp;
+        mark.fnum = 0;
     }
     unserialize_visualinfo(bi, &mut uhp.uh_visual);
     uhp.uh_time = undo_read_time(bi);

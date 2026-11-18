@@ -413,11 +413,7 @@ fn do_log_to_file_str(
     if eol {
         log_file.putc(b'\n' as i32);
     }
-    if log_file.flush() == EOF {
-        return false;
-    }
-
-    true
+    log_file.flush() != EOF
 }
 
 #[cfg(test)]

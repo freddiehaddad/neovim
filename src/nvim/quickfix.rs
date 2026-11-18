@@ -4025,14 +4025,10 @@ fn qf_win_pos_update(qi: &QfInfo, old_qf_index: i32) -> bool {
 }
 
 fn is_qf_win(win: &WinInfoInfo, qi: &QfInfo) -> bool {
-    if buf_valid(win.buf_opt().as_deref())
+    buf_valid(win.buf_opt().as_deref())
         && bt_quickfix(win.buf_opt().as_deref())
         && ((is_qf_stack(qi) && win.w_llist_ref.get().is_null())
             || (is_ll_stack(qi) && win.w_llist_ref.get() == qi))
-    {
-        return true;
-    }
-    false
 }
 
 fn qf_find_win(qi: &QfInfo) -> Option<crate::globals::WinPtr> {
@@ -4234,11 +4230,7 @@ fn qf_buf_add_line(
 
     gap.push(0);
     let text_len = gap.len().saturating_sub(1);
-    if !ml_append_buf(buf, lnum, &gap[..text_len], gap.len() as Colnr, false) {
-        return false;
-    }
-
-    true
+    ml_append_buf(buf, lnum, &gap[..text_len], gap.len() as Colnr, false)
 }
 
 fn call_qftf_func(
@@ -5275,11 +5267,7 @@ fn vgr_qflist_valid(
         qf_new_list(qi, title);
         return true;
     }
-    if !qf_restore_list(qi, qfid) {
-        return false;
-    }
-
-    true
+    qf_restore_list(qi, qfid)
 }
 
 fn vgr_match_buflines(

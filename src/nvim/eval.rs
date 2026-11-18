@@ -564,11 +564,7 @@ fn eval_expr_partial(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut 
         fe_basetv: None,
         fe_found_var: false,
     };
-    if !call_func(s.to_bytes(), -1, rettv, argc, argv, &mut funcexe) {
-        return false;
-    }
-
-    true
+    call_func(s.to_bytes(), -1, rettv, argc, argv, &mut funcexe)
 }
 
 /// Evaluate an expression which is a function.
@@ -594,11 +590,7 @@ fn eval_expr_func(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut Typ
         fe_basetv: None,
         fe_found_var: false,
     };
-    if !call_func(s.to_bytes(), -1, rettv, argc, argv, &mut funcexe) {
-        return false;
-    }
-
-    true
+    call_func(s.to_bytes(), -1, rettv, argc, argv, &mut funcexe)
 }
 
 /// Evaluate an expression, which is a string.

@@ -6326,28 +6326,24 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
 /// Generate set commands for the local fold options only.
 pub fn makefoldset(fd: &crate::os::fs::CFile) -> bool {
     let cmd = c"setlocal";
-    if !put_set(fd, cmd, K_OPT_FOLDMETHOD, win_onebuf_var!(curwin(), wo_fdm))
-        || !put_set(fd, cmd, K_OPT_FOLDEXPR, win_onebuf_var!(curwin(), wo_fde))
-        || !put_set(fd, cmd, K_OPT_FOLDMARKER, win_onebuf_var!(curwin(), wo_fmr))
-        || !put_set(fd, cmd, K_OPT_FOLDIGNORE, win_onebuf_var!(curwin(), wo_fdi))
-        || !put_set(fd, cmd, K_OPT_FOLDLEVEL, win_onebuf_var!(curwin(), wo_fdl))
-        || !put_set(
+    put_set(fd, cmd, K_OPT_FOLDMETHOD, win_onebuf_var!(curwin(), wo_fdm))
+        && put_set(fd, cmd, K_OPT_FOLDEXPR, win_onebuf_var!(curwin(), wo_fde))
+        && put_set(fd, cmd, K_OPT_FOLDMARKER, win_onebuf_var!(curwin(), wo_fmr))
+        && put_set(fd, cmd, K_OPT_FOLDIGNORE, win_onebuf_var!(curwin(), wo_fdi))
+        && put_set(fd, cmd, K_OPT_FOLDLEVEL, win_onebuf_var!(curwin(), wo_fdl))
+        && put_set(
             fd,
             cmd,
             K_OPT_FOLDMINLINES,
             win_onebuf_var!(curwin(), wo_fml),
         )
-        || !put_set(
+        && put_set(
             fd,
             cmd,
             K_OPT_FOLDNESTMAX,
             win_onebuf_var!(curwin(), wo_fdn),
         )
-        || !put_set(fd, cmd, K_OPT_FOLDENABLE, win_onebuf_var!(curwin(), wo_fen))
-    {
-        return false;
-    }
-    true
+        && put_set(fd, cmd, K_OPT_FOLDENABLE, win_onebuf_var!(curwin(), wo_fen))
 }
 
 fn put_set_value(
@@ -6437,10 +6433,7 @@ fn put_set_value(
         _ => std::process::abort(),
     }
 
-    if !put_eol(fd) {
-        return false;
-    }
-    true
+    put_eol(fd)
 }
 
 fn put_set(

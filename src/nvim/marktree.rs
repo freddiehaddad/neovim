@@ -616,8 +616,8 @@ fn split_node(b: &mut MarkTree, x: usize, i: i32, next: MTKey) {
     }
 
     let x_key_pos = b.nodes[x].key[i_usize].pos;
-    for j in 0..(T_USIZE - 1) {
-        relative(x_key_pos, &mut b.nodes[z].key[j].pos);
+    for key in &mut b.nodes[z].key[..(T_USIZE - 1)] {
+        relative(x_key_pos, &mut key.pos);
     }
     if i > 0 {
         let prev_pos = b.nodes[x].key[i_usize - 1].pos;
@@ -823,8 +823,8 @@ fn meta_describe_key(k: MTKey) -> [u32; K_MTMETA_COUNT] {
 
 fn meta_describe_node(b: &MarkTree, meta_node: &mut [u32; K_MTMETA_COUNT], x: usize) {
     meta_node.fill(0);
-    for i in 0..b.nodes[x].n as usize {
-        meta_describe_key_inc(meta_node, b.nodes[x].key[i]);
+    for &key in &b.nodes[x].key[..b.nodes[x].n as usize] {
+        meta_describe_key_inc(meta_node, key);
     }
     if b.nodes[x].level != 0 {
         let x_meta = node_meta(b, x);
@@ -2899,8 +2899,7 @@ fn mt_inspect_dotfile_node(
     }
 
     out.push_str("    <tr><td>");
-    for i in 0..b.nodes[n].n as usize {
-        let k = b.nodes[n].key[i];
+    for (i, &k) in b.nodes[n].key[..b.nodes[n].n as usize].iter().enumerate() {
         if i > 0 {
             out.push_str(", ");
         }

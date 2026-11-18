@@ -5289,9 +5289,7 @@ fn set_map_str(lp: &mut Slang, map: &[u8]) {
     }
     lp.sl_has_map = true;
 
-    for i in 0..256 {
-        lp.sl_map_array[i] = 0;
-    }
+    lp.sl_map_array.fill(0);
     lp.sl_map_hash.clear();
 
     let mut rem = map_bytes;

@@ -9295,10 +9295,7 @@ pub fn before_quit_all(eap: &mut Exarg) -> bool {
         text_locked_msg();
         return false;
     }
-    if before_quit_autocmds(&curwin(), true, eap.forceit) {
-        return false;
-    }
-    true
+    !before_quit_autocmds(&curwin(), true, eap.forceit)
 }
 
 fn ex_quitall(eap: &mut Exarg) {

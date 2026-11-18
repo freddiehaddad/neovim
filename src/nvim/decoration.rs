@@ -875,9 +875,9 @@ pub fn decor_check_invalid_glyphs() {
             } else {
                 0
             };
-            for j in 0..width {
-                if schar_high(it.text[j]) {
-                    it.text[j] = schar_from_char(schar_get_first_codepoint(it.text[j]));
+            for ch in &mut it.text[..width] {
+                if schar_high(*ch) {
+                    *ch = schar_from_char(schar_get_first_codepoint(*ch));
                 }
             }
         }

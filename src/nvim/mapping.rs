@@ -1997,15 +1997,11 @@ pub fn makemap(fd: &CFile, buf: Option<&FileBuf>) -> bool {
             return false;
         }
     }
-    if did_cpo
-        && (fd.puts(c"let &cpo=s:cpo_save") < 0
-            || !put_eol(fd)
-            || fd.puts(c"unlet s:cpo_save") < 0
-            || !put_eol(fd))
-    {
-        return false;
-    }
-    true
+    !did_cpo
+        || (fd.puts(c"let &cpo=s:cpo_save") >= 0
+            && put_eol(fd)
+            && fd.puts(c"unlet s:cpo_save") >= 0
+            && put_eol(fd))
 }
 
 /// Write escape string to file.
