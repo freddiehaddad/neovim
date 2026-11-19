@@ -24,8 +24,12 @@ if [[ -n ${BASH_COMPLETION_VERSINFO[*]} ]] \
     esac
 
     if [[ "$cur" =~ ^- ]]; then
-      # Infers args from "nvim --help".
-      _comp_compgen_help
+      # The help helper does not expand aliases when executing a command.
+      if [[ "$(alias -- "${1-}" 2> /dev/null)" == "alias ${1-}='nvim'" ]]; then
+        _comp_compgen_help -c nvim --help
+      else
+        _comp_compgen_help
+      fi
       _comp_compgen -a -- -W "-c -Es -v -h"
 
       if [[ ${#COMPREPLY[@]} -eq 1 ]]; then
@@ -99,7 +103,7 @@ fi
 # aliases are not expanded by default during completion.
 for cmd in vi vim; do
   [[ "$(alias $cmd 2> /dev/null)" == "alias $cmd='nvim'" ]] \
-    && type -f _comp_nvim > /dev/null 2>&1 \
+    && declare -F _comp_nvim > /dev/null 2>&1 \
     && ! complete -p $cmd > /dev/null 2>&1 \
     && complete -F _comp_nvim $cmd
 done

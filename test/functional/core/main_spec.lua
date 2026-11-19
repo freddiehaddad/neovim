@@ -182,6 +182,138 @@ describe('command-line option', function()
   end)
 end)
 
+describe('Bash completion', function()
+  local bash = vim.fn.exepath('bash')
+  if is_os('win') then
+    local git_bash =
+      vim.fs.joinpath(vim.env.ProgramFiles or 'C:\\Program Files', 'Git', 'bin', 'bash.exe')
+    if vim.fn.executable(git_bash) == 1 then
+      bash = git_bash
+    end
+  end
+
+  before_each(function()
+    t.skip(bash == '', 'Bash is not available')
+  end)
+
+  local function complete(setup, query, arguments)
+    local script = setup
+      .. '\n'
+      .. t.read_file(t.paths.test_source_path .. '/contrib/nvim.bash')
+      .. '\n'
+      .. query
+      .. '\n'
+    local argv = { bash, '--noprofile', '--norc', '-s', '--' }
+    vim.list_extend(argv, arguments or {})
+    local result = vim
+      .system(argv, {
+        stdin = script,
+        text = true,
+        env = { BASH_ENV = '', LC_ALL = 'C' },
+      })
+      :wait(5000)
+    eq({ 0, '' }, { result.code, result.stderr })
+    return result.stdout
+  end
+
+  for _, case in ipairs({
+    { 'fallback', 'unset BASH_COMPLETION_VERSINFO' },
+    { 'bash-completion 2.12', 'BASH_COMPLETION_VERSINFO=(2 12)' },
+  }) do
+    it('registers aliases with ' .. case[1], function()
+      local setup = case[2] .. '\nalias vi=nvim\nalias vim=nvim'
+      eq(
+        'complete -F _comp_nvim nvim\n'
+          .. 'complete -F _comp_nvim vi\n'
+          .. 'complete -F _comp_nvim vim\n',
+        complete(setup, 'complete -p nvim vi vim')
+      )
+    end)
+  end
+
+  it('preserves existing completions and ignores unrelated aliases', function()
+    eq(
+      'complete -F _comp_nvim nvim\n' .. 'complete -F custom vi\n',
+      complete(
+        'alias vi=nvim\nalias vim=other\n' .. 'custom() { :; }\ncomplete -F custom vi',
+        'complete -p nvim vi\n! complete -p vim >/dev/null 2>&1'
+      )
+    )
+  end)
+
+  local function help_completion(query)
+    local directory = vim.fs.abspath(t.tmpname(false)) .. ' completion'
+    local program = directory .. '/nvim'
+    assert(uv.fs_mkdir(directory, 493))
+    finally(function()
+      os.remove(program)
+      uv.fs_rmdir(directory)
+    end)
+    write_file(program, "#!/bin/sh\nprintf '%s\\n' '  --clean  Clean startup'\n")
+    assert(uv.fs_chmod(program, 493))
+
+    -- Model the framework's command-selection boundary, executing the chosen
+    -- program so aliases and explicit paths must reach its actual help output.
+    return complete(
+      [=[
+        BASH_COMPLETION_VERSINFO=(2 12)
+        alias vi=nvim vim=nvim
+        bin=$(cd -- "$1" && pwd -P)
+        _comp_initialize() {
+          comp_args=("${@:4}")
+          cur=${COMP_WORDS[COMP_CWORD]}
+          prev=${COMP_WORDS[COMP_CWORD - 1]}
+          words=("${COMP_WORDS[@]}")
+          cword=$COMP_CWORD
+        }
+        _comp_compgen_help() {
+          local -a help_cmd=("${comp_args[0]}" --help)
+          [[ ${1-} != -c ]] || help_cmd=("${@:2}")
+          local help
+          help=$(LC_ALL=C "${help_cmd[@]}" 2>&1)
+          COMPREPLY=($(compgen -W "$help" -- "$cur"))
+        }
+        _comp_compgen() {
+          COMPREPLY+=( $(compgen "${@:3}" -- "$cur") )
+        }
+      ]=],
+      query,
+      { directory }
+    )
+  end
+
+  it('completes long options for aliases without legacy executables on PATH', function()
+    eq(
+      'nvim:--clean\nvi:--clean\nvim:--clean\n',
+      help_completion([[
+        PATH="$bin"
+        hash -r
+        for command in nvim vi vim; do
+          COMP_WORDS=("$command" --cl)
+          COMP_CWORD=1
+          _comp_nvim "$command" --cl "$command"
+          printf '%s:%s\n' "$command" "${COMPREPLY[*]}"
+        done
+      ]])
+    )
+  end)
+
+  it('completes an absolute executable path with spaces outside PATH', function()
+    eq(
+      '--clean\n',
+      help_completion([[
+        PATH=
+        hash -r
+        command="$bin/nvim"
+        COMP_WORDS=("$command" --cl)
+        COMP_CWORD=1
+        _comp_nvim "$command" --cl "$command"
+        printf '%s\n' "${COMPREPLY[@]}"
+      ]])
+    )
+  end)
+end)
+
 describe('vim._core', function()
   it('works with "-u NONE" and no VIMRUNTIME', function()
     clear {
