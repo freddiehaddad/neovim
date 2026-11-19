@@ -4677,11 +4677,21 @@ pub fn maketitle() {
             {
                 opt_vars().p_ssl.set(true);
             }
-            let default_titlestring = c"%t%( %M%)%( (%{expand('%:p:~:h')})%)%a - Nvim";
+            const DEFAULT_TITLESTRING: &CStr = match CStr::from_bytes_with_nul(
+                concat!(
+                    "%t%( %M%)%( (%{expand('%:p:~:h')})%)%a - ",
+                    crate::branding::display_name!(),
+                    "\0"
+                )
+                .as_bytes(),
+            ) {
+                Ok(value) => value,
+                Err(_) => panic!("invalid default title string"),
+            };
             build_stl_str_hl_slice(
                 curwin(),
                 &mut buf,
-                Some(default_titlestring),
+                Some(DEFAULT_TITLESTRING),
                 K_OPT_TITLESTRING,
                 0,
                 0,

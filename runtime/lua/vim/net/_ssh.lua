@@ -605,7 +605,7 @@ local function connect(uri_str, chan, report, update, config)
     vim.uv.fs_unlink(local_sock) -- ssh leaves it, e.g. in $XDG_RUNTIME_DIR.
   end
 
-  report('running', 'Starting remote Nvim...')
+  report('running', 'Starting remote Nero...')
   log().debug('connect: local_sock', local_sock)
   local args = { remote_sock, dir, url, sha256 or '-', version }
   if update then
@@ -636,14 +636,14 @@ local function connect(uri_str, chan, report, update, config)
   local err --- @type string?
   if res.code then
     -- The tunnel exited (or timed out).
-    err = (res.stdout or ''):match('NVIM_CRASHED') and 'Remote Nvim crashed during startup'
-      or res.code == 124 and 'Timed out waiting for the remote Nvim'
-      or 'SSH tunnel exited before the remote Nvim was ready'
+    err = (res.stdout or ''):match('NVIM_CRASHED') and 'Remote Nero crashed during startup'
+      or res.code == 124 and 'Timed out waiting for the remote Nero'
+      or 'SSH tunnel exited before the remote Nero was ready'
     local detail = vim.trim(res.stderr or '')
     err = detail ~= '' and ('%s: %s'):format(err, detail) or err
   elseif not answers(local_sock) then
     -- sshd may refuse the forward (e.g. `AllowStreamLocalForwarding no`) but run the script.
-    err = 'Remote Nvim is not reachable through the SSH forward'
+    err = 'Remote Nero is not reachable through the SSH forward'
   elseif
     chan
     and not vim.iter(vim.api.nvim_list_uis()):any(function(ui)
@@ -679,7 +679,7 @@ function M.connect(uri_str, chan)
   end
   local lines = {
     ('Connect to %s'):format(uri_str),
-    ('- Installs Nvim (if needed) to ~/%s/'):format(autoinstall.data_dir),
+    ('- Installs Nero (if needed) to ~/%s/'):format(autoinstall.data_dir),
   }
   local config_dir = vim.fn.stdpath('config') --[[@as string]]
   local config = vim.fn.isdirectory(config_dir) == 1 and config_dir or nil
@@ -691,8 +691,8 @@ function M.connect(uri_str, chan)
     table.insert(lines, copy)
   end
   local prerelease = vim.version().prerelease ~= nil
-  -- "(U)pdate": refreshes the nightly, and runs it instead of `$PATH` nvim.
-  local choices = prerelease and '&Yes\n&Update Nvim\n&No' or '&Yes\n&No'
+  -- "(U)pdate": refreshes the nightly, and runs it instead of `$PATH` nero.
+  local choices = prerelease and '&Yes\n&Update Nero\n&No' or '&Yes\n&No'
   local choice = vim.fn.confirm(('%s\n'):format(table.concat(lines, '\n')), choices, 1, 'Question')
   local update = prerelease and choice == 2
   if choice ~= 1 and not update then

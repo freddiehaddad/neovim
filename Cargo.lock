@@ -7,7 +7,7 @@ name = "event-lifetimes-tests"
 version = "0.0.0"
 
 [[package]]
-name = "neovim"
+name = "nero"
 version = "0.13.0-dev"
 
 [[package]]

@@ -3,19 +3,19 @@
 --
 -- USAGE (For CI/local testing purposes): Simply `make lintdoc`, which basically does the following:
 --   1. :helptags ALL
---   2. nvim -V1 -es +"lua require('src.gen.gen_help_html').run_validate()" +q
---   3. nvim -V1 -es +"lua require('src.gen.gen_help_html').test_gen()" +q
+--   2. nero -V1 -es +"lua require('src.gen.gen_help_html').run_validate()" +q
+--   3. nero -V1 -es +"lua require('src.gen.gen_help_html').test_gen()" +q
 --
 -- USAGE (GENERATE HTML):
 --   1. `:helptags ALL` first; this script depends on vim.fn.taglist().
---   2. nvim -V1 -es --clean +"lua require('src.gen.gen_help_html').gen('html', './runtime/doc', 'target/dir/')" +q
+--   2. nero -V1 -es --clean +"lua require('src.gen.gen_help_html').gen('html', './runtime/doc', 'target/dir/')" +q
 --      - Read the docstring at gen().
 --   3. cd target/dir/ && jekyll serve --host 0.0.0.0
 --   4. Visit http://localhost:4000/…/help.txt.html
 --
 -- USAGE (GENERATE PDF VIA BROWSER):
 --   1. `:helptags ALL`
---   2. nvim -V1 -es --clean +"lua require('src.gen.gen_help_html').gen('print', './runtime/doc', 'pdf_docs')" +q
+--   2. nero -V1 -es --clean +"lua require('src.gen.gen_help_html').gen('print', './runtime/doc', 'pdf_docs')" +q
 --      - To print only some files, pass them (in order) as `include`. Example (user manual):
 --        {'usr_toc.txt', unpack(vim.tbl_map(vim.fs.basename, vim.fn.glob('runtime/doc/usr_[0-9]*.txt', 0, 1)))}
 --   3. chrome --headless --no-pdf-header-footer --disable-pdf-tagging --print-to-pdf=pdf_docs/nvim-help.pdf pdf_docs/print.html
@@ -23,13 +23,13 @@
 --   4. open pdf_docs/nvim-help.pdf
 --
 -- USAGE (VALIDATE):
---   1. nvim -V1 -es +"lua require('src.gen.gen_help_html').validate('./runtime/doc')" +q
+--   1. nero -V1 -es +"lua require('src.gen.gen_help_html').validate('./runtime/doc')" +q
 --      - validate() is 10x faster than gen(), so it is used in CI.
 --   2. Check for unreachable URLs:
---      nvim -V1 -es +"lua require('src.gen.gen_help_html').validate('./runtime/doc', true)" +q
+--      nero -V1 -es +"lua require('src.gen.gen_help_html').validate('./runtime/doc', true)" +q
 --
 -- SELF-TEST MODE:
---   1. nvim -V1 -es +"lua require('src.gen.gen_help_html')._test()" +q
+--   1. nero -V1 -es +"lua require('src.gen.gen_help_html')._test()" +q
 --
 -- NOTES:
 --   * This script is used by the website repo: https://github.com/neovim/neovim.github.io

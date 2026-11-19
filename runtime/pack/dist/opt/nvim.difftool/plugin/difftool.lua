@@ -11,7 +11,7 @@ vim.api.nvim_create_user_command('DiffTool', function(opts)
   end
 end, { nargs = '*', complete = 'file' })
 
--- If we are in diff mode (e.g. `nvim -d file1 file2`), open the difftool automatically.
+-- If we are in diff mode (e.g. `nero -d file1 file2`), open the difftool automatically.
 local function start_diff()
   if not vim.o.diff then
     return

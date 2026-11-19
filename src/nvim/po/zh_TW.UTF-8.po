@@ -298,8 +298,9 @@ msgstr "  找不到"
 msgid "      NEWER than swap file!\n"
 msgstr "      比暫存檔更新!\n"
 
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    如果是這樣, 請用 \":recover\" 或 \"nvim -r"
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    如果是這樣, 請用 \":recover\" 或 \"%s -r"
 
 msgid "    If you did this already, delete the swap file \""
 msgstr "    如果該救的都已經救了, 請直接刪除此暫存檔 \""
@@ -452,7 +453,7 @@ msgid "  name=%s"
 msgstr ""
 
 #, c-format
-msgid "  nvim [options] [file ...]\n"
+msgid "  %s [options] [file ...]\n"
 msgstr ""
 
 #, fuzzy, c-format
@@ -493,7 +494,8 @@ msgstr " (取代)"
 msgid " (replace) Scroll (^E/^Y)"
 msgstr " (取代) Scroll (^E/^Y)"
 
-msgid " (run Nvim with -V1 for more details)"
+#, c-format
+msgid " (run %s with -V1 for more details)"
 msgstr ""
 
 msgid " (terminal)"
@@ -615,9 +617,9 @@ msgstr " 已附加"
 msgid " cannot be used on this computer.\n"
 msgstr " 無法在這臺電腦上使用.\n"
 
-#, fuzzy
-msgid " cannot be used with this version of Nvim.\n"
-msgstr " 無法在本版本的 Vim 中使用.\n"
+#, fuzzy, c-format
+msgid " cannot be used with this version of %s.\n"
+msgstr " 無法在本版本的 %s 中使用.\n"
 
 msgid " f-b for $VIMRUNTIME: \""
 msgstr "       $VIMRUNTIME 預設值: \""
@@ -2476,8 +2478,9 @@ msgstr "E24: 沒有這個 abbreviation 對應"
 msgid "E255: Couldn't read in sign data!"
 msgstr "E255: 無法讀取 sign data!"
 
-msgid "E25: Nvim does not have a built-in GUI"
-msgstr "E25: 因為編譯時沒有加入圖型界面的程式碼，所以無法使用圖型界面"
+#, c-format
+msgid "E25: %s does not have a built-in GUI"
+msgstr "E25: %s: 因為編譯時沒有加入圖型界面的程式碼，所以無法使用圖型界面"
 
 #, fuzzy
 msgid "E260: Missing name after ->"
@@ -5575,11 +5578,12 @@ msgstr "沒有這個 mapping 對應"
 msgid "Number of words after soundfolding: %<PRId64>"
 msgstr "soundfolding 后的單詞数: %<PRId64>"
 
-#, fuzzy
-msgid "Nvim is open source and freely distributable"
-msgstr "Vim 為可自由散佈的開放原始碼軟體"
+#, fuzzy, c-format
+msgid "%s is open source and freely distributable"
+msgstr "%s 為可自由散佈的開放原始碼軟體"
 
-msgid "Nvim will continue running if the UI disconnects"
+#, c-format
+msgid "%s will continue running if the UI disconnects"
 msgstr ""
 
 msgid "Nvim: Data too large to fit into virtual memory space\n"
@@ -5860,11 +5864,12 @@ msgstr "單詞总数: %d"
 msgid "Trailing text in %s line %d: %s"
 msgstr "%s 第 %d 行，多餘的後續文本: %s"
 
-#, fuzzy
-msgid "Type  :qa  and press <Enter> to exit Nvim"
-msgstr "要離開 Vim 請輸入 :quit<Enter> "
+#, fuzzy, c-format
+msgid "Type  :qa  and press <Enter> to exit %s"
+msgstr "要離開 %s 請輸入 :quit<Enter> "
 
-msgid "Type  :qa!  and press <Enter> to abandon all changes and exit Nvim"
+#, c-format
+msgid "Type  :qa!  and press <Enter> to abandon all changes and exit %s"
 msgstr ""
 
 #, fuzzy
@@ -7523,9 +7528,9 @@ msgstr ""
 msgid "transparency level of popup menu"
 msgstr ""
 
-#, fuzzy
-msgid "type  :checkhealth<Enter>   to optimize Nvim"
-msgstr "要離開 Vim 請輸入 :quit<Enter> "
+#, fuzzy, c-format
+msgid "type  :checkhealth<Enter>   to optimize %s"
+msgstr "要離開 %s 請輸入 :quit<Enter> "
 
 #, fuzzy
 msgid "type  :help Kuwasha<Enter>  for information "
@@ -7535,8 +7540,8 @@ msgstr "詳細說明請輸入          :help sponsor<Enter>"
 msgid "type  :help news<Enter>     for v%s.%s notes "
 msgstr "詳細說明請輸入          :help sponsor<Enter>"
 
-#, fuzzy
-msgid "type  :help nvim<Enter>     if you are new! "
+#, fuzzy, c-format
+msgid "type  :help %s<Enter>     if you are new! "
 msgstr "進一步說明請輸入          :help iccf<Enter>"
 
 #, fuzzy

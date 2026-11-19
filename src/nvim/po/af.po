@@ -2573,8 +2573,9 @@ msgstr "E24: Afkorting bestaan nie"
 msgid "E477: No ! allowed"
 msgstr "E477: Geen ! toegelaat nie"
 
-msgid "E25: Nvim does not have a built-in GUI"
-msgstr "E25: GUI kan nie gebruik word nie: Nie tydens kompilering gekies nie"
+#, c-format
+msgid "E25: %s does not have a built-in GUI"
+msgstr "E25: %s: GUI kan nie gebruik word nie: Nie tydens kompilering gekies nie"
 
 #, c-format
 msgid "E28: No such highlight group name: %s"
@@ -3601,8 +3602,9 @@ msgstr ""
 #~ "\n"
 #~ "(2) 'n Bewerkingsessie van hierdie lêer het ineengestort.\n"
 
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    Indien wel, gebruik \":recover\" of \"nvim -r"
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    Indien wel, gebruik \":recover\" of \"%s -r"
 
 msgid ""
 "\"\n"
@@ -5465,18 +5467,18 @@ msgid " f-b for $VIMRUNTIME: \""
 msgstr " bystand vir $VIMRUNTIME: \""
 
 #, fuzzy
-#~ msgid "Nvim is open source and freely distributable"
+#~ msgid "Nero is open source and freely distributable"
 #~ msgstr "Vim is vryekode, en vrylik verspreibaar"
 
 #~ msgid "https://neovim.io/community"
 #~ msgstr ""
 
 #, fuzzy
-#~ msgid "type  :help nvim<Enter>       if you are new! "
+#~ msgid "type  :help nero<Enter>     if you are new! "
 #~ msgstr "tik   :help uganda<Enter>     as jy hou van Vim     "
 
 #, fuzzy
-#~ msgid "type  :checkhealth<Enter>     to optimize Nvim"
+#~ msgid "type  :checkhealth<Enter>   to optimize Nero"
 #~ msgstr "Tik   :quit<Enter>  om Vim te verlaat"
 
 msgid "type  :q<Enter>               to exit         "

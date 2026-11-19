@@ -1,6 +1,6 @@
-#compdef nvim
+#compdef nero
 
-# zsh completions for 'nvim'
+# zsh completions for 'nero'
 # automatically generated with http://github.com/RobSis/zsh-completion-generator
 local arguments
 

@@ -7393,12 +7393,17 @@ fn nv_esc(cap: &mut Cmdarg) {
             && no_reason
         {
             if any_buf_is_changed() {
-                msg(
-                    tr(c"Type  :qa!  and press <Enter> to abandon all changes and exit Nvim"),
+                crate::message::smsg!(
                     0,
+                    tr(c"Type  :qa!  and press <Enter> to abandon all changes and exit %s"),
+                    crate::branding::DISPLAY_NAME.as_bytes(),
                 );
             } else {
-                msg(tr(c"Type  :qa  and press <Enter> to exit Nvim"), 0);
+                crate::message::smsg!(
+                    0,
+                    tr(c"Type  :qa  and press <Enter> to exit %s"),
+                    crate::branding::DISPLAY_NAME.as_bytes(),
+                );
             }
         }
 

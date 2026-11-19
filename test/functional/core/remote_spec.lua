@@ -38,7 +38,7 @@ describe('--remote', function()
       server:close()
     end)
 
-    -- Run a `nvim --remote*` command and return { stdout, stderr } of the process
+    -- Run a `nero --remote*` command and return { stdout, stderr } of the process
     local function run_remote(...)
       set_session(server)
       local addr = fn.serverlist()[1]

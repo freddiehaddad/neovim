@@ -6377,7 +6377,13 @@ pub fn last_set_msg(script_ctx: Sctx) {
         msg_puts(gettext(LINE_MSG));
         msg_outnum(script_ctx.sc_lnum);
     } else if script_is_lua(script_ctx.sc_sid) {
-        msg_puts(gettext(c" (run Nvim with -V1 for more details)"));
+        let mut message = [0u8; crate::globals::IOSIZE];
+        crate::strings::format_to_buf!(
+            &mut message,
+            gettext(c" (run %s with -V1 for more details)"),
+            crate::branding::DISPLAY_NAME.as_bytes(),
+        );
+        msg_puts(crate::memory::bytes_as_cstr(&message));
     }
     verbose_leave();
 }

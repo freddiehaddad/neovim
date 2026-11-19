@@ -47,7 +47,7 @@ skipped.
 
 Harness isolation                                  *dev-test-harness-isolation*
 
-The Lua harness runs all selected spec files in one `nvim -l` process, then
+The Lua harness runs all selected spec files in one `nero -l` process, then
 restores a baseline before each file. For each suite iteration, the file
 boundary baseline is captured after `--helper` is loaded, so helper-provided
 modules and defaults persist across files.
@@ -127,7 +127,7 @@ DEBUGGING TESTS
   Read more about |dev-filter-test|.
 
   Then, in another terminal: >sh
-    gdb -ex 'target remote localhost:7777' build/bin/nvim
+    gdb -ex 'target remote localhost:7777' target/nvim-build/bin/nero
 <
   If `$VALGRIND` is also set it will pass `--vgdb=yes` to valgrind instead of
   starting gdbserver directly.
@@ -458,9 +458,9 @@ Plugins (and CI) can use the test harness without cloning the Nvim repo:
       end)
     end)
 3. Run the tests: >sh
-    make test
-    make test TEST_FILE=test/foo_spec.lua TEST_FILTER=works
-    make test NVIM_PRG=/path/to/bin/nvim
+    make test NVIM_PRG=nero
+    make test NVIM_PRG=nero TEST_FILE=test/foo_spec.lua TEST_FILTER=works
+    make test NVIM_PRG=/path/to/bin/nero
 <
 `make test` downloads the harness modules to `.deps/`, from the Nvim git ref
 `NVIM_TEST_VERSION` (default "master"). Use a ref that matches the Nvim under
@@ -483,7 +483,7 @@ Number; !must be defined to function properly):
   Currently only compilers with gcc-compatible arguments are supported.
 
 - `GDB` (F) (D): makes nvim instances to be run under `gdbserver`. It will be
-  accessible on `localhost:7777`: use `gdb build/bin/nvim`, type `target remote :7777` inside.
+  accessible on `localhost:7777`: use `gdb target/nvim-build/bin/nero`, type `target remote :7777` inside.
 
 - `GDBSERVER_PORT` (F) (I): overrides port used for `GDB`.
 
@@ -508,7 +508,7 @@ Number; !must be defined to function properly):
 
 - `NVIM_LUA_NOTRACK` (F) (D): disable reference counting of Lua objects
 
-- `NVIM_PRG` (F) (S): path to Nvim executable (default: `build/bin/nvim`).
+- `NVIM_PRG` (F) (S): path to Nvim executable (default: `target/nvim-build/bin/nero`).
 
 - `NVIM_TEST_MAIN_CDEFS` (U) (1): makes `ffi.cdef` run in main process. This
   raises a possibility of bugs due to conflicts in header definitions, despite

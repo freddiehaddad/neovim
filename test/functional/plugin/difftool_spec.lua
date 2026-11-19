@@ -113,7 +113,7 @@ describe('nvim.difftool', function()
     assert(#autocmds > 0, 'autocmds should still exist after closing quickfix window')
   end)
 
-  it('opens difftool automatically when started with nvim -d', function()
+  it('opens difftool automatically when started with nero -d', function()
     -- Start Neovim with -d flag for directory diff
     clear({
       args = {

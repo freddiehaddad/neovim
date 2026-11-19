@@ -1,4 +1,4 @@
-#!/usr/bin/env -S nvim -l
+#!/usr/bin/env -S nero -l
 
 -- Generator for various vimdoc and Lua type files
 

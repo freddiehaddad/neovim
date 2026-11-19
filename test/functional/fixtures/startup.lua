@@ -1,4 +1,4 @@
--- Test "nvim -l foo.lua …"
+-- Test "nero -l foo.lua …"
 
 local function printbufs()
   local bufs = ''

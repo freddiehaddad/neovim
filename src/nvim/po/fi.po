@@ -3653,8 +3653,9 @@ msgstr ""
 msgid "(2) An edit session for this file crashed.\n"
 msgstr "(2) Tiedostonmuokkausistunto on kaatunut.\n"
 
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    Jos näin on, käytä komentoa :recover tai nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    Jos näin on, käytä komentoa :recover tai %s -r "
 
 msgid ""
 "\"\n"
@@ -5518,18 +5519,18 @@ msgid "by Bram Moolenaar et al."
 msgstr "tekijät Bram Moolenaar et al."
 
 #, fuzzy
-#~ msgid "Nvim is open source and freely distributable"
+#~ msgid "Nero is open source and freely distributable"
 #~ msgstr "Vim on avointa lähdekoodia ja vapaasti jaossa"
 
 #~ msgid "https://neovim.io/community"
 #~ msgstr ""
 
 #, fuzzy
-#~ msgid "type  :help nvim<Enter>       if you are new! "
+#~ msgid "type  :help nero<Enter>     if you are new! "
 #~ msgstr "kirjoita :help iccf<Enter>    lisätietoa varten            "
 
 #, fuzzy
-#~ msgid "type  :checkhealth<Enter>     to optimize Nvim"
+#~ msgid "type  :checkhealth<Enter>   to optimize Nero"
 #~ msgstr "kirjoita :help iccf<Enter>    lisätietoa varten            "
 
 msgid "type  :q<Enter>               to exit         "

@@ -675,7 +675,7 @@ local function python()
       and vim.startswith(vim.fn.resolve(python_exe), pyenv_root .. '/')
     then
       local advice = string.format(
-        'Create a virtualenv specifically for Nvim using pyenv, and set `g:%s`.  This will avoid the need to install the pynvim module in each version/virtualenv.',
+        'Create a virtualenv specifically for Nero using pyenv, and set `g:%s`.  This will avoid the need to install the pynvim module in each version/virtualenv.',
         host_prog_var
       )
       health.warn('pyenv is not set up optimally.', advice)
@@ -684,7 +684,7 @@ local function python()
 
       if vim.startswith(vim.fn.resolve(python_exe), venv_root .. '/') then
         local advice = string.format(
-          'Create a virtualenv specifically for Nvim and use `g:%s`.  This will avoid the need to install the pynvim module in each virtualenv.',
+          'Create a virtualenv specifically for Nero and use `g:%s`.  This will avoid the need to install the pynvim module in each virtualenv.',
           host_prog_var
         )
         health.warn('Your virtualenv is not set up optimally.', advice)
@@ -788,9 +788,9 @@ local function python()
           ['nvim'] = {
             ['path'] = nvim_py_bin,
             ['hint'] = '$PATH ambiguities arise if the virtualenv is not '
-              .. 'properly activated prior to launching Nvim. Close Nvim, activate the virtualenv, '
+              .. 'properly activated prior to launching Nero. Close Nero, activate the virtualenv, '
               .. 'check that invoking Python from the command line launches the correct one, '
-              .. 'then relaunch Nvim.',
+              .. 'then relaunch Nero.',
           },
           ['subshell'] = {
             ['path'] = subshell_py_bin,

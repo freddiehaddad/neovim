@@ -2,6 +2,10 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
+#[path = "src/branding.rs"]
+mod branding;
+use branding::{DISPLAY_NAME, EXECUTABLE_NAME};
+
 #[path = "src/deps_build.rs"]
 mod deps_build;
 
@@ -404,7 +408,7 @@ fn main() {
                 }
             }
         }
-        println!("cargo:rustc-env=NVIM_VERSION_LONG=NVIM {version}");
+        println!("cargo:rustc-env=NVIM_VERSION_LONG={DISPLAY_NAME} {version}");
         println!("cargo:rustc-env=NVIM_VERSION_BUILD={build}");
     }
 
@@ -467,7 +471,7 @@ fn main() {
         println!("cargo:rustc-link-arg=/DEFAULTLIB:ucrt");
         println!("cargo:rustc-link-arg=/NODEFAULTLIB:libcmt");
         println!("cargo:rustc-link-arg=/NODEFAULTLIB:libucrt");
-        println!("cargo:rustc-link-arg-bin=nvim=/STACK:8388608");
+        println!("cargo:rustc-link-arg-bin={EXECUTABLE_NAME}=/STACK:8388608");
         for sym in [
             "block_autocmds",
             "unblock_autocmds",
@@ -485,16 +489,16 @@ fn main() {
             "ui_call_chdir",
             "vterm_primary_device_attr",
         ] {
-            println!("cargo:rustc-link-arg-bin=nvim=/EXPORT:{sym}");
+            println!("cargo:rustc-link-arg-bin={EXECUTABLE_NAME}=/EXPORT:{sym}");
         }
         let manifest_path = manifest_dir
             .join("src")
             .join("nvim")
             .join("os")
-            .join("nvim.manifest");
-        println!("cargo:rustc-link-arg-bin=nvim=/MANIFEST:EMBED,ID=1");
+            .join(concat!(branding::executable_name!(), ".manifest"));
+        println!("cargo:rustc-link-arg-bin={EXECUTABLE_NAME}=/MANIFEST:EMBED,ID=1");
         println!(
-            "cargo:rustc-link-arg-bin=nvim=/MANIFESTINPUT:{}",
+            "cargo:rustc-link-arg-bin={EXECUTABLE_NAME}=/MANIFESTINPUT:{}",
             manifest_path.display()
         );
         let lua_dll = deps_prefix.join("bin").join("lua51.dll");
@@ -506,7 +510,7 @@ fn main() {
             let _ = std::fs::copy(&lua_dll, profile_dir.join("deps").join("lua51.dll"));
         }
     } else if target_os != "windows" {
-        println!("cargo:rustc-link-arg-bin=nvim=-rdynamic");
+        println!("cargo:rustc-link-arg-bin={EXECUTABLE_NAME}=-rdynamic");
         println!("cargo:rustc-link-search=native={}", deps_lib.display());
         let lua_entry = if prefer_lua && deps_lib.join("liblua.a").exists() {
             ("liblua.a", "static=lua", "lua5.1")
@@ -532,7 +536,7 @@ fn main() {
             println!("cargo:rustc-link-lib=util");
         } else if target_os == "macos" {
             println!("cargo:rustc-link-lib=iconv");
-            println!("cargo:rustc-link-arg-bin=nvim=-Wl,-export_dynamic");
+            println!("cargo:rustc-link-arg-bin={EXECUTABLE_NAME}=-Wl,-export_dynamic");
             println!("cargo:rustc-link-lib=framework=CoreServices");
         }
     }

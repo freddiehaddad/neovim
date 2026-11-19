@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-# Provides bash completion for "nvim".
+# Provides bash completion for "nero".
 
 if [[ -n ${BASH_COMPLETION_VERSINFO[*]} ]] \
   && ((BASH_COMPLETION_VERSINFO[0] > 2 || (\
   BASH_COMPLETION_VERSINFO[0] == 2 && BASH_COMPLETION_VERSINFO[1] >= 12))); then
   # use bash-completion >= 2.12
-  _comp_nvim() {
+  _comp_nero() {
     local cur prev words cword
     _comp_initialize -n : -- "$@" || return
 
@@ -25,8 +25,8 @@ if [[ -n ${BASH_COMPLETION_VERSINFO[*]} ]] \
 
     if [[ "$cur" =~ ^- ]]; then
       # The help helper does not expand aliases when executing a command.
-      if [[ "$(alias -- "${1-}" 2> /dev/null)" == "alias ${1-}='nvim'" ]]; then
-        _comp_compgen_help -c nvim --help
+      if [[ "$(alias -- "${1-}" 2> /dev/null)" == "alias ${1-}='nero'" ]]; then
+        _comp_compgen_help -c nero --help
       else
         _comp_compgen_help
       fi
@@ -44,9 +44,9 @@ if [[ -n ${BASH_COMPLETION_VERSINFO[*]} ]] \
 
     _comp_compgen_filedir
   } \
-    && complete -F _comp_nvim nvim
+    && complete -F _comp_nero nero
 else
-  _comp_nvim() {
+  _comp_nero() {
     local cur prev opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
@@ -97,13 +97,13 @@ else
 
     compopt -o default -o bashdefault
   } \
-    && complete -F _comp_nvim nvim
+    && complete -F _comp_nero nero
 fi
 
 # aliases are not expanded by default during completion.
-for cmd in vi vim; do
-  [[ "$(alias $cmd 2> /dev/null)" == "alias $cmd='nvim'" ]] \
-    && declare -F _comp_nvim > /dev/null 2>&1 \
+for cmd in vi vim nvim; do
+  [[ "$(alias $cmd 2> /dev/null)" == "alias $cmd='nero'" ]] \
+    && declare -F _comp_nero > /dev/null 2>&1 \
     && ! complete -p $cmd > /dev/null 2>&1 \
-    && complete -F _comp_nvim $cmd
+    && complete -F _comp_nero $cmd
 done

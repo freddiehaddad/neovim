@@ -49,7 +49,7 @@ to by Nvim.
 
 Nvim creates a default RPC socket at |startup|, given by |v:servername|. To
 start with a TCP/IP socket instead, use |--listen| with a TCP-style address: >
-    nvim --listen 127.0.0.1:6666
+    nero --listen 127.0.0.1:6666
 More endpoints can be started with |serverstart()|.
 
 Note that localhost TCP sockets are generally less secure than named pipes,
@@ -70,7 +70,7 @@ Nvim instance:
     # Or from another shell by setting NVIM:
     # :echo v:servername -- this is the unix socket path address
     # $ NVIM=[unix_socket_path_address] ruby ./hello.rb
-    # or if you run the command above: nvim --listen 127.0.0.1:6666 -- tcp socket address
+    # or if you run the command above: nero --listen 127.0.0.1:6666 -- tcp socket address
     # $ NVIM=127.0.0.1:6666 ruby hello.rb
 
     require 'msgpack'
@@ -97,7 +97,7 @@ functions can be called interactively (requires `pip install pynvim` or
 You can also embed Nvim via |jobstart()|, and communicate using
 |vim.rpcrequest()| and |vim.rpcnotify()|: >lua
 
-    local nvim = vim.fn.jobstart({ 'nvim', '--embed' }, { rpc = true })
+    local nvim = vim.fn.jobstart({ vim.v.progpath, '--embed' }, { rpc = true })
     print(vim.rpcrequest(nvim, 'nvim_eval', '"Hello " . "world!"'))
     vim.fn.jobstop(nvim)
 <
@@ -224,7 +224,7 @@ any of these approaches:
    can define functions at runtime.
 2. Use the |--api-info| startup arg. Useful for statically-compiled clients.
    Example (requires Python "pyyaml" and "msgpack-python" modules): >
-     nvim --api-info | python -c 'import msgpack, sys, yaml; yaml.dump(msgpack.unpackb(sys.stdin.buffer.read()), sys.stdout)'
+     nero --api-info | python -c 'import msgpack, sys, yaml; yaml.dump(msgpack.unpackb(sys.stdin.buffer.read()), sys.stdout)'
 3. Use the |api_info()| function. >vim
      :lua vim.print(vim.fn.api_info())
      " Example using filter() to exclude non-deprecated API functions:
@@ -745,7 +745,7 @@ nvim_echo({chunks}, {history}, {opts})                           *nvim_echo()*
                    • title (`string?`) Message title. Only for
                      |progress-message| currently.
                    • verbose (`boolean?`) Message is controlled by the
-                     'verbose' option. `nvim -V3log` will write the message to
+                     'verbose' option. `nero -V3log` will write the message to
                      the "log" file instead of standard output.
 
     Return: ~

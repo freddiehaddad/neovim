@@ -33,9 +33,9 @@ and |user-manual|.
 Resources                                               *resources*
 
                                                 *internet* *www* *distribution*
-Nvim home page:
+Nero home page:
 
-        https://neovim.io/
+        https://github.com/freddiehaddad/nero
 
                                                 *book*
 There are many resources to learn Vi, Vim, and Nvim.  We recommend:
@@ -51,41 +51,37 @@ There are many resources to learn Vi, Vim, and Nvim.  We recommend:
 - Vim FAQ: https://vimhelp.org/vim_faq.txt.html
 
                                                 *bugs* *bug-report* *feature-request*
-Report bugs and request features here: https://github.com/neovim/neovim/issues
+Report bugs and request features here:
+        https://github.com/freddiehaddad/nero/issues
 Be brief, yet complete.  Always give a reproducible example and try to find
-out which settings or other things trigger the bug. If Nvim crashed, try to
+out which settings or other things trigger the bug. If Nero crashed, try to
 get a backtrace (see |dev-tools-backtrace|).
 
 ==============================================================================
-Installing Nvim                                         *install*
+Installing Nero                                         *install*
 
                                                 *download* *upgrade* *ubuntu*
-To install or upgrade Nvim, you can...
+To install or upgrade Nero, you can...
 - Download a pre-built archive:
-  https://github.com/neovim/neovim/releases
-- Use your system package manager:
-  https://github.com/neovim/neovim/blob/master/INSTALL.md#install-from-package
+  https://github.com/freddiehaddad/nero/releases
 - Build from source:
-  https://github.com/neovim/neovim/blob/master/INSTALL.md#install-from-source
+  https://github.com/freddiehaddad/nero/blob/master/INSTALL.md#install-from-source
+
+System package managers currently distribute upstream Nvim, not Nero.
 
 ------------------------------------------------------------------------------
-Un-installing Nvim                                      *uninstall*
+Un-installing Nero                                      *uninstall*
 
-To uninstall Nvim:
-- If you downloaded a pre-built archive or built Nvim from source (e.g.
-  `make install`), just delete its files, typically located in: >
-  /usr/local/bin/nvim
-  /usr/local/share/nvim
-<
-  - To find where Nvim is installed, run these commands: >
+To uninstall Nero:
+- If you installed a release archive or ran `cargo xtask install`, remove
+  Nero's installed files from the chosen installation prefix. See:
+  https://github.com/freddiehaddad/nero/blob/master/INSTALL.md#uninstall
+
+  To locate the executable and bundled runtime, run these commands: >
     :echo v:progpath
     :echo $VIMRUNTIME
 <
-- If you installed via package manager, read your package manager's
-  documentation. Common examples:
-  - APT (Debian, Ubuntu, …): `apt-get remove neovim`
-  - Homebrew (macOS): `brew uninstall neovim`
-  - Scoop (Windows): `scoop uninstall neovim`
+- If you installed the Windows MSI, uninstall "Nero" through Windows Settings.
 
 ==============================================================================
 Sponsor Vim/Nvim development                            *sponsor*

@@ -16,7 +16,7 @@ for `has('patch-x.y.z')` compatibility.
 QUICKSTART                                           *dev-vimpatch-quickstart*
 
 1. Clone the repository: >bash
-     git clone https://github.com/freddiehaddad/neovim.git
+     git clone https://github.com/freddiehaddad/nero.git
 2. Use `git log --grep` or `git log -G` to search the commit history.
    E.g. to find `reset_option_was_set`: >bash
      git log -p -G reset_option_was_set

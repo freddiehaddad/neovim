@@ -1388,8 +1388,9 @@ msgstr ""
 "\n"
 "\tВостаннє змінена у "
 
-msgid " (run Nvim with -V1 for more details)"
-msgstr " (запустіть Nvim з -V1 щоб дізнатися більше)"
+#, c-format
+msgid " (run %s with -V1 for more details)"
+msgstr " (запустіть %s з -V1 щоб дізнатися більше)"
 
 msgid "E977: Can only compare Blob with Blob"
 msgstr "E977: Blob можна порівняти тільки з Blob"
@@ -2543,8 +2544,9 @@ msgstr "Вже й так лише одна вкладка"
 msgid "Tab page %d"
 msgstr "Вкладка %d"
 
-msgid "E25: Nvim does not have a built-in GUI"
-msgstr "E25: Не можна використати GUI: Не ввімкнено під час компіляції"
+#, c-format
+msgid "E25: %s does not have a built-in GUI"
+msgstr "E25: %s: Не можна використати GUI: Не ввімкнено під час компіляції"
 
 msgid "No swap file"
 msgstr "Немає файлу обміну"
@@ -3319,8 +3321,8 @@ msgid "Usage:\n"
 msgstr "Вжиток:\n"
 
 #, c-format
-msgid "  nvim [options] [file ...]\n"
-msgstr "  nvim [опції] [файл ...]\n"
+msgid "  %s [options] [file ...]\n"
+msgstr "  %s [опції] [файл ...]\n"
 
 #, c-format
 msgid ""
@@ -3682,8 +3684,9 @@ msgstr ""
 "\n"
 "Напевно, змін не було, або Nvim не поновив файл обміну."
 
-msgid " cannot be used with this version of Nvim.\n"
-msgstr " не можна використати з цією версією Nvim.\n"
+#, c-format
+msgid " cannot be used with this version of %s.\n"
+msgstr " не можна використати з цією версією %s.\n"
 
 msgid "Use Vim version 3.0.\n"
 msgstr "Знайдіть Vim 3.0\n"
@@ -3946,8 +3949,9 @@ msgstr ""
 msgid "(2) An edit session for this file crashed.\n"
 msgstr "(2) Сеанс редагування цього файлу зазнав краху.\n"
 
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    Якщо це справді трапилося, спробуйте «:recover» або «nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    Якщо це справді трапилося, спробуйте «:recover» або «%s -r "
 
 msgid ""
 "\"\n"
@@ -4164,12 +4168,14 @@ msgstr "E662: Початок списку змін"
 msgid "E663: At end of changelist"
 msgstr "E663: Кінець списку змін"
 
-msgid "Type  :qa!  and press <Enter> to abandon all changes and exit Nvim"
+#, c-format
+msgid "Type  :qa!  and press <Enter> to abandon all changes and exit %s"
 msgstr ""
-"Введіть  :qa!  і натисність <Enter> щоб відкинути всі зміни і вийти Nvim"
+"Введіть  :qa!  і натисність <Enter> щоб відкинути всі зміни і вийти %s"
 
-msgid "Type  :qa  and press <Enter> to exit Nvim"
-msgstr "Введіть  :qa  і натисність <Enter> щоб вийти з Nvim"
+#, c-format
+msgid "Type  :qa  and press <Enter> to exit %s"
+msgstr "Введіть  :qa  і натисність <Enter> щоб вийти з %s"
 
 #, c-format
 msgid "%<PRId64> line %sed %d time"
@@ -6002,14 +6008,17 @@ msgstr "  заміна для $VIM: \""
 msgid " f-b for $VIMRUNTIME: \""
 msgstr " заміна для $VIMRUNTIME: \""
 
-msgid "Nvim is open source and freely distributable"
-msgstr "Nvim — це відкрита й вільно розповсюджувана програма"
+#, c-format
+msgid "%s is open source and freely distributable"
+msgstr "%s — це відкрита й вільно розповсюджувана програма"
 
-msgid "type  :help nvim<Enter>       if you are new! "
-msgstr ":help nvim<Enter>       якщо ви вперше!       "
+#, c-format
+msgid "type  :help %s<Enter>     if you are new! "
+msgstr ":help %s<Enter>       якщо ви вперше!       "
 
-msgid "type  :checkhealth<Enter>     to optimize Nvim"
-msgstr ":checkhealth<Enter>     щоб оптимізувати Nvim "
+#, c-format
+msgid "type  :checkhealth<Enter>   to optimize %s"
+msgstr ":checkhealth<Enter>     щоб оптимізувати %s "
 
 msgid "type  :q<Enter>               to exit         "
 msgstr ":q<Enter>               вихід з Vim           "

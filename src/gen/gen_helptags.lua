@@ -23,7 +23,7 @@ end
 
 help.gen_tagsfile(files, dir, arg[1], arg[3] == '++t' and 'tags' or nil, false)
 
--- nvim -l exits successfully after echo_err(), so fail the build explicitly.
+-- nero -l exits successfully after echo_err(), so fail the build explicitly.
 if vim.v and vim.v.errmsg ~= '' then
   os.exit(1)
 end

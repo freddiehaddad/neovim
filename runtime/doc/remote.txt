@@ -32,7 +32,7 @@ The following command line arguments are available:
 				You cannot edit stdin this way |--|.
 				The remote Vim is raised.  If you don't want
 				this use >
-				 nvim --remote-send "<C-\><C-N>:n filename<CR>"
+				 nero --remote-send "<C-\><C-N>:n filename<CR>"
 <
    --remote-silent [+{cmd}] {file} ...			*--remote-silent*
 				As above, but don't complain if there is no
@@ -64,16 +64,16 @@ The following command line arguments are available:
 Examples ~
 
 Start an Nvim server listening on a named pipe at '~/.cache/nvim/server.pipe': >
-    nvim --listen ~/.cache/nvim/server.pipe
+    nero --listen ~/.cache/nvim/server.pipe
 
 Edit "file.txt" in an Nvim server listening at '~/.cache/nvim/server.pipe': >
-    nvim --server ~/.cache/nvim/server.pipe --remote file.txt
+    nero --server ~/.cache/nvim/server.pipe --remote file.txt
 
 This doesn't work, all arguments after --remote will be used as file names: >
-    nvim --remote --server ~/.cache/nvim/server.pipe file.txt
+    nero --remote --server ~/.cache/nvim/server.pipe file.txt
 
 Tell the remote server to write all files and exit: >
-    nvim --server ~/.cache/nvim/server.pipe --remote-send '<C-\><C-N>:wqa<CR>'
+    nero --server ~/.cache/nvim/server.pipe --remote-send '<C-\><C-N>:wqa<CR>'
 
 
 REMOTE EDITING

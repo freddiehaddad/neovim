@@ -18,11 +18,11 @@ You can start hacking on Nvim in less than 5 minutes:
 
 1. Ensure you have the build prerequisites from `BUILD.md`.
 2. Clone the source repo and "cd" into it: >
-        git clone https://github.com/freddiehaddad/neovim
-        cd neovim
+        git clone https://github.com/freddiehaddad/nero
+        cd nero
         # (Optional) Build and run Nvim:
         cargo xtask build
-        VIMRUNTIME=./runtime ./target/nvim-build/bin/nvim --luamod-dev
+        VIMRUNTIME=./runtime ./target/nvim-build/bin/nero --luamod-dev
 3. Run a single test. We will start with "example_spec.lua", which is a real
    test that shows how tests are written: >
         cargo xtask functionaltest test/functional/example_spec.lua
@@ -100,7 +100,7 @@ TERMINFO LOGGING
 At 'verbose' level 3, Nvim logs its internal terminfo state, so you can see
 exactly what terminfo values it is using on the current system. >
 
-    nvim -V3log
+    nero -V3log
 
 TUI DEBUGGING WITH GDB LLDB
 
@@ -113,12 +113,12 @@ To debug the main process, you can debug the nvim binary with the `--headless`
 flag which does not launch the TUI and will allow you to set breakpoints in code
 not related to TUI rendering like so: >
 
-    lldb -- ./build/bin/nvim --headless --listen ~/.cache/nvim/debug-server.pipe
+    lldb -- ./target/nvim-build/bin/nero --headless --listen ~/.cache/nvim/debug-server.pipe
 
 While in lldb, enter `run`. You can then attach to the headless process in a
 new terminal window to interact with the editor like so: >
 
-    ./build/bin/nvim --remote-ui --server ~/.cache/nvim/debug-server.pipe
+    ./target/nvim-build/bin/nero --remote-ui --server ~/.cache/nvim/debug-server.pipe
 
 Conversely for debugging TUI rendering, you can start a headless process and
 debug the remote-ui process multiple times without losing editor state.
@@ -149,7 +149,7 @@ libvterm `vterm-dump` utility formats the result for human-readability.
 Record a Nvim terminal session and format it with `vterm-dump`: >sh
 
     script foo
-    ./build/bin/nvim -u NONE
+    ./target/nvim-build/bin/nero -u NONE
     # Exit the script session with CTRL-d
 
     # Use `vterm-dump` utility to format the result.
@@ -301,13 +301,13 @@ https://stackoverflow.com/a/18368068
 
 To get a backtrace from the `./core` dump file:
 >bash
-    gdb build/bin/nvim ./core 2>&1 | tee backtrace.txt
+    gdb target/nvim-build/bin/nero ./core 2>&1 | tee backtrace.txt
     (gdb) thread apply all bt full
 <
 
 MACOS
 
-If `nvim` crashes, you can see the backtrace in `Console.app` (under "Crash
+If `nero` crashes, you can see the backtrace in `Console.app` (under "Crash
 Reports" or "User Diagnostic Reports" for older macOS versions).
 >bash
     open -a Console
@@ -342,7 +342,7 @@ WINDOWS
 If the Windows version of Nvim crashes in a reproducible manner, you can take
 some steps to provide a useful bug report.
 
-You must obtain the debugger symbols (PDB) file for the Nvim executable: nvim.pdb.
+You must obtain the debugger symbols (PDB) file for the Nvim executable: nero.pdb.
 The PDB should be available from the same place that you obtained the
 executable (TODO: not currently provided by Nvim CI releases).  Be sure to use
 the PDB that matches the EXE (same build).
@@ -356,7 +356,7 @@ For other compilers, always use the corresponding debugger: gdb or lldb.
 
 Debugging Nvim crashes with Visual Studio 2005 ~
 
-First launch nvim.exe and then launch Visual Studio.  (If you don't have
+First launch nero.exe and then launch Visual Studio.  (If you don't have
 Visual Studio, get it from https://visualstudio.microsoft.com/downloads/).
 
 On the Tools menu, click Attach to Process.  Choose the Nvim process.
@@ -395,7 +395,7 @@ Use `TEST_TAG` to run tests matching `#foo` tags (e.g.
 <
 Then, in another terminal:
 >bash
-    gdb build/bin/nvim
+    gdb target/nvim-build/bin/nero
     (gdb) target remote localhost:7777
 
 -- See `nvim_argv` in https://github.com/neovim/neovim/blob/master/test/functional/testnvim.lua.
@@ -407,10 +407,10 @@ USING LLDB TO STEP THROUGH UNIT TESTS
 <
 USING GDB
 
-To attach to a running `nvim` process with a pid of 1234 (Tip: the pid of a
+To attach to a running `nero` process with a pid of 1234 (Tip: the pid of a
 running Nvim instance can be obtained by calling |getpid()|), for instance:
 >bash
-    gdb -tui -p 1234 build/bin/nvim
+    gdb -tui -p 1234 target/nvim-build/bin/nero
 <
 The `gdb` interactive prompt will appear. At any time you can:
 
@@ -437,19 +437,19 @@ GDB REVERSE DEBUGGING
 
 USING GDBSERVER
 
-You may want to connect multiple `gdb` clients to the same running `nvim`
-process, or you may want to connect to a remote `nvim` process with a local
+You may want to connect multiple `gdb` clients to the same running `nero`
+process, or you may want to connect to a remote `nero` process with a local
 `gdb`. Using `gdbserver`, you can attach to a single process and control it
 from multiple `gdb` clients.
 
-Open a terminal and start `gdbserver` attached to `nvim` like this:
+Open a terminal and start `gdbserver` attached to `nero` like this:
 >bash
-    gdbserver :6666 build/bin/nvim 2> gdbserver.log
+    gdbserver :6666 target/nvim-build/bin/nero 2> gdbserver.log
 <
 `gdbserver` is now listening on port 6666. You then need to attach to this
 debugging session in another terminal:
 >bash
-    gdb build/bin/nvim
+    gdb target/nvim-build/bin/nero
 <
 Once you've entered `gdb`, you need to attach to the remote session:
 >
@@ -480,10 +480,10 @@ This example `local.mk` will create the debugging session when you type
         @$(MAKE) nvim
 
     dbg-start: build
-        @tmux new-window -n 'dbg-neovim' 'gdbserver :6666 ./build/bin/nvim -D'
+        @tmux new-window -n 'dbg-nero' 'gdbserver :6666 ./target/nvim-build/bin/nero -D'
 
     dbg-attach:
-        @tmux new-window -n 'dbg-cgdb' 'cgdb -x gdb_start.sh ./build/bin/nvim'
+        @tmux new-window -n 'dbg-cgdb' 'cgdb -x gdb_start.sh ./target/nvim-build/bin/nero'
 
     debug: dbg-start dbg-attach
 <
@@ -537,7 +537,7 @@ Put this in init.lua (adjust quickfix commands to taste):
     if vim.env.ASAN_OPTIONS ~= nil then
       local log_name = vim.env.HOME.."/logs/asan."..vim.uv.getpid()
       local args = {"--embed", "-n", "+set efm=%+A%*[^/]%f:%l:%c", "+silent cfile "..log_name, "+silent cfirst", "+silent copen"}
-      vim.api.nvim__set_restart_on_crash("nvim", args)
+      vim.api.nvim__set_restart_on_crash(vim.v.progpath, args)
     end
 <
 

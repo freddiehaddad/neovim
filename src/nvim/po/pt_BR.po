@@ -621,8 +621,9 @@ msgstr ""
 "(2) Ocorreu um travamento numa sessão de edição desse arquivo.\n"
 
 #: ../memline.c:3206
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    Se esse for o caso, use \":recover\" ou \"nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    Se esse for o caso, use \":recover\" ou \"%s -r "
 
 #: ../memline.c:3208
 msgid ""
@@ -2504,9 +2505,10 @@ msgid "E477: No ! allowed"
 msgstr "E477: '!' não permitido"
 
 #: ../globals.h:1034
-msgid "E25: Nvim does not have a built-in GUI"
+#, c-format
+msgid "E25: %s does not have a built-in GUI"
 msgstr ""
-"E25: Interface gráfica não pode ser usada, não foi ativada na compilação"
+"E25: %s: Interface gráfica não pode ser usada, não foi ativada na compilação"
 
 #: ../globals.h:1035
 #, c-format

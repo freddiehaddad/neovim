@@ -2741,8 +2741,9 @@ msgid "E477: No ! allowed"
 msgstr "E477: ! no permès"
 
 #: ../globals.h:1035
-msgid "E25: Nvim does not have a built-in GUI"
-msgstr "E25: No es pot usar la GUI: No ha estat compilada"
+#, c-format
+msgid "E25: %s does not have a built-in GUI"
+msgstr "E25: %s: No es pot usar la GUI: No ha estat compilada"
 
 #: ../globals.h:1036
 #, c-format
@@ -4009,8 +4010,9 @@ msgstr ""
 "(2) El Vim s'ha estrellat mentre s'editava aquest fitxer.\n"
 
 #: ../memline.c:3247
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    En aquest cas, useu \":recover\" o bé \"nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    En aquest cas, useu \":recover\" o bé \"%s -r "
 
 #: ../memline.c:3249
 msgid ""

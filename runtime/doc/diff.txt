@@ -17,10 +17,10 @@ The basics are explained in section |08.7| of the user manual.
 ==============================================================================
 1. Starting diff mode					*start-vimdiff*
 
-To start editing in diff mode, run "nvim -d".  This starts Nvim as usual, and
+To start editing in diff mode, run "nero -d".  This starts Nvim as usual, and
 additionally sets up for viewing the differences between the arguments. >
 
-	nvim -d file1 file2 [file3 [file4]]
+	nero -d file1 file2 [file3 [file4]]
 
 In addition to the |-d| argument, |-R| may be used for readonly mode.
 
@@ -40,7 +40,7 @@ What happens is that Nvim opens a window for each of the files.  This is like
 using the |-O| argument.  This uses vertical splits, but if you prefer
 horizontal splits use the |-o| argument instead: >
 
-	nvim -d -o file1 file2 [file3 [file4]]
+	nero -d -o file1 file2 [file3 [file4]]
 
 If you always prefer horizontal splits include "horizontal" in 'diffopt'.
 
@@ -82,17 +82,17 @@ While already in Vim you can start diff mode in three ways.
 							*E98*
 :diffs[plit] {filename}					*:diffs* *:diffsplit*
 		Open a new window on the file {filename}.  The options are set
-		as for "nvim -d" for the current and the newly opened window.
+		as for "nero -d" for the current and the newly opened window.
 		Also see 'diffexpr'.
 
 :difft[his]						*:difft* *:diffthis*
 		Make the current window part of the diff windows.  This sets
-		the options as for "nvim -d".
+		the options as for "nero -d".
 
 :diffp[atch] {patchfile}			 *E816* *:diffp* *:diffpatch*
 		Use the current buffer, patch it with the diff found in
 		{patchfile} and open a buffer on the result.  This sets the
-		options as for "nvim -d".
+		options as for "nero -d".
 		{patchfile} can be in any format that the "patch" program
 		understands or 'patchexpr' can handle.
 		Note that {patchfile} should only contain a diff for one file,

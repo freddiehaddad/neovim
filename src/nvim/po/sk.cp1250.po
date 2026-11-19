@@ -2713,8 +2713,9 @@ msgid "E477: No ! allowed"
 msgstr "E477: ! nie je povolenı"
 
 #: ../globals.h:1035
-msgid "E25: Nvim does not have a built-in GUI"
-msgstr "E25: Nedá sa pouí GUI: nebolo zapnuté pri preklade programu"
+#, c-format
+msgid "E25: %s does not have a built-in GUI"
+msgstr "E25: %s: Nedá sa pouí GUI: nebolo zapnuté pri preklade programu"
 
 #: ../globals.h:1036
 #, c-format
@@ -3966,8 +3967,9 @@ msgstr ""
 "(2) Úprava tohoto súboru bola prerušená neoèakávanım ukonèením programu.\n"
 
 #: ../memline.c:3247
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    Ak je tomu tak, potom pouite \":recover\" alebo \"nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    Ak je tomu tak, potom pouite \":recover\" alebo \"%s -r "
 
 #: ../memline.c:3249
 msgid ""

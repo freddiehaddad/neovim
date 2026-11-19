@@ -263,8 +263,9 @@ msgstr "      TAPILA BİLMİR"
 msgid "      NEWER than swap file!\n"
 msgstr "      Mübadilə faylından DAHA YENİDİR!\n"
 
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    Belədirsə, bu əmrdən istifadə edin: \":recover\" və ya \"nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    Belədirsə, bu əmrdən istifadə edin: \":recover\" və ya \"%s -r "
 
 msgid "    If you did this already, delete the swap file \""
 msgstr "    Bunu artıq etmisinizsə, mübadilə faylını silin: \""
@@ -436,8 +437,8 @@ msgid "  name=%s"
 msgstr "  ad=%s"
 
 #, c-format
-msgid "  nvim [options] [file ...]\n"
-msgstr "  nvim [parametrlər] [fayl ...]\n"
+msgid "  %s [options] [file ...]\n"
+msgstr "  %s [parametrlər] [fayl ...]\n"
 
 #, c-format
 msgid " (%d of %d)"
@@ -477,8 +478,9 @@ msgstr " (əvəzetmə)"
 msgid " (replace) Scroll (^E/^Y)"
 msgstr " (əvəzetmə) Sürüşdür (^E/^Y)"
 
-msgid " (run Nvim with -V1 for more details)"
-msgstr " (ətraflı məlumat üçün Nvim-i -V1 ilə başladın)"
+#, c-format
+msgid " (run %s with -V1 for more details)"
+msgstr " (ətraflı məlumat üçün %s-nu -V1 ilə başladın)"
 
 msgid " (terminal)"
 msgstr " (terminal)"
@@ -594,8 +596,9 @@ msgstr " sonuna əlavə edildi"
 msgid " cannot be used on this computer.\n"
 msgstr " bu kompüterdə istifadə edilə bilmir.\n"
 
-msgid " cannot be used with this version of Nvim.\n"
-msgstr " Nvim-in bu versiyası ilə istifadə edilə bilmir.\n"
+#, c-format
+msgid " cannot be used with this version of %s.\n"
+msgstr " %s-nun bu versiyası ilə istifadə edilə bilmir.\n"
 
 msgid " f-b for $VIMRUNTIME: \""
 msgstr " $VIMRUNTIME üçün eht.: \""
@@ -2478,8 +2481,9 @@ msgstr "E24: Belə qısaltma yoxdur"
 msgid "E255: Couldn't read in sign data!"
 msgstr "E255: İşarə məlumatları oxuna bilmədi!"
 
-msgid "E25: Nvim does not have a built-in GUI"
-msgstr "E25: Nvim-in daxili qrafik istifadəçi interfeysi yoxdur"
+#, c-format
+msgid "E25: %s does not have a built-in GUI"
+msgstr "E25: %s-nun daxili qrafik istifadəçi interfeysi yoxdur"
 
 msgid "E260: Missing name after ->"
 msgstr "E260: -> işarəsindən sonra ad yoxdur"
@@ -5507,11 +5511,13 @@ msgstr "Geri alınacaq heç nə yoxdur"
 msgid "Number of words after soundfolding: %<PRId64>"
 msgstr "Fonetik çevirmədən sonra sözlərin sayı: %<PRId64>"
 
-msgid "Nvim is open source and freely distributable"
-msgstr "Nvim açıq mənbəlidir və sərbəst yayıla bilər"
+#, c-format
+msgid "%s is open source and freely distributable"
+msgstr "%s açıq mənbəlidir və sərbəst yayıla bilər"
 
-msgid "Nvim will continue running if the UI disconnects"
-msgstr "İstifadəçi interfeysinin əlaqəsi kəsilsə, Nvim işləməyə davam edəcək"
+#, c-format
+msgid "%s will continue running if the UI disconnects"
+msgstr "İstifadəçi interfeysinin əlaqəsi kəsilsə, %s işləməyə davam edəcək"
 
 msgid "Nvim: Data too large to fit into virtual memory space\n"
 msgstr "Nvim: Verilənlər virtual yaddaş sahəsinə sığmayacaq qədər böyükdür\n"
@@ -5790,12 +5796,14 @@ msgstr "Sözlərin ümumi sayı: %d"
 msgid "Trailing text in %s line %d: %s"
 msgstr "%s faylının %d nömrəli sətrində sondakı mətn: %s"
 
-msgid "Type  :qa  and press <Enter> to exit Nvim"
-msgstr "Nvim-dən çıxmaq üçün  :qa  yazın və <Enter> düyməsini basın"
+#, c-format
+msgid "Type  :qa  and press <Enter> to exit %s"
+msgstr "%s-dan çıxmaq üçün  :qa  yazın və <Enter> düyməsini basın"
 
-msgid "Type  :qa!  and press <Enter> to abandon all changes and exit Nvim"
+#, c-format
+msgid "Type  :qa!  and press <Enter> to abandon all changes and exit %s"
 msgstr ""
-"Bütün dəyişikliklərdən imtina edib Nvim-dən çıxmaq üçün  :qa!  yazın və "
+"Bütün dəyişikliklərdən imtina edib %s-dan çıxmaq üçün  :qa!  yazın və "
 "<Enter> düyməsini basın"
 
 msgid "Type number and <Enter> (q or empty cancels): "
@@ -7457,8 +7465,9 @@ msgstr "üzən pəncərələr üçün şəffaflıq səviyyəsi"
 msgid "transparency level of popup menu"
 msgstr "açılan menyunun şəffaflıq səviyyəsi"
 
-msgid "type  :checkhealth<Enter>   to optimize Nvim"
-msgstr "Nvim-i optimallaşdırmaq üçün :checkhealth<Enter> yazın"
+#, c-format
+msgid "type  :checkhealth<Enter>   to optimize %s"
+msgstr "%s-nu optimallaşdırmaq üçün :checkhealth<Enter> yazın"
 
 msgid "type  :help Kuwasha<Enter>  for information "
 msgstr "məlumat üçün :help Kuwasha<Enter> yazın "
@@ -7467,8 +7476,9 @@ msgstr "məlumat üçün :help Kuwasha<Enter> yazın "
 msgid "type  :help news<Enter>     for v%s.%s notes "
 msgstr "v%s.%s qeydləri üçün :help news<Enter> yazın "
 
-msgid "type  :help nvim<Enter>     if you are new! "
-msgstr "yeni başlayırsınızsa, :help nvim<Enter> yazın! "
+#, c-format
+msgid "type  :help %s<Enter>     if you are new! "
+msgstr "yeni başlayırsınızsa, :help %s<Enter> yazın! "
 
 msgid "type  :help<Enter>          for help        "
 msgstr "kömək üçün :help<Enter> yazın        "

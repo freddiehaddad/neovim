@@ -174,10 +174,10 @@ describe('command-line option', function()
     end)
   end)
 
-  it('nvim -v, :version', function()
+  it('nero -v, :version', function()
     matches('Run ":verbose version"', fn.execute(':version'))
     matches('fall%-back for %$VIM: .*Run :checkhealth', fn.execute(':verbose version'))
-    matches('Run "nvim %-V1 %-v"', n.spawn_wait('-v').stdout)
+    matches('Run "nero %-V1 %-v"', n.spawn_wait('-v').stdout)
     matches('fall%-back for %$VIM: .*Run :checkhealth', n.spawn_wait('-V1', '-v').stdout)
   end)
 end)
@@ -199,7 +199,7 @@ describe('Bash completion', function()
   local function complete(setup, query, arguments)
     local script = setup
       .. '\n'
-      .. t.read_file(t.paths.test_source_path .. '/contrib/nvim.bash')
+      .. t.read_file(t.paths.test_source_path .. '/contrib/nero.bash')
       .. '\n'
       .. query
       .. '\n'
@@ -221,29 +221,33 @@ describe('Bash completion', function()
     { 'bash-completion 2.12', 'BASH_COMPLETION_VERSINFO=(2 12)' },
   }) do
     it('registers aliases with ' .. case[1], function()
-      local setup = case[2] .. '\nalias vi=nvim\nalias vim=nvim'
+      local setup = case[2] .. '\nalias vi=nero\nalias vim=nero\nalias nvim=nero'
       eq(
-        'complete -F _comp_nvim nvim\n'
-          .. 'complete -F _comp_nvim vi\n'
-          .. 'complete -F _comp_nvim vim\n',
-        complete(setup, 'complete -p nvim vi vim')
+        'complete -F _comp_nero nero\n'
+          .. 'complete -F _comp_nero vi\n'
+          .. 'complete -F _comp_nero vim\n'
+          .. 'complete -F _comp_nero nvim\n',
+        complete(setup, 'complete -p nero vi vim nvim')
       )
     end)
   end
 
   it('preserves existing completions and ignores unrelated aliases', function()
     eq(
-      'complete -F _comp_nvim nvim\n' .. 'complete -F custom vi\n',
+      'complete -F _comp_nero nero\n'
+        .. 'complete -F custom vi\n'
+        .. 'complete -F _comp_nero nvim\n',
       complete(
-        'alias vi=nvim\nalias vim=other\n' .. 'custom() { :; }\ncomplete -F custom vi',
-        'complete -p nvim vi\n! complete -p vim >/dev/null 2>&1'
+        'alias vi=nero\nalias vim=other\nalias nvim=nero\n'
+          .. 'custom() { :; }\ncomplete -F custom vi',
+        'complete -p nero vi nvim\n! complete -p vim >/dev/null 2>&1'
       )
     )
   end)
 
   local function help_completion(query)
     local directory = vim.fs.abspath(t.tmpname(false)) .. ' completion'
-    local program = directory .. '/nvim'
+    local program = directory .. '/nero'
     assert(uv.fs_mkdir(directory, 493))
     finally(function()
       os.remove(program)
@@ -257,7 +261,7 @@ describe('Bash completion', function()
     return complete(
       [=[
         BASH_COMPLETION_VERSINFO=(2 12)
-        alias vi=nvim vim=nvim
+        alias vi=nero vim=nero nvim=nero
         bin=$(cd -- "$1" && pwd -P)
         _comp_initialize() {
           comp_args=("${@:4}")
@@ -284,14 +288,14 @@ describe('Bash completion', function()
 
   it('completes long options for aliases without legacy executables on PATH', function()
     eq(
-      'nvim:--clean\nvi:--clean\nvim:--clean\n',
+      'nero:--clean\nvi:--clean\nvim:--clean\nnvim:--clean\n',
       help_completion([[
         PATH="$bin"
         hash -r
-        for command in nvim vi vim; do
+        for command in nero vi vim nvim; do
           COMP_WORDS=("$command" --cl)
           COMP_CWORD=1
-          _comp_nvim "$command" --cl "$command"
+          _comp_nero "$command" --cl "$command"
           printf '%s:%s\n' "$command" "${COMPREPLY[*]}"
         done
       ]])
@@ -304,10 +308,10 @@ describe('Bash completion', function()
       help_completion([[
         PATH=
         hash -r
-        command="$bin/nvim"
+        command="$bin/nero"
         COMP_WORDS=("$command" --cl)
         COMP_CWORD=1
-        _comp_nvim "$command" --cl "$command"
+        _comp_nero "$command" --cl "$command"
         printf '%s\n' "${COMPREPLY[@]}"
       ]])
     )

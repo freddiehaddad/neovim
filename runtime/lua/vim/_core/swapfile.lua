@@ -68,7 +68,7 @@ function M.select_swap(items)
   end)
 end
 
---- Implements `nvim -r` (no arg): list every swapfile found in 'directory'.
+--- Implements `nero -r` (no arg): list every swapfile found in 'directory'.
 ---
 --- @param items string[] List of swapfile paths.
 function M.list_swaps(items)

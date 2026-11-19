@@ -153,14 +153,14 @@ describe('startup', function()
     end)
 
     it('failure modes', function()
-      -- nvim -l <empty>
+      -- nero -l <empty>
       local proc = n.spawn_wait('-l')
-      matches('nvim%.?e?x?e?: Argument missing after: "%-l"', proc.stderr)
+      matches('nero%.?e?x?e?: Argument missing after: "%-l"', proc.stderr)
       eq(1, proc.status)
     end)
 
     it('os.exit() sets Nvim exitcode', function()
-      -- nvim -l foo.lua -arg1 -- a b c
+      -- nero -l foo.lua -arg1 -- a b c
       assert_l_out(
         [[
           bufs:
@@ -289,7 +289,7 @@ describe('startup', function()
     end)
 
     it('sets _G.arg', function()
-      -- nvim -l foo.lua
+      -- nero -l foo.lua
       assert_l_out(
         [[
           bufs:
@@ -303,7 +303,7 @@ describe('startup', function()
       )
       eq(0, eval('v:shell_error'))
 
-      -- nvim -l foo.lua [args]
+      -- nero -l foo.lua [args]
       assert_l_out(
         [[
           bufs:
@@ -331,7 +331,7 @@ describe('startup', function()
       )
       eq(0, eval('v:shell_error'))
 
-      -- nvim -l foo.lua <vim args>
+      -- nero -l foo.lua <vim args>
       assert_l_out(
         [[
           bufs:
@@ -773,7 +773,7 @@ describe('startup', function()
       term = true,
       env = { VIMRUNTIME = os.getenv('VIMRUNTIME') },
     })
-    -- "nvim -es" output ends with a final newline.
+    -- "nero -es" output ends with a final newline.
     screen:expect([[
       ^hello                                                       |
                                                                   |
@@ -804,15 +804,15 @@ describe('startup', function()
 
   it('fails on --embed with -es/-Es/-l', function()
     matches(
-      'nvim[.exe]*: %-%-embed conflicts with %-es/%-Es/%-l',
+      'nero[.exe]*: %-%-embed conflicts with %-es/%-Es/%-l',
       n.spawn_wait('--embed', '-es').stderr
     )
     matches(
-      'nvim[.exe]*: %-%-embed conflicts with %-es/%-Es/%-l',
+      'nero[.exe]*: %-%-embed conflicts with %-es/%-Es/%-l',
       n.spawn_wait('--embed', '-Es').stderr
     )
     matches(
-      'nvim[.exe]*: %-%-embed conflicts with %-es/%-Es/%-l',
+      'nero[.exe]*: %-%-embed conflicts with %-es/%-Es/%-l',
       n.spawn_wait('--embed', '-l', 'foo.lua').stderr
     )
   end)

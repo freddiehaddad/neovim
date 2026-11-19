@@ -216,7 +216,7 @@ Other hints:
 - If you're manually creating a Python virtual environment for the `pynvim` module
     https://pypi.org/project/pynvim/, you must set `g:python3_host_prog` to
     the virtualenv's interpreter path.
-- Try with `nvim -u NORC` to make sure your config (|init.vim|) isn't causing a
+- Try with `nero -u NORC` to make sure your config (|init.vim|) isn't causing a
     problem. If you get `E117: Unknown function`, that means there's a runtime
     issue: |faq-runtime|.
 - The python `neovim` module was renamed to `pynvim` (long ago).
@@ -272,7 +272,7 @@ COLORS AREN'T DISPLAYED CORRECTLY
 
 Ensure that |$TERM| is set correctly.
 
-From a shell, run `TERM=xterm-256color nvim`. If colors are displayed
+From a shell, run `TERM=xterm-256color nero`. If colors are displayed
 correctly, then export that value of `TERM` in your user profile (usually
 `~/.profile`):
 >bash

@@ -4,10 +4,11 @@ Instructions for AI coding agents working in this repository.
 
 ## Project Overview
 
-This repository is a pure-Rust port of [Neovim](https://github.com/neovim/neovim) (`edition = "2024"`).
+This repository (**Nero**) is a pure-Rust port of [Neovim](https://github.com/neovim/neovim) (`edition = "2024"`).
 - **Zero `.c` or `.h` files exist in the repository.** Do not add C source/header files, CMake files, or Zig build files.
 - **100% behavioral, API, and plugin compatibility with upstream Neovim** is the primary invariant. Every change must preserve LuaJIT C API compatibility, Msgpack-RPC wire compatibility, and Vimscript/editor semantics.
-- The workspace builds three application binaries (`nvim`, `tee`, `xxd`), the `neovim` library crate (`src/nvim/lib.rs`), the `xtask` runner, and the FFI-free `event-lifetimes-tests` package.
+- The workspace builds three application binaries (`nero`, `tee`, `xxd`), the `nero` library crate (`src/nvim/lib.rs`), the `xtask` runner, and the FFI-free `event-lifetimes-tests` package.
+- Rust display and executable names are centralized in `src/branding.rs`, shared by the editor and build tools. Keep Neovim API, protocol, configuration, and file-format identifiers independent of those branding values.
 
 ## Build, Test, and Lint Commands
 

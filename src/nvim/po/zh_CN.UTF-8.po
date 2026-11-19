@@ -2182,8 +2182,9 @@ msgid "Tab page %d"
 msgstr "Tab 页 %d"
 
 #: ../ex_docmd.c:5296
-msgid "E25: Nvim does not have a built-in GUI"
-msgstr "E25: 无法使用图形界面: 编译时没有启用"
+#, c-format
+msgid "E25: %s does not have a built-in GUI"
+msgstr "E25: %s: 无法使用图形界面: 编译时没有启用"
 
 #: ../ex_docmd.c:5307
 msgid "No swap file"
@@ -3990,15 +3991,15 @@ msgstr "用法：\n"
 
 #: ../main.c:2095
 msgid "  nvim [options] [file ...]      Edit file(s)\n"
-msgstr "  nvim [options] [文件 ..]       编辑指定的文件\n"
+msgstr "  nero [options] [文件 ..]       编辑指定的文件\n"
 
 #: ../main.c:2096
 msgid "  nvim [options] -t <tag>        Edit file where tag is defined\n"
-msgstr "  nvim [options] -t tag          编辑 tag 定义处的文件\n"
+msgstr "  nero [options] -t tag          编辑 tag 定义处的文件\n"
 
 #: ../main.c:2097
 msgid "  nvim [options] -q [errorfile]  Edit file with first error\n"
-msgstr "  nvim [options] -q [errorfile]  编辑第一个出错处的文件\n"
+msgstr "  nero [options] -q [errorfile]  编辑第一个出错处的文件\n"
 
 #: ../main.c:2098
 msgid ""
@@ -4761,8 +4762,9 @@ msgid "(2) An edit session for this file crashed.\n"
 msgstr "(2) 上次编辑此文件时崩溃。\n"
 
 #: ../memline.c:3099
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    如果是这样，请用 \":recover\" 或 \"nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    如果是这样，请用 \":recover\" 或 \"%s -r "
 
 #: ../memline.c:3101
 msgid ""
@@ -5031,12 +5033,14 @@ msgid "E663: At end of changelist"
 msgstr "E663: 已在改变列表的末尾处"
 
 #: ../normal.c:6081
-msgid "Type  :qa!  and press <Enter> to abandon all changes and exit Nvim"
-msgstr "输入  :qa!  并按 <Enter> 来放弃所有更改并退出 Nvim"
+#, c-format
+msgid "Type  :qa!  and press <Enter> to abandon all changes and exit %s"
+msgstr "输入  :qa!  并按 <Enter> 来放弃所有更改并退出 %s"
 
 #: ../normal.c:6084
-msgid "Type  :qa  and press <Enter> to exit Nvim"
-msgstr "输入  :qa  并按 <Enter> 退出 Nvim"
+#, c-format
+msgid "Type  :qa  and press <Enter> to exit %s"
+msgstr "输入  :qa  并按 <Enter> 退出 %s"
 
 #: ../ops.c:263
 #, c-format
@@ -7222,16 +7226,19 @@ msgid " f-b for $VIMRUNTIME: \""
 msgstr "  $VIMRUNTIME 预设值: \""
 
 #: ../version.c:2805
-msgid "Nvim is open source and freely distributable"
-msgstr "Nvim 是可自由分发的开放源代码软件"
+#, c-format
+msgid "%s is open source and freely distributable"
+msgstr "%s 是可自由分发的开放源代码软件"
 
 #: ../version.c:2808
-msgid "type  :help nvim<Enter>       if you are new! "
-msgstr "输入  :help nvim<Enter>       了解 Neovim！   "
+#, c-format
+msgid "type  :help %s<Enter>     if you are new! "
+msgstr "输入  :help %s<Enter>       查看入门帮助！ "
 
 #: ../version.c:2809
-msgid "type  :checkhealth<Enter>     to optimize Nvim"
-msgstr "输入  :checkhealth<Enter>     优化 Neovim     "
+#, c-format
+msgid "type  :checkhealth<Enter>   to optimize %s"
+msgstr "输入  :checkhealth<Enter>     优化 %s       "
 
 #: ../version.c:2810
 msgid "type  :q<Enter>               to exit         "

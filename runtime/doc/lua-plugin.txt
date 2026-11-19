@@ -29,7 +29,7 @@ You can try it right now:
 2. Create a `plugin/foo.lua` file in there.
 3. Add something to it, like: >lua
     vim.print('Hello World')
-4. Start `nvim` and notice that it prints "Hello World" in the messages area.
+4. Start `nero` and notice that it prints "Hello World" in the messages area.
    Check `:messages` if you don't see it.
 
 Besides `plugin/foo.lua`, which is always run at startup, you can define Lua

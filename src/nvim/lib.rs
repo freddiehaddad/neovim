@@ -6,6 +6,8 @@ pub(crate) mod base64;
 #[cfg(any(test, feature = "vendor-bit"))]
 #[path = "../bit.rs"]
 pub(crate) mod bit;
+#[path = "../branding.rs"]
+pub(crate) mod branding;
 pub(crate) mod buffer;
 pub(crate) mod buffer_updates;
 pub(crate) mod bufwrite;

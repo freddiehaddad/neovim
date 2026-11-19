@@ -1,16 +1,16 @@
 # Building from Source
 
-Building the Rust port of Neovim requires a current Rust toolchain and a C compiler for the four external C libraries (`libuv`, `LuaJIT`, `luv`, and `tree-sitter`) that are fetched and built automatically on first run. No CMake, Ninja, or Luarocks setup is needed.
+Building **Nero** requires a current Rust toolchain and a C compiler for the four external C libraries (`libuv`, `LuaJIT`, `luv`, and `tree-sitter`) that are fetched and built automatically on first run. No CMake, Ninja, or Luarocks setup is needed.
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/freddiehaddad/neovim
-cd neovim
+git clone https://github.com/freddiehaddad/nero
+cd nero
 cargo xtask install
 ```
 
-- **Default install prefix**: `~/.local` on Linux/macOS/BSD and `%USERPROFILE%\.local\bin\nvim-win64` on Windows.
+- **Default install prefix**: `~/.local` on Linux/macOS/BSD and `%LOCALAPPDATA%\Programs\Nero` on Windows.
 - **Custom install prefix**:
   ```bash
   cargo xtask install --prefix /custom/path
@@ -18,16 +18,16 @@ cargo xtask install
 - **Build without installing**:
   ```bash
   cargo xtask build --release
-  ./target/nvim-build/bin/nvim
+  ./target/nvim-build/bin/nero
   ```
-  `cargo xtask build` compiles the application binaries (`nvim`, `tee`, `xxd`) and test fixtures, and stages a runnable tree (including generated helptags and syntax files) in `target/nvim-build/`.
+  `cargo xtask build` compiles the application binaries (`nero`, `tee`, `xxd`) and test fixtures, and stages a runnable tree (including generated helptags and syntax files) in `target/nvim-build/`.
 
 ## `cargo xtask` Commands
 
 | Command | Description |
 |---|---|
 | `cargo xtask build [--release]` | Build binaries and stage `runtime/` in `target/nvim-build/` |
-| `cargo xtask install [--prefix <dir>]` | Build `--release` and install Neovim, runtime files, and manpages |
+| `cargo xtask install [--prefix <dir>]` | Build `--release` and install Nero (`nero`), runtime files, and manpages |
 | `cargo xtask dist [--out-dir <dir>]` | Package release archives (`.tar.gz`/`.zip`, plus `.appimage` on Linux and `.msi` on Windows) |
 | `cargo xtask deps [--force]` | Download and compile bundled C libraries (`libuv`, `LuaJIT`, `luv`, `tree-sitter`) |
 | `cargo xtask doc` | Regenerate `:help` documentation and Lua `_meta` type definitions |
@@ -97,7 +97,7 @@ cargo xtask benchmark --release test/benchmark/event_spec.lua
 
 The workload measures synchronous process waits, persistent RPC round trips, and stream draining. Repeat and interleave runs; do not treat unrelated startup or regex benchmarks as evidence about event-path overhead. `--nvim-bin` also works with `functionaltest` for behavioral comparisons.
 
-For functional comparisons, preserve the executable basename (`nvim` / `nvim.exe`) in separate baseline/current directories. Renaming the binary changes some CLI diagnostics and TUI titles, creating unrelated expectation failures.
+For functional comparisons, preserve the executable basename (`nero` / `nero.exe`) in separate baseline/current directories. Renaming the binary changes some CLI diagnostics and TUI titles, creating unrelated expectation failures.
 
 For timer ownership changes, use `test/benchmark/timer_spec.lua` with the same commands. It measures timer creation/cancellation, zero-delay callback dispatch, and Vimscript `wait()` timer cleanup over 100,000 operations, with warmups and native/deferred close processing. These are targeted lifecycle workloads, not measurements of interactive editor latency.
 

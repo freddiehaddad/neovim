@@ -15,7 +15,7 @@ vim.v = ...
 ---
 --- Example:
 --- ```
----   nvim file1.txt +ls -- file2.txt
+---   nero file1.txt +ls -- file2.txt
 ---   :echo v:argf
 ---   " ['/path/to/cwd/file1.txt', '/path/to/cwd/file2.txt']
 --- ```

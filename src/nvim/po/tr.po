@@ -2041,8 +2041,9 @@ msgstr "Zaten bir sekme sayfası var"
 msgid "Tab page %d"
 msgstr "Sekme sayfası %d"
 
-msgid "E25: Nvim does not have a built-in GUI"
-msgstr "E25: Nvim, bir grafik arabirim ile gelmez"
+#, c-format
+msgid "E25: %s does not have a built-in GUI"
+msgstr "E25: %s, bir grafik arabirim ile gelmez"
 
 msgid "No swap file"
 msgstr "Takas dosyası yok"
@@ -3940,8 +3941,9 @@ msgstr ""
 msgid "(2) An edit session for this file crashed.\n"
 msgstr "(2) Bu dosya düzenleme oturumu çöktü.\n"
 
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    Durum buysa \":recover\" veya \"nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    Durum buysa \":recover\" veya \"%s -r "
 
 msgid ""
 "\"\n"
@@ -4156,12 +4158,14 @@ msgstr "E662: Değişiklik listesinin başında"
 msgid "E663: At end of changelist"
 msgstr "E663: Değişiklik listesinin sonunda"
 
-msgid "Type  :qa!  and press <Enter> to abandon all changes and exit Nvim"
+#, c-format
+msgid "Type  :qa!  and press <Enter> to abandon all changes and exit %s"
 msgstr ""
-"Değişikliklerden vazgeçip Nvim'den çıkmak için :qa! yazıp <Enter>'a basın"
+"Değişikliklerden vazgeçip %s'dan çıkmak için :qa! yazıp <Enter>'a basın"
 
-msgid "Type  :qa  and press <Enter> to exit Nvim"
-msgstr "Nvim'den çıkmak için :qa yazıp <Enter>'a basın"
+#, c-format
+msgid "Type  :qa  and press <Enter> to exit %s"
+msgstr "%s'dan çıkmak için :qa yazıp <Enter>'a basın"
 
 msgid ""
 "E883: Search pattern and expression register may not contain two or more "
@@ -5846,14 +5850,17 @@ msgstr "       $VIM öntanımlı konumu: \""
 msgid " f-b for $VIMRUNTIME: \""
 msgstr "$VIMRUNTIME öntanımlı konumu: \""
 
-msgid "Nvim is open source and freely distributable"
-msgstr "Nvim açık kaynaklıdır ve özgürce dağıtılabilir"
+#, c-format
+msgid "%s is open source and freely distributable"
+msgstr "%s açık kaynaklıdır ve özgürce dağıtılabilir"
 
-msgid "type  :help nvim<Enter>       if you are new! "
-msgstr "eğer yeniyseniz         :help nvim<Enter>       "
+#, c-format
+msgid "type  :help %s<Enter>     if you are new! "
+msgstr "eğer yeniyseniz         :help %s<Enter>       "
 
-msgid "type  :checkhealth<Enter>     to optimize Nvim"
-msgstr "Nvim'i eniyilemek için  :help checkhealth<Enter>"
+#, c-format
+msgid "type  :checkhealth<Enter>   to optimize %s"
+msgstr "%s'yu eniyilemek için  :help checkhealth<Enter>"
 
 msgid "type  :q<Enter>               to exit         "
 msgstr "çıkmak için             :q<Enter>               "

@@ -2771,8 +2771,9 @@ msgid "E477: No ! allowed"
 msgstr "E477: ! non consentito"
 
 #: ../globals.h:1035
-msgid "E25: Nvim does not have a built-in GUI"
-msgstr "E25: GUI non utilizzabile: Non abilitata in compilazione"
+#, c-format
+msgid "E25: %s does not have a built-in GUI"
+msgstr "E25: %s: GUI non utilizzabile: Non abilitata in compilazione"
 
 #: ../globals.h:1036
 #, c-format
@@ -4029,8 +4030,9 @@ msgid "(2) An edit session for this file crashed.\n"
 msgstr "(2) Una sessione di edit per questo file è finita male.\n"
 
 #: ../memline.c:3247
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    Se è così, usa \":recover\" oppure \"nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    Se è così, usa \":recover\" oppure \"%s -r "
 
 #: ../memline.c:3249
 msgid ""

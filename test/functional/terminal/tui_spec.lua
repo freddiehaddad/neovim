@@ -228,7 +228,7 @@ describe('TUI :detach', function()
     -- Shows info message on stderr.
     local out = table.concat(api.nvim_buf_get_lines(0, 0, -1, false))
     t.matches(('Detached from: %s'):format(vim.pesc(child_server)), out)
-    t.matches(vim.pesc('To reattach run :connect or nvim +"connect <address>"'), out)
+    t.matches(vim.pesc('To reattach run :connect or nero +"connect <address>"'), out)
 
     child_uis --[[@type any[] ]] = ({ child_session:request('nvim_list_uis') })[2]
     eq(0, #child_uis)
@@ -283,7 +283,7 @@ describe('TUI :detach', function()
     child_session:request('nvim_command', 'autocmd ChanInfo * let g:info_event = deepcopy(v:event)')
 
     feed_data('\027\027:detach!\013')
-    screen:expect({ any = vim.pesc('Nvim will continue running') })
+    screen:expect({ any = vim.pesc('Nero will continue running') })
 
     info.detach = true
     retry(nil, nil, function()
@@ -3166,7 +3166,7 @@ describe('TUI', function()
     child_session:request('nvim_set_option_value', 'cursorline', true, {})
     -- Use full screen message so that redrawing afterwards is more deterministic.
     child_session:notify('nvim_command', 'intro')
-    screen:expect({ any = 'Nvim is open source and freely distributable' })
+    screen:expect({ any = 'Nero is open source and freely distributable' })
     -- Going to top-left corner needs 3 bytes.
     -- Setting underline attribute needs 9 bytes.
     -- A Ꝩ character takes 3 bytes.
@@ -3234,7 +3234,7 @@ describe('TUI', function()
     end)
     -- Use full screen message so that redrawing afterwards is more deterministic.
     child_session:notify('nvim_command', 'intro')
-    screen:expect({ any = 'Nvim is open source and freely distributable' })
+    screen:expect({ any = 'Nero is open source and freely distributable' })
     -- Going to top-left corner needs 3 bytes.
     -- A Ꝩ character takes 3 bytes.
     -- The whole line needs 3 + 3 * 21842 = 65529 bytes.
@@ -3281,7 +3281,7 @@ describe('TUI', function()
   it('no assert failure on deadly signal #21896', function()
     exec_lua([[vim.uv.kill(vim.fn.jobpid(vim.bo.channel), 'sigterm')]])
     screen:expect(is_os('win') and { any = '%[Process exited 1%]' } or [[
-      Nvim: Caught deadly signal 'SIGTERM'              |
+      Nero: Caught deadly signal 'SIGTERM'              |
       ^                                                  |
       [Process exited 1]                                |
                                                         |*3
@@ -3302,7 +3302,7 @@ describe('TUI', function()
     local _, server_pid = child_session:request('nvim_call_function', 'getpid', {})
     exec_lua([[vim.uv.kill(..., 'sigterm')]], server_pid)
     if not is_os('win') then
-      screen:expect({ any = vim.pesc([[Nvim: Caught deadly signal 'SIGTERM']]) })
+      screen:expect({ any = vim.pesc([[Nero: Caught deadly signal 'SIGTERM']]) })
     end
     screen:expect({ any = vim.pesc('[Process exited 1]') })
   end)
@@ -3675,7 +3675,7 @@ describe('TUI', function()
       {1:~                        }│                        |
       {3:new                       }{101:{MATCH:<.*%s} [-] }|
                                                         |
-    ]]):format(is_os('win') and '[/\\]nvim%.exe' or '/nvim'))
+    ]]):format(is_os('win') and '[/\\]nero%.exe' or '/nero'))
   end)
 
   -- #28667, #28668
@@ -5283,7 +5283,7 @@ describe('TUI client', function()
     server:request('nvim_input', ('a'):rep(1000))
     exec_lua([[vim.uv.kill(vim.fn.jobpid(vim.bo.channel), 'sigterm')]])
     screen_client:expect(is_os('win') and { any = '%[Process exited 1%]' } or [[
-      Nvim: Caught deadly signal 'SIGTERM'              |
+      Nero: Caught deadly signal 'SIGTERM'              |
       ^                                                  |
       [Process exited 1]                                |
                                                         |*3

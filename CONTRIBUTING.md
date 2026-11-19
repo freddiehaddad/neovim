@@ -1,5 +1,5 @@
-Contributing to Neovim
-======================
+Contributing to Nero
+====================
 
 Getting started
 ---------------
@@ -14,11 +14,11 @@ Reporting problems
 
 - [Check the FAQ][wiki-faq].
 - [Search existing issues][github-issues] (including closed!)
-- Update Neovim to the latest version to see if your problem persists.
-- Try to reproduce with `nvim --clean` ("factory defaults").
-- If a specific configuration or plugin is necessary to recreate the problem, use the minimal template in `contrib/minimal.lua` with `nvim --clean -u contrib/minimal.lua` after making the necessary changes.
+- Update Nero to the latest version to see if your problem persists.
+- Try to reproduce with `nero --clean` ("factory defaults").
+- If a specific configuration or plugin is necessary to recreate the problem, use the minimal template in `contrib/minimal.lua` with `nero --clean -u contrib/minimal.lua` after making the necessary changes.
 - [Bisect](https://neovim.io/doc/user/starting.html#bisect) your config: disable plugins incrementally, to narrow down the cause of the issue.
-- [Bisect][git-bisect] Neovim's source code to find the cause of a regression, if you can. This is _extremely_ helpful.
+- [Bisect][git-bisect] Nero's source code to find the cause of a regression, if you can. This is _extremely_ helpful.
 - When reporting a crash, [include a stacktrace](https://neovim.io/doc/user/dev_tools.html#dev-tools-backtrace).
 - Check the logs: `:edit $NVIM_LOG_FILE`.
 - Include `rustc --version` and `cargo --version` for build-related issues.
@@ -28,7 +28,7 @@ Developer guidelines
 
 - Core editor code in `src/nvim/` is written in Rust (`edition = "2024"`). High-level features and plugins should generally be implemented in Lua (`runtime/lua/vim/`).
 - Read [:help dev-quickstart](runtime/doc/dev_tools.txt) to see how to run tests and start hacking on the codebase.
-- Read [:help dev](runtime/doc/dev.txt) and [:help dev-arch](runtime/doc/dev_arch.txt) if you are working on Nvim core.
+- Read [:help dev](runtime/doc/dev.txt) and [:help dev-arch](runtime/doc/dev_arch.txt) if you are working on Nero core.
 - Read [:help dev-ui](https://neovim.io/doc/user/dev.html#dev-ui) if you are developing a UI.
 - Read [:help dev-api-client](https://neovim.io/doc/user/dev.html#dev-api-client) if you are developing an API client.
 
@@ -159,10 +159,10 @@ cargo xtask format      # runs cargo fmt and stylua
 
 ### Lua runtime files
 
-The Lua [`runtime/lua/vim/_core/`](./runtime/lua/vim/_core/) modules can be tested directly during development by starting Nvim with `--luamod-dev` and `$VIMRUNTIME`:
+The Lua [`runtime/lua/vim/_core/`](./runtime/lua/vim/_core/) modules can be tested directly during development by starting Nero with `--luamod-dev` and `$VIMRUNTIME`:
 
 ```bash
-VIMRUNTIME=./runtime ./target/nvim-build/bin/nvim --luamod-dev
+VIMRUNTIME=./runtime ./target/nvim-build/bin/nero --luamod-dev
 ```
 
 Documentation
@@ -201,13 +201,13 @@ cargo xtask deps --force
 
 Set `DEPS_IGNORE_SHA=1` in the environment when testing a modified dependency archive URL in `deps.txt`.
 
-[GitHub Actions]: https://github.com/freddiehaddad/neovim/actions
+[GitHub Actions]: https://github.com/freddiehaddad/nero/actions
 [conventional_commits]: https://www.conventionalcommits.org
 [dev-doc-guide]: https://neovim.io/doc/user/dev.html#dev-doc
 [EmmyLua]: https://github.com/EmmyLuaLs/emmylua-analyzer-rust
 [git-bisect]: https://git-scm.com/book/en/v2/Git-Tools-Debugging-with-Git
 [git-feature-branch]: https://www.atlassian.com/git/tutorials/comparing-workflows
-[github-issues]: https://github.com/freddiehaddad/neovim/issues
+[github-issues]: https://github.com/freddiehaddad/nero/issues
 [lua-language-server]: https://github.com/LuaLS/lua-language-server
 [pr-draft]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request
 [pr-ready]: https://docs.github.com/en/github/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request

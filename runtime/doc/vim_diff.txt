@@ -509,7 +509,7 @@ Startup:
 TUI:
                         *:set-termcap*
 - Start Nvim with 'verbose' level 3 to show terminal capabilities: >
-        nvim -V3
+        nero -V3
 <
 
                         *'term'* *E529* *E530* *E531*
@@ -752,8 +752,8 @@ Removed legacy features                                  *nvim-removed*
 These Vim features were intentionally removed from Nvim.
 
 Aliases:
-- ex        (alias for "nvim -e")
-- exim      (alias for "nvim -E")
+- ex        (alias for "nero -e")
+- exim      (alias for "nero -E")
 - gex       (GUI)
 - gview     (GUI)
 - gvim      (GUI)
@@ -762,8 +762,8 @@ Aliases:
 - rgvim     (GUI)
 - rview
 - rvim
-- view      (alias for "nvim -R")
-- vimdiff   (alias for "nvim -d" |diff-mode|)
+- view      (alias for "nero -R")
+- vimdiff   (alias for "nero -d" |diff-mode|)
 
 Commands:
 - :behave
@@ -942,8 +942,8 @@ Providers:
 
 Startup:
 - `--literal`: File args are always literal; to expand wildcards on Windows,
-  use |:n| e.g. `nvim +"n *"`
-- *--serverlist* Use instead: `nvim -es -V1 +'echo serverlist()'`
+  use |:n| e.g. `nero +"n *"`
+- *--serverlist* Use instead: `nero -es -V1 +'echo serverlist()'`
 - *--servername* Use instead: |--server| or |:connect|.
 - Easy mode: eview, evim, nvim -y
 - Restricted mode: rview, rvim, nvim -Z

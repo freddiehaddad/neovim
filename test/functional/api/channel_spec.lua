@@ -200,7 +200,7 @@ describe('API', function()
 
       -- Make sure Nvim TUI is started (which is after registering SIGHUP handler).
       t.retry(nil, nil, function()
-        matches('Nvim is open source and freely distributable', n.curbuf_contents())
+        matches('Nero is open source and freely distributable', n.curbuf_contents())
       end)
 
       -- :terminal with args + stopped process (Nvim TUI).

@@ -336,7 +336,12 @@ pub fn os_icon_init() {
 
     if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
         let mut name_buff = [0u8; MAXPATHL];
-        format_to_buf!(&mut name_buff, c"%s/neovim.ico", &vimruntime);
+        format_to_buf!(
+            &mut name_buff,
+            c"%s/%s.ico",
+            &vimruntime,
+            crate::branding::EXECUTABLE_NAME.as_bytes(),
+        );
         let namebuff_cstr = crate::memory::bytes_as_cstr(&name_buff);
         if !os_path_exists(namebuff_cstr) {
             logmsg!(
@@ -345,7 +350,8 @@ pub fn os_icon_init() {
                 Some(c"os_icon_init"),
                 148,
                 true,
-                c"neovim.ico not found: %s",
+                c"%s.ico not found: %s",
+                crate::branding::EXECUTABLE_NAME.as_bytes(),
                 namebuff_cstr,
             );
         } else {

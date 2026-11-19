@@ -7,7 +7,7 @@
 ==============================================================================
 Terminal UI						*TUI* *tui*
 
-By default when you run `nvim` (without |--embed| or |--headless|) it starts
+By default when you run `nero` (without |--embed| or |--headless|) it starts
 the builtin "terminal UI" (TUI). This default UI is optional: you can run Nvim
 as a "headless" server, or you can use a |GUI|.
 
@@ -16,8 +16,8 @@ as a "headless" server, or you can use a |GUI|.
 ==============================================================================
 Startup					*startup-tui* *startup-terminal*
 
-Nvim has a client-server architecture: by default when you run `nvim`, this
-starts the builtin UI client, which starts a `nvim --embed` server (child)
+Nvim has a client-server architecture: by default when you run `nero`, this
+starts the builtin UI client, which starts a `nero --embed` server (child)
 process that the UI client connects to. After attaching to the server, the UI
 client calls |nvim_set_client_info()| (as recommended for all UIs |dev-ui|)
 and sets these fields on its channel: >
@@ -69,7 +69,7 @@ style" sequence, and set the <Home> and <S-Home> sequences: >
     "exit_ca_mode": "",
     "reset_cursor_style": "\u001b[0 q",
     "key_home": ["\u001bOH", "\u001b[1;2H"]
-  }' nvim
+  }' nero
 <
 Be careful when putting escape sequences in strings, as JSON uses unicode
 escapes like `\u001b`. For all available fields, see |tui-termdefs|.

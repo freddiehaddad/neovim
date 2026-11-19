@@ -1,5 +1,5 @@
-Maintaining the Neovim Rust Project
-===================================
+Maintaining Nero
+================
 
 Notes on maintaining this repository.
 
@@ -164,7 +164,7 @@ Version metadata lives in a single place at the top of `Cargo.toml`:
 
 ```toml
 [package]
-name = "neovim"
+name = "nero"
 version = "0.13.0-dev"
 edition = "2024"
 
@@ -179,7 +179,7 @@ api_level = 15
    - If releasing a new minor/major version (`Z == 0`), generate the frozen API metadata fixture:
      ```bash
      cargo xtask build --release
-     ./target/nvim-build/bin/nvim --api-info > test/functional/fixtures/api_level_<N>.mpack
+     ./target/nvim-build/bin/nero --api-info > test/functional/fixtures/api_level_<N>.mpack
      cargo xtask doc
      ```
    - Commit, tag `vX.Y.Z`, and push the tag (`release.yml` builds and publishes all platform archives, AppImages, and Windows MSI installers).
@@ -217,7 +217,7 @@ Bundled third-party C libraries are defined in `deps.txt` and compiled by `src/d
 * `src/xdiff/`: Rust port of `git` `xdiff`
 * `src/cjson/`: Rust port of `lua-cjson`
 * `src/lpeg/`: Rust port of `LPeg`
-* `src/unibilium/`: Rust port of `unibilium` terminfo parser
+* `src/nvim/tui/terminfo.rs`: Rust port of `unibilium` terminfo parser
 * `src/nvim/vterm/`: Rust port of `libvterm`
 * `src/nvim/tui/termkey/`: Rust port of `libtermkey`
 * `src/bit.rs`: Rust port of `LuaBitOp` (enabled with `--features vendor-bit` / `--prefer-lua`)

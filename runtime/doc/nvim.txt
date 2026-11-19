@@ -1,19 +1,22 @@
-*nvim.txt*	Nvim
+*nvim.txt*	Nero
 
 
                             NVIM REFERENCE MANUAL
 
 
 ==============================================================================
-Nvim                                              *nvim* *neovim* *nvim-intro*
+Nero                                       *nero* *nvim* *neovim* *nvim-intro*
 
-Nvim is based on Vim by Bram Moolenaar. Nvim is emphatically a fork of Vim,
-not a clone: compatibility with Vim (especially editor and Vimscript features,
-except |Vim9script|) is maintained where possible. See |vim-differences| for
-the complete reference.
+Nero is a pure-Rust port of Nvim (which is based on Vim by Bram Moolenaar),
+maintaining 100% compatibility with Nvim's editor, LuaJIT, Msgpack-RPC, and
+Vimscript features. See |vim-differences| for the complete reference.
+
+The executable is `nero`. Nvim API names, |$NVIM_APPNAME|, configuration
+directories, plugin package names, and help tags are retained for compatibility.
+API references to Nvim in this manual describe that shared interface.
 
 - If you already use Vim, see |nvim-from-vim| for a quickstart.
-- If you have never used Vim or Nvim before, see below.
+- If you have never used Vim or Nero before, see below.
 
                                       Type |gO| to see the table of contents.
 
@@ -27,7 +30,7 @@ To learn how to use Vim in 30 minutes, try the tutorial: >vim
 Or watch this 10-minute video: https://youtu.be/TQn2hJeHQbM .
 
                                                *config-example* *example-init*
-To customize Nvim, you will need a config file. Create your |init.lua| by
+To customize Nero, you will need a config file. Create your |init.lua| by
 copying the "example_init.lua" file: >vim
 
     :exe 'edit' stdpath('config') .. '/init.lua'
@@ -35,9 +38,9 @@ copying the "example_init.lua" file: >vim
     :write ++p
     :restart
 <
-See |lua-guide| for practical notes on using Lua to configure Nvim.
+See |lua-guide| for practical notes on using Lua to configure Nero.
 
-"IDE" features in Nvim are provided by |LSP|.
+"IDE" features in Nero are provided by |LSP|.
 
 If you are just trying out Nvim for a few minutes, and want to see the
 extremes of what it can do, try one of these popular "extension packs" or

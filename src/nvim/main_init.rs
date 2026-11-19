@@ -348,8 +348,10 @@ fn early_init(paramp: &mut Mparm) {
     cmdline_init();
     eval_init();
     set_vim_var_nr(VV_STARTTIME, os_realtime() as Varnumber);
-    let argv0_clone = main_init_st(|st| st.argv0.borrow().clone());
-    init_path(argv0_clone.as_deref().unwrap_or(c"nvim"));
+    let argv0 = main_init_st(|st| st.argv0.borrow().clone()).unwrap_or_else(|| {
+        crate::memory::bytes_to_cstring(crate::branding::EXECUTABLE_NAME.as_bytes())
+    });
+    init_path(&argv0);
     init_normal_cmds();
     highlight_init();
     mc_init();
@@ -391,7 +393,9 @@ pub fn nvim_main() -> i32 {
             .map(|arg| crate::memory::bytes_to_cstring(&arg.into_vec()))
             .collect();
         if c_args.is_empty() {
-            c_args.push(c"nvim".to_owned());
+            c_args.push(crate::memory::bytes_to_cstring(
+                crate::branding::EXECUTABLE_NAME.as_bytes(),
+            ));
         }
         nvim_main_inner(c_args)
     }
@@ -401,7 +405,9 @@ pub fn nvim_main() -> i32 {
             .map(|arg| crate::memory::bytes_to_cstring(arg.to_string_lossy().as_bytes()))
             .collect();
         if c_args.is_empty() {
-            c_args.push(c"nvim".to_owned());
+            c_args.push(crate::memory::bytes_to_cstring(
+                crate::branding::EXECUTABLE_NAME.as_bytes(),
+            ));
         }
         nvim_main_inner(c_args)
     }
@@ -499,7 +505,11 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
             .set(!exc_state().stdin_isatty.get());
         let rv = ui_client_start_server(&get_vim_var_str(VV_PROGPATH), &params.argv);
         if rv == 0 {
-            fprintf!(log_get_stderr(), c"Failed to start Nvim server!\n");
+            fprintf!(
+                log_get_stderr(),
+                c"Failed to start %s server!\n",
+                crate::branding::DISPLAY_NAME.as_bytes(),
+            );
             os_exit(1);
         }
         screen_state().ui_client_channel_id.set(rv);
@@ -580,7 +590,8 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         if !stdio_rpc {
             fprintf!(
                 log_get_stderr(),
-                c"Nvim server (pid: %lld) waiting for UI, listening on: \"%s\"\n",
+                c"%s server (pid: %lld) waiting for UI, listening on: \"%s\"\n",
+                crate::branding::DISPLAY_NAME.as_bytes(),
                 os_get_pid(),
                 get_vim_var_str(VV_SEND_SERVER),
             );
@@ -874,7 +885,11 @@ pub fn os_exit(mut r: i32) -> ! {
     }
 
     let mut msg = [0u8; 32];
-    let _ = write!(&mut msg[..], "Nvim exit: {r}\0");
+    let _ = write!(
+        &mut msg[..],
+        "{} exit: {r}\0",
+        crate::branding::DISPLAY_NAME,
+    );
     logmsg_str(
         LOGLVL_INF,
         None,
@@ -1068,7 +1083,11 @@ pub fn preserve_exit(errmsg: Option<&CStr>) -> ! {
             .is_some_and(|mfp| mfp.mf_fname.is_some());
         if has_fname {
             if errmsg.is_some() {
-                fprintf!(stderr, c"Nvim: preserving files...\n");
+                fprintf!(
+                    stderr,
+                    c"%s: preserving files...\n",
+                    crate::branding::DISPLAY_NAME.as_bytes(),
+                );
             }
             ml_sync_all(0, 0, true);
             break;
@@ -1078,7 +1097,11 @@ pub fn preserve_exit(errmsg: Option<&CStr>) -> ! {
     ml_close_all(false);
 
     if errmsg.is_some() {
-        fprintf!(stderr, c"Nvim: Finished.\n");
+        fprintf!(
+            stderr,
+            c"%s: Finished.\n",
+            crate::branding::DISPLAY_NAME.as_bytes(),
+        );
     }
 
     getout(1);
@@ -2463,7 +2486,10 @@ fn usage() {
     signal_stop();
 
     printf!(gettext(c"Usage:\n"));
-    printf!(gettext(c"  nvim [options] [file ...]\n"));
+    printf!(
+        gettext(c"  %s [options] [file ...]\n"),
+        crate::branding::EXECUTABLE_NAME.as_bytes(),
+    );
     printf!(gettext(c"\nOptions:\n"));
     printf!(gettext(
         c"  --cmd <cmd>           Execute <cmd> before any config\n",

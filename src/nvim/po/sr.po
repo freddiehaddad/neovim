@@ -4044,8 +4044,9 @@ msgstr ""
 msgid "(2) An edit session for this file crashed.\n"
 msgstr "(2) Сесија уређивања ове датотеке се срушила.\n"
 
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    Ако је ово случај, користите \":recover\" или \"nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    Ако је ово случај, користите \":recover\" или \"%s -r "
 
 msgid ""
 "\"\n"

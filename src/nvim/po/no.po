@@ -2724,8 +2724,9 @@ msgid "E477: No ! allowed"
 msgstr "E477: Ingen ! tillatt"
 
 #: ../globals.h:1035
-msgid "E25: Nvim does not have a built-in GUI"
-msgstr "E25: GUI kan ikke brukes: Ikke slått på under kompilering"
+#, c-format
+msgid "E25: %s does not have a built-in GUI"
+msgstr "E25: %s: GUI kan ikke brukes: Ikke slått på under kompilering"
 
 #: ../globals.h:1036
 #, c-format
@@ -3970,8 +3971,9 @@ msgstr ""
 "(2) En økt for denne filen kræsjet.\n"
 
 #: ../memline.c:3247
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    Hvis det er tilfelle, bruk \":recover\" eller \"nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    Hvis det er tilfelle, bruk \":recover\" eller \"%s -r "
 
 #: ../memline.c:3249
 msgid ""

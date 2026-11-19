@@ -109,7 +109,7 @@ DIAGNOSTICS
 
 EDITOR
 
-• Interactive |Ex-mode| (|:exmode|, `nvim -e`) is a persistent |cmdwin|. This is much
+• Interactive |Ex-mode| (|:exmode|, `nero -e`) is a persistent |cmdwin|. This is much
   more flexible and makes "Ex mode" more useful as a kind of "cmdline REPL",
   with the tradeoff of dropping some POSIX Ex-mode quirks.
   • |mode()| returns "n" or "i"; "cv" indicates |-es| (script mode) only.

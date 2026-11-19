@@ -5214,10 +5214,10 @@ function vim.fn.jobsend(...) end
 --- <(See |shell-unquoting| for details.)
 ---
 --- Example: start a job and handle its output: >vim
----   call jobstart(['nvim', '-h'], {'on_stdout':{j,d,e->append(line('.'),d)}})
+---   call jobstart([v:progpath, '-h'], {'on_stdout':{j,d,e->append(line('.'),d)}})
 --- <
 --- Example: start a job in a |terminal| connected to the current buffer: >vim
----   call jobstart(['nvim', '-h'], {'term':v:true})
+---   call jobstart([v:progpath, '-h'], {'term':v:true})
 --- <
 --- Returns |job-id| on success, 0 on invalid arguments (or job
 --- table is full), -1 if {cmd}[0] or 'shell' is not executable.

@@ -1,4 +1,4 @@
-#!/usr/bin/env -S nvim -l
+#!/usr/bin/env -S nero -l
 --- Generates Nvim :help docs from Lua/C docstrings.
 ---
 --- Usage:

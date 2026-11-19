@@ -5,7 +5,7 @@ DO NOT EDIT MANUALLY
 Based on LSP protocol 3.18
 
 Regenerate:
-nvim -l src/gen/gen_lsp.lua --version 3.18
+nero -l src/gen/gen_lsp.lua --version 3.18
 --]]
 
 ---@meta

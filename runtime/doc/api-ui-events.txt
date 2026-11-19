@@ -124,7 +124,7 @@ UI startup							   *ui-startup*
 
 UI embedders (clients that start Nvim with |--embed| and later call
 |nvim_ui_attach()|) must start Nvim without |--headless|: >bash
-    nvim --embed
+    nero --embed
 Nvim will pause before loading startup files and reading buffers, so the UI
 has a chance to invoke requests and do early initialization. Startup will
 continue when the UI invokes |nvim_ui_attach()|.
@@ -149,7 +149,7 @@ UI events. A more featureful UI, should use the following startup procedure:
 UIs should also handle |ui-event-restart|.
 
 							   *ui-startup-stdin*
-UIs can support reading from stdin (like `command | nvim -`, see |--|) as follows:
+UIs can support reading from stdin (like `command | nero -`, see |--|) as follows:
 
 1. The embedding process detects that the stdin fd is not a terminal.
 2. It then needs to forward this fd to Nvim. Because fd=0 is already is used

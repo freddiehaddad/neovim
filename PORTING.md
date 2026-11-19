@@ -1,6 +1,6 @@
-# Porting Neovim to Rust
+# Porting Neovim to Rust (Nero)
 
-How a 460,000-line C codebase with three decades of Vim history was converted into a pure-Rust project over 950+ commits without breaking existing configs, Lua plugins, or tests.
+How a 460,000-line C codebase with three decades of Vim history was converted into a pure-Rust project (**Nero**) over 950+ commits without breaking existing configs, Lua plugins, or tests.
 
 ---
 
@@ -42,7 +42,7 @@ The rule for every single commit was strict:
 
 Once the last `.c` file in `src/nvim/` was ported, the project was still a Rust codebase shaped like C and driven by CMake. Over several hundred subsequent commits, we dismantled the legacy scaffolding step by step:
 
-- **Vendored C libraries ported to in-tree Rust**: `libvterm` (`src/nvim/vterm/`), `libtermkey` (`src/nvim/tui/termkey/`), `unibilium` (`src/unibilium/`), `utf8proc` (`src/nvim/mbyte_utf8proc.rs`), `libmpack` (`src/mpack/`), `lua-cjson` (`src/cjson/`), `LPeg` (`src/lpeg/`), `git xdiff` (`src/xdiff/`), `xxd` (`src/xxd/`), and `tee` (`src/tee/`).
+- **Vendored C libraries ported to in-tree Rust**: `libvterm` (`src/nvim/vterm/`), `libtermkey` (`src/nvim/tui/termkey/`), `unibilium` (`src/nvim/tui/terminfo.rs`), `utf8proc` (`src/nvim/utf8proc.rs`), `libmpack` (`src/mpack/`), `lua-cjson` (`src/cjson/`), `LPeg` (`src/lpeg/`), `git xdiff` (`src/xdiff/`), `xxd` (`src/xxd/`), and `tee` (`src/tee/`).
 - **Retiring `nlua0` and C code generators**: Replaced the C-based Lua bootstrap compiler and `.h.generated.h` C header generators with pure Rust and `cargo xtask`.
 - **Retiring CMake and Zig**: Removed all `CMakeLists.txt`, `.cmake` scripts, and `build.zig` files in favor of a standard `Cargo.toml` workspace and a self-contained `build.rs` that fetches and builds the four remaining external C archives (`libuv`, `LuaJIT`, `luv`, `tree-sitter`) in `.deps/`.
 - **Retiring LuaJIT FFI unit tests**: Upstream's `test/unit/` suite relied on LuaJIT FFI parsing C headers at runtime. We migrated those assertions into native Rust `#[cfg(test)]` unit tests (>1,000 tests) and deleted the C headers.

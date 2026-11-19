@@ -1166,7 +1166,7 @@ function vim.api.nvim_del_var(name) end
 ---   - "cancel": Process should be cancelled. Progress owner must handle the `Progress`
 ---     event to perform the cancellation.
 --- - title (`string?`) Message title. Only for `progress-message` currently.
---- - verbose (`boolean?`) Message is controlled by the 'verbose' option. `nvim -V3log` will write the
+--- - verbose (`boolean?`) Message is controlled by the 'verbose' option. `nero -V3log` will write the
 ---   message to the "log" file instead of standard output.
 --- @return integer|string # Message-id, or -1 if message wasn't shown.
 function vim.api.nvim_echo(chunks, history, opts) end

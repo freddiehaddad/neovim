@@ -3,7 +3,7 @@ members = [".", "src/xtask", "test/event-lifetimes"]
 default-members = ["."]
 
 [package]
-name = "neovim"
+name = "nero"
 version = "0.13.0-dev"
 edition = "2024"
 rust-version = "1.88"
@@ -12,13 +12,13 @@ rust-version = "1.88"
 api_level = 15
 
 [lib]
-name = "neovim"
+name = "nero"
 path = "src/nvim/lib.rs"
 crate-type = ["rlib"]
 doctest = false
 
 [[bin]]
-name = "nvim"
+name = "nero"
 path = "src/nvim/main.rs"
 test = false
 

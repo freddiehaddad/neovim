@@ -26,7 +26,7 @@ Lua plugins and user config are automatically discovered and loaded, just like
 Vimscript. See |lua-guide| for practical guidance.
 
 You can also run Lua scripts from your shell using the |-l| argument: >
-    nvim -l foo.lua [args...]
+    nero -l foo.lua [args...]
 <
                                                                   *lua-compat*
 Lua 5.1 is the permanent interface for Nvim Lua. Plugins should target Lua 5.1

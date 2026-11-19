@@ -1,4 +1,4 @@
-#!/usr/bin/env -S nvim -l
+#!/usr/bin/env -S nero -l
 -- Generates lua-ls annotations for lsp.
 
 local USAGE = [[
@@ -578,7 +578,7 @@ local function write_to_meta_protocol(protocol, version, output_file)
     'Based on LSP protocol ' .. version,
     '',
     'Regenerate:',
-    ([=[nvim -l src/gen/gen_lsp.lua --version %s]=]):format(version),
+    ([=[nero -l src/gen/gen_lsp.lua --version %s]=]):format(version),
     '--' .. ']]',
     '',
     '---@meta',

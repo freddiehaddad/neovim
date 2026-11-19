@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a problem in Nvim
+description: Report a problem in Nero
 type: 'bug'
 body:
 
@@ -7,11 +7,11 @@ body:
     attributes:
       value: |
         *Before reporting:*
-        - Confirm the problem is reproducible in the [latest **nightly** release](https://github.com/freddiehaddad/neovim/releases/nightly).
+        - Confirm the problem is reproducible in the [latest **nightly** release](https://github.com/freddiehaddad/nero/releases/nightly).
         - Run `cargo xtask distclean` when encountering build issues.
-        - Search [existing issues](https://github.com/freddiehaddad/neovim/issues?q=is%3Aissue%20is%3Aopen%20type%3ABug) (including [closed](https://github.com/freddiehaddad/neovim/issues?q=is%3Aissue%20is%3Aclosed%20type%3ABug))
-        - Read the [FAQ](https://neovim.io/doc/user/faq/) and ["Reporting Problems" in CONTRIBUTING.md](https://github.com/freddiehaddad/neovim/blob/master/CONTRIBUTING.md#reporting-problems).
-        - Usage or "How to" questions will be closed, use [Discussions](https://github.com/freddiehaddad/neovim/discussions) or [stackoverflow](https://vi.stackexchange.com/) instead.
+        - Search [existing issues](https://github.com/freddiehaddad/nero/issues?q=is%3Aissue%20is%3Aopen%20type%3ABug) (including [closed](https://github.com/freddiehaddad/nero/issues?q=is%3Aissue%20is%3Aclosed%20type%3ABug))
+        - Read the [FAQ](https://neovim.io/doc/user/faq/) and ["Reporting Problems" in CONTRIBUTING.md](https://github.com/freddiehaddad/nero/blob/master/CONTRIBUTING.md#reporting-problems).
+        - Usage or "How to" questions will be closed, use [Discussions](https://github.com/freddiehaddad/nero/discussions) or [stackoverflow](https://vi.stackexchange.com/) instead.
   - type: textarea
     attributes:
       label: "Problem"
@@ -24,11 +24,11 @@ body:
       description: |
         - For build failures: list the exact steps including Cargo flags or environment variables (if any).
         - If the bug is a crash/segfault, please include a [stacktrace](https://neovim.io/doc/user/dev_tools/#dev-tools-backtrace).
-        - For startup or shell-related problems: try `env -i TERM=ansi-256color "$(which nvim)"`.
-        - Use the provided [minimal reproduction template](https://github.com/freddiehaddad/neovim/blob/master/contrib/minimal.lua) to create a minimal configuration. After you fill it out with necessary information, run with `nvim --clean -u minimal.lua`.
+        - For startup or shell-related problems: try `env -i TERM=ansi-256color "$(which nero)"`.
+        - Use the provided [minimal reproduction template](https://github.com/freddiehaddad/nero/blob/master/contrib/minimal.lua) to create a minimal configuration. After you fill it out with necessary information, run with `nero --clean -u minimal.lua`.
           - Do **not** include a package manager in the reproduction steps.
       placeholder: |
-        nvim --clean
+        nero --clean
         :edit foo
         yiwp
     validations:
@@ -42,13 +42,13 @@ body:
 
   - type: input
     attributes:
-      label: "Nvim version (nvim -v)"
-      placeholder: "0.6.0 commit db1b0ee3b30f"
+      label: "Nero version (nero -v)"
+      placeholder: "0.13.0"
     validations:
       required: true
   - type: input
     attributes:
-      label: "Vim (not Nvim) behaves the same?"
+      label: "Vim (not Nero) behaves the same?"
       description: "Does `vim -u DEFAULTS` have the same issue? Note the exact Vim version (`8.x.yyyy`)."
       placeholder: "no, vim 7.3.432"
     validations:
@@ -75,7 +75,7 @@ body:
   - type: input
     attributes:
       label: "Installation"
-      description: "How did you install neovim: build from repo / system package manager / appimage / homebrew / snap / chocolatey / other (describe)?"
-      placeholder: "Arch User Repository (AUR)"
+      description: "How did you install Nero: build from repo / release archive / appimage / msi / other (describe)?"
+      placeholder: "cargo xtask install"
     validations:
       required: true

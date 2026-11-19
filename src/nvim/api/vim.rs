@@ -1074,7 +1074,7 @@ pub fn nvim_set_vvar(name: NvimString, value: Object) -> Result<(), Error> {
 ///            - "cancel": Process should be cancelled. Progress owner must handle the |Progress|
 ///              event to perform the cancellation.
 ///          - title (`string?`) Message title. Only for |progress-message| currently.
-///          - verbose (`boolean?`) Message is controlled by the 'verbose' option. `nvim -V3log` will write the
+///          - verbose (`boolean?`) Message is controlled by the 'verbose' option. `nero -V3log` will write the
 ///            message to the "log" file instead of standard output.
 /// @return Message-id, or -1 if message wasn't shown.
 // DLLEXPORT Union(Integer, String) nvim_echo(ArrayOf(Tuple(String, *HLGroupID)) chunks,

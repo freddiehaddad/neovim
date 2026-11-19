@@ -1,5 +1,5 @@
 name: Language server (LSP) client bug
-description: Report an issue with Nvim LSP
+description: Report an issue with Nero LSP
 title: "LSP: "
 type: bug
 labels: [lsp]
@@ -8,17 +8,17 @@ body:
   - type: markdown
     attributes:
       value: |
-        _Before reporting:_ search [existing issues](https://github.com/freddiehaddad/neovim/issues?q=is%3Aissue%20is%3Aopen%20type%3ABug) and check the [FAQ](https://neovim.io/doc/user/faq.html). Usage questions or "Why isn't X language server/feature working?" belong on [stackoverflow](https://vi.stackexchange.com/) and will be closed.
+        _Before reporting:_ search [existing issues](https://github.com/freddiehaddad/nero/issues?q=is%3Aissue%20is%3Aopen%20type%3ABug) and check the [FAQ](https://neovim.io/doc/user/faq.html). Usage questions or "Why isn't X language server/feature working?" belong on [stackoverflow](https://vi.stackexchange.com/) and will be closed.
 
   - type: textarea
     attributes:
       label: "Problem"
-      description: "Describe the bug caused by the Nvim LSP client."
+      description: "Describe the bug caused by the Nero LSP client."
     validations:
       required: true
   - type: textarea
     attributes:
-      label: 'Steps to reproduce using "nvim --clean -u minimal_init.lua"'
+      label: 'Steps to reproduce using "nero --clean -u minimal_init.lua"'
       description: |
         - Create a minimal_init.lua using vim.lsp.start:
 
@@ -61,8 +61,8 @@ body:
 
   - type: input
     attributes:
-      label: "Nvim version (nvim -v)"
-      placeholder: "0.6.0 commit db1b0ee3b30f"
+      label: "Nero version (nero -v)"
+      placeholder: "0.13.0"
     validations:
       required: true
   - type: input

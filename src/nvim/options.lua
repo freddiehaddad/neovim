@@ -10249,7 +10249,7 @@ local options = {
         (doesn't respond to queries), Nvim startup may be slower. Therefore
         you can disable this option by setting the `$NVIM_NOTTYFAST`
         environment variable before starting Nvim: >
-        	NVIM_NOTTYFAST=1 nvim
+                NVIM_NOTTYFAST=1 nero
         <
 
         The queries are performed early, before |--cmd| and user |config|, so

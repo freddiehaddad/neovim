@@ -146,7 +146,7 @@ describe('remote-ssh', function()
         .iter({ 'linux-x86_64', 'linux-arm64', 'macos-arm64', 'macos-x86_64' })
         :map(function(platform)
           local digest = behavior.digest or ('sha256:%s'):format(('a'):rep(64))
-          return { name = ('nvim-%s.tar.gz'):format(platform), digest = digest }
+          return { name = ('nero-%s.tar.gz'):format(platform), digest = digest }
         end)
         :totable()
       t.write_file(release, vim.json.encode({ assets = assets }))
@@ -232,12 +232,12 @@ describe('remote-ssh', function()
     eq(true, listed)
     eq({
       'running: Connecting to ssh://user@test-server...',
-      'running: Starting remote Nvim...',
+      'running: Starting remote Nero...',
       'success: Connected to ssh://user@test-server',
     }, progress)
     local msg = 'Connect to ssh://user@test-server\n'
-      .. '- Installs Nvim (if needed) to ~/.local/share/nvim-remote/\n'
-    local choices = n.exec_lua('return vim.version().prerelease') and '&Yes\n&Update Nvim\n&No'
+      .. '- Installs Nero (if needed) to ~/.local/share/nvim-remote/\n'
+    local choices = n.exec_lua('return vim.version().prerelease') and '&Yes\n&Update Nero\n&No'
       or '&Yes\n&No'
     eq({ { msg, choices, 1, 'Question' } }, n.exec_lua('return _G.confirm_log'))
     t.matches('Connected to ssh://user@test%-server', t.read_file(logfile))
@@ -317,9 +317,10 @@ describe('remote-ssh', function()
       local v = vim.version()
       return { ('v%d.%d.%d'):format(v.major, v.minor, v.patch), v.prerelease or false }
     end))
-    local url = 'https://github.com/neovim/neovim/releases/download/%s/nvim-linux-x86_64.tar.gz'
-    local dir = '.local/share/nvim-remote/releases/%s-linux-x86_64'
-    -- A prerelease installs the nightly, or uses a system `nvim` of that prerelease or newer.
+    local url =
+      'https://github.com/freddiehaddad/nero/releases/download/%s/nero-linux-x86_64.tar.gz'
+    local dir = '.local/share/nvim-remote/releases/nero/%s-linux-x86_64'
+    -- A prerelease installs the nightly, or uses a system `nero` of that prerelease or newer.
     local sha256 = ('a'):rep(64)
     local args = prerelease
         and {
@@ -344,7 +345,7 @@ describe('remote-ssh', function()
     args[3] = '-'
     eq(table.concat(args, ' '), script_args())
 
-    -- "Update Nvim" (prerelease only) re-installs the nightly.
+    -- "Update Nero" (prerelease only) re-installs the nightly.
     if prerelease then
       setup_fake_ssh({ confirm = 2 })
       n.exec_lua(function()
@@ -387,7 +388,7 @@ describe('remote-ssh', function()
     eq('-- init', t.read_file(remote_config .. '/init.lua'))
   end)
 
-  it('remote script runs acceptable `nvim` from $PATH, else installs the release', function()
+  it('remote script runs acceptable `nero` from $PATH, else installs the release', function()
     skip(is_os('win'), 'remote-ssh is POSIX-only')
     local home = vim.fs.abspath(t.tmpname(false))
     t.finally(function()
@@ -395,12 +396,12 @@ describe('remote-ssh', function()
     end)
     local nvim_prog = vim.fs.abspath(n.nvim_prog)
     n.mkdir_p(home .. '/bin')
-    vim.uv.fs_symlink(nvim_prog, home .. '/bin/nvim')
-    local release = home .. '/src/nvim-test'
+    vim.uv.fs_symlink(nvim_prog, home .. '/bin/nero')
+    local release = home .. '/src/nero-test'
     n.mkdir_p(release .. '/bin')
-    -- Fake remote autoinstalled `nvim` release.
+    -- Fake remote autoinstalled `nero` release.
     t.write_file(
-      release .. '/bin/nvim',
+      release .. '/bin/nero',
       table.concat({
         '#!/bin/sh',
         -- Simulates a release that does not run on the system (e.g. glibc-linked, on musl).
@@ -410,14 +411,19 @@ describe('remote-ssh', function()
         '',
       }, '\n')
     )
-    vim.uv.fs_chmod(release .. '/bin/nvim', 493)
-    local tarball = home .. '/nvim-test.tar.gz'
-    eq(0, vim.system({ 'tar', '-czf', tarball, '-C', home .. '/src', 'nvim-test' }):wait().code)
+    vim.uv.fs_chmod(release .. '/bin/nero', 493)
+    local tarball = home .. '/nero-test.tar.gz'
+    eq(0, vim.system({ 'tar', '-czf', tarball, '-C', home .. '/src', 'nero-test' }):wait().code)
     local url = ('file://%s'):format(tarball)
     local sha256 = n.exec_lua(function()
       return vim.fn.sha256(vim.fn.readblob(tarball))
     end)
-    local dir = 'releases/v1-test'
+    local dir, legacy_dir = unpack(n.exec_lua(function()
+      local autoinstall = require('vim.net._autoinstall')
+      local dir = autoinstall.get_release('linux', 'x86_64')
+      return { dir, autoinstall.data_dir .. '/releases/' .. vim.fs.basename(dir) }
+    end))
+    local releases_dir = home .. '/' .. vim.fs.dirname(dir)
 
     --- Runs the script locally, as the remote does. Returns `[$NVIM_APPNAME, $NVIM_TEST_RELEASE,
     --- v:startreason, v:vim_did_init]` of its server, whether its socket dir was removed on exit,
@@ -445,8 +451,8 @@ describe('remote-ssh', function()
       end, dir, url, sha256, version)
     end
 
-    local starting_path = ('Starting %s/bin/nvim...'):format(home)
-    local starting_release = ('Starting %s/%s/bin/nvim...'):format(home, dir)
+    local starting_path = ('Starting %s/bin/nero...'):format(home)
+    local starting_release = ('Starting %s/%s/bin/nero...'):format(home, dir)
     -- v:vim_did_init=0: The server waits for a UI before sourcing the config.
     eq({ { 'nvim-remote', '', 'remote-ssh', 0 }, true, starting_path }, serve('v0.1.0'))
     -- A prerelease (e.g. `v0.13.0-dev`) accepts any build of it.
@@ -460,7 +466,7 @@ describe('remote-ssh', function()
       { url, ('0'):rep(64), {}, 'SHA%-256 mismatch: ' },
       { url, '-', {}, 'SHA%-256 unknown' },
       { url, sha256, { NVIM_TEST_BROKEN = '1' }, 'Cannot run .*: symbol not found\n$' },
-      { '-', '-', {}, 'No Nvim release for %S+ %S+: install nvim v999%.0%.0 or newer on %$PATH' },
+      { '-', '-', {}, 'No Nero release for %S+ %S+: install nero v999%.0%.0 or newer on %$PATH' },
       { url, sha256, { PATH = home .. '/none' }, 'Not found on %$PATH: curl\n$' },
     }) do
       local script =
@@ -471,17 +477,22 @@ describe('remote-ssh', function()
       t.matches(c[4], res.stderr)
     end
 
-    eq({}, n.fn.readdir(home .. '/releases'))
+    eq({}, n.fn.readdir(releases_dir))
+    -- A pre-rebrand cache must remain usable without blocking the Nero install.
+    local legacy_nvim = home .. '/' .. legacy_dir .. '/bin/nvim'
+    n.mkdir_p(vim.fs.dirname(legacy_nvim))
+    vim.uv.fs_symlink(nvim_prog, legacy_nvim)
     local installing = ('Installing %s/%s...'):format(home, dir)
     local release_env = { 'nvim-remote', '1', 'remote-ssh', 0 }
     eq({ release_env, true, starting_release, installing }, serve('v999.0.0'))
     -- Reuses the install.
     eq({ release_env, true, starting_release }, serve('v999.0.0'))
-    -- --update replaces the install, and runs it instead of $PATH `nvim`. Leaves no temp dirs.
+    -- --update replaces the install, and runs it instead of $PATH `nero`. Leaves no temp dirs.
     t.write_file(('%s/%s/stale'):format(home, dir), '')
     eq({ release_env, true, starting_release, installing }, serve('v0.1.0', true))
     eq({ 'bin' }, n.fn.readdir(('%s/%s'):format(home, dir)))
-    eq({ 'v1-test' }, n.fn.readdir(home .. '/releases'))
+    eq({ vim.fs.basename(dir) }, n.fn.readdir(releases_dir))
+    eq(nvim_prog, vim.uv.fs_readlink(legacy_nvim))
 
     -- Follows a restarted server, which re-binds its address. The socket dir is private.
     eq(
@@ -560,7 +571,7 @@ describe('remote-ssh', function()
     skip(is_os('win'), 'remote-ssh is POSIX-only')
     local home = vim.fs.abspath(t.tmpname(false))
     n.mkdir_p(home .. '/bin')
-    vim.uv.fs_symlink(vim.fs.abspath(n.nvim_prog), home .. '/bin/nvim')
+    vim.uv.fs_symlink(vim.fs.abspath(n.nvim_prog), home .. '/bin/nero')
     -- Where `relink()` finds sessions.
     local token = ('%x0'):format(vim.uv.os_getpid())
     local sock1 = ('/tmp/nvim-remote.%s1/nvim.sock'):format(token)
@@ -688,7 +699,7 @@ describe('remote-ssh', function()
       tunnel = { stderr = 'channel 0: open failed: administratively prohibited\n', exit = 255 },
     })
     eq(
-      'Vim(connect):E6101: SSH connection failed: SSH tunnel exited before the remote Nvim was ready: channel 0: open failed: administratively prohibited',
+      'Vim(connect):E6101: SSH connection failed: SSH tunnel exited before the remote Nero was ready: channel 0: open failed: administratively prohibited',
       t.pcall_err(n.command, 'connect ssh://user@test-server')
     )
     eq(
@@ -718,7 +729,7 @@ describe('remote-ssh', function()
     eq(true, n.exec_lua('return _G.interrupted'))
     eq({
       'running: Connecting to ssh://user@test-server...',
-      'running: Starting remote Nvim...',
+      'running: Starting remote Nero...',
       ('running: %s'):format(status),
       'failed: Interrupted connecting to ssh://user@test-server',
     }, n.exec_lua('return _G.progress_log'))
@@ -727,12 +738,12 @@ describe('remote-ssh', function()
     eq('', n.eval('v:errmsg'))
   end)
 
-  it('fails when the remote Nvim crashes during startup, or is unreachable', function()
+  it('fails when the remote Nero crashes during startup, or is unreachable', function()
     setup_fake_ssh({
       tunnel = { stdout = 'NVIM_CRASHED\n', exit = 1 },
     })
     n.exec_lua([[require('vim.net._ssh').connect('ssh://user@test-server')]])
-    eq('E6101: SSH connection failed: Remote Nvim crashed during startup', n.eval('v:errmsg'))
+    eq('E6101: SSH connection failed: Remote Nero crashed during startup', n.eval('v:errmsg'))
 
     -- The script runs, but sshd refused the forward.
     setup_fake_ssh({
@@ -740,7 +751,7 @@ describe('remote-ssh', function()
     })
     n.exec_lua([[require('vim.net._ssh').connect('ssh://user@test-server')]])
     eq(
-      'E6101: SSH connection failed: Remote Nvim is not reachable through the SSH forward',
+      'E6101: SSH connection failed: Remote Nero is not reachable through the SSH forward',
       n.eval('v:errmsg')
     )
     eq(true, vim.uv.fs_stat(fake_dir .. '/forward.cancelled') ~= nil)

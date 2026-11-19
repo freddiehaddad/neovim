@@ -2,8 +2,8 @@
 
 local M = {}
 
---- GitHub API URL of a Nvim release, by tag (see `fetch_sha256s()`). Tests replace it with a file.
-M.release_api = 'https://api.github.com/repos/neovim/neovim/releases/tags/%s'
+--- GitHub API URL of a Nero release, by tag (see `fetch_sha256s()`). Tests replace it with a file.
+M.release_api = 'https://api.github.com/repos/freddiehaddad/nero/releases/tags/%s'
 
 --- |$NVIM_APPNAME| of the remote Nvim. Remote-ssh owns its dirs, e.g. `push_config()`
 --- (`vim.net._ssh`) replaces the config dir.
@@ -26,7 +26,7 @@ end
 --- assets, as published by GitHub (the asset `digest`).
 ---
 ---@return fun(name: string): string?, string? get_sha256 Waits for the fetch, then gets the SHA-256
----   (hex) of asset `name` (e.g. `nvim-linux-x86_64.tar.gz`), or nil and an error if unavailable
+---   (hex) of asset `name` (e.g. `nero-linux-x86_64.tar.gz`), or nil and an error if unavailable
 ---   (e.g. offline or rate-limited). Fails with "interrupted" on CTRL-C.
 function M.fetch_sha256s()
   local task = vim.async.run(function()
@@ -54,16 +54,16 @@ function M.fetch_sha256s()
   end
 end
 
---- Gets the Nvim release URL/dir/version based on the local version + remote platform.
+--- Gets the Nero release URL/dir/version based on the local version + remote platform.
 ---
 ---@param os string
 ---@param arch string
 ---@return string dir Install dir, relative to the remote `$HOME`, e.g.
----   `.local/share/nvim-remote/releases/v0.12.0-linux-x86_64`. Per platform too: a shared `$HOME`
+---   `.local/share/nvim-remote/releases/nero/v0.12.0-linux-x86_64`. Per platform too: a shared `$HOME`
 ---   may be mounted on remote hosts of different platforms.
 ---@return string url Release archive, or `-` if the platform has none (e.g. FreeBSD): the remote
----   can only use an `nvim` on its `$PATH`.
----@return string version Minimum version of an `nvim` on the remote `$PATH` to use instead, e.g.
+---   can only use a `nero` on its `$PATH`.
+---@return string version Minimum version of a `nero` on the remote `$PATH` to use instead, e.g.
 ---   `v0.12.0`, or `v0.13.0-dev` (any build) for a prerelease.
 function M.get_release(os, arch)
   local tag, base = release_tag()
@@ -82,12 +82,12 @@ function M.get_release(os, arch)
     return '-', '-', version
   end
 
-  local release_name = ('nvim-%s-%s'):format(target_os, target_arch)
-  local release_url = ('https://github.com/neovim/neovim/releases/download/%s/%s.tar.gz'):format(
+  local release_name = ('nero-%s-%s'):format(target_os, target_arch)
+  local release_url = ('https://github.com/freddiehaddad/nero/releases/download/%s/%s.tar.gz'):format(
     tag,
     release_name
   )
-  local dir = ('%s/releases/%s-%s-%s'):format(M.data_dir, install_name, target_os, target_arch)
+  local dir = ('%s/releases/nero/%s-%s-%s'):format(M.data_dir, install_name, target_os, target_arch)
   return dir, release_url, version
 end
 

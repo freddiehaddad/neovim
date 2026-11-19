@@ -176,7 +176,8 @@ pub fn signal_init() {
                 Some(c"signal_init"),
                 line!() as i32,
                 true,
-                c"Could not unblock signals, nvim might behave strangely.",
+                c"Could not unblock signals, %s might behave strangely.",
+                crate::branding::DISPLAY_NAME.as_bytes(),
             );
         }
     }
@@ -271,7 +272,8 @@ fn deadly_signal(signum: i32) -> ! {
     let mut iobuff = [0u8; crate::globals::IOSIZE];
     format_to_buf!(
         &mut iobuff,
-        c"Nvim: Caught deadly signal '%s'\n",
+        c"%s: Caught deadly signal '%s'\n",
+        crate::branding::DISPLAY_NAME.as_bytes(),
         signal_name(signum),
     );
 

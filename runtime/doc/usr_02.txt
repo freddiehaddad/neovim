@@ -30,7 +30,7 @@ Table of contents: |usr_toc.txt|
 
 To start Nvim, enter this command: >
 
-	nvim file.txt
+	nero file.txt
 
 On Unix you can type this at any command prompt.  If you are running Microsoft
 Windows, open a Command Prompt and enter the command.  In either case, Vim

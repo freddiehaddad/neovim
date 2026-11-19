@@ -3237,8 +3237,9 @@ msgstr ""
 msgid "(2) An edit session for this file crashed.\n"
 msgstr "(2) Une session d'édition de ce fichier a planté.\n"
 
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    Si c'est le cas, utilisez \":recover\" ou \"nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    Si c'est le cas, utilisez \":recover\" ou \"%s -r "
 
 msgid ""
 "\"\n"

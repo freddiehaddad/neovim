@@ -3492,12 +3492,12 @@ func Test_message_when_using_ctrl_c()
   %bwipe!
 
   exe "normal \<C-C>"
-  call assert_match("Type  :qa  and press <Enter> to exit Nvim", Screenline(&lines))
+  call assert_match("Type  :qa  and press <Enter> to exit Nero", Screenline(&lines))
 
   new
   cal setline(1, 'hi!')
   exe "normal \<C-C>"
-  call assert_match("Type  :qa!  and press <Enter> to abandon all changes and exit Nvim", Screenline(&lines))
+  call assert_match("Type  :qa!  and press <Enter> to abandon all changes and exit Nero", Screenline(&lines))
 
   bwipe!
 endfunc

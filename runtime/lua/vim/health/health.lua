@@ -81,7 +81,7 @@ local function check_runtime()
         'Found old files in $VIMRUNTIME (this can cause weird behavior):\n%s',
         bad_files_msg
       ),
-      { 'Delete the $VIMRUNTIME directory, then reinstall Nvim.' }
+      { 'Delete the $VIMRUNTIME directory, then reinstall Nero.' }
     )
   end
 end
@@ -293,8 +293,8 @@ local function check_performance()
     health.ok(buildtype)
   else
     health.info(buildtype)
-    health.warn('Non-optimized debug build. Nvim will be slower.', {
-      'Install a different Nvim package, or rebuild with `CMAKE_BUILD_TYPE=RelWithDebInfo` (CMake) or `-Doptimize=ReleaseFast` (Zig).',
+    health.warn('Non-optimized debug build. Nero will be slower.', {
+      'Install a different Nero package, or rebuild with `CMAKE_BUILD_TYPE=RelWithDebInfo` (CMake) or `-Doptimize=ReleaseFast` (Zig).',
       suggest_faq,
     })
   end
@@ -740,7 +740,7 @@ end
 ---@param nvim_version string
 local function check_stable_version(nvim_version)
   local ok, output =
-    system({ 'git', 'ls-remote', '--tags', 'https://github.com/neovim/neovim' }, 5000)
+    system({ 'git', 'ls-remote', '--tags', 'https://github.com/freddiehaddad/nero' }, 5000)
   if not ok or output == '' then
     return
   end
@@ -752,7 +752,7 @@ local function check_stable_version(nvim_version)
   local current = vim.version.parse(current_version)
   local latest = vim.version.parse(latest_version)
   if current and latest and vim.version.lt(current, latest) then
-    vim.health.warn(('Nvim %s is available (current: %s)'):format(latest_version, current_version))
+    vim.health.warn(('Nero %s is available (current: %s)'):format(latest_version, current_version))
   else
     vim.health.ok(('Up to date (%s)'):format(current_version))
   end
@@ -762,7 +762,7 @@ end
 ---@param commit string
 local function check_head_hash(commit)
   local ok, output = system(
-    { 'git', 'ls-remote', 'https://github.com/neovim/neovim', 'HEAD', 'refs/tags/nightly' },
+    { 'git', 'ls-remote', 'https://github.com/freddiehaddad/nero', 'HEAD', 'refs/tags/nightly' },
     5000
   )
   if not ok or output == '' then
@@ -801,7 +801,10 @@ local function check_sysinfo()
 
   -- Use :version because `vim.version().build` returns "Homebrew" for brew installs.
   local version_out = vim.api.nvim_exec2('version', { output = true }).output --[[@as string]]
-  local nvim_version = version_out:match('NVIM (v[^\n]+)') or 'unknown'
+  local nvim_version = version_out:match('Nero (v[^\n]+)')
+    or version_out:match('NERO (v[^\n]+)')
+    or version_out:match('NVIM (v[^\n]+)')
+    or 'unknown'
   local commit = (version_out:match('%+g(%x+)') or ''):sub(1, 12)
 
   if M._skip_update_check then
@@ -819,7 +822,7 @@ local function check_sysinfo()
   local terminal = detect_terminal()
   local term_env = vim.env.TERM or 'unknown'
 
-  vim.health.info(('Nvim version: `%s` %s'):format(nvim_version, commit))
+  vim.health.info(('Nero version: `%s` %s'):format(nvim_version, commit))
   vim.health.info('Operating system: ' .. os_string)
   vim.health.info('Terminal: ' .. terminal)
   vim.health.info('$TERM: ' .. term_env)
@@ -835,15 +838,15 @@ local function check_sysinfo()
     ## Steps to reproduce
 
     ```
-    nvim --clean
+    nero --clean
     ```
 
     ## Expected behavior
 
     ## System info
 
-    - Nvim version (nvim -v): `%s` neovim/neovim@%s
-    - Vim (not Nvim) behaves the same?: ?
+    - Nero version (nero -v): `%s` freddiehaddad/nero@%s
+    - Vim (not Nero) behaves the same?: ?
     - Operating system/version: %s
     - Terminal name/version: %s
     - $TERM environment variable: `%s`
@@ -864,7 +867,7 @@ local function check_sysinfo()
     if win == -1 then
       return
     end
-    local issue_url = ('https://github.com/neovim/neovim/issues/new?%s'):format(
+    local issue_url = ('https://github.com/freddiehaddad/nero/issues/new?%s'):format(
       vim.uri.encode_query({ type = 'Bug', body = body })
     )
 

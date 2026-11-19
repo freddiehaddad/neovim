@@ -596,15 +596,15 @@ func Test_invalid_args()
   for opt in ['-Y', '--does-not-exist']
     let out = split(system(GetVimCommand() .. ' ' .. opt), "\n")
     call assert_equal(1, v:shell_error)
-    call assert_equal('nvim: Unknown option argument: "' .. opt .. '"', out[0])
-    call assert_equal('More info with "nvim -h"',                       out[1])
+    call assert_equal(v:progname .. ': Unknown option argument: "' .. opt .. '"', out[0])
+    call assert_equal('More info with "' .. v:progname .. ' -h"',                 out[1])
   endfor
 
   for opt in ['-c', '-i', '-s', '-t', '-u', '-U', '-w', '-W', '--cmd', '--startuptime']
     let out = split(system(GetVimCommand() .. ' '  .. opt), "\n")
     call assert_equal(1, v:shell_error)
-    call assert_equal('nvim: Argument missing after: "' .. opt .. '"', out[0])
-    call assert_equal('More info with "nvim -h"',                      out[1])
+    call assert_equal(v:progname .. ': Argument missing after: "' .. opt .. '"', out[0])
+    call assert_equal('More info with "' .. v:progname .. ' -h"',                out[1])
   endfor
 
   if has('clientserver')
@@ -640,8 +640,8 @@ func Test_invalid_args()
 
   let out = split(system(GetVimCommand() .. ' -ix'), "\n")
   call assert_equal(1, v:shell_error)
-  call assert_equal('nvim: Garbage after option argument: "-ix"', out[0])
-  call assert_equal('More info with "nvim -h"',                   out[1])
+  call assert_equal(v:progname .. ': Garbage after option argument: "-ix"', out[0])
+  call assert_equal('More info with "' .. v:progname .. ' -h"',             out[1])
 
   " Not an error in Nvim.  The "-" file is allowed with -t, -q, or [file].
   let out = split(system(GetVimCommand() .. ' - xxx -cq'), "\n")
@@ -652,8 +652,8 @@ func Test_invalid_args()
     for opt in ['-t', '-q']
       let out = split(system(GetVimCommand() .. repeat(' ' .. opt .. ' foo', 2)), "\n")
       call assert_equal(1, v:shell_error)
-      call assert_equal('nvim: Too many edit arguments: "' .. opt .. '"', out[0])
-      call assert_equal('More info with "nvim -h"',                       out[1])
+      call assert_equal(v:progname .. ': Too many edit arguments: "' .. opt .. '"', out[0])
+      call assert_equal('More info with "' .. v:progname .. ' -h"',                 out[1])
     endfor
   endif
 
@@ -662,8 +662,8 @@ func Test_invalid_args()
     call assert_equal(1, v:shell_error)
     " FIXME: The error message given by Vim is not ideal in case of repeated
     " -S foo since it does not mention -S.
-    call assert_equal('nvim: Too many "+command", "-c command" or "--cmd command" arguments', out[0])
-    call assert_equal('More info with "nvim -h"',                                             out[1])
+    call assert_equal(v:progname .. ': Too many "+command", "-c command" or "--cmd command" arguments', out[0])
+    call assert_equal('More info with "' .. v:progname .. ' -h"',                                       out[1])
   endfor
 
   if has('gui_gtk')
@@ -773,8 +773,8 @@ func Test_progpath()
     call assert_match('[/\\]', v:progpath[2])
   endif
 
-  " Only expect "vim" to appear in v:progname.
-  call assert_match('vim\c', v:progname)
+  " Only expect "vim" or "nero" to appear in v:progname.
+  call assert_match('\v(vim|nero)\c', v:progname)
 endfunc
 
 func Test_silent_ex_mode()

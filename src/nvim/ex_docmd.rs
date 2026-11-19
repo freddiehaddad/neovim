@@ -9628,7 +9628,10 @@ fn ex_restart(eap: &mut Exarg) {
     if let Some(chan) = crate::msgpack_rpc::channel::find_channel_opt(chan_id) {
         proc_stop(&chan.uv.proc_);
         if proc_wait(&chan.uv.proc_, -1, None) < 0 {
-            let _ = emsg(c"killing new nvim server failed");
+            let _ = crate::message::semsg!(
+                c"killing new %s server failed",
+                crate::branding::DISPLAY_NAME.as_bytes(),
+            );
         }
     }
 
@@ -10307,9 +10310,10 @@ fn ex_detach(eap: &mut Exarg) {
             chan_ref.detach.set(true);
             channel_event(&chan_ref, EVENT_CHANINFO);
         }
-        let _ = msg(
-            gettext(c"Nvim will continue running if the UI disconnects"),
+        let _ = crate::message::smsg!(
             0,
+            gettext(c"%s will continue running if the UI disconnects"),
+            crate::branding::DISPLAY_NAME.as_bytes(),
         );
         return;
     }
@@ -10700,9 +10704,15 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&WinInfoInfo>) {
 }
 
 fn ex_nogui(eap: &mut Exarg) {
-    eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
-        c"E25: Nvim does not have a built-in GUI",
-    )));
+    let mut message = [0u8; crate::globals::IOSIZE];
+    crate::strings::format_to_buf!(
+        &mut message,
+        gettext(c"E25: %s does not have a built-in GUI"),
+        crate::branding::DISPLAY_NAME.as_bytes(),
+    );
+    eap.errmsg = Some(std::borrow::Cow::Owned(
+        crate::memory::bytes_as_cstr(&message).to_owned(),
+    ));
 }
 
 fn ex_popup(eap: &mut Exarg) {

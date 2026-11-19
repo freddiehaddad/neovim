@@ -1354,7 +1354,7 @@ function vim._cs_remote(rcid, server_addr, connect_error, args)
     or subcmd == 'tab-wait'
     or subcmd == 'tab-wait-silent'
   then
-    return { errmsg = 'E5600: Wait commands not yet implemented in Nvim' }
+    return { errmsg = 'E5600: Wait commands not yet implemented in Nero' }
   elseif subcmd == 'tab-silent' then
     f_tab = true
     f_silent = true

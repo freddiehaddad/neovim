@@ -1,6 +1,6 @@
 --- Ex mode.
---- - `run()`: non-interactive (`nvim -es`): executes stdin as Ex commands.
---- - `open()`: interactive (`[count]q:`, `nvim -e`), a keep-open "cmdwin" REPL.
+--- - `run()`: non-interactive (`nero -es`): executes stdin as Ex commands.
+--- - `open()`: interactive (`[count]q:`, `nero -e`), a keep-open "cmdwin" REPL.
 
 local api = vim.api
 local N_ = vim.fn.gettext
@@ -27,7 +27,7 @@ local exit_cmds = {
 --- @type table<integer, true>
 local cont_lines = {}
 
---- Non-interactive "script mode" ("nvim -es", fka "Ex-mode", but POSIX behavior was dropped):
+--- Non-interactive "script mode" ("nero -es", fka "Ex-mode", but POSIX behavior was dropped):
 --- Executes stdin as Ex commands, until EOF.
 ---
 --- Stdin is not consumed as typeahead: fd 0 is read directly (`io.lines()`), so `:lua` script lines

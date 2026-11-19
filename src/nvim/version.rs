@@ -3849,8 +3849,10 @@ static DEFAULT_VIM_DIR_BUF: [u8; 4096] = make_cstr_buf(option_env!("NVIM_DEFAULT
 static DEFAULT_VIMRUNTIME_DIR_BUF: [u8; 4096] =
     make_cstr_buf(option_env!("NVIM_DEFAULT_VIMRUNTIME_DIR"));
 static DEFAULT_LIB_DIR_BUF: [u8; 4096] = make_cstr_buf(option_env!("NVIM_DEFAULT_LIB_DIR"));
-static LONG_VERSION_BUF: [u8; 256] =
-    make_cstr_buf_or(option_env!("NVIM_VERSION_LONG"), "NVIM v0.13.0-dev");
+static LONG_VERSION_BUF: [u8; 256] = make_cstr_buf_or(
+    option_env!("NVIM_VERSION_LONG"),
+    concat!(crate::branding::display_name!(), " v0.13.0-dev"),
+);
 static VERSION_BUILD_BUF: [u8; 256] = make_cstr_buf(option_env!("NVIM_VERSION_BUILD"));
 
 pub static NVIM_VERSION_MAJOR_CONST: i32 = parse_version_int(option_env!("NVIM_VERSION_MAJOR"), 0);
@@ -4176,10 +4178,16 @@ pub fn list_version() {
         }
     }
 
+    let mut more_info = [0u8; crate::globals::IOSIZE];
     version_msg(if opt_vars().p_verbose.get() > 0 {
         c"\nRun :checkhealth for more info"
     } else if starting_val() != 0 {
-        c"\nRun \"nvim -V1 -v\" for more info"
+        crate::strings::format_to_buf!(
+            &mut more_info,
+            c"\nRun \"%s -V1 -v\" for more info",
+            crate::branding::EXECUTABLE_NAME.as_bytes(),
+        );
+        crate::memory::bytes_as_cstr(&more_info)
     } else {
         c"\nRun \":verbose version\" for more info"
     });
@@ -4197,25 +4205,34 @@ pub fn may_show_intro() -> bool {
 
 /// Give an introductory message about Vim (`intro_message`).
 pub fn intro_message(colon: bool) {
-    let lines: [&CStr; 18] = [
-        c"│ ╲ ││",
-        c"││╲╲││",
-        c"││ ╲ │",
-        c"",
-        long_version(),
-        c"────────────────────────────────────────────",
-        c"Nvim is open source and freely distributable",
-        c"https://neovim.io/#chat",
-        c"────────────────────────────────────────────",
-        c"type  :help nvim<Enter>     if you are new! ",
-        c"type  :checkhealth<Enter>   to optimize Nvim",
-        c"type  :q<Enter>             to exit         ",
-        c"type  :help<Enter>          for help        ",
-        c"────────────────────────────────────────────",
-        c"type  :help news<Enter>     for v%s.%s notes ",
-        c"────────────────────────────────────────────",
-        c"Help poor children in Uganda!",
-        c"type  :help Kuwasha<Enter>  for information ",
+    let lines: [(&CStr, Option<&str>); 18] = [
+        (c"│ ╲ ││", None),
+        (c"││╲╲││", None),
+        (c"││ ╲ │", None),
+        (c"", None),
+        (long_version(), None),
+        (c"────────────────────────────────────────────", None),
+        (
+            c"%s is open source and freely distributable",
+            Some(crate::branding::DISPLAY_NAME),
+        ),
+        (c"https://github.com/freddiehaddad/nero", None),
+        (c"────────────────────────────────────────────", None),
+        (
+            c"type  :help %s<Enter>     if you are new! ",
+            Some(crate::branding::EXECUTABLE_NAME),
+        ),
+        (
+            c"type  :checkhealth<Enter>   to optimize %s",
+            Some(crate::branding::DISPLAY_NAME),
+        ),
+        (c"type  :q<Enter>             to exit         ", None),
+        (c"type  :help<Enter>          for help        ", None),
+        (c"────────────────────────────────────────────", None),
+        (c"type  :help news<Enter>     for v%s.%s notes ", None),
+        (c"────────────────────────────────────────────", None),
+        (c"Help poor children in Uganda!", None),
+        (c"type  :help Kuwasha<Enter>  for information ", None),
     ];
 
     let lines_size = lines.len() as i32;
@@ -4229,10 +4246,14 @@ pub fn intro_message(colon: bool) {
 
     let mut row = blanklines / 2;
     if (row >= 2 && screen_state().columns_global.get() >= 50) || colon {
-        for (i, &p) in lines.iter().enumerate() {
+        for (i, &(p, brand)) in lines.iter().enumerate() {
             let formatted_cstr: Option<CString>;
+            let mut branded_text = [0u8; crate::globals::IOSIZE];
 
-            let mesg: &CStr = if p.to_bytes().windows(4).any(|w| w == b"news") {
+            let mesg: &CStr = if let Some(name) = brand {
+                crate::strings::format_to_buf!(&mut branded_text, gettext(p), name.as_bytes());
+                crate::memory::bytes_as_cstr(&branded_text)
+            } else if p.to_bytes().windows(4).any(|w| w == b"news") {
                 let fmt_str = gettext(p).to_string_lossy();
                 let major_s = NVIM_VERSION_MAJOR_CONST.to_string();
                 let minor_s = NVIM_VERSION_MINOR_CONST.to_string();
@@ -4304,7 +4325,11 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
             return;
         }
 
-        let is_version = mesg_bytes.starts_with(b"NVIM");
+        let is_version = mesg_bytes
+            .strip_prefix(crate::branding::DISPLAY_NAME.as_bytes())
+            .is_some_and(|suffix| suffix.starts_with(b" v"))
+            || mesg_bytes.starts_with(b"NERO")
+            || mesg_bytes.starts_with(b"NVIM");
         let is_sep = utfc_ptr2len(mesg_bytes) == 3 && utf_ptr2char(mesg_bytes) == 0x2500;
         if is_version || is_sep {
             let clen = if is_sep { 3 } else { 1 };

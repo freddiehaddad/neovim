@@ -16,7 +16,7 @@ Channels are Nvim's way of communicating with external processes.
 
 There are several ways to open a channel:
 
-1. Through stdin/stdout when `nvim` is started with `--headless` and a startup
+1. Through stdin/stdout when `nero` is started with `--headless` and a startup
    script or `--cmd` command opens the stdio channel using |stdioopen()|.
 2. Through stdin, stdout and stderr of a process spawned by |jobstart()|.
 3. Through the PTY master end opened with `jobstart(…, {'pty': v:true})`.
@@ -139,7 +139,7 @@ See also |terminal-emulator|.
 
 Terminal characteristics (termios) for |:terminal| and PTY channels are copied
 from the host TTY, or if Nvim is |--headless| it uses default values: >vim
-    :echo system('nvim --headless +"te stty -a" +"sleep 1" +"1,/^$/print" +q')
+    :echo system('nero --headless +"te stty -a" +"sleep 1" +"1,/^$/print" +q')
 
 ==============================================================================
 3. Communicating with msgpack RPC			      *channel-rpc*
@@ -169,7 +169,7 @@ Example: >vim
     call stdioopen({'on_stdin': 'OnEvent'})
 <
 Put this in `uppercase.vim` and run:  >bash
-    nvim --headless --cmd "source uppercase.vim"
+    nero --headless --cmd "source uppercase.vim"
 
 ==============================================================================
 5. Using a prompt buffer                                   *repl* *prompt-buffer*

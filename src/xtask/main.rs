@@ -6,6 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
 mod bench;
+#[path = "../branding.rs"]
+mod branding;
+use branding::{DISPLAY_NAME, EXECUTABLE_NAME};
+
 #[path = "../deps_build.rs"]
 mod deps_build;
 
@@ -72,7 +76,7 @@ fn build_cargo_bins(root: &Path, release: bool, prefer_lua: bool) -> PathBuf {
     let mut cmd = Command::new(cargo);
     cmd.current_dir(root).arg("build");
     for bin in [
-        "nvim",
+        EXECUTABLE_NAME,
         "tee",
         "xxd",
         "printargs-test",
@@ -106,7 +110,7 @@ fn stage_build_dir(root: &Path, profile_dir: &Path, build_dir: &Path) -> PathBuf
 
     let sfx = exe_suffix();
     for bin in [
-        "nvim",
+        EXECUTABLE_NAME,
         "tee",
         "xxd",
         "printargs-test",
@@ -130,9 +134,9 @@ fn stage_build_dir(root: &Path, profile_dir: &Path, build_dir: &Path) -> PathBuf
     }
 
     if cfg!(target_os = "windows") {
-        let pdb = profile_dir.join("nvim.pdb");
+        let pdb = profile_dir.join(concat!(branding::executable_name!(), ".pdb"));
         if pdb.exists() {
-            let dst = bin_dir.join("nvim.pdb");
+            let dst = bin_dir.join(concat!(branding::executable_name!(), ".pdb"));
             let _ = fs::remove_file(&dst);
             let _ = fs::copy(&pdb, dst);
         }
@@ -151,7 +155,7 @@ fn stage_build_dir(root: &Path, profile_dir: &Path, build_dir: &Path) -> PathBuf
         deps_build::copy_dir_all(&parser_src, &lib_nvim_dir.join("parser")).unwrap();
     }
 
-    let nvim_bin = bin_dir.join(format!("nvim{sfx}"));
+    let nvim_bin = bin_dir.join(format!("{EXECUTABLE_NAME}{sfx}"));
     let preload = root.join("src").join("gen").join("preload.lua");
     let runtime_dir = root.join("runtime");
 
@@ -495,7 +499,7 @@ fn install_prefix(root: &Path, profile_dir: &Path, build_dir: &Path, prefix: &Pa
     fs::create_dir_all(&dst_rt).unwrap();
 
     let sfx = exe_suffix();
-    for bin in ["nvim", "tee", "xxd"] {
+    for bin in [EXECUTABLE_NAME, "tee", "xxd"] {
         let src = build_dir.join("bin").join(format!("{bin}{sfx}"));
         if src.exists() {
             let dst = dst_bin.join(format!("{bin}{sfx}"));
@@ -504,7 +508,11 @@ fn install_prefix(root: &Path, profile_dir: &Path, build_dir: &Path, prefix: &Pa
         }
     }
     if cfg!(target_os = "windows") {
-        for f in ["nvim.pdb", "lua51.dll", "win32yank.exe"] {
+        for f in [
+            concat!(branding::executable_name!(), ".pdb"),
+            "lua51.dll",
+            "win32yank.exe",
+        ] {
             let src = build_dir.join("bin").join(f);
             if src.exists() {
                 let dst = dst_bin.join(f);
@@ -522,8 +530,10 @@ fn install_prefix(root: &Path, profile_dir: &Path, build_dir: &Path, prefix: &Pa
     let man_dir = dst_share.join("man").join("man1");
     fs::create_dir_all(&man_dir).unwrap();
     fs::copy(
-        root.join("src").join("man").join("nvim.1"),
-        man_dir.join("nvim.1"),
+        root.join("src")
+            .join("man")
+            .join(concat!(branding::executable_name!(), ".1")),
+        man_dir.join(concat!(branding::executable_name!(), ".1")),
     )
     .unwrap();
 
@@ -534,8 +544,9 @@ fn install_prefix(root: &Path, profile_dir: &Path, build_dir: &Path, prefix: &Pa
         .join("apps");
     fs::create_dir_all(&icon_dir).unwrap();
     fs::copy(
-        root.join("runtime").join("nvim.png"),
-        icon_dir.join("nvim.png"),
+        root.join("runtime")
+            .join(concat!(branding::executable_name!(), ".png")),
+        icon_dir.join(concat!(branding::executable_name!(), ".png")),
     )
     .unwrap();
 
@@ -543,8 +554,9 @@ fn install_prefix(root: &Path, profile_dir: &Path, build_dir: &Path, prefix: &Pa
         let app_dir = dst_share.join("applications");
         fs::create_dir_all(&app_dir).unwrap();
         fs::copy(
-            root.join("runtime").join("org.neovim.nvim.desktop"),
-            app_dir.join("org.neovim.nvim.desktop"),
+            root.join("runtime")
+                .join(concat!(branding::executable_name!(), ".desktop")),
+            app_dir.join(concat!(branding::executable_name!(), ".desktop")),
         )
         .unwrap();
     }
@@ -1061,7 +1073,11 @@ fn validate_commit_msg(commit_message: &str) -> Option<String> {
     if commit_split.first() == Some(&"vim-patch") {
         return None;
     }
-    if let Some(rest) = commit_message.strip_prefix("NVIM v") {
+    if let Some(rest) = commit_message
+        .strip_prefix(concat!(branding::display_name!(), " v"))
+        .or_else(|| commit_message.strip_prefix("NERO v"))
+        .or_else(|| commit_message.strip_prefix("NVIM v"))
+    {
         let mut parts = rest.split('.');
         if parts
             .next()
@@ -1262,7 +1278,7 @@ fn run_lintcommit(root: &Path) {
     }
     if failed > 0 {
         eprintln!(
-            "See also:\n    https://github.com/freddiehaddad/neovim/blob/master/CONTRIBUTING.md#commit-messages\n"
+            "See also:\n    https://github.com/freddiehaddad/nero/blob/master/CONTRIBUTING.md#commit-messages\n"
         );
         std::process::exit(1);
     }
@@ -1270,11 +1286,17 @@ fn run_lintcommit(root: &Path) {
 
 fn default_install_prefix(target_dir: &Path) -> PathBuf {
     if cfg!(target_os = "windows") {
+        if let Ok(local_app_data) = env::var("LOCALAPPDATA") {
+            return PathBuf::from(local_app_data)
+                .join("Programs")
+                .join(DISPLAY_NAME);
+        }
         if let Ok(profile) = env::var("USERPROFILE") {
             return PathBuf::from(profile)
-                .join(".local")
-                .join("bin")
-                .join("nvim-win64");
+                .join("AppData")
+                .join("Local")
+                .join("Programs")
+                .join(DISPLAY_NAME);
         }
     } else if let Ok(home) = env::var("HOME") {
         return PathBuf::from(home).join(".local");
@@ -1289,8 +1311,8 @@ fn print_help() {
          \x20 deps [--force]              Download and compile bundled C dependencies (.deps)\n\
          \x20 build [--release]           Compile binaries and stage runtime in target/nvim-build/\n\
          \x20 runtime [--release]         Generate runtime files (tags, generated.vim) in target/nvim-build/\n\
-         \x20 install [--prefix <dir>]    Build release and install Neovim (default: ~/.local/bin/nvim-win64 on Windows, ~/.local on Unix)\n\
-         \x20 dist [--out-dir <dir>]      Build release archive in target/release/ (e.g. target/release/nvim-win64.zip)\n\
+         \x20 install [--prefix <dir>]    Build release and install {DISPLAY_NAME} (default: %LOCALAPPDATA%\\Programs\\{DISPLAY_NAME} on Windows, ~/.local on Unix)\n\
+         \x20 dist [--out-dir <dir>]      Build release archive in target/release/ (e.g. target/release/{EXECUTABLE_NAME}-win64.zip)\n\
          \x20 doc / doc-vim / doc-eval    Regenerate documentation files\n\
          \x20 lint                        Run all linters (lintrust, lintlua, linterrcodes, lintdoc)\n\
          \x20 lintrust / formatrust       Run cargo clippy / cargo fmt\n\
@@ -1415,7 +1437,10 @@ fn main() -> ExitCode {
         "runtime" => {
             let profile = if release { "release" } else { "debug" };
             let profile_dir = target_dir.join(profile);
-            if !profile_dir.join(format!("nvim{}", exe_suffix())).exists() {
+            if !profile_dir
+                .join(format!("{EXECUTABLE_NAME}{}", exe_suffix()))
+                .exists()
+            {
                 build_cargo_bins(&root, release, prefer_lua);
             }
             stage_build_dir(&root, &profile_dir, &build_dir);
@@ -1428,27 +1453,30 @@ fn main() -> ExitCode {
             let use_release = !debug;
             let profile_dir = build_cargo_bins(&root, use_release, prefer_lua);
             install_prefix(&root, &profile_dir, &build_dir, &prefix_dir);
-            eprintln!("[install] Installed Neovim to {}", prefix_dir.display());
+            eprintln!(
+                "[install] Installed {DISPLAY_NAME} to {}",
+                prefix_dir.display()
+            );
         }
         "dist" => {
             let use_release = !debug;
             let profile_dir = build_cargo_bins(&root, use_release, prefer_lua);
             let pkg_name = if cfg!(target_os = "windows") {
                 if cfg!(target_arch = "aarch64") {
-                    "nvim-win-arm64"
+                    concat!(branding::executable_name!(), "-win-arm64")
                 } else {
-                    "nvim-win64"
+                    concat!(branding::executable_name!(), "-win64")
                 }
             } else if cfg!(target_os = "macos") {
                 if cfg!(target_arch = "aarch64") {
-                    "nvim-macos-arm64"
+                    concat!(branding::executable_name!(), "-macos-arm64")
                 } else {
-                    "nvim-macos-x86_64"
+                    concat!(branding::executable_name!(), "-macos-x86_64")
                 }
             } else if cfg!(target_arch = "aarch64") {
-                "nvim-linux-arm64"
+                concat!(branding::executable_name!(), "-linux-arm64")
             } else {
-                "nvim-linux-x86_64"
+                concat!(branding::executable_name!(), "-linux-x86_64")
             };
 
             fs::create_dir_all(&out_dir).unwrap();
@@ -1494,36 +1522,47 @@ fn main() -> ExitCode {
                     if msi_path.exists() {
                         let _ = fs::remove_file(&msi_path);
                     }
-                    let ver = Command::new(stage_root.join("bin").join("nvim.exe"))
-                        .arg("--version")
-                        .output()
-                        .ok()
-                        .and_then(|o| {
-                            let s = String::from_utf8_lossy(&o.stdout);
-                            let first = s.lines().next()?.trim_start_matches("NVIM v");
-                            Some(first.split('-').next()?.to_string())
-                        })
-                        .unwrap_or_else(|| "0.13.0".to_string());
+                    let ver = Command::new(
+                        stage_root
+                            .join("bin")
+                            .join(concat!(branding::executable_name!(), ".exe")),
+                    )
+                    .arg("--version")
+                    .output()
+                    .ok()
+                    .and_then(|o| {
+                        let s = String::from_utf8_lossy(&o.stdout);
+                        let first = s
+                            .lines()
+                            .next()?
+                            .trim_start_matches(concat!(branding::display_name!(), " v"))
+                            .trim_start_matches("NERO v")
+                            .trim_start_matches("NVIM v");
+                        Some(first.split('-').next()?.to_string())
+                    })
+                    .unwrap_or_else(|| "0.13.0".to_string());
                     let arch_attr = if cfg!(target_arch = "aarch64") {
                         "arm64"
                     } else {
                         "x64"
                     };
-                    let icon_path = root.join("runtime").join("neovim.ico");
+                    let icon_path = root
+                        .join("runtime")
+                        .join(concat!(branding::executable_name!(), ".ico"));
                     let wxs_path = out_dir.join("_nvim_installer.wxs");
                     let wxs_content = format!(
                         "<Wix xmlns=\"http://wixtoolset.org/schemas/v4/wxs\">\n\
-                         \x20 <Package Name=\"Neovim\"\n\
-                         \x20          Manufacturer=\"neovim.io\"\n\
+                         \x20 <Package Name=\"{DISPLAY_NAME}\"\n\
+                         \x20          Manufacturer=\"Freddie Haddad\"\n\
                          \x20          Version=\"{ver}\"\n\
-                         \x20          UpgradeCode=\"207A1A70-7B0C-418A-A153-CA6883E38F4D\"\n\
+                         \x20          UpgradeCode=\"8E4C9A12-5D3B-4F8E-9A2C-6B1D7E3F5A90\"\n\
                          \x20          Scope=\"perMachine\">\n\
                          \x20   <MajorUpgrade DowngradeErrorMessage=\"A newer version of [ProductName] is already installed.\" />\n\
                          \x20   <MediaTemplate EmbedCab=\"yes\" />\n\
-                         \x20   <Icon Id=\"neovim.ico\" SourceFile=\"{}\" />\n\
-                         \x20   <Property Id=\"ARPPRODUCTICON\" Value=\"neovim.ico\" />\n\
+                         \x20   <Icon Id=\"{EXECUTABLE_NAME}.ico\" SourceFile=\"{}\" />\n\
+                         \x20   <Property Id=\"ARPPRODUCTICON\" Value=\"{EXECUTABLE_NAME}.ico\" />\n\
                          \x20   <StandardDirectory Id=\"ProgramFiles6432Folder\">\n\
-                         \x20     <Directory Id=\"INSTALLFOLDER\" Name=\"Neovim\">\n\
+                         \x20     <Directory Id=\"INSTALLFOLDER\" Name=\"{DISPLAY_NAME}\">\n\
                          \x20       <Files Include=\"{}\\**\" />\n\
                          \x20     </Directory>\n\
                          \x20   </StandardDirectory>\n\
@@ -1569,7 +1608,7 @@ fn main() -> ExitCode {
                     } else {
                         "x86_64"
                     };
-                    let appdir = out_dir.join("org.neovim.nvim.AppDir");
+                    let appdir = out_dir.join(concat!(branding::executable_name!(), ".AppDir"));
                     if appdir.exists() {
                         let _ = fs::remove_dir_all(&appdir);
                     }
@@ -1578,14 +1617,15 @@ fn main() -> ExitCode {
                     let metainfo_dir = appdir_usr.join("share").join("metainfo");
                     fs::create_dir_all(&metainfo_dir).unwrap();
                     fs::copy(
-                        root.join("runtime").join("org.neovim.nvim.appdata.xml"),
-                        metainfo_dir.join("org.neovim.nvim.appdata.xml"),
+                        root.join("runtime")
+                            .join(concat!(branding::executable_name!(), ".appdata.xml")),
+                        metainfo_dir.join(concat!(branding::executable_name!(), ".appdata.xml")),
                     )
                     .unwrap();
                     let apprun = appdir.join("AppRun");
                     fs::write(
                         &apprun,
-                        "#!/bin/bash\n\nunset ARGV0\nexec \"$(dirname \"$(readlink -f \"${0}\")\")/usr/bin/nvim\" ${@+\"$@\"}\n",
+                        concat!("#!/bin/bash\n\nunset ARGV0\nexec \"$(dirname \"$(readlink -f \"${0}\")\")/usr/bin/", branding::executable_name!(), "\" ${@+\"$@\"}\n"),
                     )
                     .unwrap();
                     #[cfg(unix)]
@@ -1617,12 +1657,12 @@ fn main() -> ExitCode {
                         }
                     }
 
-                    let appimage_name = format!("nvim-linux-{arch_output}.appimage");
+                    let appimage_name = format!("{EXECUTABLE_NAME}-linux-{arch_output}.appimage");
                     let appimage_out = out_dir.join(&appimage_name);
                     if appimage_out.exists() {
                         let _ = fs::remove_file(&appimage_out);
                     }
-                    let ver_out = Command::new(stage_root.join("bin").join("nvim"))
+                    let ver_out = Command::new(stage_root.join("bin").join(EXECUTABLE_NAME))
                         .arg("--version")
                         .output()
                         .ok()
@@ -1631,6 +1671,8 @@ fn main() -> ExitCode {
                                 .lines()
                                 .next()
                                 .unwrap_or("v0.13.0-dev")
+                                .trim_start_matches(concat!(branding::display_name!(), " "))
+                                .trim_start_matches("NERO ")
                                 .trim_start_matches("NVIM ")
                                 .to_string()
                         })
@@ -1650,7 +1692,7 @@ fn main() -> ExitCode {
                         && !tag.is_empty()
                     {
                         let update_info = format!(
-                            "gh-releases-zsync|freddiehaddad|neovim|{tag}|{appimage_name}.zsync"
+                            "gh-releases-zsync|freddiehaddad|nero|{tag}|{appimage_name}.zsync"
                         );
                         ld_cmd.env("UPDATE_INFORMATION", &update_info);
                         ld_cmd.env("LDAI_UPDATE_INFORMATION", &update_info);
@@ -1659,9 +1701,15 @@ fn main() -> ExitCode {
                         .arg("--appdir")
                         .arg(&appdir)
                         .arg("-d")
-                        .arg(root.join("runtime").join("org.neovim.nvim.desktop"))
+                        .arg(
+                            root.join("runtime")
+                                .join(concat!(branding::executable_name!(), ".desktop")),
+                        )
                         .arg("-i")
-                        .arg(root.join("runtime").join("nvim.png"))
+                        .arg(
+                            root.join("runtime")
+                                .join(concat!(branding::executable_name!(), ".png")),
+                        )
                         .args(["--output", "appimage"]);
                     run_status(&mut ld_cmd, "linuxdeploy appimage");
                     let _ = fs::remove_dir_all(&appdir);

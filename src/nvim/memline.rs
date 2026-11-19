@@ -1159,7 +1159,13 @@ pub fn ml_recover(checkext: bool) {
     if b0p.b0_version[..7] == *b"VIM 3.0" {
         msg_start();
         msg_outtrans(buf.b_ml.mf_fname_cstr().as_deref().unwrap_or(c""), 0, true);
-        msg_puts_hl(tr(c" cannot be used with this version of Nvim.\n"), 0, true);
+        let mut message = [0u8; crate::globals::IOSIZE];
+        crate::strings::format_to_buf!(
+            &mut message,
+            tr(c" cannot be used with this version of %s.\n"),
+            crate::branding::DISPLAY_NAME.as_bytes(),
+        );
+        msg_puts_hl(crate::memory::bytes_as_cstr(&message), 0, true);
         msg_puts_hl(tr(c"Use Vim version 3.0.\n"), 0, true);
         msg_end();
         ml_recover_theend(hp, Some(buf), serious_error, called_from_main);
@@ -3961,10 +3967,13 @@ fn attention_message(buf: &FileBuf, fname: &CStr, fhname: &CStr, msg: &mut Vec<u
         ),
     );
     sb_push_cstr(msg, tr(c"(2) An edit session for this file crashed.\n"));
-    sb_push_cstr(
-        msg,
-        tr(c"    If this is the case, use \":recover\" or \"nvim -r "),
+    let mut recovery_command = [0u8; crate::globals::IOSIZE];
+    crate::strings::format_to_buf!(
+        &mut recovery_command,
+        tr(c"    If this is the case, use \":recover\" or \"%s -r "),
+        crate::branding::EXECUTABLE_NAME.as_bytes(),
     );
+    sb_push_cstr(msg, crate::memory::bytes_as_cstr(&recovery_command));
     sb_push_cstr(msg, &buf_fname_cstr);
     sb_push_cstr(
         msg,

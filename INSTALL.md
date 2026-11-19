@@ -1,47 +1,47 @@
-# Installing Neovim (Rust Port)
+# Installing Nero
 
-You can install this Rust build of Neovim from [pre-built release archives](#pre-built-releases) or [build from source](#install-from-source) with a single Cargo command.
+You can install **Nero** from [pre-built release archives](#pre-built-releases) or [build from source](#install-from-source) with a single Cargo command.
 
 > [!NOTE]
-> System package managers (`winget`, `brew`, `apt`, `pacman`, `dnf`, etc.) distribute upstream C Neovim (`neovim/neovim`). To run this Rust port, use the release binaries from [`freddiehaddad/neovim/releases`](https://github.com/freddiehaddad/neovim/releases) or `cargo xtask install`.
+> System package managers (`winget`, `brew`, `apt`, `pacman`, `dnf`, etc.) distribute upstream C Neovim (`neovim/neovim`). To run Nero, use the release binaries from [`freddiehaddad/nero/releases`](https://github.com/freddiehaddad/nero/releases) or `cargo xtask install`.
 
 ---
 
 ## Pre-Built Releases
 
-Pre-built binaries for Windows, macOS, and Linux are available on the [Releases](https://github.com/freddiehaddad/neovim/releases) page:
+Pre-built binaries for Windows, macOS, and Linux are available on the [Releases](https://github.com/freddiehaddad/nero/releases) page:
 
-- **Latest release**: [`github.com/freddiehaddad/neovim/releases/latest`](https://github.com/freddiehaddad/neovim/releases/latest)
-- **Nightly prerelease**: [`github.com/freddiehaddad/neovim/releases/tag/nightly`](https://github.com/freddiehaddad/neovim/releases/tag/nightly)
+- **Latest release**: [`github.com/freddiehaddad/nero/releases/latest`](https://github.com/freddiehaddad/nero/releases/latest)
+- **Nightly prerelease**: [`github.com/freddiehaddad/nero/releases/tag/nightly`](https://github.com/freddiehaddad/nero/releases/tag/nightly)
 
 ### Windows (`x86_64` & `arm64`)
 
 #### Portable `.zip`
 
-1. Download `nvim-win64.zip` (or `nvim-win-arm64.zip`) from the [Releases](https://github.com/freddiehaddad/neovim/releases) page.
-2. Extract it anywhere (no administrator privileges required). `$VIMRUNTIME` resolves automatically relative to `bin\nvim.exe`.
-3. Add the extracted `bin` directory to your `PATH` and run `nvim`.
+1. Download `nero-win64.zip` (or `nero-win-arm64.zip`) from the [Releases](https://github.com/freddiehaddad/nero/releases) page.
+2. Extract it anywhere (no administrator privileges required). `$VIMRUNTIME` resolves automatically relative to `bin\nero.exe`.
+3. Add the extracted `bin` directory to your `PATH` and run `nero`.
 
 #### Windows `.msi` Installer
 
 ```pwsh
-iwr -Uri "https://github.com/freddiehaddad/neovim/releases/latest/download/nvim-win64.msi" -OutFile nvim-win64.msi
-msiexec /i nvim-win64.msi /passive
-Remove-Item nvim-win64.msi
+iwr -Uri "https://github.com/freddiehaddad/nero/releases/latest/download/nero-win64.msi" -OutFile nero-win64.msi
+msiexec /i nero-win64.msi /passive
+Remove-Item nero-win64.msi
 ```
 
 ### macOS (`arm64` & `x86_64`)
 
 ```bash
 # Apple Silicon (arm64)
-curl -LO https://github.com/freddiehaddad/neovim/releases/latest/download/nvim-macos-arm64.tar.gz
-tar xzf nvim-macos-arm64.tar.gz
-./nvim-macos-arm64/bin/nvim
+curl -LO https://github.com/freddiehaddad/nero/releases/latest/download/nero-macos-arm64.tar.gz
+tar xzf nero-macos-arm64.tar.gz
+./nero-macos-arm64/bin/nero
 
 # Intel (x86_64)
-curl -LO https://github.com/freddiehaddad/neovim/releases/latest/download/nvim-macos-x86_64.tar.gz
-tar xzf nvim-macos-x86_64.tar.gz
-./nvim-macos-x86_64/bin/nvim
+curl -LO https://github.com/freddiehaddad/nero/releases/latest/download/nero-macos-x86_64.tar.gz
+tar xzf nero-macos-x86_64.tar.gz
+./nero-macos-x86_64/bin/nero
 ```
 
 ### Linux (`x86_64` & `arm64`)
@@ -49,18 +49,18 @@ tar xzf nvim-macos-x86_64.tar.gz
 #### Tarball (`.tar.gz`)
 
 ```bash
-curl -LO https://github.com/freddiehaddad/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
-sudo rm -rf /opt/nvim-linux-x86_64
-sudo tar -C /opt -xzf nvim-linux-x86_64.tar.gz
-export PATH="$PATH:/opt/nvim-linux-x86_64/bin"
+curl -LO https://github.com/freddiehaddad/nero/releases/latest/download/nero-linux-x86_64.tar.gz
+sudo rm -rf /opt/nero-linux-x86_64
+sudo tar -C /opt -xzf nero-linux-x86_64.tar.gz
+export PATH="$PATH:/opt/nero-linux-x86_64/bin"
 ```
 
 #### AppImage
 
 ```bash
-curl -LO https://github.com/freddiehaddad/neovim/releases/latest/download/nvim-linux-x86_64.appimage
-chmod u+x nvim-linux-x86_64.appimage
-./nvim-linux-x86_64.appimage
+curl -LO https://github.com/freddiehaddad/nero/releases/latest/download/nero-linux-x86_64.appimage
+chmod u+x nero-linux-x86_64.appimage
+./nero-linux-x86_64.appimage
 ```
 
 ---
@@ -70,17 +70,17 @@ chmod u+x nvim-linux-x86_64.appimage
 If you have [Rust and a C compiler](./BUILD.md#platform-prerequisites) installed, building and installing from source is one command:
 
 ```bash
-git clone https://github.com/freddiehaddad/neovim
-cd neovim
+git clone https://github.com/freddiehaddad/nero
+cd nero
 cargo xtask install
 ```
 
-- On Linux, macOS, and BSD, this installs to `~/.local` (`~/.local/bin/nvim`).
-- On Windows, this installs to `%USERPROFILE%\.local\bin\nvim-win64`.
+- On Linux, macOS, and BSD, this installs to `~/.local` (`~/.local/bin/nero`).
+- On Windows, this installs to `%LOCALAPPDATA%\Programs\Nero` (`%LOCALAPPDATA%\Programs\Nero\bin\nero.exe`).
 - To install to a custom directory:
   ```bash
-  cargo xtask install --prefix "$HOME/neovim"
-  export PATH="$HOME/neovim/bin:$PATH"
+  cargo xtask install --prefix "$HOME/nero"
+  export PATH="$HOME/nero/bin:$PATH"
   ```
 
 ## Uninstall
@@ -88,7 +88,7 @@ cargo xtask install
 Remove the installed binaries and runtime directory from your install prefix:
 
 ```bash
-rm -f ~/.local/bin/nvim ~/.local/bin/nvim-tee ~/.local/bin/xxd
-rm -rf ~/.local/lib/nvim ~/.local/share/nvim ~/.local/share/man/man1/nvim.1
+rm -f ~/.local/bin/nero ~/.local/bin/tee ~/.local/bin/xxd
+rm -rf ~/.local/lib/nvim ~/.local/share/nvim ~/.local/share/man/man1/nero.1
 ```
 

@@ -932,11 +932,11 @@ Variables:
                           empty or larger than the window width. Enabled by
                           default. Set |FALSE| to enable soft wrapping.
 
-To use Nvim as a manpager: >bash
-    export MANPAGER='nvim +Man!'
+To use Nero as a manpager: >bash
+    export MANPAGER='nero +Man!'
 
-Note: when running `man` from the shell with Nvim as `$MANPAGER`, `man` will
-pre-format the manpage using `groff`, and Nvim will display the manual page as
+Note: when running `man` from the shell with Nero as `$MANPAGER`, `man` will
+pre-format the manpage using `groff`, and Nero will display the manual page as
 it was received from stdin (it can't "undo" the hard-wrap caused by
 man/groff). To prevent man/groff from hard-wrapping the manpage, you can set
 `$MANWIDTH=999` in your environment.

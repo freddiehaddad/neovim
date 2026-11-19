@@ -346,7 +346,7 @@ Write this file with the 'backup' option set, so that the backup file
 "main.c~" will contain the previous version of the file.
 Type this command in a shell to start Nvim in diff mode: >
 
-	nvim -d main.c~ main.c
+	nero -d main.c~ main.c
 
 Vim will start, with two windows side by side.  You will only see the line
 in which you added characters, and a few lines above and below it.
@@ -370,7 +370,7 @@ in which you added characters, and a few lines above and below it.
 	|					  |
 	+-----------------------------------------+
 <
-(This picture doesn't show the highlighting, use "nvim -d" for that.)
+(This picture doesn't show the highlighting, use "nero -d" for that.)
 
 The lines that were not modified have been collapsed into one line.  This is
 called a closed fold.  They are indicated in the picture with "<- fold".  Thus

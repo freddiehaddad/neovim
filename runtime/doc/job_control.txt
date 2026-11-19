@@ -54,7 +54,7 @@ Example: >vim
     let job2 = jobstart(['bash', '-c', 'for i in {1..10}; do echo hello $i!; sleep 1; done'], extend({'shell': 'shell 2'}, s:callbacks))
 <
 To test the above script, copy it to a file ~/foo.vim and run it: >bash
-    nvim -u ~/foo.vim
+    nero -u ~/foo.vim
 <
 Description of what happens:
   - Two bash shells are spawned by |jobstart()| with their stdin/stdout/stderr

@@ -3167,8 +3167,9 @@ msgstr "既にタブページは1つしかありません"
 msgid "Tab page %d"
 msgstr "タブページ %d"
 
-msgid "E25: Nvim does not have a built-in GUI"
-msgstr "E25: Nvim は組み込みの GUI がありません"
+#, c-format
+msgid "E25: %s does not have a built-in GUI"
+msgstr "E25: %s は組み込みの GUI がありません"
 
 msgid "No swap file"
 msgstr "スワップファイルがありません"
@@ -4461,8 +4462,8 @@ msgid "Usage:\n"
 msgstr "使用法:\n"
 
 #, c-format
-msgid "  nvim [options] [file ...]\n"
-msgstr "  nvim [オプション] [ファイル...]\n"
+msgid "  %s [options] [file ...]\n"
+msgstr "  %s [オプション] [ファイル...]\n"
 
 #, c-format
 msgid ""
@@ -5083,8 +5084,9 @@ msgstr ""
 msgid "(2) An edit session for this file crashed.\n"
 msgstr "(2) このファイルの編集セッションがクラッシュした.\n"
 
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    この場合には \":recover\" か \"nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    この場合には \":recover\" か \"%s -r "
 
 msgid ""
 "\"\n"
@@ -5297,13 +5299,15 @@ msgstr "E662: 変更リストの先頭"
 msgid "E663: At end of changelist"
 msgstr "E663: 変更リストの末尾"
 
-msgid "Type  :qa!  and press <Enter> to abandon all changes and exit Nvim"
+#, c-format
+msgid "Type  :qa!  and press <Enter> to abandon all changes and exit %s"
 msgstr ""
-"すべての変更を破棄し、Nvimを終了するには  :qa!  と入力し <Enter> を押してくだ"
+"すべての変更を破棄し、%sを終了するには  :qa!  と入力し <Enter> を押してくだ"
 "さい"
 
-msgid "Type  :qa  and press <Enter> to exit Nvim"
-msgstr "Nvimを終了するには  :qa  と入力し <Enter> を押してください"
+#, c-format
+msgid "Type  :qa  and press <Enter> to exit %s"
+msgstr "%sを終了するには  :qa  と入力し <Enter> を押してください"
 
 msgid ""
 "E883: Search pattern and expression register may not contain two or more "
@@ -7144,14 +7148,17 @@ msgstr "       省略時の $VIM: \""
 msgid " f-b for $VIMRUNTIME: \""
 msgstr "省略時の $VIMRUNTIME: \""
 
-msgid "Nvim is open source and freely distributable"
-msgstr "Nvim はオープンソースであり自由に配布可能です"
+#, c-format
+msgid "%s is open source and freely distributable"
+msgstr "%s はオープンソースであり自由に配布可能です"
 
-msgid "type  :help nvim<Enter>       if you are new! "
-msgstr "初めての人は             :help nvim<Enter>    "
+#, c-format
+msgid "type  :help %s<Enter>     if you are new! "
+msgstr "初めての人は             :help %s<Enter>    "
 
-msgid "type  :checkhealth<Enter>     to optimize Nvim"
-msgstr "Nvimを最適化するには     :checkhealth<Enter>  "
+#, c-format
+msgid "type  :checkhealth<Enter>   to optimize %s"
+msgstr "%sを最適化するには     :checkhealth<Enter>  "
 
 msgid "type  :q<Enter>               to exit         "
 msgstr "終了するには             :q<Enter>            "

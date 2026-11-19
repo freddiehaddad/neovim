@@ -67,7 +67,7 @@ Stop or detach the current UI
 
                     :%detach
 
-<                The server (typically `nvim --embed`) continues running as
+<                The server (typically `nero --embed`) continues running as
                 a background process. Use |:connect| or |--remote-ui| to
                 reattach. Before detaching, you may want to note the server
                 address:
@@ -146,28 +146,28 @@ Connect UI to a different server
                 event, this command is equivalent to |:detach|.
 
 :connect ssh://[{user}@]{host}[:{port}]                 *remote-ssh* *E6101*
-                Connects to Nvim on {host} (the "remote") over SSH:
+                Connects to Nero on {host} (the "remote") over SSH:
 
-                1. Uses `nvim` found in the remote `$PATH` if it is >= the
-                   local version (except when "Update Nvim" is selected), or
-                   else auto-installs Nvim. (Note: `$PATH` is from a non-login
+                1. Uses `nero` found in the remote `$PATH` if it is >= the
+                   local version (except when "Update Nero" is selected), or
+                   else auto-installs Nero. (Note: `$PATH` is from a non-login
                    shell, your shell rc isn't applied.)
                 2. Copies your local config files (`stdpath("config")`) to
                    `~/.config/nvim-remote/`.
-                3. Starts Nvim on the remote.
+                3. Starts Nero on the remote.
                 4. Attaches the UI to it, through an SSH tunnel owned by the
                    current (local) server.
 
                                                         *remote-ssh-reconnect*
-                The session ends when the remote Nvim exits (e.g. |:qall|). If
-                the connection drops, the remote Nvim keeps running (if there
+                The session ends when the remote Nero exits (e.g. |:qall|). If
+                the connection drops, the remote Nero keeps running (if there
                 was any user activity |v:useractive|). To reconnect to your
                 previous session:
                 1. Run `:connect ssh://{host}` to reconnect to the SSH server.
                 2. Run `:connect` (no args) on the remote to see the most
                    recent sessions. Select your previous session.
 
-                The remote Nvim runs with `NVIM_APPNAME=nvim-remote`, so its
+                The remote Nero runs with `NVIM_APPNAME=nvim-remote`, so its
                 config/data are isolated (appname "nvim-remote" is reserved
                 for this purpose):
                 - Config: `~/.config/nvim-remote/`, overwritten on connect by
@@ -175,8 +175,8 @@ Connect UI to a different server
                   excluding `.git/`). Plugins are not copied, that is
                   delegated to your plugin manager (|vim.pack|).
                 - Data: `~/.local/share/nvim-remote/`, kept across sessions
-                  for fast reconnect. Caches autoinstalls in `…/releases/`.
-                  Nightly is installed once; choose "Update Nvim" at the
+                  for fast reconnect. Caches autoinstalls in `…/releases/nero/`.
+                  Nightly is installed once; choose "Update Nero" at the
                   prompt to refresh it (may break other sessions using it).
 
                 Requirements:
@@ -188,7 +188,7 @@ Connect UI to a different server
                   `StrictHostKeyChecking`.
                 - Remote: POSIX `sh`, `tar`, writable `/tmp`.
                 - Remote (auto-install): Linux (x86_64/aarch64, glibc) or
-                  macOS (arm64/x86_64), `curl`, `sha256sum`. Else `nvim` must
+                  macOS (arm64/x86_64), `curl`, `sha256sum`. Else `nero` must
                   be in `$PATH`.
 
                 Examples: >vim

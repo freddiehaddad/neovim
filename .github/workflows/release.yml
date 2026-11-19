@@ -60,24 +60,24 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: nvim-appimage-${{ matrix.arch }}
+          name: nero-appimage-${{ matrix.arch }}
           path: |
-            target/release/nvim-linux-${{ matrix.arch }}.appimage
-            target/release/nvim-linux-${{ matrix.arch }}.appimage.zsync
+            target/release/nero-linux-${{ matrix.arch }}.appimage
+            target/release/nero-linux-${{ matrix.arch }}.appimage.zsync
           retention-days: 1
 
       - uses: actions/upload-artifact@v7
         with:
-          name: nvim-linux-${{ matrix.arch }}
+          name: nero-linux-${{ matrix.arch }}
           path: |
-            target/release/nvim-linux-${{ matrix.arch }}.tar.gz
+            target/release/nero-linux-${{ matrix.arch }}.tar.gz
           retention-days: 1
 
       - name: Export version
         id: build
         run: |
           printf 'version<<END\n' >> $GITHUB_OUTPUT
-          ./target/release/nvim --version | head -n 3 >> $GITHUB_OUTPUT
+          ./target/release/nero --version | head -n 3 >> $GITHUB_OUTPUT
           printf 'END\n' >> $GITHUB_OUTPUT
 
   macos:
@@ -106,8 +106,8 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: nvim-macos-${{ matrix.arch }}
-          path: target/release/nvim-macos-${{ matrix.arch }}.tar.gz
+          name: nero-macos-${{ matrix.arch }}
+          path: target/release/nero-macos-${{ matrix.arch }}.tar.gz
           retention-days: 1
 
   windows:
@@ -117,10 +117,10 @@ jobs:
         include:
           - runner: windows-2022
             arch: x86_64
-            archive_name: nvim-win64
+            archive_name: nero-win64
           - runner: windows-11-arm
             arch: arm64
-            archive_name: nvim-win-arm64
+            archive_name: nero-win-arm64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7.0.1
@@ -140,7 +140,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: nvim-win-${{ matrix.arch }}
+          name: nero-win-${{ matrix.arch }}
           path: |
             target/release/${{ matrix.archive_name }}.zip
             target/release/${{ matrix.archive_name }}.msi
@@ -174,14 +174,14 @@ jobs:
 
       - if: env.TAG_NAME == 'nightly'
         run: |
-          (echo 'SUBJECT=Nvim development (prerelease) build';
+          (echo 'SUBJECT=Nero development (prerelease) build';
            echo 'PRERELEASE=--prerelease') >> $GITHUB_ENV
           gh release delete nightly --yes || true
           git push https://${GITHUB_ACTOR}:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY} :nightly || true
 
       - if: env.TAG_NAME != 'nightly'
         run: |
-          (echo 'SUBJECT=Nvim release build';
+          (echo 'SUBJECT=Nero release build';
            echo 'PRERELEASE=') >> $GITHUB_ENV
           gh release delete stable --yes || true
           git push https://${GITHUB_ACTOR}:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY} :stable || true
@@ -199,8 +199,8 @@ jobs:
 
           ## Release notes
 
-          - [Changelog](https://github.com/freddiehaddad/neovim/commit/${NVIM_COMMIT}) (fixes + features)
-          - [News](./runtime/doc/news.txt) (\`:help news\` in Nvim)
+          - [Changelog](https://github.com/freddiehaddad/nero/commit/${NVIM_COMMIT}) (fixes + features)
+          - [News](./runtime/doc/news.txt) (\`:help news\` in Nero)
 
           ## Install
 
@@ -208,75 +208,73 @@ jobs:
 
           #### Zip
 
-          1. Download **nvim-win64.zip** (or **nvim-win-arm64.zip** for ARM)
+          1. Download **nero-win64.zip** (or **nero-win-arm64.zip** for ARM)
           2. Extract the zip
-          3. Run \`bin\\nvim.exe\` in your terminal
+          3. Run \`bin\\nero.exe\` in your terminal
 
           #### MSI
 
-          1. Download **nvim-win64.msi** (or **nvim-win-arm64.msi** for ARM)
+          1. Download **nero-win64.msi** (or **nero-win-arm64.msi** for ARM)
           2. Run the MSI
-          3. Run \`nvim.exe\` in your terminal
+          3. Run \`nero.exe\` in your terminal
 
           Note: On Windows "Server" you may need to [install \`vcruntime*.dll\`](https://neovim.io/doc/install/#windows).
 
           ### macOS (x86_64)
 
-          1. Download **nvim-macos-x86_64.tar.gz**
-          2. Run \`xattr -c ./nvim-macos-x86_64.tar.gz\` (to avoid "unknown developer" warning)
-          3. Extract: \`tar xzvf nvim-macos-x86_64.tar.gz\`
-          4. Run \`./nvim-macos-x86_64/bin/nvim\`
+          1. Download **nero-macos-x86_64.tar.gz**
+          2. Run \`xattr -c ./nero-macos-x86_64.tar.gz\` (to avoid "unknown developer" warning)
+          3. Extract: \`tar xzvf nero-macos-x86_64.tar.gz\`
+          4. Run \`./nero-macos-x86_64/bin/nero\`
 
           ### macOS (arm64)
 
-          1. Download **nvim-macos-arm64.tar.gz**
-          2. Run \`xattr -c ./nvim-macos-arm64.tar.gz\` (to avoid "unknown developer" warning)
-          3. Extract: \`tar xzvf nvim-macos-arm64.tar.gz\`
-          4. Run \`./nvim-macos-arm64/bin/nvim\`
+          1. Download **nero-macos-arm64.tar.gz**
+          2. Run \`xattr -c ./nero-macos-arm64.tar.gz\` (to avoid "unknown developer" warning)
+          3. Extract: \`tar xzvf nero-macos-arm64.tar.gz\`
+          4. Run \`./nero-macos-arm64/bin/nero\`
 
           ### Linux (x86_64)
 
-          If your system does not have the required glibc version, try the (unsupported) [builds for older glibc](https://github.com/neovim/neovim-releases).
-
           #### AppImage
 
-          1. Download **nvim-linux-x86_64.appimage**
-          2. Run \`chmod u+x nvim-linux-x86_64.appimage && ./nvim-linux-x86_64.appimage\`
+          1. Download **nero-linux-x86_64.appimage**
+          2. Run \`chmod u+x nero-linux-x86_64.appimage && ./nero-linux-x86_64.appimage\`
              - If your system does not have FUSE you can [extract the appimage](https://github.com/AppImage/AppImageKit/wiki/FUSE#type-2-appimage):
                \`\`\`bash
-               ./nvim-linux-x86_64.appimage --appimage-extract
-               ./squashfs-root/usr/bin/nvim
+               ./nero-linux-x86_64.appimage --appimage-extract
+               ./squashfs-root/usr/bin/nero
                \`\`\`
 
           #### Tarball
 
-          1. Download **nvim-linux-x86_64.tar.gz**
-          2. Extract: \`tar xzvf nvim-linux-x86_64.tar.gz\`
-          3. Run \`./nvim-linux-x86_64/bin/nvim\`
+          1. Download **nero-linux-x86_64.tar.gz**
+          2. Extract: \`tar xzvf nero-linux-x86_64.tar.gz\`
+          3. Run \`./nero-linux-x86_64/bin/nero\`
 
           ### Linux (arm64)
 
           #### AppImage
 
-          1. Download **nvim-linux-arm64.appimage**
-          2. Run \`chmod u+x nvim-linux-arm64.appimage && ./nvim-linux-arm64.appimage\`
+          1. Download **nero-linux-arm64.appimage**
+          2. Run \`chmod u+x nero-linux-arm64.appimage && ./nero-linux-arm64.appimage\`
              - If your system does not have FUSE you can [extract the appimage](https://github.com/AppImage/AppImageKit/wiki/FUSE#type-2-appimage):
                \`\`\`bash
-               ./nvim-linux-arm64.appimage --appimage-extract
-               ./squashfs-root/usr/bin/nvim
+               ./nero-linux-arm64.appimage --appimage-extract
+               ./squashfs-root/usr/bin/nero
                \`\`\`
 
           #### Tarball
 
-          1. Download **nvim-linux-arm64.tar.gz**
-          2. Extract: \`tar xzvf nvim-linux-arm64.tar.gz\`
-          3. Run \`./nvim-linux-arm64/bin/nvim\`
+          1. Download **nero-linux-arm64.tar.gz**
+          2. Extract: \`tar xzvf nero-linux-arm64.tar.gz\`
+          3. Run \`./nero-linux-arm64/bin/nero\`
 
           ### Other
 
-          - Install by [package manager](https://github.com/freddiehaddad/neovim/blob/master/INSTALL.md#install-from-package)
+          - Install by [package manager](https://github.com/freddiehaddad/nero/blob/master/INSTALL.md)
           EOF
           if [ "$TAG_NAME" != "nightly" ]; then
-            gh release create stable $PRERELEASE --notes-file "$RUNNER_TEMP/notes.md" --title "$SUBJECT" --target $GITHUB_SHA nvim-macos-x86_64/* nvim-macos-arm64/* nvim-linux-x86_64/* nvim-linux-arm64/* nvim-appimage-x86_64/* nvim-appimage-arm64/* nvim-win-x86_64/* nvim-win-arm64/*
+            gh release create stable $PRERELEASE --notes-file "$RUNNER_TEMP/notes.md" --title "$SUBJECT" --target $GITHUB_SHA nero-macos-x86_64/* nero-macos-arm64/* nero-linux-x86_64/* nero-linux-arm64/* nero-appimage-x86_64/* nero-appimage-arm64/* nero-win-x86_64/* nero-win-arm64/*
           fi
-          gh release create $TAG_NAME $PRERELEASE --notes-file "$RUNNER_TEMP/notes.md" --title "$SUBJECT" --target $GITHUB_SHA nvim-macos-x86_64/* nvim-macos-arm64/* nvim-linux-x86_64/* nvim-linux-arm64/* nvim-appimage-x86_64/* nvim-appimage-arm64/* nvim-win-x86_64/* nvim-win-arm64/*
+          gh release create $TAG_NAME $PRERELEASE --notes-file "$RUNNER_TEMP/notes.md" --title "$SUBJECT" --target $GITHUB_SHA nero-macos-x86_64/* nero-macos-arm64/* nero-linux-x86_64/* nero-linux-arm64/* nero-appimage-x86_64/* nero-appimage-arm64/* nero-win-x86_64/* nero-win-arm64/*

@@ -1,4 +1,4 @@
--- Run this file as `nvim --clean -u minimal.lua`
+-- Run this file as `nero --clean -u minimal.lua`
 
 for name, url in pairs {
   -- ADD PLUGINS _NECESSARY_ TO REPRODUCE THE ISSUE, e.g:

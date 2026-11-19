@@ -78,7 +78,7 @@ jobs:
               .gitignore|.luarc.json|.mailmap|src/.valgrind.supp|\
               .github/ISSUE_TEMPLATE/*|.github/dependabot.yml|\
               .github/zizmor.yml|.github/workflows/zizmor.yml|.github/workflows/release.yml|\
-              contrib/benchmarks.svg|contrib/nvim.bash|contrib/zsh-completion.zsh)
+              contrib/*.svg|contrib/nero.bash|contrib/zsh-completion.zsh)
                 ;;
               .stylua.toml|.stylua2.toml|.styluaignore|contrib/*.lua)
                 run_lua=true
@@ -331,9 +331,9 @@ jobs:
           BUILD_FLAGS: ${{ matrix.build.flags }}
         run: |
           cargo xtask install $BUILD_FLAGS --prefix "$INSTALL_PREFIX"
-          "$INSTALL_PREFIX/bin/nvim" -V1 --version
-          if ! "$INSTALL_PREFIX/bin/nvim" -u NONE -e -c ':help' -c ':qall'; then
-            echo "Running ':help' in the installed nvim failed."
+          "$INSTALL_PREFIX/bin/nero" -V1 --version
+          if ! "$INSTALL_PREFIX/bin/nero" -u NONE -e -c ':help' -c ':qall'; then
+            echo "Running ':help' in the installed nero failed."
             echo "Maybe the helptags have not been generated properly."
             echo 'Failed running :help'
             exit 1
@@ -391,10 +391,10 @@ jobs:
         run: |
           $PSNativeCommandArgumentPassing = 'Legacy'
 
-          & target\nvim-build\bin\nvim.exe "--version"
+          & target\nvim-build\bin\nero.exe "--version"
 
           # Ensure that the "win32" feature is set.
-          & target\nvim-build\bin\nvim.exe -u NONE --headless -c 'exe !has(\"win32\").\"cq\"'
+          & target\nvim-build\bin\nero.exe -u NONE --headless -c 'exe !has(\"win32\").\"cq\"'
 
           python -m pip install pynvim
           python -c "import pynvim; print(str(pynvim))"
@@ -424,7 +424,7 @@ jobs:
               $handles = ($processes | Measure-Object -Property HandleCount -Sum).Sum
               $privateBytes = ($processes | Measure-Object -Property PrivateMemorySize64 -Sum).Sum
               Write-Host ('Runner resources: processes={0}, handles={1}, privateMiB={2:N0}' -f $processes.Count, $handles, ($privateBytes / 1MB))
-              $processes | Where-Object { $_.ProcessName -in @('nvim', 'conhost', 'OpenConsole', 'node', 'python', 'pwsh') } |
+              $processes | Where-Object { $_.ProcessName -in @('nero', 'conhost', 'OpenConsole', 'node', 'python', 'pwsh') } |
                 Group-Object ProcessName | ForEach-Object { Write-Host ('  {0}: {1}' -f $_.Name, $_.Count) }
             } catch {
               Write-Warning "Could not collect runner resources: $_"

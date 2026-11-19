@@ -1,5 +1,5 @@
 -- Fake `ssh` for remote-ssh tests:
---    nvim -l fake-ssh.lua {config} {ssh-args}
+--    nero -l fake-ssh.lua {config} {ssh-args}
 --
 -- Behaves as {config} (JSON, see `setup_fake_ssh()` in ssh_spec.lua) says, and writes to its `dir`:
 --   tunnel.args         Args of the tunnel (`-L`) command, and the script it got on stdin.

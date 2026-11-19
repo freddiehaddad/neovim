@@ -1,6 +1,6 @@
-# Neovim Core (`src/nvim/`)
+# Nero Core (`src/nvim/`)
 
-This directory contains the pure-Rust implementation of the Neovim editor core. Each `.rs` module corresponds 1:1 to its original upstream `src/nvim/<module>.c` counterpart.
+This directory contains the pure-Rust implementation of the Nero editor core. Each `.rs` module corresponds 1:1 to its original upstream `src/nvim/<module>.c` counterpart.
 
 For architecture and developer documentation, see:
 

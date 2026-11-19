@@ -2701,8 +2701,9 @@ msgid "E477: No ! allowed"
 msgstr "E477: !은 허용되지 않습니다"
 
 #: ../globals.h:1035
-msgid "E25: Nvim does not have a built-in GUI"
-msgstr "E25: GUI는 사용할 수 없습니다: 컴파일 때 포함되지 않았습니다"
+#, c-format
+msgid "E25: %s does not have a built-in GUI"
+msgstr "E25: %s: GUI는 사용할 수 없습니다: 컴파일 때 포함되지 않았습니다"
 
 #: ../globals.h:1036
 #, c-format
@@ -3949,8 +3950,9 @@ msgstr ""
 "(2) 파일을 고치다가 죽었었습니다.\n"
 
 #: ../memline.c:3247
-msgid "    If this is the case, use \":recover\" or \"nvim -r "
-msgstr "    만약 그렇다면 \":recover\" 혹은 \"nvim -r "
+#, c-format
+msgid "    If this is the case, use \":recover\" or \"%s -r "
+msgstr "    만약 그렇다면 \":recover\" 혹은 \"%s -r "
 
 #: ../memline.c:3249
 msgid ""
