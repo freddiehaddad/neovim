@@ -2962,6 +2962,9 @@ fn qf_jump_edit_buffer(
             no_write_message();
             return QfStatus::Fail;
         }
+        if fnum != curbuf().b_fnum.get() {
+            setpcmark();
+        }
         retval = if do_ecmd(
             fnum,
             None,
