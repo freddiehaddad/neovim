@@ -11077,6 +11077,15 @@ fn ex_sleep(eap: &mut Exarg) {
 }
 
 pub fn do_sleep(msec: i64, hide_cursor: bool) {
+    if crate::event::r#loop::main_loop().is_polling()
+        || !crate::lua::executor::nlua_is_deferred_safe()
+    {
+        // Can't re-enter uv_run() (e.g. from `%{F()}` in api-fast nvim_eval_statusline()).
+        // Can't process deferred events in a fast callback (e.g. vim.ui_attach() "msg_show").
+        crate::os::time::os_sleep(msec.max(0) as u64);
+        return;
+    }
+
     if hide_cursor {
         ui_busy_start();
     }

@@ -391,7 +391,7 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
                     completed_all = false;
                     break;
                 }
-            } else if !crate::event::r#loop::main_loop().is_polling() {
+            } else {
                 os_breakcheck();
             }
             if input_state().got_int.get() {

@@ -293,10 +293,18 @@ pub fn os_char_avail() -> bool {
     inbuf_poll(0, None)
 }
 
-/// Polls for fast events, and checks for CTRL-C (`got_int`).
+/// Polls for fast events, and checks for CTRL-C (`got_int`). No-op during |api-fast|.
+///
+/// Yields to api-fast requests and luv callbacks! Skip it when code is not prepared to "resume"
+/// mid-operation (e.g. RE_NOBREAK). |dev-api-fast|
 pub fn os_breakcheck() {
     let loop_ = main_loop();
-    if input_state().got_int.get() || loop_.events.get().is_null() || loop_.closing.get() {
+    if input_state().got_int.get()
+        || loop_.is_polling()
+        || !crate::lua::executor::nlua_is_deferred_safe()
+        || loop_.events.get().is_null()
+        || loop_.closing.get()
+    {
         return;
     }
 
