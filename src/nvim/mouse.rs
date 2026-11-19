@@ -264,7 +264,10 @@ fn find_end_of_word(pos: &mut CursorPos) {
 /// Move the current tab to tab in same column as mouse or to end of the
 /// tabline if there is no tab there.
 fn move_tab_to_mouse() {
-    let col = input_state().mouse_col.get() as usize;
+    let col = input_state()
+        .mouse_col
+        .get()
+        .clamp(0, screen_state().columns_global.get() - 1) as usize; // A drag may leave the screen.
     let tabnr = screen_state().with_tab_page_click_defs(|defs| defs[col].tabnr);
     if tabnr <= 0 {
         tabpage_move(9999);
@@ -400,9 +403,15 @@ fn get_fpos_of_mouse(
     let winrow = row;
     let wincol = col;
 
+    // Columns outside the view are the vertical separator or a float border.
+    let in_view_col = wincol >= 0 && wincol < wp.w_view_width.get();
+
     let below_buffer = mouse_comp_pos(&wp, &mut row, &mut col, &mut mpos.lnum);
 
     if !below_buffer
+        && in_view_col
+        && winrow >= 0
+        && winrow < wp.w_view_height.get()
         && !wp.w_onebuf_opt.wo_stc.is_empty()
         && (if wp.w_onebuf_opt.wo_rl.get() {
             wincol >= wp.w_view_width.get() - win_col_off(&wp)
@@ -429,7 +438,7 @@ fn get_fpos_of_mouse(
         return IN_STATUS_LINE;
     }
 
-    if winrow < 0 && winrow + wp.w_winbar_height.get() >= 0 {
+    if in_view_col && winrow < 0 && winrow + wp.w_winbar_height.get() >= 0 {
         return MOUSE_WINBAR;
     }
 
@@ -689,7 +698,10 @@ pub fn do_mouse(
                 return false;
             }
 
-            if is_click && input_state().mouse_col.get() < screen_state().columns_global.get() {
+            if is_click
+                && input_state().mouse_col.get() >= 0
+                && input_state().mouse_col.get() < screen_state().columns_global.get()
+            {
                 let col = input_state().mouse_col.get() as usize;
                 let (tabnr, click_type) = screen_state().with_tab_page_click_defs(|defs| {
                     let def = &defs[col];
@@ -1505,11 +1517,12 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         below_window && row + wp.w_winbar_height.get() - wp.w_height.get() + 1 == 1;
     let mut on_sep_line =
         grid == DEFAULT_GRID_HANDLE && col >= wp.w_width.get() && col - wp.w_width.get() + 1 == 1;
-    let on_winbar = row < 0 && row + wp.w_winbar_height.get() >= 0;
-    let on_statuscol = !below_window
-        && !on_status_line
-        && !on_sep_line
-        && !on_winbar
+    // Columns outside the view are e.g. the vertical separator or a float border.
+    let in_view_col = col >= 0 && col < wp.w_view_width.get();
+    let on_winbar = in_view_col && row < 0 && row + wp.w_winbar_height.get() >= 0;
+    let on_statuscol = in_view_col
+        && row >= 0
+        && row < wp.w_view_height.get()
         && !wp.w_onebuf_opt.wo_stc.is_empty()
         && (if wp.w_onebuf_opt.wo_rl.get() {
             col >= wp.w_view_width.get() - win_col_off(&wp)
