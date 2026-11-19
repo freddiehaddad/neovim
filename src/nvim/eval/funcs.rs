@@ -3836,6 +3836,12 @@ fn indexof_list(l: Option<&TvList>, startidx: Varnumber, expr: &mut TypVal) -> V
 
     set_vim_var_nr(VV_KEY, 0);
 
+    // Disallow changing the List while "expr" is evaluated, it could free
+    // the current item.  VAR_FIXED, so that :unlockvar can't undo it.
+    let prev_lock = tv_list_locked(l);
+    let mut ret: Varnumber = -1;
+    tv_list_set_lock(l, VAR_FIXED);
+
     let called_emsg_start = msg_state().called_emsg.get();
     for cur in crate::eval::typval::list_iter_ptr(item) {
         set_vim_var_nr(VV_KEY, idx);
@@ -3845,14 +3851,17 @@ fn indexof_list(l: Option<&TvList>, startidx: Varnumber, expr: &mut TypVal) -> V
         get_vim_var_tv(VV_VAL).clear_tv();
 
         if found {
-            return idx;
+            ret = idx;
+            break;
         }
         if msg_state().called_emsg.get() != called_emsg_start {
-            return -1;
+            break;
         }
         idx += 1;
     }
-    -1
+
+    tv_list_set_lock(l, prev_lock);
+    ret
 }
 
 /// "indexof()" function
