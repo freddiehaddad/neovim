@@ -1,7 +1,7 @@
 //! Fuzzy matching algorithm and functions (`src/nvim/fuzzy.c`).
 #![forbid(unsafe_code)]
 
-use crate::buffer::FileBuf;
+use crate::buffer::{FileBuf, VAR_FIXED};
 use crate::charset::{ascii_isalnum, ascii_iswhite, vim_iswordp};
 use crate::cursor::{CursorPos, equalpos};
 use crate::errors::{E_INVARG_NVAL, E_INVARG2, E_INVARGVAL, E_LISTARG};
@@ -12,8 +12,9 @@ use crate::eval::typval::{
     tv_check_for_nonnull_dict_arg, tv_clear, tv_dict_find_opt, tv_dict_get_callback,
     tv_dict_get_string, tv_dict_has_key, tv_dict_unref, tv_get_number_chk, tv_get_string,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
-    tv_list_append_tv, tv_list_len,
+    tv_list_append_tv, tv_list_len, tv_list_set_lock,
 };
+use crate::eval::vars::tv_list_locked;
 use crate::globals::*;
 use crate::insexpand::ctrl_x_mode_whole_line;
 use crate::mbyte::{
@@ -564,6 +565,11 @@ fn fuzzy_match_in_list(
     let mut match_count: i32 = 0;
     let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
 
+    // The "text_cb" callback must not change the List, it could free the
+    // current item.  VAR_FIXED, so that :unlockvar can't undo it.
+    let prev_lock = tv_list_locked(l);
+    tv_list_set_lock(l, VAR_FIXED);
+
     let mut pat_nonwhite_count = 0usize;
     if retmatchpos {
         let mut off = 0usize;
@@ -786,6 +792,8 @@ fn fuzzy_match_in_list(
             }
         }
     }
+
+    tv_list_set_lock(l, prev_lock);
 
     if !items.is_empty() {
         items.sort_unstable_by(fuzzy_match_item_compare);
