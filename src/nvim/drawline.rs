@@ -2251,18 +2251,13 @@ pub fn win_line(
                 }
             }
 
-            let gap_decor_attr = if attr_has_line_deco(gap_attr_save) {
-                0
-            } else {
-                gap_attr_save
-            };
             prefix_vcol = wlv.vcol;
             if !wp.w_briopt_sbr.get() {
-                handle_breakindent(wp, &mut wlv, gap_decor_attr);
+                handle_breakindent(wp, &mut wlv, gap_attr_save);
             }
-            handle_showbreak_and_filler(wp, &mut wlv, gap_decor_attr);
+            handle_showbreak_and_filler(wp, &mut wlv, gap_attr_save);
             if wp.w_briopt_sbr.get() {
-                handle_breakindent(wp, &mut wlv, gap_decor_attr);
+                handle_breakindent(wp, &mut wlv, gap_attr_save);
             }
             prefix_width = wlv.vcol - prefix_vcol;
 
@@ -2578,7 +2573,7 @@ pub fn win_line(
                             area_attr = saved_area_attr;
                             saved_area_attr = 0;
                         }
-                        if decor_attr == 0 {
+                        if saved_decor_attr != 0 {
                             decor_attr = saved_decor_attr;
                             saved_decor_attr = 0;
                         }
@@ -2837,6 +2832,9 @@ pub fn win_line(
                     } else {
                         decor_attr
                     };
+                    if attr_has_line_deco(gap_attr_save) {
+                        gap_attr_save = 0;
+                    }
 
                     let mut lbr_char = mb_c;
                     if extconceal {
@@ -2881,17 +2879,16 @@ pub fn win_line(
                                 conceal_lbr_body = lbr_size.body;
                                 conceal_lbr_tail = lbr_size.tail;
 
-                                if mb_c != i32::from(TAB) {
+                                if mb_c != i32::from(TAB) && wlv.n_extra > 0 {
                                     if on_last_col || attr_has_line_deco(search_attr) {
                                         search_attr = 0;
                                     }
-                                    if has_decor {
+                                    if decor_attr != gap_attr_save {
+                                        saved_decor_attr = decor_attr;
                                         decor_attr = gap_attr_save;
                                     }
-                                    if attr_has_line_deco(decor_attr) {
-                                        decor_attr = 0;
-                                    }
                                     if attr_has_line_deco(area_attr) {
+                                        saved_area_attr = area_attr;
                                         area_attr = 0;
                                     }
                                 }
