@@ -13,7 +13,7 @@ describe('treesitter perf', function()
 
   it('can handle large folds', function()
     n.command 'edit ./src/nvim/eval.lua'
-    exec_lua [[
+    local res = exec_lua [[
       local parser = vim.treesitter.get_parser(0, "lua", {})
       vim.treesitter.highlighter.new(parser)
 
@@ -47,8 +47,9 @@ describe('treesitter perf', function()
         vim.cmd'redraw!'
       end
 
-      return vim.uv.hrtime() - start
+      return (vim.uv.hrtime() - start) / 1000000
     ]]
+    print(string.format('\ntreesitter fold: %.2f ms', res))
   end)
 
   local function test_long_line(_pos, _wrap, _line, grid)
