@@ -300,7 +300,6 @@ pub fn os_char_avail() -> bool {
 pub fn os_breakcheck() {
     let loop_ = main_loop();
     if input_state().got_int.get()
-        || loop_.is_polling()
         || !crate::lua::executor::nlua_is_deferred_safe()
         || loop_.events.get().is_null()
         || loop_.closing.get()
@@ -606,9 +605,9 @@ fn inbuf_poll(ms: i32, events_opt: Option<MultiQueue>) -> bool {
     }
 
     if ms == 0 {
-        osi_st(|st| st.polling.set(PollState::Input));
+        let prev = osi_st(|st| st.polling.replace(PollState::Input)); // Save/restore, in case of nested wait.
         loop_poll_events(main_loop(), 0);
-        osi_st(|st| st.polling.set(PollState::None));
+        osi_st(|st| st.polling.set(prev));
         return os_input_ready(events_opt);
     }
 

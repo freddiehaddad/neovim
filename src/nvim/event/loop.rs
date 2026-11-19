@@ -254,6 +254,9 @@ fn loop_uv_run(loop_: &Loop, ms: i64) -> bool {
 }
 
 pub fn loop_poll_events(loop_: &Loop, ms: i64) -> bool {
+    if loop_.recursive.get() != 0 && ms == 0 {
+        return false; // The outer uv_run() polls after the current callback returns.
+    }
     let fast_events = loop_.fast_events.get();
     let expired = loop_uv_run(loop_, ms);
     // Before `fast_events`, else their breakchecks count the wait as time without polling.
