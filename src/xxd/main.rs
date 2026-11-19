@@ -232,16 +232,13 @@ mod win_console {
 }
 
 fn enable_color() -> bool {
-    if !io::stdout().is_terminal() {
-        return false;
-    }
     #[cfg(windows)]
     {
-        win_console::enable_vt_processing()
+        io::stdout().is_terminal() && win_console::enable_vt_processing()
     }
     #[cfg(not(windows))]
     {
-        true
+        io::stdout().is_terminal()
     }
 }
 
