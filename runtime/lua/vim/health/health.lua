@@ -294,7 +294,7 @@ local function check_performance()
   else
     health.info(buildtype)
     health.warn('Non-optimized debug build. Nero will be slower.', {
-      'Install a different Nero package, or rebuild with `CMAKE_BUILD_TYPE=RelWithDebInfo` (CMake) or `-Doptimize=ReleaseFast` (Zig).',
+      'Install a Nero release build, or rebuild with `cargo xtask build --release`.',
       suggest_faq,
     })
   end

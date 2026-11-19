@@ -1,7 +1,7 @@
 --- Converts Nvim :help files to HTML (a page per file, or one "amalgamated" page for PDF).
 --- Validates |tag| links and document syntax (parser errors).
 --
--- USAGE (For CI/local testing purposes): Simply `make lintdoc`, which basically does the following:
+-- USAGE (For CI/local testing purposes): Simply `cargo xtask lintdoc`, which basically does the following:
 --   1. :helptags ALL
 --   2. nero -V1 -es +"lua require('src.gen.gen_help_html').run_validate()" +q
 --   3. nero -V1 -es +"lua require('src.gen.gen_help_html').test_gen()" +q

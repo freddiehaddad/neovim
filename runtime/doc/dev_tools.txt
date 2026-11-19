@@ -183,7 +183,7 @@ For more advanced profiling, consider `perf` + `flamegraph`.
 
 USDT PROFILING (POWERFUL)
 
-Or you can use USDT probes via `NVIM_PROBE` ([#12036](https://github.com/neovim/neovim/pull/12036)).
+Upstream Nvim builds can expose USDT probes via `NVIM_PROBE` ([#12036](https://github.com/neovim/neovim/pull/12036)).
 
 > USDT is basically a way to define stable probe points in userland binaries.
 > The benefit of bcc is the ability to define logic to go along with the probe
@@ -388,10 +388,10 @@ Gdb                                                          *dev-tools-gdb*
 
 USING GDB TO STEP THROUGH FUNCTIONAL TESTS
 
-Use `TEST_TAG` to run tests matching `#foo` tags (e.g.
+Use `TEST_FILTER` to run tests matching names or `#foo` tags (e.g.
 `it("test #foo ...", ...)`):
 >bash
-    GDB=1 TEST_TAG=foo make functionaltest
+    GDB=1 TEST_FILTER=foo cargo xtask functionaltest
 <
 Then, in another terminal:
 >bash
@@ -400,7 +400,10 @@ Then, in another terminal:
 
 -- See `nvim_argv` in https://github.com/neovim/neovim/blob/master/test/functional/testnvim.lua.
 
-USING LLDB TO STEP THROUGH UNIT TESTS
+USING LLDB TO STEP THROUGH UPSTREAM LUA FFI UNIT TESTS
+
+For Nero's Rust unit tests, use `cargo test --lib`. The following example
+is for the legacy upstream Lua FFI suite.
 
 >
     lldb build/bin/nvim -- -l test/runner.lua --lpath=./build/?.lua test/unit/
@@ -468,24 +471,11 @@ to `tui.c:terminfo_start`.
 
 USING GDBSERVER IN TMUX
 
-Consider using a custom makefile
-https://github.com/neovim/neovim/blob/master/BUILD.md#custom-makefile to
-quickly start debugging sessions using the `gdbserver` method mentioned above.
-This example `local.mk` will create the debugging session when you type
-`make debug`.
->make
-    .PHONY: dbg-start dbg-attach debug build
-
-    build:
-        @$(MAKE) nvim
-
-    dbg-start: build
-        @tmux new-window -n 'dbg-nero' 'gdbserver :6666 ./target/nvim-build/bin/nero -D'
-
-    dbg-attach:
-        @tmux new-window -n 'dbg-cgdb' 'cgdb -x gdb_start.sh ./target/nvim-build/bin/nero'
-
-    debug: dbg-start dbg-attach
+Build Nero and open the server and debugger in separate tmux windows:
+>bash
+    cargo xtask build
+    tmux new-window -n 'dbg-nero' 'gdbserver :6666 ./target/nvim-build/bin/nero -D'
+    tmux new-window -n 'dbg-cgdb' 'cgdb -x gdb_start.sh ./target/nvim-build/bin/nero'
 <
 Here `gdb_start.sh` includes `gdb` commands to be called when the debugger
 starts. It needs to attach to the server started by the `dbg-start` rule. For
