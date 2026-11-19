@@ -552,17 +552,26 @@ fn buf_write_do_autocmds(
         }
     }
 
-    if names.buf_ffname {
-        names.ffname = b.b_ffname.get().as_deref().map(CStr::to_owned);
+    // If buffer was renamed, write to its new name. If ":0file" unnamed it, write to old name.
+    if names.buf_ffname
+        && let Some(new_ffname) = b.b_ffname.get()
+    {
+        names.ffname = Some(CStr::to_owned(&new_ffname));
     }
-    if names.buf_sfname {
-        names.sfname = b.fname_opt().as_deref().map(CStr::to_owned);
+    if names.buf_sfname
+        && let Some(new_fname) = b.fname_opt()
+    {
+        names.sfname = Some(CStr::to_owned(&new_fname));
     }
-    if names.buf_fname_f {
-        names.fname = b.b_ffname.get().as_deref().map(CStr::to_owned);
+    if names.buf_fname_f
+        && let Some(new_ffname) = b.b_ffname.get()
+    {
+        names.fname = Some(CStr::to_owned(&new_ffname));
     }
-    if names.buf_fname_s {
-        names.fname = b.fname_opt().as_deref().map(CStr::to_owned);
+    if names.buf_fname_s
+        && let Some(new_fname) = b.fname_opt()
+    {
+        names.fname = Some(CStr::to_owned(&new_fname));
     }
     None
 }
@@ -1158,7 +1167,7 @@ pub fn buf_write(
         fname = sfname;
     }
 
-    let overwriting = buf.ffname_opt().is_some_and(|bf| {
+    let mut overwriting = buf.ffname_opt().is_some_and(|bf| {
         path_equal(
             ffname.map_or(b"", CStr::to_bytes),
             bf.to_bytes(),
@@ -1221,6 +1230,15 @@ pub fn buf_write(
     let mut fname = fname_copy.as_deref();
     let sfname = sfname_copy.as_deref();
     let ffname = ffname_copy.as_deref();
+
+    // Autocmds may have renamed the buffer, or ":0file" unnamed it (stays modified).
+    overwriting = buf.ffname_opt().is_some_and(|bf| {
+        path_equal(
+            ffname.map_or(b"", CStr::to_bytes),
+            bf.to_bytes(),
+            K_PATH_CMP_LITERAL,
+        )
+    });
 
     if (cmdline_state().cmod_flags() & CMOD_LOCKMARKS) != 0 {
         buf.b_op_start.set(orig_start);
