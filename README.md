@@ -27,7 +27,7 @@ It is a drop-in replacement for upstream Neovim, not a from-scratch rewrite with
 
 ## Performance
 
-Measured head-to-head against retail (`CMAKE_BUILD_TYPE=Release`) builds of upstream [`neovim/neovim@7b670a0c1d`](https://github.com/neovim/neovim/commit/7b670a0c1d) (`v0.13.0-dev`) on identical hardware across **Linux** (GCC `Release` vs. `rustc --release`) and **Windows** (MSVC `Release` vs. `rustc --release`) using 3 interleaved runs via `cargo xtask benchmark --compare`:
+Measured head-to-head against retail (`CMAKE_BUILD_TYPE=Release`) builds of upstream [`neovim/neovim@d9a842e291`](https://github.com/neovim/neovim/commit/d9a842e291) (`v0.13.0-dev`) on identical hardware across **Linux** (GCC `Release` vs. `rustc --release`) and **Windows** (MSVC `Release` vs. `rustc --release`) using 3 interleaved runs via `cargo xtask benchmark --compare`:
 
 <p align="center">
   <img src="contrib/benchmarks.svg" width="100%" alt="Performance comparison between the Rust port and upstream C Neovim on Linux and Windows">
@@ -38,20 +38,20 @@ Measured head-to-head against retail (`CMAKE_BUILD_TYPE=Release`) builds of upst
 
 | Workload | Suite | Linux C | Linux Rust | Speedup | Windows C | Windows Rust | Speedup |
 |---|---|---:|---:|---:|---:|---:|---:|
-| Cold startup (`--clean --headless +q`, 25-run median) | Startup | 5.04 ms | 6.42 ms | 0.79x | 47.67 ms | 36.49 ms | 1.31x |
-| Screen layout & wrapping (24 tests) | screenpos | 23.89 s | 16.02 s | 1.49x | 31.74 s | 18.59 s | 1.71x |
-| Long ASCII line layout (median) | screenpos | 3.63 µs | 1.49 µs | 2.44x | 72.00 µs | 1.70 µs | 42.35x |
-| Long UTF-8 line layout (median) | screenpos | 93.08 µs | 69.50 µs | 1.34x | 108.10 µs | 75.80 µs | 1.43x |
-| Regex search (backtracking) | regexp | 2.48 ms | 2.00 ms | 1.24x | 4.79 ms | 2.61 ms | 1.84x |
-| Regex search (auto engine) | regexp | 3.31 ms | 4.14 ms | 0.80x | 6.56 ms | 5.49 ms | 1.20x |
-| Cursor motion over 2k virtual lines | extmark | 60.34 µs | 45.97 µs | 1.31x | 73.40 µs | 64.20 µs | 1.14x |
-| Treesitter fold navigation (100 macros) | treesitter | 14.97 ms | 19.01 ms | 0.79x | 66.68 ms | 51.36 ms | 1.30x |
-| Treesitter redraw suite (8 tests) | treesitter | 1155 ms | 1245 ms | 0.93x | 2092 ms | 1620 ms | 1.29x |
-| Autocmd lifecycle suite (10k events) | autocmd | 143.7 ms | 117.4 ms | 1.22x | 491.6 ms | 355.4 ms | 1.38x |
-| Delete 10k autocmds (unique patterns) | autocmd | 22.08 ms | 1.15 ms | 19.20x | 27.26 ms | 2.40 ms | 11.35x |
-| Extmark & virtual line suite | extmark | 116.0 ms | 137.5 ms | 0.84x | 263.0 ms | 257.2 ms | 1.02x |
-| Option updates (140k calls) | option | 231.8 ms | 225.8 ms | 1.03x | 618.4 ms | 447.5 ms | 1.38x |
-| Full-screen Treesitter redraw (100x50) | decor | 15.40 ms | 16.00 ms | 0.96x | 16.20 ms | 17.20 ms | 0.94x |
+| Cold startup (`--clean --headless +q`, 25-run median) | Startup | 4.30 ms | 5.84 ms | 0.74x | 45.25 ms | 31.66 ms | 1.43x |
+| Screen layout & wrapping (24 tests) | screenpos | 23.98 s | 16.20 s | 1.48x | 30.23 s | 17.00 s | 1.78x |
+| Long ASCII line layout (median) | screenpos | 3.32 µs | 1.50 µs | 2.21x | 70.10 µs | 1.70 µs | 41.24x |
+| Long UTF-8 line layout (median) | screenpos | 98.10 µs | 80.51 µs | 1.22x | 105.80 µs | 74.50 µs | 1.42x |
+| Regex search (backtracking) | regexp | 2.36 ms | 1.93 ms | 1.22x | 4.82 ms | 2.42 ms | 1.99x |
+| Regex search (auto engine) | regexp | 3.31 ms | 4.03 ms | 0.82x | 6.70 ms | 5.50 ms | 1.22x |
+| Cursor motion over 2k virtual lines | extmark | 62.24 µs | 35.63 µs | 1.75x | 67.30 µs | 52.90 µs | 1.27x |
+| Treesitter fold navigation (100 macros) | treesitter | 14.26 ms | 17.81 ms | 0.80x | 60.73 ms | 48.09 ms | 1.26x |
+| Treesitter redraw suite (8 tests) | treesitter | 913 ms | 1105 ms | 0.83x | 1621 ms | 1447 ms | 1.12x |
+| Autocmd lifecycle suite (10k events) | autocmd | 125.0 ms | 103.7 ms | 1.20x | 469.9 ms | 298.6 ms | 1.57x |
+| Delete 10k autocmds (unique patterns) | autocmd | 21.21 ms | 0.98 ms | 21.74x | 29.84 ms | 1.74 ms | 17.12x |
+| Extmark & virtual line suite | extmark | 104.2 ms | 116.3 ms | 0.90x | 226.8 ms | 200.9 ms | 1.13x |
+| Option updates (140k calls) | option | 220.4 ms | 204.9 ms | 1.08x | 582.0 ms | 384.1 ms | 1.52x |
+| Full-screen Treesitter redraw (100x50) | decor | 14.20 ms | 14.60 ms | 0.97x | 16.00 ms | 15.80 ms | 1.01x |
 
 **Methodology**:
 - **Speedup**: Relative speedup of the Rust port compared to upstream C (`C time ÷ Rust time`; values `> 1.00x` mean Rust is faster, and `< 1.00x` mean C is faster).
