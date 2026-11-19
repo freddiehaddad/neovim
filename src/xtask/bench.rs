@@ -464,6 +464,12 @@ pub fn generate_svg(
             |v| format!("{v:.1} s"),
         ),
         (
+            "Long UTF-8 Line Layout",
+            "5,000-character multibyte line median",
+            "screenpos_utf8_us",
+            |v| format!("{v:.1} µs"),
+        ),
+        (
             "Multi-Core Buffer Search",
             "Regex scan across 100,000 lines",
             "vimgrep_100k_ms",
@@ -473,12 +479,6 @@ pub fn generate_svg(
             "Fuzzy File Finder",
             "Score &amp; rank 50,000 project file paths",
             "matchfuzzy_50k_ms",
-            |v| format!("{v:.1} ms"),
-        ),
-        (
-            "Large File Sorting",
-            "In-memory :sort on 200,000 lines",
-            "sort_lines_ms",
             |v| format!("{v:.1} ms"),
         ),
         (
@@ -546,82 +546,77 @@ pub fn generate_svg(
     let mut svg = format!(
         r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 {canvas_h}" width="100%" role="img" aria-label="Neovim Rust Port vs Upstream C Performance Benchmarks (Linux and Windows)">
   <defs>
+    <linearGradient id="backdrop" x2="1" y2="1">
+      <stop stop-color="#0a1425"/>
+      <stop offset=".55" stop-color="#0b1727"/>
+      <stop offset="1" stop-color="#13192c"/>
+    </linearGradient>
+    <radialGradient id="ambient">
+      <stop stop-color="#235a83" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#235a83" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cardFill" x2="0" y2="1">
+      <stop stop-color="#13263b" stop-opacity=".65"/>
+      <stop offset="1" stop-color="#0c192a" stop-opacity=".8"/>
+    </linearGradient>
+    <pattern id="dots" width="32" height="32" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r=".8" fill="#7f9fc5" opacity=".09"/>
+    </pattern>
     <linearGradient id="rustLinuxBar" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#059669"/>
-      <stop offset="100%" stop-color="#34d399"/>
+      <stop offset="0%" stop-color="#2f6f5c"/>
+      <stop offset="100%" stop-color="#7aebba"/>
     </linearGradient>
     <linearGradient id="cLinuxBar" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#475569"/>
-      <stop offset="100%" stop-color="#64748b"/>
+      <stop offset="0%" stop-color="#31506b"/>
+      <stop offset="100%" stop-color="#6385a6"/>
     </linearGradient>
     <linearGradient id="rustWinBar" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#0284c7"/>
-      <stop offset="100%" stop-color="#38bdf8"/>
+      <stop offset="0%" stop-color="#4379dc"/>
+      <stop offset="100%" stop-color="#61c9ff"/>
     </linearGradient>
     <linearGradient id="cWinBar" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#6366f1"/>
-      <stop offset="100%" stop-color="#818cf8"/>
+      <stop offset="0%" stop-color="#5e6296"/>
+      <stop offset="100%" stop-color="#958bff"/>
     </linearGradient>
   </defs>
   <style>
     :root {{
-      --bg: #0d1117;
-      --card: #161b22;
-      --border: #30363d;
-      --text-main: #e6edf3;
-      --text-sub: #8b949e;
-      --text-dim: #6e7681;
-      --rust-linux-text: #34d399;
-      --c-linux-text: #94a3b8;
-      --rust-win-text: #38bdf8;
-      --c-win-text: #a5b4fc;
-      --badge-win-bg: rgba(16, 185, 129, 0.14);
-      --badge-win-border: rgba(52, 211, 153, 0.35);
-      --badge-win-text: #34d399;
-      --badge-neutral-bg: rgba(148, 163, 184, 0.12);
-      --badge-neutral-border: rgba(148, 163, 184, 0.30);
-      --badge-neutral-text: #cbd5e1;
-      --track: #21262d;
+      color-scheme: dark;
+      --border: #3a5875;
+      --divider: #30465f;
+      --text-main: #f1f6ff;
+      --text-sub: #a1b3ca;
+      --text-dim: #8ea3bc;
+      --rust-linux-text: #7aebba;
+      --c-linux-text: #8bb5d6;
+      --rust-win-text: #61c9ff;
+      --c-win-text: #bdb4ff;
+      --badge-win-bg: #13342f;
+      --badge-win-border: #33675a;
+      --badge-win-text: #7aebba;
+      --badge-neutral-bg: #30261f;
+      --badge-neutral-border: #77503b;
+      --badge-neutral-text: #ffbb7c;
+      --track: #142236;
     }}
-    @media (prefers-color-scheme: light) {{
-      :root {{
-        --bg: #ffffff;
-        --card: #f6f8fa;
-        --border: #d0d7de;
-        --text-main: #1f2328;
-        --text-sub: #57606a;
-        --text-dim: #6e7781;
-        --rust-linux-text: #047857;
-        --c-linux-text: #475569;
-        --rust-win-text: #0369a1;
-        --c-win-text: #4f46e5;
-        --badge-win-bg: rgba(16, 185, 129, 0.12);
-        --badge-win-border: rgba(5, 150, 105, 0.35);
-        --badge-win-text: #047857;
-        --badge-neutral-bg: rgba(100, 116, 139, 0.10);
-        --badge-neutral-border: rgba(100, 116, 139, 0.30);
-        --badge-neutral-text: #334155;
-        --track: #eaeef2;
-      }}
-    }}
-    .canvas {{ fill: var(--bg); }}
-    .frame {{ fill: var(--card); stroke: var(--border); stroke-width: 1.2; }}
-    .divider {{ stroke: var(--border); stroke-width: 1; stroke-opacity: 0.55; }}
-    .title {{ font: 700 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text-main); }}
-    .subtitle {{ font: 400 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text-sub); }}
-    .legend {{ font: 600 11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text-main); }}
-    .metric-title {{ font: 600 13.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text-main); }}
-    .metric-desc {{ font: 400 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text-sub); }}
-    .row-tag {{ font: 600 10.5px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; fill: var(--text-sub); text-anchor: end; }}
+    .canvas {{ fill: url(#backdrop); }}
+    .frame {{ fill: url(#cardFill); stroke: var(--border); stroke-width: 1.5; stroke-opacity: 0.8; }}
+    .divider {{ stroke: var(--divider); stroke-width: 1; stroke-opacity: 0.55; }}
+    .title {{ font: 700 17px "Segoe UI", -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif; fill: var(--text-main); }}
+    .subtitle {{ font: 400 12px "Segoe UI", -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif; fill: var(--text-sub); }}
+    .legend {{ font: 600 11.5px "Segoe UI", -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif; fill: var(--text-main); }}
+    .metric-title {{ font: 600 13.5px "Segoe UI", -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif; fill: var(--text-main); }}
+    .metric-desc {{ font: 400 11px "Segoe UI", -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif; fill: var(--text-sub); }}
+    .row-tag {{ font: 600 10.5px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; fill: var(--text-dim); text-anchor: end; }}
     .val-rl {{ font: 700 11px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; fill: var(--rust-linux-text); opacity: 0; animation: fadeIn 0.35s ease-out forwards; }}
     .val-cl {{ font: 500 11px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; fill: var(--c-linux-text); opacity: 0; animation: fadeIn 0.35s ease-out forwards; }}
     .val-rw {{ font: 700 11px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; fill: var(--rust-win-text); opacity: 0; animation: fadeIn 0.35s ease-out forwards; }}
     .val-cw {{ font: 500 11px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; fill: var(--c-win-text); opacity: 0; animation: fadeIn 0.35s ease-out forwards; }}
-    .badge-neutral {{ fill: var(--badge-neutral-bg); stroke: var(--badge-neutral-border); stroke-width: 1; }}
-    .badge-win {{ fill: var(--badge-neutral-bg); stroke: var(--badge-neutral-border); stroke-width: 1; animation: pillWin 0.45s ease-out forwards; }}
+    .badge-neutral {{ fill: var(--badge-neutral-bg); stroke: var(--badge-neutral-border); stroke-width: 1.2; }}
+    .badge-win {{ fill: var(--badge-win-bg); stroke: var(--badge-win-border); stroke-width: 1.2; animation: pillWin 0.45s ease-out forwards; }}
     .badge-label-win {{ font: 700 11px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; fill: var(--badge-win-text); text-anchor: middle; opacity: 0; animation: fadeIn 0.45s ease-out forwards; }}
     .badge-label-neutral {{ font: 700 11px "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; fill: var(--badge-neutral-text); text-anchor: middle; opacity: 0; animation: fadeIn 0.45s ease-out forwards; }}
-    .track {{ fill: var(--track); }}
+    .track {{ fill: var(--track); stroke: #243449; stroke-width: 0.6; }}
 
     @keyframes grow {{
       0% {{ transform: scaleX(0); }}
@@ -644,6 +639,8 @@ pub fn generate_svg(
 {delay_css}  </style>
 
   <rect class="canvas" width="960" height="{canvas_h}" rx="12"/>
+  <rect width="960" height="{canvas_h}" rx="12" fill="url(#dots)"/>
+  <ellipse cx="630" cy="480" rx="520" ry="420" fill="url(#ambient)"/>
   <rect class="frame" x="8" y="8" width="944" height="{frame_h}" rx="10"/>
 
   <!-- Header -->
