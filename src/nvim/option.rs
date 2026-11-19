@@ -7141,8 +7141,8 @@ pub fn didset_window_options(wp: &WinInfoInfo, valid_cursor: bool) {
     set_chars_option(wp, &wo_lcs, CharsOption::Listchars, true, None);
     parse_winhl_opt(None, Some(wp));
     check_blending(wp);
-    set_winbar_win(wp, false, valid_cursor);
     check_signcolumn(None, Some(wp));
+    set_winbar_win(wp, false, valid_cursor);
     wp.w_grid_alloc
         .blending
         .set(wp.w_onebuf_opt.wo_winbl.get() > 0);
