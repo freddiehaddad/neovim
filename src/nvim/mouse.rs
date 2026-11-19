@@ -378,6 +378,17 @@ fn call_click_def_func(click_defs: &[StlClickDefinition], col: i32, which_button
     mouse_st(|st| st.got_click.set(false));
 }
 
+/// Whether the mouse is on the global statusline ('laststatus'=3).
+fn mouse_in_global_stl() -> bool {
+    input_state().mouse_grid.get() <= 1
+        && i64::from(input_state().mouse_row.get())
+            < i64::from(screen_state().rows_global.get()) - opt_vars().p_ch.get()
+        && i64::from(input_state().mouse_row.get())
+            >= i64::from(screen_state().rows_global.get())
+                - opt_vars().p_ch.get()
+                - i64::from(global_stl_height())
+}
+
 /// Translate window coordinates to buffer position without any side effects.
 /// Returns IN_BUFFER and sets `mpos` (0-based column) when in buffer text.
 fn get_fpos_of_mouse(
@@ -423,14 +434,7 @@ fn get_fpos_of_mouse(
     }
 
     if winrow >= wp.w_view_height.get() + wp.w_status_height.get() {
-        if input_state().mouse_grid.get() <= 1
-            && i64::from(input_state().mouse_row.get())
-                < i64::from(screen_state().rows_global.get()) - opt_vars().p_ch.get()
-            && i64::from(input_state().mouse_row.get())
-                >= i64::from(screen_state().rows_global.get())
-                    - opt_vars().p_ch.get()
-                    - i64::from(global_stl_height())
-        {
+        if mouse_in_global_stl() {
             return IN_STATUS_LINE;
         }
         return IN_UNKNOWN;
@@ -866,7 +870,7 @@ pub fn do_mouse(
     let in_winbar = (jump_flags & MOUSE_WINBAR) != 0;
     let in_statuscol = (jump_flags & MOUSE_STATUSCOL) != 0;
     let in_status_line = (jump_flags & IN_STATUS_LINE) != 0;
-    let in_global_statusline = in_status_line && global_stl_height() > 0;
+    let in_global_stl = in_status_line && mouse_in_global_stl();
     let in_sep_line = (jump_flags & IN_SEP_LINE) != 0;
 
     if (in_winbar || in_status_line || in_statuscol) && is_click {
@@ -878,10 +882,16 @@ pub fn do_mouse(
             return false;
         };
 
-        if in_global_statusline {
+        if in_global_stl {
             // global statusline is displayed for the current window, and spans the whole screen.
             wp = curwin();
             click_col = input_state().mouse_col.get();
+        } else if in_status_line
+            && (wp.w_status_height.get() == 0
+                || click_row != wp.w_height.get() - wp.w_winbar_height.get())
+        {
+            // Below the window but not on its statusline: cmdline or win separator (laststatus=3).
+            return false;
         }
 
         let click_defs: Option<Vec<StlClickDefinition>> = if in_status_line {
