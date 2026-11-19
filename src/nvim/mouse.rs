@@ -861,29 +861,25 @@ pub fn do_mouse(
         let mut click_grid = input_state().mouse_grid.get();
         let mut click_row = input_state().mouse_row.get();
         let mut click_col = input_state().mouse_col.get();
-        let Some(wp) = mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col) else {
+        let Some(mut wp) = mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col)
+        else {
             return false;
         };
 
-        let mut click_defs: Option<Vec<StlClickDefinition>> = if in_status_line {
-            let stl_wp: &WinInfoInfo = if in_global_statusline { &curwin() } else { &wp };
-            if in_global_statusline {
-                click_col = input_state().mouse_col.get();
-            }
-            if click_col >= stl_wp.status_click_defs_len() as i32 {
-                return false;
-            }
-            stl_wp.clone_status_click_defs()
-        } else if in_winbar {
-            wp.clone_winbar_click_defs()
-        } else {
-            None
-        };
-        if in_statuscol && wp.w_onebuf_opt.wo_rl.get() {
-            click_col = wp.w_view_width.get() - click_col - 1;
+        if in_global_statusline {
+            // global statusline is displayed for the current window, and spans the whole screen.
+            wp = curwin();
+            click_col = input_state().mouse_col.get();
         }
 
-        if in_statuscol {
+        let click_defs: Option<Vec<StlClickDefinition>> = if in_status_line {
+            wp.clone_status_click_defs()
+        } else if in_winbar {
+            wp.clone_winbar_click_defs()
+        } else if in_statuscol {
+            if wp.w_onebuf_opt.wo_rl.get() {
+                click_col = wp.w_view_width.get() - click_col - 1;
+            }
             let lnum = get_vim_var_nr(VV_LNUM) as i32;
             let virtnum = get_vim_var_nr(VV_VIRTNUM) as i32;
             let Some(row_click_defs) = wp.with_statuscol_click_defs(|defs| {
@@ -891,13 +887,15 @@ pub fn do_mouse(
             }) else {
                 return false;
             };
-            if click_col >= row_click_defs.len() as i32 {
-                return false;
-            }
-            click_defs = Some(row_click_defs);
-        }
+            Some(row_click_defs)
+        } else {
+            None
+        };
 
-        if let Some(ref click_defs) = click_defs {
+        if let Some(ref click_defs) = click_defs
+            && click_col >= 0
+            && (click_col as usize) < click_defs.len()
+        {
             match click_defs[click_col as usize].type_ {
                 K_STL_CLICK_DISABLED => {
                     if in_statuscol
