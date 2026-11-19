@@ -47,7 +47,7 @@ const MOD_MASK_4CLICK: u8 = 0x60;
 
 const CTRL_C_CONST_CONST_CONST: u8 = 3;
 
-const BREAKCHECK_SKIP: i32 = 1000;
+const BREAKCHECK_NS: u64 = 20 * 1_000_000; // 20ms.
 
 /// What `inbuf_poll()` is doing.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -64,7 +64,8 @@ struct OsInputState {
     polling: std::cell::Cell<PollState>,
     cursorhold_time: std::cell::Cell<u64>,
     cursorhold_tb_change_cnt: std::cell::Cell<i32>,
-    breakcheck_count: std::cell::Cell<i32>,
+    breakcheck_count: std::cell::Cell<u32>,
+    breakcheck_mask: std::cell::Cell<u32>,
     orig_num_clicks: std::cell::Cell<i32>,
     orig_mouse_code: std::cell::Cell<i32>,
     orig_mouse_grid: std::cell::Cell<i32>,
@@ -84,6 +85,7 @@ impl OsInputState {
             cursorhold_time: std::cell::Cell::new(0),
             cursorhold_tb_change_cnt: std::cell::Cell::new(0),
             breakcheck_count: std::cell::Cell::new(0),
+            breakcheck_mask: std::cell::Cell::new(0),
             orig_num_clicks: std::cell::Cell::new(0),
             orig_mouse_code: std::cell::Cell::new(0),
             orig_mouse_grid: std::cell::Cell::new(0),
@@ -293,66 +295,59 @@ pub fn os_char_avail() -> bool {
     inbuf_poll(0, None)
 }
 
-/// Poll for fast events. `got_int` will be set to `true` if CTRL-C was typed.
+/// Polls for fast events, and checks for CTRL-C (`got_int`).
 pub fn os_breakcheck() {
-    if input_state().got_int.get() {
+    let loop_ = main_loop();
+    if input_state().got_int.get() || loop_.events.get().is_null() || loop_.closing.get() {
         return;
     }
 
-    loop_poll_events(main_loop(), 0);
+    loop_poll_events(loop_, 0);
 }
 
-/// Check for CTRL-C pressed, but only once in a while.
+pub fn breakcheck_init() {
+    // Measure os_hrtime performance to decide how frequently line_breakcheck should read it.
+    let start = os_hrtime();
+    let mut end = start;
+    for _ in 0..32 {
+        end = os_hrtime();
+    }
+    // Read the clock less often if it takes >50ns (presumably a kernel fallback to HPET/ACPI).
+    let mask = if end.saturating_sub(start) > 32 * 50 {
+        31
+    } else {
+        0
+    };
+    osi_st(|st| st.breakcheck_mask.set(mask));
+}
+
+/// Calls `os_breakcheck()` if main loop has not polled for 20ms.
+/// For loops that check per-line or per-command: CTRL-C is caught after ~20ms or 1 iteration.
 #[inline]
 pub fn line_breakcheck() {
-    let do_check = osi_st(|st| {
-        let c = st.breakcheck_count.get() + 1;
-        if c >= BREAKCHECK_SKIP {
-            st.breakcheck_count.set(0);
-            true
-        } else {
-            st.breakcheck_count.set(c);
-            false
-        }
+    let should_read_clock = osi_st(|st| {
+        let c = st.breakcheck_count.get().wrapping_add(1);
+        st.breakcheck_count.set(c);
+        (c & st.breakcheck_mask.get()) == 0
     });
-    if do_check {
+    if should_read_clock
+        && os_hrtime().saturating_sub(main_loop().poll_time.get()) >= BREAKCHECK_NS
+    {
         os_breakcheck();
     }
 }
 
-/// Like line_breakcheck() but check 10 times less often.
+/// Like `line_breakcheck()`, but reads the clock less frequently.
+/// For tight loops where a call does under ~1µs of work (and doesn't run user code).
 #[inline]
 pub fn fast_breakcheck() {
-    let do_check = osi_st(|st| {
-        let c = st.breakcheck_count.get() + 1;
-        if c >= BREAKCHECK_SKIP * 10 {
-            st.breakcheck_count.set(0);
-            true
-        } else {
-            st.breakcheck_count.set(c);
-            false
-        }
+    let should_check = osi_st(|st| {
+        let c = st.breakcheck_count.get().wrapping_add(1);
+        st.breakcheck_count.set(c);
+        (c & 1023) == 0
     });
-    if do_check {
-        os_breakcheck();
-    }
-}
-
-/// Like line_breakcheck() but check 100 times less often.
-#[inline]
-pub fn veryfast_breakcheck() {
-    let do_check = osi_st(|st| {
-        let c = st.breakcheck_count.get() + 1;
-        if c >= BREAKCHECK_SKIP * 100 {
-            st.breakcheck_count.set(0);
-            true
-        } else {
-            st.breakcheck_count.set(c);
-            false
-        }
-    });
-    if do_check {
-        os_breakcheck();
+    if should_check {
+        line_breakcheck();
     }
 }
 

@@ -2662,7 +2662,7 @@ fn list_join_inner(
         if !bytes.is_empty() {
             gap.extend_from_slice(bytes);
         }
-        line_breakcheck();
+        fast_breakcheck();
     }
 
     true

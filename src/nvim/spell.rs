@@ -39,7 +39,7 @@ use crate::option::{
 };
 use crate::option_vars::*;
 use crate::os::fs::{MAXPATHL, os_remove};
-use crate::os::input::line_breakcheck;
+use crate::os::input::{fast_breakcheck, line_breakcheck};
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{K_PATH_CMP_EXPAND, K_PATH_CMP_LITERAL, PathCmpFlags, path_equal, path_tail};
@@ -2816,7 +2816,7 @@ pub fn spell_dump_compl(
                 let udepth = depth as usize;
                 if curi[udepth] > i32::from(byts[arridx[udepth] as usize]) {
                     depth -= 1;
-                    line_breakcheck();
+                    fast_breakcheck();
                     ins_compl_check_keys(50, false);
                 } else {
                     let n = arridx[udepth] + curi[udepth];
@@ -3006,7 +3006,7 @@ fn dump_prefixes(
             let len = i32::from(byts[n as usize]);
             if curi[udepth] > len {
                 depth -= 1;
-                line_breakcheck();
+                fast_breakcheck();
             } else {
                 n += curi[udepth];
                 curi[udepth] += 1;

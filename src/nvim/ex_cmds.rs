@@ -4679,7 +4679,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             sub_firstline.clear();
         }
 
-        line_breakcheck();
+        fast_breakcheck();
 
         if timed_out != 0 || profile_passed_limit(tm) {
             got_quit = true;
@@ -5006,7 +5006,7 @@ pub fn ex_global(eap: &mut Exarg) {
                     ml_setmarked(lnum);
                     count += 1;
                 }
-                line_breakcheck();
+                fast_breakcheck();
                 lnum += 1;
             }
             count
@@ -5049,7 +5049,7 @@ pub fn global_exe(cmd: &CStr) {
             break;
         }
         global_exe_one(cmd, lnum);
-        os_breakcheck();
+        line_breakcheck();
     }
 
     cmdline_state().global_busy.set(0);

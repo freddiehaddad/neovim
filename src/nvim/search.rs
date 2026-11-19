@@ -1185,7 +1185,7 @@ pub fn searchit(
                         search_state().search_global.match_endcol.set(endpos.col);
                         break;
                     }
-                    line_breakcheck();
+                    fast_breakcheck();
                     if input_state().got_int.get() {
                         break;
                     }
@@ -4041,7 +4041,7 @@ pub fn find_pattern_in_path(
                     break;
                 }
             }
-            line_breakcheck();
+            fast_breakcheck();
             if action == ACTION_EXPAND {
                 ins_compl_check_keys(30, false);
             }

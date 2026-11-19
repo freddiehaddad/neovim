@@ -31,7 +31,7 @@ use crate::option::{K_OPT_SPELLFILE, OPT_LOCAL, copy_option_part, set_option_val
 use crate::option_vars::*;
 use crate::os::env::home_replace;
 use crate::os::fs::{CFile, MAXPATHL, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
-use crate::os::input::{fast_breakcheck, line_breakcheck, veryfast_breakcheck};
+use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::os::stdpaths::{XDGVarType, get_xdg_home};
 use crate::os::time::{Timestamp, os_time, time_t};
 use crate::path::{
@@ -3952,7 +3952,7 @@ fn node_compress(
     hashkey[4] = if n == 0 { 1 } else { n as u8 };
     hashkey[5] = 0;
 
-    veryfast_breakcheck();
+    fast_breakcheck();
 
     (compressed, hashkey)
 }
@@ -4524,7 +4524,7 @@ fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
                 wordcount[d - 1] += wordcount[d];
             }
             depth -= 1;
-            line_breakcheck();
+            fast_breakcheck();
         } else {
             let mut n = arridx[d] + curi[d];
             curi[d] += 1;

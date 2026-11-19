@@ -86,7 +86,7 @@ use crate::option::{
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, Optset};
 use crate::os::fs::CFile;
-use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
+use crate::os::input::{fast_breakcheck, os_breakcheck};
 use crate::os::time::os_hrtime;
 use crate::path::{
     EW_ADDSLASH, EW_DIR, EW_FILE, EW_PATH, EW_SILENT, PATHSEP, expand_wildcards_vec, path_tail,
@@ -2479,7 +2479,7 @@ fn ins_compl_files(
                     }
                 }
             }
-            line_breakcheck();
+            fast_breakcheck();
             ins_compl_check_keys(50, false);
         }
     }

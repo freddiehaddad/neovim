@@ -65,6 +65,7 @@ pub struct Loop {
     poll_timer: RawHandle<32>,
     exit_delay_timer: RawHandle<32>,
     async_: RawHandle<32>,
+    pub poll_time: Cell<u64>,
     recursive: Cell<i32>,
     pub closing: Cell<bool>,
     timeout_expired: Cell<bool>,
@@ -87,6 +88,7 @@ impl Loop {
             poll_timer: RawHandle::new(),
             exit_delay_timer: RawHandle::new(),
             async_: RawHandle::new(),
+            poll_time: Cell::new(0),
             recursive: Cell::new(0),
             closing: Cell::new(false),
             timeout_expired: Cell::new(false),
@@ -204,6 +206,7 @@ pub fn loop_init(loop_: &'static Loop) {
         loop_.initialized.set(true);
         uv.cast::<*const Loop>().write(loop_);
         loop_.recursive.set(0);
+        loop_.poll_time.set(os_hrtime());
         loop_.closing.set(false);
         loop_.events.set(multiqueue_new(Some(loop_)));
         loop_
@@ -253,6 +256,8 @@ fn loop_uv_run(loop_: &Loop, ms: i64) -> bool {
 pub fn loop_poll_events(loop_: &Loop, ms: i64) -> bool {
     let fast_events = loop_.fast_events.get();
     let expired = loop_uv_run(loop_, ms);
+    // Before `fast_events`, else their breakchecks count the wait as time without polling.
+    loop_.poll_time.set(os_hrtime()); // Not uv_now(): timer_start(), etc. update it without polling.
     multiqueue_process_events(fast_events);
     expired
 }

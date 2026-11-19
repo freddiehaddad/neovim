@@ -9933,7 +9933,7 @@ fn ex_print(eap: &mut Exarg) {
                 line == eap.line1,
             );
             line += 1;
-            os_breakcheck();
+            line_breakcheck();
         }
         setpcmark();
         curwin().w_cursor.set_lnum(eap.line2);

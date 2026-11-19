@@ -97,7 +97,7 @@ use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
 use crate::optionstr::OptIndex;
 use crate::os::env::{expand_env, os_get_pid};
-use crate::os::input::{line_breakcheck, os_breakcheck};
+use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::os::time::{os_time, time_t};
 #[cfg(windows)]
 use crate::path::path_to_slash;
@@ -5436,7 +5436,7 @@ fn vgr_match_buflines(
                 }
             }
         }
-        line_breakcheck();
+        fast_breakcheck();
         if input_state().got_int.get() {
             break;
         }
@@ -7262,7 +7262,7 @@ fn hgr_search_file(qfl_rc: &QfListRc, fname: &CStr, p_regmatch: &mut Regmatch) {
             }
         }
         lnum += 1;
-        line_breakcheck();
+        fast_breakcheck();
     }
 }
 
