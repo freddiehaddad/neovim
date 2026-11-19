@@ -3046,7 +3046,10 @@ pub fn u_rollback(uc: &mut UndoCheckpoint, buf: &FileBuf) {
         if !curbuf().b_u_synced.get() {
             u_sync(true);
         }
-        if !u_undo_and_forget(count, false) {
+        let save_ma = buf.b_p_ma.replace(true); // |:command-preview| may set 'nomodifiable'. #42893
+        let ok = u_undo_and_forget(count, false);
+        buf.b_p_ma.set(save_ma);
+        if !ok {
             std::process::abort();
         }
         ctx_restore(&mut cs);
