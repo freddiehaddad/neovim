@@ -13,6 +13,8 @@ const BENCH_SPECS: &[&str] = &[
     "test/benchmark/extmark_spec.lua",
     "test/benchmark/option_spec.lua",
     "test/benchmark/screenpos_spec.lua",
+    "test/benchmark/search_spec.lua",
+    "test/benchmark/sort_spec.lua",
     "test/benchmark/treesitter_spec.lua",
 ];
 
@@ -97,28 +99,81 @@ fn extract_third_csv_stat(text: &str, anchor: &str, unit: &str) -> Option<f64> {
     third.strip_suffix(unit)?.trim().parse().ok()
 }
 
-pub fn parse_benchmark_log(path: &Path) -> BTreeMap<&'static str, f64> {
-    let raw_bytes =
-        fs::read(path).unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
-    let text = if raw_bytes.starts_with(&[0xFF, 0xFE]) {
-        let u16s: Vec<u16> = raw_bytes[2..]
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .copied()
-            .map(u16::from_le_bytes)
-            .collect();
-        String::from_utf16_lossy(&u16s)
-    } else {
-        String::from_utf8_lossy(&raw_bytes).into_owned()
-    };
-    let clean = strip_ansi(&text);
+fn extract_section<'a>(text: &'a str, spec_name: &str) -> Option<&'a str> {
+    let start_marker = format!("Running tests from {spec_name}");
+    let end_marker = format!("tests from {spec_name}");
+    let start = text.find(&start_marker)? + start_marker.len();
+    let rest = &text[start..];
+    let end = rest.find(&end_marker)?;
+    Some(&rest[..end])
+}
+
+fn extract_bench_report_median(text: &str, label: &str) -> Option<f64> {
+    let needle = format!("\n{label}\n");
+    let start = text.find(&needle)? + needle.len();
+    let line = text[start..].lines().next()?;
+    extract_after_prefix_f64(line, "median")
+}
+
+fn sum_autocmd_hrtime_ms(text: &str) -> Option<f64> {
+    let section = extract_section(text, "test/benchmark/autocmd_spec.lua")?;
+    let mut sum = 0.0;
+    let mut count = 0usize;
+    for line in section.lines() {
+        let Some(end) = line.find(" ms - ") else {
+            continue;
+        };
+        let before = line[..end].trim_end();
+        let num_start = before
+            .rfind(|c: char| !c.is_ascii_digit() && c != '.')
+            .map_or(0, |i| i + 1);
+        let val: f64 = before[num_start..].parse().ok()?;
+        sum += val;
+        count += 1;
+    }
+    (count == 12).then_some(sum)
+}
+
+fn sum_option_medians_ms(text: &str) -> Option<f64> {
+    let section = extract_section(text, "test/benchmark/option_spec.lua")?;
+    let mut sum = 0.0;
+    let mut count = 0usize;
+    for line in section.lines() {
+        if line.contains("(ms, n=20000)")
+            && let Some(med) = extract_after_prefix_f64(line, "median")
+        {
+            sum += med * 20_000.0;
+            count += 1;
+        }
+    }
+    (count == 7).then_some(sum)
+}
+
+fn sum_csv_medians(section: &str, unit: &str, expected_count: usize) -> Option<f64> {
+    let line_anchor = "min, 25%, median, 75%, max:";
+    let mut rest = section;
+    let mut sum = 0.0;
+    let mut count = 0usize;
+    while let Some(pos) = rest.find(line_anchor) {
+        let after = &rest[pos + line_anchor.len()..];
+        let next_line = after.lines().nth(1)?;
+        let third = next_line.split(',').nth(2)?.trim();
+        let val: f64 = third.strip_suffix(unit)?.trim().parse().ok()?;
+        sum += val;
+        count += 1;
+        rest = after;
+    }
+    (count == expected_count).then_some(sum)
+}
+
+pub fn parse_benchmark_text(raw_text: &str) -> BTreeMap<&'static str, f64> {
+    let clean = strip_ansi(raw_text).replace("\r\n", "\n");
     let mut m = BTreeMap::new();
 
     if let Some(v) = extract_after_prefix_f64(&clean, "median=") {
         m.insert("startup_ms", v);
     }
-    if let Some(v) = extract_after_prefix_f64(&clean, "test/benchmark/autocmd_spec.lua (") {
+    if let Some(v) = sum_autocmd_hrtime_ms(&clean) {
         m.insert("autocmd_suite_ms", v);
     }
     if let Some(v) = extract_before_suffix_f64(
@@ -138,9 +193,6 @@ pub fn parse_benchmark_log(path: &Path) -> BTreeMap<&'static str, f64> {
     {
         m.insert("decor_fullscreen_ms", v);
     }
-    if let Some(v) = extract_after_prefix_f64(&clean, "test/benchmark/extmark_spec.lua (") {
-        m.insert("extmark_suite_ms", v);
-    }
     if let Some(v) = extract_before_suffix_f64(
         &clean,
         "many non-wrapped virtual lines:",
@@ -148,11 +200,13 @@ pub fn parse_benchmark_log(path: &Path) -> BTreeMap<&'static str, f64> {
     ) {
         m.insert("extmark_cursor_us", v * 1000.0);
     }
-    if let Some(v) = extract_after_prefix_f64(&clean, "test/benchmark/option_spec.lua (") {
+    if let Some(v) = sum_option_medians_ms(&clean) {
         m.insert("option_suite_ms", v);
     }
-    if let Some(v) = extract_after_prefix_f64(&clean, "test/benchmark/screenpos_spec.lua (") {
-        m.insert("screenpos_suite_s", v / 1000.0);
+    if let Some(sec) = extract_section(&clean, "test/benchmark/screenpos_spec.lua")
+        && let Some(sum_us) = sum_csv_medians(sec, "us", 24)
+    {
+        m.insert("screenpos_suite_s", sum_us / 100.0);
     }
     if let Some(v) = extract_third_csv_stat(&clean, "for long line, ascii, nobreakindent:", "us") {
         m.insert("screenpos_ascii_us", v);
@@ -162,14 +216,49 @@ pub fn parse_benchmark_log(path: &Path) -> BTreeMap<&'static str, f64> {
     {
         m.insert("screenpos_utf8_us", v);
     }
-    if let Some(v) = extract_after_prefix_f64(&clean, "treesitter perf can handle large folds:") {
+    if let Some(v) = extract_bench_report_median(&clean, "vimgrep_100k") {
+        m.insert("vimgrep_100k_ms", v);
+    }
+    if let Some(v) = extract_bench_report_median(&clean, "matchfuzzy_50k") {
+        m.insert("matchfuzzy_50k_ms", v);
+    }
+    if let Some(v) = extract_bench_report_median(&clean, "diff_linematch") {
+        m.insert("diff_linematch_ms", v);
+    }
+    if let Some(v) = extract_bench_report_median(&clean, "sort") {
+        m.insert("sort_lines_ms", v);
+    }
+    if let Some(v) = extract_bench_report_median(&clean, r"sort /\w\+ /") {
+        m.insert("sort_pattern_ms", v);
+    }
+    if let Some(v) = extract_after_prefix_f64(&clean, "treesitter fold:") {
         m.insert("treesitter_fold_ms", v);
     }
-    if let Some(v) = extract_after_prefix_f64(&clean, "test/benchmark/treesitter_spec.lua (") {
-        m.insert("treesitter_suite_ms", v);
+    if let Some(sec) = extract_section(&clean, "test/benchmark/treesitter_spec.lua")
+        && let Some(sum_ms) = sum_csv_medians(sec, "ms", 7)
+    {
+        m.insert("treesitter_suite_ms", sum_ms * 100.0);
     }
 
     m
+}
+
+pub fn parse_benchmark_log(path: &Path) -> BTreeMap<&'static str, f64> {
+    let raw_bytes =
+        fs::read(path).unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+    let text = if raw_bytes.starts_with(&[0xFF, 0xFE]) {
+        let u16s: Vec<u16> = raw_bytes[2..]
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .copied()
+            .map(u16::from_le_bytes)
+            .collect();
+        String::from_utf16_lossy(&u16s)
+    } else {
+        String::from_utf8_lossy(&raw_bytes).into_owned()
+    };
+    parse_benchmark_text(&text)
 }
 
 fn median_metric(runs: &[BTreeMap<&'static str, f64>], key: &'static str) -> f64 {
@@ -329,6 +418,7 @@ cp -r ~/.cache/nvim-bench/upstream-c/.deps/usr/lib/nvim/parser/* ~/.cache/nvim-b
 git clone "{wsl_root}" ~/.cache/nvim-bench/rust-port
 cp "{wsl_root}/src/xtask/main.rs" ~/.cache/nvim-bench/rust-port/src/xtask/main.rs
 cp "{wsl_root}/src/xtask/bench.rs" ~/.cache/nvim-bench/rust-port/src/xtask/bench.rs
+cp "{wsl_root}"/test/benchmark/*.lua ~/.cache/nvim-bench/rust-port/test/benchmark/
 if [ -d "{wsl_root}/.deps/build/downloads" ]; then
   mkdir -p ~/.cache/nvim-bench/rust-port/.deps/build
   cp -r "{wsl_root}/.deps/build/downloads" ~/.cache/nvim-bench/rust-port/.deps/build/downloads
@@ -360,8 +450,101 @@ pub fn generate_svg(
     win_c: &[BTreeMap<&'static str, f64>],
     win_rust: &[BTreeMap<&'static str, f64>],
 ) -> String {
+    let rows: &[RowDef] = &[
+        (
+            "Cold Startup",
+            "Launch &amp; exit headless (25-run median)",
+            "startup_ms",
+            |v| format!("{v:.1} ms"),
+        ),
+        (
+            "Screen Layout &amp; Wrapping",
+            "240,000 cursor &amp; wrap position queries",
+            "screenpos_suite_s",
+            |v| format!("{v:.1} s"),
+        ),
+        (
+            "Multi-Core Buffer Search",
+            "Regex scan across 100,000 lines",
+            "vimgrep_100k_ms",
+            |v| format!("{v:.1} ms"),
+        ),
+        (
+            "Fuzzy File Finder",
+            "Score &amp; rank 50,000 project file paths",
+            "matchfuzzy_50k_ms",
+            |v| format!("{v:.1} ms"),
+        ),
+        (
+            "Large File Sorting",
+            "In-memory :sort on 200,000 lines",
+            "sort_lines_ms",
+            |v| format!("{v:.1} ms"),
+        ),
+        (
+            "Side-by-Side Diff Alignment",
+            "Myers diff with line-similarity scoring",
+            "diff_linematch_ms",
+            |v| format!("{v:.1} ms"),
+        ),
+        (
+            "Regex Search (Backtracking)",
+            "Complex pattern search on HTML text",
+            "regexp_bt_ms",
+            |v| format!("{v:.1} ms"),
+        ),
+        (
+            "Virtual Text Cursor Motion",
+            "Cursor step over 2,000 virtual lines",
+            "extmark_cursor_us",
+            |v| format!("{v:.1} µs"),
+        ),
+        (
+            "Treesitter Fold Navigation",
+            "100 motions &amp; redraws over folded code",
+            "treesitter_fold_ms",
+            |v| format!("{v:.1} ms"),
+        ),
+        (
+            "Full-Screen Syntax Redraw",
+            "100x50 window with Treesitter highlight",
+            "decor_fullscreen_ms",
+            |v| format!("{v:.1} ms"),
+        ),
+        (
+            "Autocommand Event Hooks",
+            "Create, trigger &amp; delete 82,500 hooks",
+            "autocmd_suite_ms",
+            |v| format!("{v:.1} ms"),
+        ),
+        (
+            "Editor Option Updates",
+            "140,000 vim.o &amp; vim.opt setting updates",
+            "option_suite_ms",
+            |v| format!("{v:.1} ms"),
+        ),
+    ];
+
+    let bar_x = 350_i32;
+    let max_bar_w = 405.0_f64;
+    let base_y = 100_i32;
+    let row_h = 82_i32;
+    let canvas_h = base_y + (rows.len() as i32) * row_h + 10;
+    let frame_h = canvas_h - 16;
+
+    let mut delay_css = String::new();
+    for idx in 0..rows.len() {
+        let row_num = idx + 1;
+        let d_delay = 0.05 + (idx as f64) * 0.07;
+        let b_delay = 0.65 + (idx as f64) * 0.07;
+        let _ = writeln!(
+            delay_css,
+            "    .d{row_num} {{ animation-delay: {d_delay:.2}s; }} .b{row_num} {{ animation-delay: {b_delay:.2}s; }}"
+        );
+    }
+
     let mut svg = format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 930" width="100%" role="img" aria-label="Neovim Rust Port vs Upstream C Performance Benchmarks (Linux and Windows)">
+        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 {canvas_h}" width="100%" role="img" aria-label="Neovim Rust Port vs Upstream C Performance Benchmarks (Linux and Windows)">
   <defs>
     <linearGradient id="rustLinuxBar" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#059669"/>
@@ -458,24 +641,14 @@ pub fn generate_svg(
       transform: scaleX(0);
       animation: grow 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }}
-    .d1 {{ animation-delay: 0.05s; }} .b1 {{ animation-delay: 0.65s; }}
-    .d2 {{ animation-delay: 0.12s; }} .b2 {{ animation-delay: 0.72s; }}
-    .d3 {{ animation-delay: 0.19s; }} .b3 {{ animation-delay: 0.79s; }}
-    .d4 {{ animation-delay: 0.26s; }} .b4 {{ animation-delay: 0.86s; }}
-    .d5 {{ animation-delay: 0.33s; }} .b5 {{ animation-delay: 0.93s; }}
-    .d6 {{ animation-delay: 0.40s; }} .b6 {{ animation-delay: 1.00s; }}
-    .d7 {{ animation-delay: 0.47s; }} .b7 {{ animation-delay: 1.07s; }}
-    .d8 {{ animation-delay: 0.54s; }} .b8 {{ animation-delay: 1.14s; }}
-    .d9 {{ animation-delay: 0.61s; }} .b9 {{ animation-delay: 1.21s; }}
-    .d10 {{ animation-delay: 0.68s; }} .b10 {{ animation-delay: 1.28s; }}
-  </style>
+{delay_css}  </style>
 
-  <rect class="canvas" width="960" height="930" rx="12"/>
-  <rect class="frame" x="8" y="8" width="944" height="914" rx="10"/>
+  <rect class="canvas" width="960" height="{canvas_h}" rx="12"/>
+  <rect class="frame" x="8" y="8" width="944" height="{frame_h}" rx="10"/>
 
   <!-- Header -->
   <text class="title" x="28" y="38">Head-to-Head Editor Benchmarks: Rust Port vs. Upstream C (neovim@{sha})</text>
-  <text class="subtitle" x="28" y="58">Execution time in Release mode (shorter bar = faster; right badges show Rust speedup vs. C).</text>
+  <text class="subtitle" x="28" y="58">Release build execution time (shorter bars = faster; badges show Rust speedup over C).</text>
 
   <!-- Legend -->
   <rect x="28" y="70" width="12" height="12" rx="3" fill="url(#rustLinuxBar)"/>
@@ -490,74 +663,6 @@ pub fn generate_svg(
   <line class="divider" x1="28" y1="92" x2="932" y2="92"/>
 "##
     );
-
-    let rows: &[RowDef] = &[
-        (
-            "Cold Startup",
-            "nvim --clean --headless +q (25-run median)",
-            "startup_ms",
-            |v| format!("{v:.1} ms"),
-        ),
-        (
-            "Screen Layout &amp; UTF-8 Wrapping",
-            "screenpos_spec.lua (24-test suite total)",
-            "screenpos_suite_s",
-            |v| format!("{v:.1} s"),
-        ),
-        (
-            "Long UTF-8 Line Layout",
-            "screenpos_spec.lua (3-byte UTF-8 median)",
-            "screenpos_utf8_us",
-            |v| format!("{v:.1} µs"),
-        ),
-        (
-            "Regex Search Engine",
-            "bench_regexp_spec.lua (backtracking)",
-            "regexp_bt_ms",
-            |v| format!("{v:.1} ms"),
-        ),
-        (
-            "Virtual Line Cursor Motion",
-            "extmark_spec.lua (2,000 virtual lines)",
-            "extmark_cursor_us",
-            |v| format!("{v:.1} µs"),
-        ),
-        (
-            "Treesitter Fold Navigation",
-            "treesitter_spec.lua (100 macro replays)",
-            "treesitter_fold_ms",
-            |v| format!("{v:.1} ms"),
-        ),
-        (
-            "Plugin Autocmd Lifecycle",
-            "autocmd_spec.lua (create/exec/del 10k)",
-            "autocmd_suite_ms",
-            |v| format!("{v:.1} ms"),
-        ),
-        (
-            "Delete 10k Autocmds",
-            "autocmd_spec.lua (unique patterns)",
-            "autocmd_del_unique_ms",
-            |v| format!("{v:.1} ms"),
-        ),
-        (
-            "Extmarks &amp; Inline Diagnostics",
-            "extmark_spec.lua (clear ns + 2k redraw)",
-            "extmark_suite_ms",
-            |v| format!("{v:.1} ms"),
-        ),
-        (
-            "Option &amp; Buffer Configuration",
-            "option_spec.lua (140k vim.o / vim.opt sets)",
-            "option_suite_ms",
-            |v| format!("{v:.1} ms"),
-        ),
-    ];
-
-    let bar_x = 350_i32;
-    let max_bar_w = 405.0_f64;
-    let base_y = 100_i32;
-    let row_h = 82_i32;
 
     for (idx, &(title, desc, key, fmt_fn)) in rows.iter().enumerate() {
         let y = base_y + (idx as i32) * row_h;
@@ -636,7 +741,31 @@ pub fn generate_svg(
     svg
 }
 
-pub fn generate_readme_perf_section(
+pub fn generate_readme_perf_section(sha: &str) -> String {
+    format!(
+        r#"## Performance
+
+Measured head-to-head against release builds of upstream [`neovim/neovim@{sha}`](https://github.com/neovim/neovim/commit/{sha}) on the same hardware across **Linux** (GCC vs. `rustc`) and **Windows** (MSVC vs. `rustc`), reporting the median of 3 interleaved runs:
+
+<p align="center">
+  <img src="contrib/benchmarks.svg" width="100%" alt="Performance comparison between the Rust port and upstream C Neovim on Linux and Windows">
+</p>
+
+<details>
+<summary><strong>Benchmark methodology</strong></summary>
+
+- **Speedup**: Relative speedup of the Rust port over upstream C (`C time ÷ Rust time`; values above `1.00x` mean Rust is faster, and below `1.00x` mean C is faster).
+- **In-process timing**: Editor operations are timed inside the running editor with high-resolution timers (`vim.uv.hrtime()` / `reltime()`) so test-runner startup is never mixed into workload measurements.
+- **Same commit & hardware**: Both builds are compiled from the same synced upstream commit (`MAINTAIN.md`) on the same machine and filesystem (`ext4` on Linux; NTFS on Windows).
+- **Release optimization**: Upstream C is built with `-DCMAKE_BUILD_TYPE=Release` (`-O3 -DNDEBUG` on GCC; `/O2 /Ob2 /DNDEBUG` on MSVC), and the Rust port is built with `cargo xtask build --release` (`opt-level = 3`, `lto = "thin"`).
+- **Reproducible runner**: Run `cargo xtask benchmark --compare --update-readme` to execute 3 interleaved rounds across both platforms and regenerate `contrib/benchmarks.svg`.
+
+</details>
+"#
+    )
+}
+
+pub fn format_console_summary(
     sha: &str,
     linux_c: &[BTreeMap<&'static str, f64>],
     linux_rust: &[BTreeMap<&'static str, f64>],
@@ -645,116 +774,125 @@ pub fn generate_readme_perf_section(
 ) -> String {
     let table_rows: &[RowDef] = &[
         (
-            "Cold startup (`--clean --headless +q`, 25-run median)",
+            "Cold startup (25-run median)",
             "Startup",
             "startup_ms",
             |v| format!("{v:.2} ms"),
         ),
         (
-            "Screen layout & wrapping (24 tests)",
-            "screenpos",
+            "Screen layout & wrapping (240k queries)",
+            "Layout",
             "screenpos_suite_s",
             |v| format!("{v:.2} s"),
         ),
         (
             "Long ASCII line layout (median)",
-            "screenpos",
+            "Layout",
             "screenpos_ascii_us",
             |v| format!("{v:.2} µs"),
         ),
         (
             "Long UTF-8 line layout (median)",
-            "screenpos",
+            "Layout",
             "screenpos_utf8_us",
             |v| format!("{v:.2} µs"),
         ),
         (
+            "Multi-core buffer search (:vimgrep 100k)",
+            "Search",
+            "vimgrep_100k_ms",
+            |v| format!("{v:.2} ms"),
+        ),
+        (
             "Regex search (backtracking)",
-            "regexp",
+            "Search",
             "regexp_bt_ms",
             |v| format!("{v:.2} ms"),
         ),
+        ("Regex search (NFA auto)", "Search", "regexp_auto_ms", |v| {
+            format!("{v:.2} ms")
+        }),
         (
-            "Regex search (auto engine)",
-            "regexp",
-            "regexp_auto_ms",
+            "Fuzzy file finder (matchfuzzy 50k)",
+            "Picker",
+            "matchfuzzy_50k_ms",
             |v| format!("{v:.2} ms"),
         ),
         (
-            "Cursor motion over 2k virtual lines",
-            "extmark",
+            "Large file sorting (:sort 200k)",
+            "Editing",
+            "sort_lines_ms",
+            |v| format!("{v:.1} ms"),
+        ),
+        (
+            "Regex-keyed sorting (:sort /\\w\\+ / 200k)",
+            "Editing",
+            "sort_pattern_ms",
+            |v| format!("{v:.1} ms"),
+        ),
+        (
+            "Side-by-side diff alignment (linematch)",
+            "Diff",
+            "diff_linematch_ms",
+            |v| format!("{v:.1} ms"),
+        ),
+        (
+            "Virtual text cursor motion (2k lines)",
+            "Display",
             "extmark_cursor_us",
             |v| format!("{v:.2} µs"),
         ),
         (
-            "Treesitter fold navigation (100 macros)",
-            "treesitter",
+            "Treesitter fold navigation (100 motions)",
+            "Syntax",
             "treesitter_fold_ms",
             |v| format!("{v:.2} ms"),
         ),
         (
-            "Treesitter redraw suite (8 tests)",
-            "treesitter",
+            "Treesitter long-line redraws (700 redraws)",
+            "Syntax",
             "treesitter_suite_ms",
             |v| format!("{v:.0} ms"),
         ),
         (
-            "Autocmd lifecycle suite (10k events)",
-            "autocmd",
+            "Full-screen syntax redraw (100x50)",
+            "Syntax",
+            "decor_fullscreen_ms",
+            |v| format!("{v:.2} ms"),
+        ),
+        (
+            "Autocommand event hooks (82.5k ops)",
+            "Plugins",
             "autocmd_suite_ms",
             |v| format!("{v:.1} ms"),
         ),
         (
-            "Delete 10k autocmds (unique patterns)",
-            "autocmd",
+            "Delete 7,500 unique autocommands",
+            "Plugins",
             "autocmd_del_unique_ms",
             |v| format!("{v:.2} ms"),
         ),
         (
-            "Extmark & virtual line suite",
-            "extmark",
-            "extmark_suite_ms",
-            |v| format!("{v:.1} ms"),
-        ),
-        (
-            "Option updates (140k calls)",
-            "option",
+            "Editor option updates (140k calls)",
+            "Config",
             "option_suite_ms",
             |v| format!("{v:.1} ms"),
-        ),
-        (
-            "Full-screen Treesitter redraw (100x50)",
-            "decor",
-            "decor_fullscreen_ms",
-            |v| format!("{v:.2} ms"),
         ),
     ];
 
     let mut out = format!(
-        r#"## Performance
-
-Measured head-to-head against retail (`CMAKE_BUILD_TYPE=Release`) builds of upstream [`neovim/neovim@{sha}`](https://github.com/neovim/neovim/commit/{sha}) (`v0.13.0-dev`) on identical hardware across **Linux** (GCC `Release` vs. `rustc --release`) and **Windows** (MSVC `Release` vs. `rustc --release`) using 3 interleaved runs via `cargo xtask benchmark --compare`:
-
-<p align="center">
-  <img src="contrib/benchmarks.svg" width="100%" alt="Performance comparison between the Rust port and upstream C Neovim on Linux and Windows">
-</p>
-
-<details>
-<summary><strong>View full benchmark table &amp; methodology</strong></summary>
-
-| Workload | Suite | Linux C | Linux Rust | Speedup | Windows C | Windows Rust | Speedup |
-|---|---|---:|---:|---:|---:|---:|---:|
-"#
+        "Benchmark summary against neovim@{sha}:\n\
+         | Workload | Category | Linux C | Linux Rust | Speedup | Windows C | Windows Rust | Speedup |\n\
+         |---|---|---:|---:|---:|---:|---:|---:|\n"
     );
-
-    for &(workload, suite, key, fmt_fn) in table_rows {
+    for &(workload, category, key, fmt_fn) in table_rows {
         let lc = median_metric(linux_c, key);
         let lr = median_metric(linux_rust, key);
         let wc = median_metric(win_c, key);
         let wr = median_metric(win_rust, key);
         let _ = writeln!(
             out,
-            "| {workload} | {suite} | {} | {} | {:.2}x | {} | {} | {:.2}x |",
+            "| {workload} | {category} | {} | {} | {:.2}x | {} | {} | {:.2}x |",
             fmt_fn(lc),
             fmt_fn(lr),
             lc / lr,
@@ -763,19 +901,6 @@ Measured head-to-head against retail (`CMAKE_BUILD_TYPE=Release`) builds of upst
             wc / wr,
         );
     }
-
-    out.push_str(
-        r#"
-**Methodology**:
-- **Speedup**: Relative speedup of the Rust port compared to upstream C (`C time ÷ Rust time`; values `> 1.00x` mean Rust is faster, and `< 1.00x` mean C is faster).
-- Both repositories are checked out at the exact same synced upstream commit (`MAINTAIN.md`) on the same filesystem (`ext4` on Linux; NTFS on Windows).
-- Upstream C is built from source with `-DCMAKE_BUILD_TYPE=Release` (`-O3 -DNDEBUG` on Linux GCC; `/O2 /Ob2 /DNDEBUG` on Windows MSVC).
-- The Rust port is built with `cargo xtask build --release` (`opt-level = 3`, `lto = "thin"`).
-- Benchmarks are executed across 3 interleaved rounds (`cargo xtask benchmark --compare --update-readme`) and the median of the 3 rounds is reported.
-
-</details>
-"#,
-    );
     out
 }
 
@@ -826,10 +951,11 @@ pub fn run_compare_benchmarks(
     let win_c = load_group("bench_win_c");
     let win_rust = load_group("bench_win_rust");
 
-    let perf_section = generate_readme_perf_section(&sha, &linux_c, &linux_rust, &win_c, &win_rust);
-    println!("\n{perf_section}");
+    let summary = format_console_summary(&sha, &linux_c, &linux_rust, &win_c, &win_rust);
+    println!("\n{summary}");
 
     if update_readme {
+        let perf_section = generate_readme_perf_section(&sha);
         let svg = generate_svg(&sha, &linux_c, &linux_rust, &win_c, &win_rust);
         let svg_path = root.join("contrib").join("benchmarks.svg");
         fs::write(&svg_path, svg).expect("failed to write contrib/benchmarks.svg");
@@ -853,5 +979,104 @@ pub fn run_compare_benchmarks(
             svg_path.display(),
             readme_path.display()
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_benchmark_text_uses_in_process_timings_not_busted_totals() {
+        let mut log = String::new();
+        log.push_str(
+            "-------- Cold startup benchmark (nvim --clean --headless +q, 25 runs): min=4.10ms, p25=4.20ms, median=5.80ms, p75=6.00ms, max=7.00ms\n",
+        );
+        log.push_str("-------- Running tests from test/benchmark/autocmd_spec.lua\n");
+        log.push_str("RUN T1 autocmd perf nvim_create_autocmd, nvim_del_autocmd (same pattern): 3.000000 ms - nvim_create_autocmd\n 0.500000 ms - nvim_del_autocmd\n");
+        log.push_str("RUN T2 autocmd perf nvim_create_autocmd, nvim_del_autocmd (unique patterns): 10.000000 ms - nvim_create_autocmd\n 1.250000 ms - nvim_del_autocmd\n");
+        for _ in 0..8 {
+            log.push_str("  2.000000 ms - op\n");
+        }
+        log.push_str("-------- 8 tests from test/benchmark/autocmd_spec.lua (9999.00 ms total)\n");
+
+        log.push_str(
+            "file: test/old/testdir/samples/re.freeze.txt, re: 0, time:   0.004000\n\
+             file: test/old/testdir/samples/re.freeze.txt, re: 1, time:   0.002000\n",
+        );
+        log.push_str(
+            "RUN T15 decor perf can handle full screen of highlighting:\n\
+             Total min, 25%, median, 75%, max:\n\t14.0ms,\t14.5ms,\t15.0ms,\t15.5ms,\t19.0ms\n",
+        );
+        log.push_str(
+            "RUN T21 extmark perf many non-wrapped virtual lines: 3.000000 ms - redraw with virt lines at the bottom\n\
+             0.035000 ms - moving cursor down to line 2\n",
+        );
+
+        log.push_str("-------- Running tests from test/benchmark/option_spec.lua\n");
+        for _ in 0..7 {
+            log.push_str(
+                "  min 0.0004  q25 0.0004  median 0.0010  q75 0.0010  max 0.0100  mean 0.0010  (ms, n=20000)\n",
+            );
+        }
+        log.push_str("-------- 7 tests from test/benchmark/option_spec.lua (8888.00 ms total)\n");
+
+        log.push_str("-------- Running tests from test/benchmark/screenpos_spec.lua\n");
+        log.push_str(
+            "RUN T30 screenpos() perf for long line, ascii, nobreakindent: min, 25%, median, 75%, max:\n\t1.40us,\t1.45us,\t1.50us,\t1.55us,\t2.00us\n",
+        );
+        log.push_str(
+            "RUN T34 screenpos() perf for long line, 3 byte utf-8, nobreakindent: min, 25%, median, 75%, max:\n\t70.00us,\t75.00us,\t80.00us,\t85.00us,\t90.00us\n",
+        );
+        for _ in 0..22 {
+            log.push_str(
+                "RUN T99 screenpos() perf for other: min, 25%, median, 75%, max:\n\t50.00us,\t50.00us,\t50.00us,\t50.00us,\t50.00us\n",
+            );
+        }
+        log.push_str(
+            "-------- 24 tests from test/benchmark/screenpos_spec.lua (77777.00 ms total)\n",
+        );
+
+        log.push_str(
+            "\nvimgrep_100k\n  min 19.0000  q25 19.5000  median 20.2500  q75 21.0000  max 22.0000  mean 20.3000  (ms, n=5)\n\
+             \nmatchfuzzy_50k\n  min 9.0000  q25 9.1000  median 9.4000  q75 9.5000  max 9.8000  mean 9.3500  (ms, n=5)\n\
+             \ndiff_linematch\n  min 105.0000  q25 108.0000  median 110.5000  q75 112.0000  max 115.0000  mean 110.1000  (ms, n=5)\n\
+             \nsort\n  min 220.0000  q25 225.0000  median 230.0000  q75 235.0000  max 240.0000  mean 230.0000  (ms, n=5)\n\
+             \nsort /\\w\\+ /\n  min 310.0000  q25 315.0000  median 320.0000  q75 325.0000  max 330.0000  mean 320.0000  (ms, n=5)\n",
+        );
+
+        log.push_str("-------- Running tests from test/benchmark/treesitter_spec.lua\n");
+        log.push_str("treesitter fold: 7.25 ms\n");
+        for _ in 0..7 {
+            log.push_str(
+                "Total min, 25%, median, 75%, max:\n\t0.40ms,\t0.45ms,\t0.50ms,\t0.55ms,\t1.00ms\n",
+            );
+        }
+        log.push_str(
+            "-------- 8 tests from test/benchmark/treesitter_spec.lua (6666.00 ms total)\n",
+        );
+
+        let parsed = parse_benchmark_text(&log);
+        assert_eq!(parsed.len(), 18);
+        assert!((parsed["autocmd_suite_ms"] - 30.75).abs() < 1e-6);
+        assert!((parsed["autocmd_del_unique_ms"] - 1.25).abs() < 1e-6);
+        assert!((parsed["option_suite_ms"] - 140.0).abs() < 1e-6);
+        assert!((parsed["screenpos_suite_s"] - 11.815).abs() < 1e-6);
+        assert!((parsed["treesitter_fold_ms"] - 7.25).abs() < 1e-6);
+        assert!((parsed["treesitter_suite_ms"] - 350.0).abs() < 1e-6);
+        assert!((parsed["vimgrep_100k_ms"] - 20.25).abs() < 1e-6);
+        assert!((parsed["matchfuzzy_50k_ms"] - 9.40).abs() < 1e-6);
+        assert!((parsed["diff_linematch_ms"] - 110.50).abs() < 1e-6);
+        assert!((parsed["sort_lines_ms"] - 230.0).abs() < 1e-6);
+        assert!((parsed["sort_pattern_ms"] - 320.0).abs() < 1e-6);
+
+        let runs = vec![parsed];
+        let svg = generate_svg("d9a842e291", &runs, &runs, &runs, &runs);
+        assert!(svg.contains("viewBox=\"0 0 960 1094\""));
+        assert!(svg.contains(".d12 { animation-delay:"));
+        assert!(svg.contains(".b12 { animation-delay:"));
+        assert!(!svg.contains("screenpos_spec.lua"));
+        assert!(!svg.contains("autocmd_spec.lua"));
+        assert!(!svg.contains("option_spec.lua"));
     }
 }
