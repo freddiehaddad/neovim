@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 240" width="100%" role="img" aria-label="Nero">
+  <defs>
+    <linearGradient id="bgBadge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a1425"/>
+      <stop offset="55%" stop-color="#0b1727"/>
+      <stop offset="100%" stop-color="#13192c"/>
+    </linearGradient>
+    <radialGradient id="ambientGlow" cx="50%" cy="45%" r="60%">
+      <stop offset="0%" stop-color="#235a83" stop-opacity="0.42"/>
+      <stop offset="100%" stop-color="#0a1425" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="leftPillar" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#61c9ff"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="rightPillar" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="48%" stop-color="#7aebba"/>
+      <stop offset="100%" stop-color="#ffbb7c"/>
+    </linearGradient>
+    <linearGradient id="diagRibbon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#61c9ff"/>
+      <stop offset="52%" stop-color="#7aebba"/>
+      <stop offset="100%" stop-color="#ffbb7c"/>
+    </linearGradient>
+    <linearGradient id="wordDark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#c7dcf5"/>
+    </linearGradient>
+    <linearGradient id="wordLight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f1d32"/>
+      <stop offset="100%" stop-color="#1e3a5f"/>
+    </linearGradient>
+    <!-- Exact same 123.5 x 130 screen-space gradient vector and stops as the N icon's diagRibbon, anchored at (674.45, 188) -->
+    <linearGradient id="rExactN" x1="550.95" y1="58" x2="674.45" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#61c9ff"/>
+      <stop offset="52%" stop-color="#7aebba"/>
+      <stop offset="100%" stop-color="#ffbb7c"/>
+    </linearGradient>
+    <!-- Smoothstep (3t^2 - 2t^3) mask starting below the R bowl junction with zero polygon seam and zero Mach-band derivative kink -->
+    <linearGradient id="rMaskGrad" x1="628" y1="140" x2="658" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#000000"/>
+      <stop offset="20%" stop-color="#1a1a1a"/>
+      <stop offset="45%" stop-color="#6b6b6b"/>
+      <stop offset="75%" stop-color="#d6d6d6"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </linearGradient>
+    <mask id="rLegMask">
+      <rect x="0" y="0" width="880" height="240" fill="#000000"/>
+      <rect x="596" y="120" width="90" height="75" fill="url(#rMaskGrad)"/>
+    </mask>
+    <!-- Clip path restricting the diagonal's fold shadow strictly to the two straight pillars -->
+    <clipPath id="pillarsClip">
+      <polygon points="104,96 192,160 192,416 104,416"/>
+      <polygon points="320,96 408,96 408,416 320,352"/>
+    </clipPath>
+    <filter id="foldBlur" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <filter id="markShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#02060d" flood-opacity="0.45"/>
+    </filter>
+    <style>
+      .wordmark { fill: url(#wordDark); }
+      @media (prefers-color-scheme: light) {
+        .wordmark { fill: url(#wordLight); }
+      }
+    </style>
+  </defs>
+
+  <!-- Left Icon Badge (scaled from 512x512 into 208x208 at x=16, y=16) -->
+  <g transform="translate(16, 16) scale(0.40625)" filter="url(#markShadow)">
+    <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bgBadge)" stroke="#3a5875" stroke-width="7"/>
+    <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#ambientGlow)"/>
+    <polygon points="104,96 192,160 192,416 104,416" fill="url(#leftPillar)"/>
+    <polygon points="320,96 408,96 408,416 320,352" fill="url(#rightPillar)"/>
+    <g clip-path="url(#pillarsClip)">
+      <polygon points="98,90 198,90 414,422 314,422" fill="#02060e" opacity="0.75" filter="url(#foldBlur)"/>
+    </g>
+    <polygon points="104,96 192,96 408,416 320,416" fill="url(#diagRibbon)"/>
+  </g>
+
+  <!-- Custom Geometric Vector Wordmark: N E R O (y = 52 .. 188, height = 136) -->
+  <g class="wordmark">
+    <!-- Letter N (x = 264 .. 384) -->
+    <path d="M 264,52 L 298,52 L 354,136 L 354,52 L 384,52 L 384,188 L 350,188 L 294,104 L 294,188 L 264,188 Z"/>
+
+    <!-- Letter E (x = 414 .. 522, with angled middle blade) -->
+    <path d="M 414,52 L 522,52 L 510,78 L 444,78 L 444,107 L 504,107 L 494,131 L 444,131 L 444,162 L 522,162 L 522,188 L 414,188 Z"/>
+
+    <!-- Letter R (x = 552 .. 674.45, with leg at exact 27:40 slope of the N slash: dx=36.45, dy=54) -->
+    <path fill-rule="evenodd" d="M 552,52 L 626,52 C 654,52 670,67 670,94 C 670,114 658,128 638,134 L 674.45,188 L 640.45,188 L 604,134 L 582,134 L 582,188 L 552,188 Z M 582,78 L 582,111 L 622,111 C 634,111 640,105 640,94 C 640,84 634,78 622,78 Z"/>
+    <path fill="url(#rExactN)" mask="url(#rLegMask)" fill-rule="evenodd" d="M 552,52 L 626,52 C 654,52 670,67 670,94 C 670,114 658,128 638,134 L 674.45,188 L 640.45,188 L 604,134 L 582,134 L 582,188 L 552,188 Z M 582,78 L 582,111 L 622,111 C 634,111 640,105 640,94 C 640,84 634,78 622,78 Z"/>
+
+    <!-- Letter O (x = 702 .. 838, chamfered octagon-oval) -->
+    <path fill-rule="evenodd" d="M 744,52 L 796,52 C 822,52 838,68 838,94 L 838,146 C 838,172 822,188 796,188 L 744,188 C 718,188 702,172 702,146 L 702,94 C 702,68 718,52 744,52 Z M 748,78 C 737,78 732,83 732,94 L 732,146 C 732,157 737,162 748,162 L 792,162 C 803,162 808,157 808,146 L 808,94 C 808,83 803,78 792,78 Z"/>
+  </g>
+</svg>

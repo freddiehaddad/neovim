@@ -1,3 +1,4 @@
+use crate::branding::DISPLAY_NAME;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::fs;
@@ -525,8 +526,8 @@ pub fn generate_svg(
         ),
     ];
 
-    let bar_x = 350_i32;
-    let max_bar_w = 405.0_f64;
+    let bar_x = 362_i32;
+    let max_bar_w = 385.0_f64;
     let base_y = 100_i32;
     let row_h = 82_i32;
     let canvas_h = base_y + (rows.len() as i32) * row_h + 10;
@@ -544,7 +545,7 @@ pub fn generate_svg(
     }
 
     let mut svg = format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 {canvas_h}" width="100%" role="img" aria-label="Neovim Rust Port vs Upstream C Performance Benchmarks (Linux and Windows)">
+        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 {canvas_h}" width="100%" role="img" aria-label="{DISPLAY_NAME} vs. Neovim Performance Benchmarks (Linux and Windows)">
   <defs>
     <linearGradient id="backdrop" x2="1" y2="1">
       <stop stop-color="#0a1425"/>
@@ -644,18 +645,18 @@ pub fn generate_svg(
   <rect class="frame" x="8" y="8" width="944" height="{frame_h}" rx="10"/>
 
   <!-- Header -->
-  <text class="title" x="28" y="38">Head-to-Head Editor Benchmarks: Rust Port vs. Upstream C (neovim@{sha})</text>
-  <text class="subtitle" x="28" y="58">Release build execution time (shorter bars = faster; badges show Rust speedup over C).</text>
+  <text class="title" x="28" y="38">Head-to-Head Editor Benchmarks: {DISPLAY_NAME} vs. Neovim (neovim@{sha})</text>
+  <text class="subtitle" x="28" y="58">Release build execution time (shorter bars = faster; badges show {DISPLAY_NAME} speedup over Neovim).</text>
 
   <!-- Legend -->
   <rect x="28" y="70" width="12" height="12" rx="3" fill="url(#rustLinuxBar)"/>
-  <text class="legend" x="46" y="80">Rust / Linux (rustc)</text>
+  <text class="legend" x="46" y="80">{DISPLAY_NAME} / Linux (rustc)</text>
   <rect x="210" y="70" width="12" height="12" rx="3" fill="url(#cLinuxBar)"/>
-  <text class="legend" x="228" y="80">Upstream C / Linux (GCC)</text>
+  <text class="legend" x="228" y="80">Neovim / Linux (GCC)</text>
   <rect x="415" y="70" width="12" height="12" rx="3" fill="url(#rustWinBar)"/>
-  <text class="legend" x="433" y="80">Rust / Windows (rustc)</text>
+  <text class="legend" x="433" y="80">{DISPLAY_NAME} / Windows (rustc)</text>
   <rect x="615" y="70" width="12" height="12" rx="3" fill="url(#cWinBar)"/>
-  <text class="legend" x="633" y="80">Upstream C / Windows (MSVC)</text>
+  <text class="legend" x="633" y="80">Neovim / Windows (MSVC)</text>
 
   <line class="divider" x1="28" y1="92" x2="932" y2="92"/>
 "##
@@ -687,30 +688,30 @@ pub fn generate_svg(
     <text class="metric-title" x="28" y="28">{title}</text>
     <text class="metric-desc" x="28" y="46">{desc}</text>
 
-    <text class="row-tag" x="340" y="15">Rust / Linux</text>
-    <rect class="track" x="{bar_x}" y="5" width="405" height="11" rx="3"/>
+    <text class="row-tag" x="352" y="15">{DISPLAY_NAME} / Linux</text>
+    <rect class="track" x="{bar_x}" y="5" width="385" height="11" rx="3"/>
     <rect class="bar d{row_num}" x="{bar_x}" y="5" width="{w_rl}" height="11" rx="3" fill="url(#rustLinuxBar)"/>
     <text class="val-rl b{row_num}" x="{}" y="14">{}</text>
 
-    <text class="row-tag" x="340" y="31">C / Linux</text>
-    <rect class="track" x="{bar_x}" y="21" width="405" height="11" rx="3"/>
+    <text class="row-tag" x="352" y="31">Neovim / Linux</text>
+    <rect class="track" x="{bar_x}" y="21" width="385" height="11" rx="3"/>
     <rect class="bar d{row_num}" x="{bar_x}" y="21" width="{w_cl}" height="11" rx="3" fill="url(#cLinuxBar)"/>
     <text class="val-cl b{row_num}" x="{}" y="30">{}</text>
 
-    <text class="row-tag" x="340" y="47">Rust / Win</text>
-    <rect class="track" x="{bar_x}" y="37" width="405" height="11" rx="3"/>
+    <text class="row-tag" x="352" y="47">{DISPLAY_NAME} / Windows</text>
+    <rect class="track" x="{bar_x}" y="37" width="385" height="11" rx="3"/>
     <rect class="bar d{row_num}" x="{bar_x}" y="37" width="{w_rw}" height="11" rx="3" fill="url(#rustWinBar)"/>
     <text class="val-rw b{row_num}" x="{}" y="46">{}</text>
 
-    <text class="row-tag" x="340" y="63">C / Win</text>
-    <rect class="track" x="{bar_x}" y="53" width="405" height="11" rx="3"/>
+    <text class="row-tag" x="352" y="63">Neovim / Windows</text>
+    <rect class="track" x="{bar_x}" y="53" width="385" height="11" rx="3"/>
     <rect class="bar d{row_num}" x="{bar_x}" y="53" width="{w_cw}" height="11" rx="3" fill="url(#cWinBar)"/>
     <text class="val-cw b{row_num}" x="{}" y="62">{}</text>
 
-    <rect class="badge-{cls_l} b{row_num}" x="826" y="8" width="106" height="24" rx="12"/>
-    <text class="badge-label-{cls_l} b{row_num}" x="879" y="24">Linux: {spd_l:.2}x</text>
-    <rect class="badge-{cls_w} b{row_num}" x="826" y="38" width="106" height="24" rx="12"/>
-    <text class="badge-label-{cls_w} b{row_num}" x="879" y="54">Win: {spd_w:.2}x</text>
+    <rect class="badge-{cls_l} b{row_num}" x="814" y="8" width="118" height="24" rx="12"/>
+    <text class="badge-label-{cls_l} b{row_num}" x="873" y="24">Linux: {spd_l:.2}x</text>
+    <rect class="badge-{cls_w} b{row_num}" x="814" y="38" width="118" height="24" rx="12"/>
+    <text class="badge-label-{cls_w} b{row_num}" x="873" y="54">Windows: {spd_w:.2}x</text>
   </g>
 "#,
             title.replace("&amp;", "&"),
@@ -742,19 +743,19 @@ pub fn generate_readme_perf_section(sha: &str) -> String {
     format!(
         r#"## Performance
 
-Measured head-to-head against release builds of upstream [`neovim/neovim@{sha}`](https://github.com/neovim/neovim/commit/{sha}) on the same hardware across **Linux** (GCC vs. `rustc`) and **Windows** (MSVC vs. `rustc`), reporting the median of 3 interleaved runs:
+Measured head-to-head against release builds of [`neovim/neovim@{sha}`](https://github.com/neovim/neovim/commit/{sha}) on the same hardware across **Linux** (GCC vs. `rustc`) and **Windows** (MSVC vs. `rustc`), reporting the median of 3 interleaved runs:
 
 <p align="center">
-  <img src="contrib/benchmarks.svg" width="100%" alt="Performance comparison between the Rust port and upstream C Neovim on Linux and Windows">
+  <img src="contrib/benchmarks.svg" width="100%" alt="Performance comparison between {DISPLAY_NAME} and Neovim on Linux and Windows">
 </p>
 
 <details>
 <summary><strong>Benchmark methodology</strong></summary>
 
-- **Speedup**: Relative speedup of the Rust port over upstream C (`C time ÷ Rust time`; values above `1.00x` mean Rust is faster, and below `1.00x` mean C is faster).
+- **Speedup**: Relative speedup of {DISPLAY_NAME} over Neovim (`Neovim time ÷ {DISPLAY_NAME} time`; values above `1.00x` mean {DISPLAY_NAME} is faster, and below `1.00x` mean Neovim is faster).
 - **In-process timing**: Editor operations are timed inside the running editor with high-resolution timers (`vim.uv.hrtime()` / `reltime()`) so test-runner startup is never mixed into workload measurements.
-- **Same commit & hardware**: Both builds are compiled from the same synced upstream commit (`MAINTAIN.md`) on the same machine and filesystem (`ext4` on Linux; NTFS on Windows).
-- **Release optimization**: Upstream C is built with `-DCMAKE_BUILD_TYPE=Release` (`-O3 -DNDEBUG` on GCC; `/O2 /Ob2 /DNDEBUG` on MSVC), and the Rust port is built with `cargo xtask build --release` (`opt-level = 3`, `lto = "thin"`).
+- **Same commit & hardware**: Both builds are compiled from the same synced commit (`MAINTAIN.md`) on the same machine and filesystem (`ext4` on Linux; NTFS on Windows).
+- **Release optimization**: Neovim is built with `-DCMAKE_BUILD_TYPE=Release` (`-O3 -DNDEBUG` on GCC; `/O2 /Ob2 /DNDEBUG` on MSVC), and {DISPLAY_NAME} is built with `cargo xtask build --release` (`opt-level = 3`, `lto = "thin"`).
 - **Reproducible runner**: Run `cargo xtask benchmark --compare --update-readme` to execute 3 interleaved rounds across both platforms and regenerate `contrib/benchmarks.svg`.
 
 </details>
@@ -879,7 +880,7 @@ pub fn format_console_summary(
 
     let mut out = format!(
         "Benchmark summary against neovim@{sha}:\n\
-         | Workload | Category | Linux C | Linux Rust | Speedup | Windows C | Windows Rust | Speedup |\n\
+         | Workload | Category | Linux Neovim | Linux {DISPLAY_NAME} | Speedup | Windows Neovim | Windows {DISPLAY_NAME} | Speedup |\n\
          |---|---|---:|---:|---:|---:|---:|---:|\n"
     );
     for &(workload, category, key, fmt_fn) in table_rows {

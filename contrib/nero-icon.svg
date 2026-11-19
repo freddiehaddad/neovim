@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%" role="img" aria-label="Nero icon">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a1425"/>
+      <stop offset="55%" stop-color="#0b1727"/>
+      <stop offset="100%" stop-color="#13192c"/>
+    </linearGradient>
+    <radialGradient id="ambientGlow" cx="50%" cy="45%" r="60%">
+      <stop offset="0%" stop-color="#235a83" stop-opacity="0.42"/>
+      <stop offset="100%" stop-color="#0a1425" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="leftPillar" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#61c9ff"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="rightPillar" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="48%" stop-color="#7aebba"/>
+      <stop offset="100%" stop-color="#ffbb7c"/>
+    </linearGradient>
+    <linearGradient id="diagRibbon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#61c9ff"/>
+      <stop offset="52%" stop-color="#7aebba"/>
+      <stop offset="100%" stop-color="#ffbb7c"/>
+    </linearGradient>
+    <!-- Clip path restricting the diagonal's fold shadow strictly to the two straight pillars -->
+    <clipPath id="pillarsClip">
+      <polygon points="104,96 192,160 192,416 104,416"/>
+      <polygon points="320,96 408,96 408,416 320,352"/>
+    </clipPath>
+    <filter id="foldBlur" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#02060d" flood-opacity="0.65"/>
+    </filter>
+  </defs>
+
+  <!-- Rounded squircle badge background -->
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bgGrad)" stroke="#3a5875" stroke-width="6"/>
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#ambientGlow)"/>
+
+  <!-- Clean flat-cut folded ribbon N with clipped fold shadow behind the diagonal -->
+  <g filter="url(#dropShadow)">
+    <polygon points="104,96 192,160 192,416 104,416" fill="url(#leftPillar)"/>
+    <polygon points="320,96 408,96 408,416 320,352" fill="url(#rightPillar)"/>
+    <g clip-path="url(#pillarsClip)">
+      <polygon points="98,90 198,90 414,422 314,422" fill="#02060e" opacity="0.75" filter="url(#foldBlur)"/>
+    </g>
+    <polygon points="104,96 192,96 408,416 320,416" fill="url(#diagRibbon)"/>
+  </g>
+</svg>

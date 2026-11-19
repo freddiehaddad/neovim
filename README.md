@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/neovim/neovim.github.io/master/static/logos/neovim-logo-300x87.png" alt="Neovim">
-  <h3>The editor you know, rebuilt in Rust.</h3>
+  <img src="contrib/nero-logo.svg" width="360" alt="Nero">
+  <h3>The Neovim you know, rebuilt in Rust.</h3>
 </div>
 
 ---
@@ -26,19 +26,19 @@ It is a drop-in replacement for upstream Neovim, not a from-scratch rewrite with
 
 ## Performance
 
-Measured head-to-head against release builds of upstream [`neovim/neovim@d9a842e291`](https://github.com/neovim/neovim/commit/d9a842e291) on the same hardware across **Linux** (GCC vs. `rustc`) and **Windows** (MSVC vs. `rustc`), reporting the median of 3 interleaved runs:
+Measured head-to-head against release builds of [`neovim/neovim@d9a842e291`](https://github.com/neovim/neovim/commit/d9a842e291) on the same hardware across **Linux** (GCC vs. `rustc`) and **Windows** (MSVC vs. `rustc`), reporting the median of 3 interleaved runs:
 
 <p align="center">
-  <img src="contrib/benchmarks.svg" width="100%" alt="Performance comparison between the Rust port and upstream C Neovim on Linux and Windows">
+  <img src="contrib/benchmarks.svg" width="100%" alt="Performance comparison between Nero and Neovim on Linux and Windows">
 </p>
 
 <details>
 <summary><strong>Benchmark methodology</strong></summary>
 
-- **Speedup**: Relative speedup of the Rust port over upstream C (`C time ÷ Rust time`; values above `1.00x` mean Rust is faster, and below `1.00x` mean C is faster).
+- **Speedup**: Relative speedup of Nero over Neovim (`Neovim time ÷ Nero time`; values above `1.00x` mean Nero is faster, and below `1.00x` mean Neovim is faster).
 - **In-process timing**: Editor operations are timed inside the running editor with high-resolution timers (`vim.uv.hrtime()` / `reltime()`) so test-runner startup is never mixed into workload measurements.
-- **Same commit & hardware**: Both builds are compiled from the same synced upstream commit (`MAINTAIN.md`) on the same machine and filesystem (`ext4` on Linux; NTFS on Windows).
-- **Release optimization**: Upstream C is built with `-DCMAKE_BUILD_TYPE=Release` (`-O3 -DNDEBUG` on GCC; `/O2 /Ob2 /DNDEBUG` on MSVC), and the Rust port is built with `cargo xtask build --release` (`opt-level = 3`, `lto = "thin"`).
+- **Same commit & hardware**: Both builds are compiled from the same synced commit (`MAINTAIN.md`) on the same machine and filesystem (`ext4` on Linux; NTFS on Windows).
+- **Release optimization**: Neovim is built with `-DCMAKE_BUILD_TYPE=Release` (`-O3 -DNDEBUG` on GCC; `/O2 /Ob2 /DNDEBUG` on MSVC), and Nero is built with `cargo xtask build --release` (`opt-level = 3`, `lto = "thin"`).
 - **Reproducible runner**: Run `cargo xtask benchmark --compare --update-readme` to execute 3 interleaved rounds across both platforms and regenerate `contrib/benchmarks.svg`.
 
 </details>
