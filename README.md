@@ -1,9 +1,6 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/neovim/neovim.github.io/master/static/logos/neovim-logo-300x87.png" alt="Neovim">
   <h3>The editor you know, rebuilt in Rust.</h3>
-
-  [![Test](https://github.com/freddiehaddad/neovim/actions/workflows/test.yml/badge.svg)](https://github.com/freddiehaddad/neovim/actions/workflows/test.yml)
-  [![Downloads](https://img.shields.io/github/downloads/freddiehaddad/neovim/total.svg?maxAge=2592001)](https://github.com/freddiehaddad/neovim/releases/)
 </div>
 
 ---
@@ -14,16 +11,18 @@ It is a drop-in replacement for upstream Neovim, not a from-scratch rewrite with
 
 ### What stays the same
 
-- **All your Lua and Vimscript plugins**: `lazy.nvim`, `telescope.nvim`, `nvim-treesitter`, `blink.cmp`, `gitsigns.nvim`, `mason.nvim`, and the rest of the ecosystem run unmodified on the same embedded LuaJIT runtime.
-- **Built-in LSP, Treesitter, and diagnostic engine**: Shares the exact `runtime/` Lua standard library (`vim.lsp`, `vim.treesitter`, `vim.diagnostic`) and tracks upstream `neovim/neovim` commits continuously.
-- **External GUIs and RPC clients**: 100% compatible with the Neovim Msgpack-RPC protocol (`neovide`, `nvim-qt`, `fvim`, `pynvim`, `neovim-node-client`, and remote plugins).
+- **Full plugin compatibility**: If a Lua or Vimscript plugin works in Neovim, it works here too—unmodified—on the same embedded LuaJIT runtime and editor API.
+- **Built-in LSP, Treesitter, and diagnostics**: Ships with the same `runtime/` standard library (`vim.lsp`, `vim.treesitter`, `vim.diagnostic`) and tracks upstream `neovim/neovim` continuously.
+- **External GUIs and RPC clients**: Speaks the exact same Msgpack-RPC protocol, so graphical frontends, language hosts, and remote plugins connect without changes.
 - **Every Vim feature you rely on**: Macros, registers, marks, folds, diff mode, spell checking, quickfix, terminal buffers, and `:help`.
 
 ### What changed under the hood
 
-- **Zero `.c` or `.h` files in the repository**: All 460K+ lines of the editor core (`src/nvim/`) plus formerly vendored C libraries (`libvterm`, `libtermkey`, `unibilium`, `libmpack`, `lua-cjson`, `LPeg`, `xdiff`, `xxd`, `tee`) are native Rust (`edition = "2024"`).
-- **Standard Cargo workflow**: No CMake, Ninja, or Luarocks bootstrap. `cargo xtask install` builds and installs the editor in one step.
-- **Validated against the full test suite**: Passes all 274 functional test suites, 131 legacy Vim test suites, and 1,000+ Rust unit tests across Linux, macOS, and Windows.
+- **Memory-safe Rust core with zero `.c` or `.h` files**: The entire editor core (`src/nvim/`) plus formerly vendored C libraries (`libvterm`, `libtermkey`, `unibilium`, `libmpack`, `lua-cjson`, `LPeg`, `xdiff`, `xxd`, `tee`) are native Rust (`edition = "2024"`), with `unsafe` confined strictly to C-ABI boundaries.
+- **Multi-core parallelism where C is single-threaded**: Heavy workloads—including buffer-wide search (`:vimgrep`, `:global`), fuzzy file and symbol matching (`matchfuzzy`), side-by-side diff alignment (`linematch`), spell suggestions, and swap serialization—scale automatically across CPU cores.
+- **Faster in-memory data structures**: Replaces C linked lists, linear scans, and 4KB pointer-paged line tables with contiguous Rust vectors, chunked line storage, and fast hash tables—speeding up soft-wrapping, virtual-text motion, option updates, and autocommand handling.
+- **Pre-compiled built-in Lua runtime**: Core `runtime/lua/` modules are compiled to LuaJIT bytecode at build time, reducing startup and module-load overhead.
+- **Single-command Cargo build**: No CMake, Ninja, or Luarocks bootstrap. `cargo xtask install` builds and installs the editor in one step, validated against the full functional, legacy Vim, Rust unit, and Miri lifetime test suites across Linux, macOS, and Windows.
 
 ## Performance
 
@@ -106,19 +105,22 @@ cargo xtask lint              # run clippy, stylua, error-code, and vimdoc linte
 │  │  ├─ lua/          LuaJIT runtime bridge & Treesitter C API bindings
 │  │  ├─ msgpack_rpc/  Msgpack-RPC channel, packer, and unpacker
 │  │  ├─ os/           Platform filesystem, environment, signal, and shell abstractions
-│  │  ├─ tui/          Terminal UI renderer & termkey input driver
+│  │  ├─ tui/          Terminal UI renderer, termkey input driver, and terminfo parser
 │  │  ├─ viml/         Vimscript parser & expression lexer
 │  │  └─ vterm/        Rust port of libvterm
 │  ├─ cjson/           Rust port of lua-cjson
 │  ├─ lpeg/            Rust port of LPeg
 │  ├─ mpack/           Rust port of libmpack / lmpack
-│  ├─ unibilium/       Rust port of unibilium terminfo parser
 │  ├─ xdiff/           Rust port of git xdiff
 │  ├─ gen/             Documentation & metadata generators
 │  ├─ tee/             Rust tee helper binary
 │  ├─ xxd/             Rust xxd hex dump utility
 │  └─ xtask/           Cargo build, test, benchmark, lint, and packaging runner
-└─ test/               Functional, benchmark, and legacy Vim test suites
+└─ test/
+   ├─ functional/      Lua functional & RPC test suites
+   ├─ old/             Legacy Vimscript test suites
+   ├─ benchmark/       Performance benchmark suites
+   └─ event-lifetimes/ Miri callback & handle lifetime test crate
 ```
 
 ## Contributing & Maintenance
