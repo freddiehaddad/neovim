@@ -1554,8 +1554,8 @@ pub fn nvim_get_commands(opts: &mut KeyDictGetCommands) -> Result<Dict, Error> {
 /// @param[out]  err   Error details, if any.
 ///
 /// @returns Map of maps describing commands.
-// DLLEXPORT DictAs(command_info) nvim_buf_get_commands(Buffer buf, Dict(get_commands) *opts,
-//                                                      Arena *arena, Error *err)
+// DLLEXPORT DictOf(DictAs(command_info)) nvim_buf_get_commands(Buffer buf, Dict(get_commands) *opts,
+//                                                             Arena *arena, Error *err)
 //   FUNC_API_SINCE(4);
 pub fn nvim_buf_get_commands(buf: Buffer, opts: &mut KeyDictGetCommands) -> Result<Dict, Error> {
     let global = buf == -1;
