@@ -308,7 +308,6 @@ fn strnicmp_ascii(a: &[u8], b: &[u8]) -> bool {
 
 pub fn event_init() {
     loop_init(crate::event::r#loop::main_loop());
-    crate::os::input::breakcheck_init();
     env_init();
     let queues = loop_queues(crate::event::r#loop::main_loop());
     screen_state()

@@ -65,7 +65,6 @@ struct OsInputState {
     cursorhold_time: std::cell::Cell<u64>,
     cursorhold_tb_change_cnt: std::cell::Cell<i32>,
     breakcheck_count: std::cell::Cell<u32>,
-    breakcheck_mask: std::cell::Cell<u32>,
     orig_num_clicks: std::cell::Cell<i32>,
     orig_mouse_code: std::cell::Cell<i32>,
     orig_mouse_grid: std::cell::Cell<i32>,
@@ -85,7 +84,6 @@ impl OsInputState {
             cursorhold_time: std::cell::Cell::new(0),
             cursorhold_tb_change_cnt: std::cell::Cell::new(0),
             breakcheck_count: std::cell::Cell::new(0),
-            breakcheck_mask: std::cell::Cell::new(0),
             orig_num_clicks: std::cell::Cell::new(0),
             orig_mouse_code: std::cell::Cell::new(0),
             orig_mouse_grid: std::cell::Cell::new(0),
@@ -305,34 +303,11 @@ pub fn os_breakcheck() {
     loop_poll_events(loop_, 0);
 }
 
-pub fn breakcheck_init() {
-    // Measure os_hrtime performance to decide how frequently line_breakcheck should read it.
-    let start = os_hrtime();
-    let mut end = start;
-    for _ in 0..32 {
-        end = os_hrtime();
-    }
-    // Read the clock less often if it takes >50ns (presumably a kernel fallback to HPET/ACPI).
-    let mask = if end.saturating_sub(start) > 32 * 50 {
-        31
-    } else {
-        0
-    };
-    osi_st(|st| st.breakcheck_mask.set(mask));
-}
-
 /// Calls `os_breakcheck()` if main loop has not polled for 20ms.
 /// For loops that check per-line or per-command: CTRL-C is caught after ~20ms or 1 iteration.
 #[inline]
 pub fn line_breakcheck() {
-    let should_read_clock = osi_st(|st| {
-        let c = st.breakcheck_count.get().wrapping_add(1);
-        st.breakcheck_count.set(c);
-        (c & st.breakcheck_mask.get()) == 0
-    });
-    if should_read_clock
-        && os_hrtime().saturating_sub(main_loop().poll_time.get()) >= BREAKCHECK_NS
-    {
+    if os_hrtime().saturating_sub(main_loop().poll_time.get()) >= BREAKCHECK_NS {
         os_breakcheck();
     }
 }
