@@ -2079,17 +2079,15 @@ pub fn win_line(
             extra_check = true;
         }
     });
-    if wp.w_onebuf_opt.wo_lbr.get() && line_has_extconceal(wp, lnum) {
-        let len = ml_get_buf_len(&wp.buf(), lnum);
-        conceal_spans_collect(wp, lnum - 1, len, &mut conceal_spans);
-    }
-
     if wlv.fromcol >= wlv.tocol {
         wlv.fromcol = -1;
     }
 
     let mut has_search_hl = false;
     if col_rows == 0 && draw_text && !has_foldtext {
+        if wp.w_onebuf_opt.wo_lbr.get() && line_has_extconceal(wp, lnum) {
+            conceal_spans_collect(wp, lnum - 1, &mut conceal_spans);
+        }
         let v = ((ptr as isize) - (line as isize)) as i32;
         has_search_hl = search_state().with_screen_search_hl_mut(|shl| {
             prepare_search_hl_line(

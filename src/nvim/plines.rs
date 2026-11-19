@@ -302,7 +302,10 @@ pub fn linetabsize_eol(wp: &WinInfoInfo, lnum: Linenr) -> i32 {
 /// Whether extmark-conceal may hide cells on line `lnum` of `wp` (see has_extconceal()), and
 /// 'concealcursor' does not reveal the line. Cheap: does not walk the marktree.
 pub fn line_has_extconceal(wp: &WinInfoInfo, lnum: Linenr) -> bool {
-    lnum > 0 && has_extconceal(wp) && !conceal_cursor_reveals_line(wp, lnum)
+    lnum > 0
+        && lnum <= wp.with_buf(|buf| buf.b_ml.ml_line_count.get())
+        && has_extconceal(wp)
+        && !conceal_cursor_reveals_line(wp, lnum)
 }
 
 /// Whether extmark-conceal (see CharsizeArg.extconceal_off), including marks an `_on_conceal`
@@ -398,8 +401,7 @@ pub fn init_charsize_arg_extconceal<'a>(
     spans.clear();
     if line_has_extconceal(wp, lnum) {
         decor_providers_invoke_conceal(wp, lnum - 1, false);
-        let len = wp.with_buf(|buf| ml_get_buf_len(buf, lnum));
-        conceal_spans_collect(wp, lnum - 1, len, spans);
+        conceal_spans_collect(wp, lnum - 1, spans);
     }
     let line = wp.with_buf(|buf| ml_get_buf(buf, lnum));
     let cstype = init_charsize_arg(csarg, wp, lnum, line);
@@ -420,8 +422,7 @@ fn with_charsize_arg_extconceal<R>(
     spans.clear();
     if line_has_extconceal(wp, lnum) {
         decor_providers_invoke_conceal(wp, lnum - 1, false);
-        let len = wp.with_buf(|buf| ml_get_buf_len(buf, lnum));
-        conceal_spans_collect(wp, lnum - 1, len, spans);
+        conceal_spans_collect(wp, lnum - 1, spans);
     }
     wp.with_buf(|buf| {
         crate::memline::with_ml_buf_line(buf, lnum, |line| {
@@ -481,12 +482,12 @@ fn inline_virt_text_width(wp: &WinInfoInfo, iter: &mut MarkTreeIter, row: i32, c
     width
 }
 
-/// Collects the extmark-conceal of row `row` (`len` bytes) into `spans`, without invoking
-/// `_on_conceal`.
-pub fn conceal_spans_collect(wp: &WinInfoInfo, row: i32, len: i32, spans: &mut ConcealSpans) {
+/// Collects the extmark-conceal of row `row` into `spans`, without invoking `_on_conceal`.
+pub fn conceal_spans_collect(wp: &WinInfoInfo, row: i32, spans: &mut ConcealSpans) {
     if !decor_row_has_conceal(wp, row) {
         return;
     }
+    let len = wp.with_buf(|buf| ml_get_buf_len(buf, row + 1));
     let mut state = DecorState::new();
     state.conceal_only = true;
     decor_redraw_reset(wp, &mut state);
@@ -1308,8 +1309,7 @@ pub fn getvcol(
     let mut spans = ConcealSpans::new();
     if (flags & GETVCOL_DISP) != 0 && line_has_extconceal(wp, pos.lnum) {
         decor_providers_invoke_conceal(wp, pos.lnum - 1, false);
-        let len = wp.with_buf(|buf| ml_get_buf_len(buf, pos.lnum));
-        conceal_spans_collect(wp, pos.lnum - 1, len, &mut spans);
+        conceal_spans_collect(wp, pos.lnum - 1, &mut spans);
     }
     wp.with_buf(|buf| {
         crate::memline::with_ml_buf_line(buf, pos.lnum, |line_bytes| {
