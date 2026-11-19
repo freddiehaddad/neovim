@@ -51,7 +51,7 @@ use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::str2special;
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::path::path_with_url;
-use crate::regexp::{RE_AUTO, RE_MAGIC, RE_NOBREAK, RE_STRICT, Regmatch, vim_regcomp, vim_regexec};
+use crate::regexp::{RE_AUTO, RE_MAGIC, RE_STRICT, Regmatch, vim_regcomp, vim_regexec};
 use crate::runtime::script_autoload;
 use crate::viml::parser::parser::CONV_NONE;
 use crate::window::win_find_tabpage;
@@ -97,6 +97,9 @@ extern "C-unwind" fn regex_match_str(lstate: *mut lua_State) -> i32 {
 
     if regex.prog.is_null() {
         return luaL_error_cstr(lstate, c"regex: internal error");
+    }
+    if input_state().got_int.get() {
+        return luaL_error_cstr(lstate, c"interrupted");
     }
 
     nret
@@ -161,6 +164,9 @@ extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
 
     if regex.prog.is_null() {
         return luaL_error_cstr(lstate, c"regex: internal error");
+    }
+    if input_state().got_int.get() {
+        return luaL_error_cstr(lstate, c"interrupted");
     }
 
     nret
@@ -275,7 +281,7 @@ pub extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let prog = vim_regcomp(text.to_bytes(), RE_AUTO | RE_MAGIC | RE_STRICT | RE_NOBREAK);
+    let prog = vim_regcomp(text.to_bytes(), RE_AUTO | RE_MAGIC | RE_STRICT);
     if let Err(err) = try_leave(&tstate) {
         luaL_where_safe(lstate, 1);
         lua_push_bytes(lstate, b"couldn't parse regex: ");
