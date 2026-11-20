@@ -115,5 +115,5 @@ cargo xtask lint              # run clippy, stylua, error-code, and vimdoc linte
 
 ## License
 
-Neovim contributions since [`b17d96`](https://github.com/neovim/neovim/commit/b17d9691a24099c9210289f16afb1a498a89d803) are licensed under the Apache 2.0 license, except for contributions ported from Vim. See [LICENSE.txt](./LICENSE.txt) for details.
+Nero is licensed under the same terms as Neovim: Apache 2.0, except for portions contributed under the Vim license. Third-party components may have separate license terms; see [LICENSE.txt](./LICENSE.txt) and the license files accompanying those components.
 
