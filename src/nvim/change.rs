@@ -854,10 +854,13 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         && utfc_ptr2len(oldp_bytes.get(col_u..).unwrap_or(&[])) >= count
     {
         let p0 = oldp_bytes.get(col_u..).unwrap_or(&[]);
-        let step0 = (utf_ptr2len(p0) as usize).min(p0.len());
+        let mut n = col + utf_ptr2len(p0);
         let mut state = GRAPHEME_STATE_INIT;
-        if utf_composinglike(p0, &p0[step0..], Some(&mut state)) {
-            let mut n = col;
+        if utf_composinglike(
+            p0,
+            oldp_bytes.get(n as usize..).unwrap_or(&[]),
+            Some(&mut state),
+        ) {
             loop {
                 col = n;
                 let rem_n = oldp_bytes.get(n as usize..).unwrap_or(&[]);
