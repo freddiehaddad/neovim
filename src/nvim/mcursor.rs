@@ -44,7 +44,7 @@ use crate::input_cmdatom::{
     CmdAtom, CmdOrigin, Cmdarg, K_AINSERT_SPAN, K_AMOTION, K_AVISUAL_SPAN, K_KEY_INS_FLUSH,
     atom_cmd_spec, atom_composite_active, atom_composite_queued, atom_did_global_op,
     atom_key_class, atom_lhs_replay_queue, atom_push_raw, atom_suppress, atom_visual_reset,
-    atom_visual_span, with_atom,
+    with_atom,
 };
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_COMMAND, K_SPECIAL, NL};
@@ -372,24 +372,94 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
     set_vim_var_bool(VV_CASCADING, K_BOOL_VAR_FALSE_CONST);
 }
 
-fn mc_execute(cursoridx: usize, atomidx: usize) {
+/// Loads cursor `ctx` to replay (or dry-run) `atom` there. Drops a cursor that cannot replay (e.g.
+/// "gv" without a Visual area).
+///
+/// @param overlap  Primary-overlapping cursor-mark. 0: none.
+/// @return  Flags of the loaded state, for ctx_save() after the replay. 0: cursor does not replay.
+fn mc_ctx_load(ctx: &mut Context, atom: &CmdAtom, overlap: u32) -> i32 {
+    if !mc_cur_resolve(ctx.buf, ctx.mark, Some(&mut ctx.pos))
+        || (overlap != 0 && ctx.mark == overlap)
+    {
+        return 0;
+    }
+    let keys_bytes = atom.keys.as_deref().map_or(&[][..], CStr::to_bytes);
+    if ctx.visual.vi_start.lnum == 0
+        && !atom.remap
+        && crate::charset::skipdigits_slice(keys_bytes).starts_with(b"gv")
+    {
+        // Cascading "gv", but no Visual-reselect is defined for this cursor, so drop it.
+        extmark_del_id(&curbuf(), mc_ns(), ctx.mark); // Swept by mc_cleanup().
+        return 0;
+    }
+
+    // Perf: motions never set cursor-local marks; skip save/restore.
+    // Except motions (`.) that read them, and LHS-replay.
+    let mark_cmd = if atom.spec.cmd == b'g' as i32 {
+        atom.spec.cmd2
+    } else {
+        atom.spec.cmd
+    };
+    let swap_marks = atom.r#type != K_AMOTION
+        || atom.remap
+        || mark_cmd == b'\'' as i32
+        || mark_cmd == b'`' as i32;
+    let flags = if swap_marks {
+        K_CTX_VISUAL | K_CTX_MARKS | K_CTX_CURSOR
+    } else {
+        K_CTX_CURSOR
+    };
+    ctx_load(ctx, flags, 0);
+
+    // Edits by other cursors may have invalidated this cursor's position.
+    if atom.r#type == K_AINSERT_SPAN {
+        // The anchor may be one past EOL (the insertion point); edit() accepts that.
+        // Not check_cursor(): would clamp onto last char (a previous span may have set MODE_NORMAL).
+        curwin().w_cursor.update_mut(|c| check_pos(&curbuf(), c));
+    } else {
+        check_cursor(&curwin());
+    }
+
+    // The active selection is global (ctx_load() does not swap it per cursor).
+    if atom.r#type == K_AVISUAL_SPAN {
+        edit_state().visual_global.active.set(false); // A leading "v" would toggle it OFF.
+        edit_state().visual_global.select.set(false);
+    }
+
+    if atom.r#type == K_AINSERT_SPAN {
+        // exec_normal() clamps a past-EOL cursor via check_cursor() unless Insert-mode; a previous span
+        // replay may have left MODE_NORMAL, making later cursors insert one char left of their anchor.
+        edit_state().state_global.set(MODE_INSERT);
+    }
+    flags
+}
+
+fn mc_execute(cursoridx: usize, atomidx: usize, overlap: u32) {
     let mut ctx = cursor_clone(cursoridx);
-    let (atom_keys, atom_type, atom_cmd, atom_cmd2, atom_remap) = with_atom(|st| {
+    let atom = with_atom(|st| {
         let a = &st.g_atoms.borrow()[atomidx];
-        (a.keys.clone(), a.r#type, a.spec.cmd, a.spec.cmd2, a.remap)
+        CmdAtom {
+            r#type: a.r#type,
+            spec: a.spec.without_body(),
+            origin: a.origin.clone(),
+            atoms: Vec::new(),
+            keys: a.keys.clone(),
+            text: None,
+            lhs: None,
+            undoseq: a.undoseq,
+            changed: a.changed,
+            moved: a.moved,
+            remap: a.remap,
+            cascaded: a.cascaded,
+        }
     });
-
-    if !handle_get_buffer(ctx.buf).is_some_and(|b| workspace_state().curbuf.get() == b) {
+    let loaded = mc_ctx_load(&mut ctx, &atom, overlap);
+    if loaded == 0 {
         return;
     }
-
-    if ctx.mark != 0 && !extmark_get_pos(&curbuf(), mc_ns(), ctx.mark, &mut ctx.pos) {
-        return;
-    }
-    let atom_keys_opt = atom_keys.as_deref();
-    if ctx.visual.vi_start.lnum == 0 && atom_keys_opt.unwrap_or(c"").to_bytes().starts_with(b"gv") {
-        return;
-    }
+    let atom_type = atom.r#type;
+    let atom_remap = atom.remap;
+    let atom_keys_opt = atom.keys.as_deref();
 
     let swap_regs = atom_type != K_AMOTION;
     let mut regs_ts: Timestamp = 0;
@@ -402,39 +472,6 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
             ctx_load(&mut ctx, K_CTX_REGS, K_CTX_MERGE_REG);
         }
         regs_ts = reg_max_ts(false);
-    }
-
-    let mark_cmd = if atom_cmd == b'g' as i32 {
-        atom_cmd2
-    } else {
-        atom_cmd
-    };
-    let swap_marks =
-        atom_type != K_AMOTION || atom_remap || mark_cmd == b'\'' as i32 || mark_cmd == b'`' as i32;
-
-    ctx_load(
-        &mut ctx,
-        if swap_marks {
-            K_CTX_VISUAL | K_CTX_MARKS | K_CTX_CURSOR
-        } else {
-            K_CTX_CURSOR
-        },
-        0,
-    );
-
-    if atom_type == K_AINSERT_SPAN {
-        curwin().w_cursor.update_mut(|c| check_pos(&curbuf(), c));
-    } else {
-        check_cursor(&curwin());
-    }
-
-    if atom_type == K_AVISUAL_SPAN {
-        edit_state().visual_global.active.set(false);
-        edit_state().visual_global.select.set(false);
-    }
-
-    if atom_type == K_AINSERT_SPAN {
-        edit_state().state_global.set(MODE_INSERT);
     }
 
     let beeps = msg_state().did_beep.get();
@@ -478,14 +515,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     if wrote_regs {
         ctx.regs = shada_encode_regs(false, with_mc(|st| st.mc_start.time.get()));
     }
-    ctx_save(
-        &mut ctx,
-        if swap_marks {
-            K_CTX_VISUAL | K_CTX_MARKS | K_CTX_CURSOR
-        } else {
-            K_CTX_CURSOR
-        },
-    );
+    ctx_save(&mut ctx, loaded);
 
     if atom_type == K_AINSERT_SPAN && curbuf().b_last_insert.mark.get().lnum > 0 {
         ctx.pos = curbuf().b_last_insert.mark.get();
@@ -503,11 +533,6 @@ fn mc_cascade() {
         (origin, edits, g_atoms.len())
     });
     let _ = &mut edits;
-    let mcursor = if origin.buf.br_buf == workspace_state().curbuf.get() {
-        origin.mcursor
-    } else {
-        0
-    };
     assert!(!cursors_is_empty());
     assert!(!mc_replaying());
 
@@ -521,9 +546,15 @@ fn mc_cascade() {
         }
     }
 
-    let mut mcursor_pos = INIT_POS;
-    if mcursor != 0 && extmark_get_pos(&curbuf(), mc_ns(), mcursor, &mut mcursor_pos) {
-        let mut mark = mcursor;
+    // Primary-overlapping cursor (if any). Replay is skipped.
+    let overlap = if mc_cur_resolve(origin.buf.br_fnum, origin.mcursor, None) {
+        origin.mcursor
+    } else {
+        0
+    };
+    if overlap != 0 {
+        // Sync to primary, edit may have displaced it. #42081
+        let mut mark = overlap;
         mc_mark_upd(&curbuf(), &mut mark, curwin().w_cursor.get());
     }
 
@@ -544,10 +575,7 @@ fn mc_cascade() {
             if input_state().got_int.get() {
                 break 'outer;
             }
-            let cur_mark = with_mc(|st| st.mc_cursors.borrow()[ci].mark);
-            if mcursor == 0 || cur_mark != mcursor {
-                mc_execute(ci, ai);
-            }
+            mc_execute(ci, ai, overlap);
             ci += 1;
         }
     }
@@ -556,7 +584,7 @@ fn mc_cascade() {
     let bufnr = sb.primary.buf;
     mc_sandbox_leave(&mut sb);
 
-    mc_cleanup(true, Some(&curwin().w_cursor.get()), mcursor);
+    mc_cleanup(true, Some(&curwin().w_cursor.get()), overlap);
     if handle_get_buffer(bufnr).is_some_and(|b| workspace_state().curbuf.get() == b)
         && !curbuf().b_u_synced.get()
         && let Some(nh) = curbuf().b_u_newhead.get()
@@ -661,9 +689,12 @@ pub fn mc_ins_cascade_start(
         let mut lo = curwin().w_cursor.get().lnum;
         let mut hi = curwin().w_cursor.get().lnum;
         for i in 0..cursors_len() {
-            let ctx = cursor_clone(i);
+            let (ctx_buf, ctx_mark) = with_mc(|st| {
+                let ctx = &st.mc_cursors.borrow()[i];
+                (ctx.buf, ctx.mark)
+            });
             let mut pos = INIT_POS;
-            if mc_ctx_resolve(&ctx, &mut pos) {
+            if mc_cur_resolve(ctx_buf, ctx_mark, Some(&mut pos)) {
                 lo = lo.min(pos.lnum);
                 hi = hi.max(pos.lnum);
             }
@@ -718,11 +749,15 @@ fn mc_ins_regions_clear() {
     }
 }
 
+/// Resolves the tracked position of the cursor identified by `mark`.
+///
+/// @return  false if `buf` is another buffer, or `mark` disappeared.
 #[inline]
-fn mc_ctx_resolve(ctx: &Context, pos: &mut CursorPos) -> bool {
-    handle_get_buffer(ctx.buf).is_some_and(|b| workspace_state().curbuf.get() == b)
-        && ctx.mark != 0
-        && extmark_get_pos(&curbuf(), mc_ns(), ctx.mark, pos)
+fn mc_cur_resolve(buf: ObjHandle, mark: u32, pos: Option<&mut CursorPos>) -> bool {
+    let mut dummy = INIT_POS;
+    handle_get_buffer(buf).is_some_and(|b| workspace_state().curbuf.get() == b)
+        && mark != 0
+        && extmark_get_pos(&curbuf(), mc_ns(), mark, pos.unwrap_or(&mut dummy))
 }
 
 fn mc_region_mark_set(mark: &mut u32, pos: CursorPos) {
@@ -750,10 +785,13 @@ fn mc_ins_preview_rebase() {
     mc_ins_regions_clear();
     let origin_mcursor = with_mc(|st| st.mc_ins_span.origin.get().mcursor);
     for i in 0..cursors_len() {
-        let ctx = cursor_clone(i);
+        let (ctx_buf, ctx_mark) = with_mc(|st| {
+            let ctx = &st.mc_cursors.borrow()[i];
+            (ctx.buf, ctx.mark)
+        });
         let mut pos = INIT_POS;
         let mut mark = 0;
-        if mc_ctx_resolve(&ctx, &mut pos) && ctx.mark != origin_mcursor {
+        if mc_cur_resolve(ctx_buf, ctx_mark, Some(&mut pos)) && ctx_mark != origin_mcursor {
             mc_region_mark_set(&mut mark, pos);
             with_mc(|st| st.mc_ins_span.regions.borrow_mut().push(mark));
         }
@@ -1135,18 +1173,37 @@ fn mc_vsel_mark(start_lnum: Linenr, start_col: Colnr, end_lnum: Linenr, end_col:
         true,
         false,
     );
-    with_mc(|st| st.mc_vsel_buf.set(curbuf().b_fnum.get()));
 }
 
-pub fn mc_vsel_refresh() {
+pub fn mc_vsel_refresh(span: &CmdAtom) {
     mc_vsel_clear();
-    let Some(span_cstr) = atom_visual_span() else {
+    let Some(ref span_cstr) = span.keys else {
         return;
     };
     if span_cstr.as_bytes().is_empty() || !mc_buf_has_cursors(&curbuf()) {
         return;
     }
-    let span = NvimString::from_cstr(&span_cstr);
+    with_mc(|st| st.mc_vsel_buf.set(curbuf().b_fnum.get()));
+    // Primary-overlapping cursor: not replayed, follows primary.
+    let overlap = if mc_cur_resolve(span.origin.buf.br_fnum, span.origin.mcursor, None) {
+        span.origin.mcursor
+    } else {
+        0
+    };
+    if overlap != 0 {
+        // Display it at primary's selection-end (else w/ no other sel-ends it displays at its anchor).
+        let mut cmark: u32 = 0;
+        extmark_set_pos(
+            &curbuf(),
+            mc_vcur_ns(),
+            &mut cmark,
+            curwin().w_cursor.get(),
+            false,
+            true,
+            true,
+        );
+    }
+    let span_str = NvimString::from_cstr(span_cstr);
 
     let mut sb = McSandbox::new();
     mc_sandbox_enter(&mut sb, false);
@@ -1158,17 +1215,11 @@ pub fn mc_vsel_refresh() {
 
     for i in 0..cursors_len() {
         let mut ctx = cursor_clone(i);
-        let mut pos = INIT_POS;
-        if !mc_ctx_resolve(&ctx, &mut pos) {
-            continue;
+        if mc_ctx_load(&mut ctx, span, overlap) == 0 {
+            continue; // Not replayed.
         }
-        ctx.pos = pos;
-        with_mc(|st| st.mc_cursors.borrow_mut()[i].pos = pos);
-        ctx_load(&mut ctx, K_CTX_CURSOR | K_CTX_VISUAL | K_CTX_MARKS, 0);
-        check_cursor(&curwin());
-        edit_state().visual_global.active.set(false);
-        edit_state().visual_global.select.set(false);
-        nvim_feedkeys(span.clone(), cstr_as_string(Some(c"nix")), false);
+        with_mc(|st| st.mc_cursors.borrow_mut()[i].pos = ctx.pos);
+        nvim_feedkeys(span_str.clone(), cstr_as_string(Some(c"nix")), false);
         if !edit_state().visual_global.active.get() {
             continue;
         }
@@ -1224,7 +1275,6 @@ pub fn mc_vsel_refresh() {
             true,
             true,
         );
-        with_mc(|st| st.mc_vsel_buf.set(curbuf().b_fnum.get()));
         edit_state().visual_global.active.set(false);
     }
 
@@ -1234,6 +1284,7 @@ pub fn mc_vsel_refresh() {
     unblock_on_key();
     unblock_autocmds();
     mc_sandbox_leave(&mut sb);
+    mc_cleanup(false, None, 0); // Sweep cursors dropped by mc_ctx_load().
 }
 
 pub fn mc_undo_time() {
@@ -1279,12 +1330,15 @@ pub fn mc_ins_commit() -> bool {
         .b_last_changedtick_i
         .set(buf_get_changedtick(&curbuf()));
     for i in 0..cursors_len() {
-        let ctx = cursor_clone(i);
+        let (ctx_buf, ctx_mark) = with_mc(|st| {
+            let ctx = &st.mc_cursors.borrow()[i];
+            (ctx.buf, ctx.mark)
+        });
         let mut pos = INIT_POS;
-        if !mc_ctx_resolve(&ctx, &mut pos) {
+        if !mc_cur_resolve(ctx_buf, ctx_mark, Some(&mut pos)) {
             continue;
         }
-        let mut mark = ctx.mark;
+        let mut mark = ctx_mark;
         if mark == origin.mcursor {
             pos = curwin().w_cursor.get();
         } else if pos.col > 0 {

@@ -1341,9 +1341,12 @@ pub fn atom_visual_redoable() -> bool {
     })
 }
 
-pub fn atom_visual_span() -> Option<std::ffi::CString> {
+pub fn atom_visual_span() -> CmdAtom {
+    let mut span = CmdAtom::new();
+    span.r#type = K_AVISUAL_SPAN;
+    span.origin = with_atom(|st| st.vatom.origin.get());
     if !atom_visual_replayable() {
-        return None;
+        return span;
     }
     let (tail, done) = with_atom(|st| {
         let done = st.vatom.done.get();
@@ -1351,13 +1354,15 @@ pub fn atom_visual_span() -> Option<std::ffi::CString> {
         (tail, done)
     });
     if done == 0 {
-        return Some(tail);
+        span.keys = Some(tail);
+        return span;
     }
 
     let mut keys: Vec<u8> = Vec::with_capacity(2 + tail.as_bytes().len());
     keys.extend_from_slice(b"gv");
     keys.extend_from_slice(tail.as_bytes());
-    Some(bytes_to_cstring(&keys))
+    span.keys = Some(bytes_to_cstring(&keys));
+    span
 }
 
 fn atom_visual_span_flush() {
@@ -1380,15 +1385,11 @@ fn atom_visual_span_flush() {
     if !edited {
         return;
     }
-    let span_cstr = atom_visual_span();
+    let span = atom_visual_span();
     with_atom(|st| {
         let len = st.vatom.atoms.borrow().len();
         st.vatom.done.set(len);
-        let mut atom = CmdAtom::new();
-        atom.r#type = K_AVISUAL_SPAN;
-        atom.keys = span_cstr;
-        atom.origin = st.vatom.origin.get();
-        st.g_atoms.borrow_mut().push(atom);
+        st.g_atoms.borrow_mut().push(span);
     });
 }
 
@@ -1490,12 +1491,8 @@ fn atom_visual_end_suffix(
     });
     atom.cascaded = cascaded;
     if need_span {
-        let span_cstr = atom_visual_span();
-        let mut span_atom = CmdAtom::new();
-        span_atom.r#type = K_AVISUAL_SPAN;
-        span_atom.keys = span_cstr;
-        span_atom.origin = origin;
-        with_atom(|st| st.g_atoms.borrow_mut().push(span_atom));
+        let span = atom_visual_span();
+        with_atom(|st| st.g_atoms.borrow_mut().push(span));
     }
     atom.atoms = with_atom(|st| std::mem::take(&mut *st.vatom.atoms.borrow_mut()));
     atom_visual_reset();
@@ -1626,7 +1623,7 @@ pub fn atom_capture_op(cap: &Cmdarg, redo_yank: bool) {
             );
         } else if ins_op && !excmd && cap.cmdchar != K_LUA {
             let v = if atom_visual_redoable() {
-                atom_visual_span()
+                atom_visual_span().keys
             } else {
                 None
             };
@@ -1662,7 +1659,7 @@ pub fn atom_ins_start(cmd: i32, count: i64, vis: VisualIns, vblock: bool) -> Ins
 
     if vis != K_VINS_NONE && !mc_replaying() && !is_child_frame() {
         if vis == K_VINS_OTHER && atom_visual_replayable() && !atom_visual_redoable() {
-            session.vsel = atom_visual_span();
+            session.vsel = atom_visual_span().keys;
             session.origin = with_atom(|st| st.vatom.origin.get());
         }
         if vis == K_VINS_KEYS || session.vsel.is_some() {
@@ -2075,7 +2072,8 @@ pub fn atom_cmd_end(ca: &mut Cmdarg) {
         }
     }
     if refresh_visual {
-        mc_vsel_refresh();
+        let span = atom_visual_span();
+        mc_vsel_refresh(&span);
     }
     with_atom(|st| {
         st.cmd_frames.borrow_mut().pop();
