@@ -1379,7 +1379,7 @@ fn fold_add_marker(buf: &FileBuf, pos: CursorPos, marker: &[u8]) {
         return;
     }
 
-    skip_comment(&line, false, false, &mut line_is_comment);
+    skip_comment(&line, false, false, false, &mut line_is_comment);
     let line = crate::memline::ml_get_buf_slice(buf, lnum);
     let line_len = line.len();
     let cms_len = cms_bytes.len();

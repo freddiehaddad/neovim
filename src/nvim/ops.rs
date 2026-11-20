@@ -5,9 +5,9 @@
 
 use crate::buffer::{FileBuf, buf_get_changedtick, col_print, modifiable};
 use crate::change::{
-    COM_END, K_CPO_DOLLAR, K_OPT_VE_FLAG_ONEMORE, appended_lines_mark, changed_bytes,
-    changed_lines, del_bytes, del_char, del_lines, get_last_leader_offset, get_leader_len,
-    ins_char, ins_str, truncate_line,
+    COM_END, COM_FIRST, COM_MIDDLE, COM_START, K_CPO_DOLLAR, K_OPT_VE_FLAG_ONEMORE,
+    appended_lines_mark, changed_bytes, changed_lines, del_bytes, del_char, del_lines,
+    get_last_leader_offset, get_leader_len, ins_char, ins_str, truncate_line,
 };
 use crate::charset::{
     NUL, STR2NR_BIN, STR2NR_HEX, STR2NR_OCT, Uvarnumber, ascii_isalpha, ascii_isbdigit,
@@ -1866,10 +1866,11 @@ pub fn skip_comment<'a>(
     mut line: &'a [u8],
     process: bool,
     include_space: bool,
+    skip_first: bool,
     is_comment: &mut bool,
 ) -> &'a [u8] {
     let mut comment_flags: Option<crate::option_vars::RcCStr> = None;
-    let leader_offset = get_last_leader_offset(line, Some(&mut comment_flags));
+    let leader_offset = get_last_leader_offset(line, Some(&mut comment_flags), skip_first);
 
     *is_comment = false;
     if leader_offset != -1
@@ -1895,19 +1896,25 @@ pub fn skip_comment<'a>(
     }
 
     let mut is_end = false;
+    let mut first = false;
+    let mut three_piece = false;
     if let Some(flags) = comment_flags {
-        let end_idx = flags
-            .to_bytes()
-            .iter()
-            .position(|&b| b == COM_END || b == b':');
-        if let Some(i) = end_idx
-            && flags.to_bytes()[i] == COM_END
-        {
-            is_end = true;
+        for &b in flags.to_bytes() {
+            if b == COM_END || b == b':' {
+                if b == COM_END {
+                    is_end = true;
+                }
+                break;
+            }
+            if b == COM_FIRST {
+                first = true;
+            } else if b == COM_START || b == COM_MIDDLE {
+                three_piece = true;
+            }
         }
     }
 
-    if !is_end {
+    if !is_end && (!first || three_piece) {
         line = &line[(lead_len as usize).min(line.len())..];
     }
 
@@ -1962,11 +1969,11 @@ pub fn do_join(
         }
         if remove_comments {
             if t > 0 && prev_was_comment {
-                let new_curr = skip_comment(curr, true, insert_space, &mut prev_was_comment);
+                let new_curr = skip_comment(curr, true, insert_space, true, &mut prev_was_comment);
                 comments_vec[t as usize] = (curr.len() - new_curr.len()) as i32;
                 curr = new_curr;
             } else {
-                curr = skip_comment(curr, false, insert_space, &mut prev_was_comment);
+                curr = skip_comment(curr, false, insert_space, true, &mut prev_was_comment);
             }
         }
 

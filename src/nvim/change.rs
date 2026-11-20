@@ -2078,6 +2078,7 @@ pub fn get_leader_len(
 pub fn get_last_leader_offset(
     line_bytes: &[u8],
     mut flags: Option<&mut Option<crate::option_vars::RcCStr>>,
+    skip_first: bool,
 ) -> i32 {
     let mut result: i32 = -1;
     let mut lower_check_bound: i32 = 0;
@@ -2108,6 +2109,15 @@ pub fn get_last_leader_offset(
             com_leader_range = (colon_idx + 1)..part_len;
             let part_flags = &part[..colon_idx];
             let mut string = &part[colon_idx + 1..];
+
+            if skip_first
+                && part_flags.contains(&COM_FIRST)
+                && !part_flags
+                    .iter()
+                    .any(|&b| matches!(b, COM_START | COM_MIDDLE | COM_END))
+            {
+                continue;
+            }
 
             if string.first().is_some_and(|&b| ascii_iswhite(b)) {
                 if i == 0 || !ascii_iswhite(line_bytes[i_usize - 1]) {
