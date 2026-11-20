@@ -2309,19 +2309,27 @@ pub fn tv_list_check_range_index_two(
     n2: &mut i32,
     quiet: bool,
 ) -> bool {
+    if *n1 < 0 {
+        if let Some(l_ref) = l
+            && l_ref.lv_idx_item.get() == ListitemId::from(li1)
+        {
+            *n1 = l_ref.lv_idx.get();
+        } else {
+            *n1 = tv_list_idx_of_item(l, li1).unwrap_or(-1);
+        }
+    }
+
     if *n2 < 0 {
-        let Some(ni) = tv_list_find(l, *n2) else {
+        let Some(_ni) = tv_list_find(l, *n2) else {
             if !quiet {
                 semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), i64::from(*n2));
             }
             return false;
         };
-        *n2 = tv_list_idx_of_item(l, Some(&ni)).unwrap_or(-1);
+        // tv_list_find() caches the normalized index.
+        *n2 = l.unwrap().lv_idx.get();
     }
 
-    if *n1 < 0 {
-        *n1 = tv_list_idx_of_item(l, li1).unwrap_or(-1);
-    }
     if *n2 < *n1 {
         if !quiet {
             semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), i64::from(*n2));
